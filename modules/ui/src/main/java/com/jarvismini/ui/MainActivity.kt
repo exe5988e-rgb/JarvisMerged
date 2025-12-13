@@ -1,16 +1,11 @@
 package com.jarvismini.ui
 
+import android.app.Activity
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import com.jarvismini.R
 
-class MainActivity : AppCompatActivity() {
-
+class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        // Minimal activity: App will not crash
-        // Add UI or buttons later if needed
+        // Minimal stub — no UI yet
     }
 }
