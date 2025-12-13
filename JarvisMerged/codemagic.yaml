@@ -1,0 +1,12 @@
+workflows:
+  jarvis-merged-android:
+    name: Jarvis Merged Android Build
+    max_build_duration: 60
+    environment:
+      vars:
+        JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home
+    scripts:
+      - name: Build Debug APK
+        script: ./gradlew clean assembleDebug
+    artifacts:
+      - app/build/outputs/apk/debug/app-debug.apk

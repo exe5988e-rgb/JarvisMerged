@@ -1,0 +1,15 @@
+package com.jarvismini.ui.settings
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import com.jarvismini.R
+
+class SettingsActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_settings)
+
+        // Add switches or UI later
+    }
+}
