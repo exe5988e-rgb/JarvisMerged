@@ -18,7 +18,7 @@ android {
 dependencies {
   implementation(project(":modules:core"))
   implementation(project(":modules:automation"))
-  implementation(project(":modules:llm"))
+  implementation(project(":modules:engine"))
   implementation(project(":modules:smart"))
   implementation(project(":modules:ui"))
 }
