@@ -4,8 +4,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class HuggingFaceProvider : LLMProvider {
+
     override suspend fun generateReply(prompt: String): String =
         withContext(Dispatchers.IO) {
-            "HF reply stub"
+            "Stub response from HuggingFace"
         }
 }
