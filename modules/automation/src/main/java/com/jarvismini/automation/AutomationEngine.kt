@@ -2,19 +2,9 @@ package com.jarvismini.automation
 
 class AutomationEngine {
 
-    fun handleChatAllowed(text: String): String? {
-        return null
-    }
-
-    fun generateReply(text: String): String {
+    fun generateReply(input: String): String {
+        // STUB: real logic will come later
         return ""
     }
 
-    fun start() {
-        // no-op
-    }
-
-    fun stop() {
-        // no-op
-    }
 }
