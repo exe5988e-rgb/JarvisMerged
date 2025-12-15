@@ -7,14 +7,18 @@ object AutoReplyOrchestrator {
 
     fun handleIncomingMessage(context: AutoReplyContext): String? {
 
-        // STEP 2 — Decide
+        // STEP 2 — Decide (who / what)
         val decision = AutoReplyDecisionEngine.decide(context)
-
         if (decision is ReplyDecision.NoReply) {
             return null
         }
 
-        // STEP 3 — Generate reply (via engine)
+        // STEP 5 — Mode guard (when)
+        if (!ModeGuard.allowsReply()) {
+            return null
+        }
+
+        // STEP 3 — Generate reply (how)
         val replyInput = AutoReplyInput(
             senderName = context.senderName,
             messageText = context.messageText,
@@ -22,7 +26,6 @@ object AutoReplyOrchestrator {
         )
 
         val rawReply = EngineProvider.engine.generateReply(replyInput)
-
         return sanitize(rawReply)
     }
 
