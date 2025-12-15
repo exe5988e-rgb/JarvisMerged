@@ -1,12 +1,13 @@
-import subprocess
 import os
-import openai
+import subprocess
 import time
+import requests
 
 MAX_RETRIES = 3
-AI_MODEL = "gpt-5-mini"
 PATCH_BRANCH = "ai-autofix"
 BUILD_CMD = "./gradlew build"
+API_KEY = os.getenv("AI_API_KEY")
+GEMINI_URL = "https://api.gemini.com/v1/chat/completions"  # replace with actual endpoint
 
 def run(cmd):
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -22,13 +23,18 @@ def get_repo_diff():
     diff, _, _ = run("git diff")
     return diff
 
-def send_to_ai(prompt):
-    openai.api_key = os.getenv("AI_API_KEY")
-    response = openai.ChatCompletion.create(
-        model=AI_MODEL,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content
+def ask_gemini(prompt):
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "model": "gemini-3-pro",
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    response = requests.post(GEMINI_URL, json=data, headers=headers)
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
 def apply_patch(patch_text):
     result = subprocess.run(["git", "apply"], input=patch_text, text=True)
@@ -66,7 +72,7 @@ Rules:
 - Output ONLY a git patch (diff).
 - If unsure, respond with NO_FIX_POSSIBLE.
 """
-    patch = send_to_ai(prompt)
+    patch = ask_gemini(prompt)
 
     if "NO_FIX_POSSIBLE" in patch:
         print("AI could not find a fix. Stopping.")
