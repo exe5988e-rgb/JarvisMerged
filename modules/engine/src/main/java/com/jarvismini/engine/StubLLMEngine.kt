@@ -1,8 +1,14 @@
 package com.jarvismini.engine
 
-class StubLLMEngine : LLMEngine {
+import android.content.Context
 
-    override suspend fun generateReply(input: String): EngineResult {
-        return EngineResult.Success("Stub reply for: $input")
+object StubLLMEngine : LLMEngine {
+
+    override fun init(context: Context) {
+        // no-op
+    }
+
+    override fun generateReply(prompt: String): String {
+        return "LLM not available"
     }
 }
