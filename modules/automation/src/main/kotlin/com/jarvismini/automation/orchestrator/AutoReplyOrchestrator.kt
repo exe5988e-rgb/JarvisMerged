@@ -1,20 +1,36 @@
 package com.jarvismini.automation.orchestrator
 
-import com.jarvismini.automation.AutoReplyDecisionEngine
-import com.jarvismini.automation.decision.AutoReplyDecision
-import com.jarvismini.automation.decision.NoReplyDecision
-import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.automation.decision.ReplyDecision.AutoReply
+import com.jarvismini.automation.decision.ReplyDecision.NoReply
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
 
 object AutoReplyOrchestrator {
 
-    fun handle(input: AutoReplyInput) {
-        when (val decision = AutoReplyDecisionEngine.decide(input)) {
-            is AutoReplyDecision -> sendResponse(decision.message)
-            NoReplyDecision -> Unit
-        }
-    }
+    fun decide(inputText: String): ReplyDecision {
+        return when (JarvisState.currentMode) {
 
-    private fun sendResponse(message: String) {
-        println("Jarvis Auto-Reply: $message")
+            JarvisMode.SLEEP ->
+                NoReply
+
+            JarvisMode.FOCUS ->
+                NoReply
+
+            JarvisMode.DRIVING ->
+                AutoReply(
+                    message = "I'm driving right now. Will get back soon.",
+                    reason = "DRIVING_MODE"
+                )
+
+            JarvisMode.WORK ->
+                AutoReply(
+                    message = "I'm working at the moment. I'll respond later.",
+                    reason = "WORK_MODE"
+                )
+
+            JarvisMode.NORMAL ->
+                NoReply
+        }
     }
 }
