@@ -1,5 +1,7 @@
 package com.jarvismini.engine
 
+import com.jarvismini.core.JarvisMode
+
 object JarvisReplyGenerator {
 
     fun generate(
