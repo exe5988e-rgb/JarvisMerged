@@ -8,16 +8,13 @@ import com.jarvismini.automation.input.AutoReplyInput
 object AutoReplyOrchestrator {
 
     fun handle(input: AutoReplyInput) {
-        val decision = AutoReplyDecisionEngine.decide(input)
-
-        when (decision) {
+        when (val decision = AutoReplyDecisionEngine.decide(input)) {
             is AutoReplyDecision -> sendResponse(decision.message)
             NoReplyDecision -> Unit
         }
     }
 
     private fun sendResponse(message: String) {
-        // Stub: integrate WhatsApp / notification reply later
         println("Jarvis Auto-Reply: $message")
     }
 }
