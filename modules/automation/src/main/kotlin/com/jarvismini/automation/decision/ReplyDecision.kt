@@ -1,10 +1,15 @@
 package com.jarvismini.automation.decision
 
-sealed class ReplyDecision
+/**
+ * Single, canonical reply decision model.
+ * DO NOT duplicate this anywhere else.
+ */
+sealed class ReplyDecision {
 
-object NoReplyDecision : ReplyDecision()
+    object NoReply : ReplyDecision()
 
-data class AutoReplyDecision(
-    val message: String,
-    val reason: String? = null
-) : ReplyDecision()
+    data class AutoReply(
+        val message: String,
+        val reason: String = ""
+    ) : ReplyDecision()
+}
