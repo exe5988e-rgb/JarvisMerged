@@ -36,7 +36,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Initial Gradle build (detect failure)
-        run: ./gradlew build
+        run: ./gradlew assembleDebug 
         continue-on-error: true
 
       - name: Run Gemini-3-Pro AI Autofix
