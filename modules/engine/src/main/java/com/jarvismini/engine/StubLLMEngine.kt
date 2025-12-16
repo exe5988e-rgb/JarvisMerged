@@ -1,8 +1,8 @@
 package com.jarvismini.engine
 
-object StubLLMEngine {
+object StubLLMEngine : LLMEngine {
 
-    fun reply(prompt: String): String {
-        return "Acknowledged. I will inform Mr. Aamir."
+    override fun generateReply(input: String): String {
+        return "Stub LLM reply"
     }
 }
