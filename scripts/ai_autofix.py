@@ -16,7 +16,7 @@ if not GEMINI_API_KEY:
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-1.5-pro:generateContent"
+    "gemini-pro:generateContent"
 )
 
 # ================ HELPERS =================
