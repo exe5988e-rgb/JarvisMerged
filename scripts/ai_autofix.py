@@ -6,7 +6,7 @@ from pathlib import Path
 # 🔧 Make local modules importable
 sys.path.insert(0, str(Path(__file__).parent))
 
-from logger import logger
+from scripts.logger import logger
 from llm import get_llm_provider
 from git_utils import commit_changes
 from pr_utils import create_branch, push_branch, open_pull_request
