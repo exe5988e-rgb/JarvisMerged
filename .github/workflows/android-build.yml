@@ -39,6 +39,15 @@ jobs:
         run: ./gradlew build
         continue-on-error: true
 
+      - name: Debug secret presence
+  run: |
+    if [ -z "$GEMINI_API_KEY" ]; then
+      echo "❌ GEMINI_API_KEY is EMPTY"
+      exit 1
+    else
+      echo "✅ GEMINI_API_KEY is present"
+    fi
+
       - name: Run Gemini-3-Pro AI Autofix
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
