@@ -52,7 +52,7 @@ jobs:
             done
           done
 
-          if [[ "$FOUND" = false ]]; then
+          if [[ "$FOUND" == false ]]; then
             echo "❌ Activity not found: $ACTIVITY"
             exit 1
           fi
