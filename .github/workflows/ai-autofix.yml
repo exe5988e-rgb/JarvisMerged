@@ -27,21 +27,22 @@ jobs:
       - name: Validate AndroidManifest activity
         run: |
           MANIFEST="app/src/main/AndroidManifest.xml"
+
           ACTIVITY=$(grep -oP 'android:name="\K[^"]+' "$MANIFEST")
 
           if [[ "$ACTIVITY" == .* ]]; then
-            PACKAGE=$(grep -oP 'package="\K[^"]+' "$MANIFEST")
-            ACTIVITY="$PACKAGE$ACTIVITY"
+          PACKAGE=$(grep -oP 'package="\K[^"]+' "$MANIFEST")
+          ACTIVITY="${PACKAGE}${ACTIVITY}"
           fi
 
           FILE_PATH=$(echo "$ACTIVITY" | sed 's/\./\//g').kt
 
           if [[ ! -f "app/src/main/java/$FILE_PATH" ]]; then
-            echo "❌ Activity not found: $ACTIVITY"
-            exit 1
+          echo "❌ Activity not found: $ACTIVITY"
+           exit 1
           fi
 
-          echo "✅ Manifest activity OK: $ACTIVITY"
+         echo "✅ Manifest activity OK: $ACTIVITY"
 
       # 🧹 Clean build (Codespace parity)
       - name: Clean
