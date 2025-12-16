@@ -16,7 +16,7 @@ if not GEMINI_API_KEY:
     print("❌ Error: GEMINI_API_KEY environment variable is not set.")
     sys.exit(1)
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent"
 
 # ================ HELPERS =================
 def run(cmd):
@@ -223,7 +223,7 @@ Rules:
         }
 
         r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key={GEMINI_API_KEY}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_API_KEY}",
             headers={"Content-Type": "application/json"},
             data=json.dumps(payload),
             timeout=60
@@ -289,7 +289,7 @@ Rules:
         }
 
         r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key={GEMINI_API_KEY}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_API_KEY}",
             headers={"Content-Type": "application/json"},
             data=json.dumps(payload),
             timeout=60
@@ -355,7 +355,7 @@ Rules:
         }
 
         r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key={GEMINI_API_KEY}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_API_KEY}",
             headers={"Content-Type": "application/json"},
             data=json.dumps(payload),
             timeout=60
