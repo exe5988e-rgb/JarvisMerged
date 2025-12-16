@@ -1,8 +1,14 @@
 package com.jarvismini.engine
 
+import android.content.Context
+
 object StubLLMEngine : LLMEngine {
 
-    override fun generateReply(input: String): String {
-        return "Stub LLM reply"
+    override fun init(context: Context) {
+        // No-op for stub
+    }
+
+    override fun generateReply(prompt: String): String {
+        return "This is Jarvis. Mr. Aamir will respond shortly."
     }
 }
