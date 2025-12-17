@@ -27,4 +27,4 @@ jobs:
       - name: Run AI Autofix
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: python3 scripts/ai_autofix.py || true
+        run: python3 -m scripts.ai_autofix.py || true
