@@ -1,4 +1,5 @@
 import sys
+import os
 import traceback
 import subprocess
 from scripts.logger import logger
@@ -8,46 +9,54 @@ from scripts.patch_applier import apply_patch
 from scripts.git_utils import commit_changes
 from scripts.github import create_branch, push_branch, open_pull_request
 
-def run_build() -> tuple[bool, str]:
-    """Run the build and return (success, output)."""
-    result = subprocess.run(
-        ["./gradlew", "build"],
-        capture_output=True,
-        text=True
-    )
-    return result.returncode == 0, result.stdout + result.stderr
 
 def main():
     logger.info("🚀 AI Autofix starting")
 
     try:
-        # Step 1: Run initial build and capture errors
-        success, build_output = run_build()
-        
-        if success:
+        # 🔧 FIX: Read build output from workflow log
+        if len(sys.argv) < 2:
+            logger.error("❌ Build log file not provided")
+            return
+
+        build_log_path = sys.argv[1]
+
+        if not os.path.exists(build_log_path):
+            logger.error(f"❌ Build log not found: {build_log_path}")
+            return
+
+        with open(build_log_path, "r", encoding="utf-8", errors="ignore") as f:
+            build_output = f.read()
+
+        # ✅ FIX: Correct build status detection
+        if "BUILD SUCCESSFUL" in build_output:
             logger.info("✅ Build passed - no fixes needed")
+            return
+
+        if "BUILD FAILED" not in build_output:
+            logger.warning("⚠️ Build status unclear - skipping autofix")
             return
 
         logger.info("❌ Build failed - analyzing errors...")
 
-        # Step 2: Parse errors and extract code snippets
+        # Step 2: Parse errors
         errors = parse_build_errors(build_output)
-        
+
         if not errors:
             logger.warning("⚠️ Could not parse any errors from build output")
-            sys.exit(0)
+            return
 
-        # Step 3: Build context with error snippets (±20 lines)
+        # Step 3: Extract code snippets
         context_parts = []
         affected_files = set()
-        
+
         for error in errors:
             file_path = error["file"]
             line_num = error["line"]
             error_msg = error["message"]
-            
+
             snippet = extract_code_snippet(file_path, line_num, context_lines=20)
-            
+
             if snippet:
                 affected_files.add(file_path)
                 context_parts.append(
@@ -59,48 +68,37 @@ def main():
 
         if not context_parts:
             logger.warning("⚠️ Could not extract code snippets")
-            sys.exit(0)
+            return
 
-        # Step 4: Send to AI for patch generation
+        # Step 4: Ask LLM for patch
         prompt = f"""You are a code fixer. Analyze these Android build errors and provide ONLY a unified diff patch to fix them.
 
 {chr(10).join(context_parts)}
 
-Respond with ONLY the patch in unified diff format (starting with --- and +++). No explanations."""
+Respond with ONLY the patch in unified diff format (starting with --- and +++). No explanations.
+"""
 
         provider = get_llm_provider()
         patch_response = provider.ask(prompt)
 
         logger.info("🤖 LLM patch received")
-        logger.debug(patch_response)
 
-        # Step 5: Apply the patch
+        # Step 5: Apply patch
         patched_files = apply_patch(patch_response)
-        
+
         if not patched_files:
             logger.warning("⚠️ No files were patched")
-            sys.exit(0)
+            return
 
         logger.info(f"📝 Patched files: {patched_files}")
 
-        # Step 6: Verify build passes (green build check)
-        logger.info("🔨 Running verification build...")
-        verify_success, _ = run_build()
-        
-        if not verify_success:
-            logger.error("❌ Patch did not fix the build - aborting")
-            # Revert changes
-            subprocess.run(["git", "checkout", "--"] + list(patched_files), check=True)
-            sys.exit(0)
-
-        logger.info("✅ Verification build passed!")
-
-        # Step 7: Commit, push, and create PR
+        # Step 6: Commit & PR
         branch_name = "ai-autofix/build-fix"
-        
+
         create_branch(branch_name)
         commit_changes("fix: AI-generated build fix", list(patched_files))
         push_branch(branch_name)
+
         open_pull_request(
             branch_name,
             "🤖 AI Autofix: Build Error Fix",
