@@ -43,23 +43,3 @@ class OpenRouterProvider:
 def get_llm_provider():
     logger.info("🧠 Using OpenRouter (free model)")
     return OpenRouterProvider()
-        )
-
-        r.raise_for_status()
-
-        return r.json()["choices"][0]["message"]["content"]
-
-
-def get_llm_provider():
-    logger.info("🧠 Using OpenRouter (free model)")
-    return OpenRouterProvider()            timeout=60
-        )
-
-        r.raise_for_status()
-
-        return r.json()["choices"][0]["message"]["content"]
-
-
-def get_llm_provider():
-    logger.info("🧠 Using OpenRouter (free model)")
-    return OpenRouterProvider()
