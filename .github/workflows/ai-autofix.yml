@@ -12,7 +12,7 @@ permissions:
 jobs:
   autofix:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           pip install requests
 
@@ -40,10 +40,18 @@ jobs:
           git config user.name "AI Autofix Bot"
           git config user.email "bot@autofix.ai"
 
+      # 🔴 THIS WAS MISSING
+      # 🔧 Run Android build and capture errors
+      - name: Run Android build (capture output)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug 2>&1 | tee build.log || true
+
+      # 🤖 AI Autofix (NEVER fail CI)
       - name: Run AI Autofix
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          python main.py
+          python main.py || true
