@@ -53,6 +53,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── com
 │   │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   │   ├── automation
+│   │   │   │   │   │   │   │   ├── AccessibilityServiceHelper.kt
 │   │   │   │   │   │   │   │   ├── AutoCloser.kt
 │   │   │   │   │   │   │   │   ├── AutoReplyContext.kt
 │   │   │   │   │   │   │   │   ├── AutomationEngine.kt
@@ -546,6 +547,25 @@ dependencies {
 ===== FILE: modules/automation/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AccessibilityServiceHelper.kt =====
+package com.jarvismini.automation
+
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityNodeInfo
+
+object AccessibilityServiceHelper {
+    lateinit var service: AccessibilityService
+
+    fun init(s: AccessibilityService) {
+        service = s
+    }
+
+    fun getRootNode(): AccessibilityNodeInfo? {
+        return service.rootInActiveWindow
+    }
+}
 
 
 ===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoCloser.kt =====
