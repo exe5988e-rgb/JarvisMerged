@@ -33,5 +33,4 @@ object AutoReplyOrchestrator {
     fun init() {
         // future setup hook
     }
-}    }
 }
