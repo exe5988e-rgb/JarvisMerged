@@ -7,6 +7,7 @@ INCLUDE_DIRS = [
     "app",
     "modules",
     "gradle/wrapper",
+    "scripts",
 ]
 
 # ✅ Source extensions only
