@@ -78,6 +78,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── com
 │   │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   │   ├── core
+│   │   │   │   │   │   │   │   ├── AssistantProfile.kt
 │   │   │   │   │   │   │   │   ├── CoreAppBridge.kt
 │   │   │   │   │   │   │   │   ├── Extensions.kt
 │   │   │   │   │   │   │   │   ├── JarvisMode.kt
@@ -919,6 +920,22 @@ android {
 ===== FILE: modules/core/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/AssistantProfile.kt =====
+package com.jarvismini.core
+
+object AssistantProfile {
+
+    const val ASSISTANT_NAME = "Jarvis"
+
+    // Default addressing (as you requested)
+    const val USER_PRIMARY = "Aamir Sir"
+    const val USER_FORMAL = "Mr Shams"
+
+    // Used everywhere
+    fun addressUser(): String = USER_PRIMARY
+}
 
 
 ===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/CoreAppBridge.kt =====
