@@ -43,7 +43,28 @@ def write_files(files):
 def git(cmd):
     subprocess.run(cmd, check=True)
 
+def setup_git_identity():
+    """Set git name/email if not already configured."""
+    try:
+        name = subprocess.run(
+            ["git", "config", "--get", "user.name"],
+            capture_output=True, text=True
+        ).stdout.strip()
+
+        email = subprocess.run(
+            ["git", "config", "--get", "user.email"],
+            capture_output=True, text=True
+        ).stdout.strip()
+
+        if not name:
+            git(["git", "config", "user.name", "Amir Shams"])
+        if not email:
+            git(["git", "config", "user.email", "amir@example.com"])
+    except Exception as e:
+        print(f"⚠️ Git identity setup failed: {e}")
+
 def auto_commit_push(message="AI: generate project structure"):
+    setup_git_identity()
     print("🔄 Git add")
     git(["git", "add", "."])
 
