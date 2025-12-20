@@ -98,39 +98,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    lines.append(".")
-    walk(root)
-    return "\n".join(lines)
-
-
-def dump_source(root: Path, out):
-    for path in sorted(root.rglob("*")):
-        if path.is_file() and not is_excluded(path) and path.suffix in INCLUDE_EXTENSIONS:
-            out.write(f"\n===== FILE: {path} =====\n")
-            try:
-                out.write(path.read_text(encoding="utf-8"))
-            except UnicodeDecodeError:
-                out.write("[BINARY OR ENCODING ERROR]")
-            out.write("\n")
-
-
-def main():
-    root = Path(".").resolve()
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
-        out.write("==============================\n")
-        out.write("FILE TREE\n")
-        out.write("==============================\n\n")
-        out.write(generate_tree(root))
-
-        out.write("\n\n==============================\n")
-        out.write("SOURCE CODE\n")
-        out.write("==============================\n")
-
-        dump_source(root, out)
-
-    print(f"✅ File tree + source dumped to {OUTPUT_FILE}")
-
-
-if __name__ == "__main__":
-    main()
