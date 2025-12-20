@@ -256,41 +256,51 @@ dependencies {
 package com.jarvismini
 
 import android.accessibilityservice.AccessibilityService
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
-import com.jarvismini.automation.decision.ReplyDecision
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.automation.decision.ReplyDecision
 
 class AppAccessibilityService : AccessibilityService() {
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Log.i("JarvisService", "Accessibility Service CONNECTED")
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            val source: AccessibilityNodeInfo? = event.source
-            val messageText = source?.text?.toString()?.trim()
-            if (messageText.isNullOrEmpty()) return
+        Log.d(
+            "JarvisService",
+            "Event: ${event.eventType} | Package: ${event.packageName}"
+        )
 
-            val input = AutoReplyInput(
-                messageText = messageText,
+        // TEMP: Only observe WhatsApp
+        if (event.packageName != "com.whatsapp") return
+
+        val text = event.text?.joinToString(" ") ?: return
+        if (text.isBlank()) return
+
+        val decision = AutoReplyOrchestrator.handle(
+            AutoReplyInput(
+                messageText = text,
                 isFromOwner = false
             )
+        )
 
-            val decision = AutoReplyOrchestrator.handle(input)
+        when (decision) {
+            is ReplyDecision.AutoReply ->
+                Log.i("JarvisService", "AutoReply decided: ${decision.message}")
 
-            when (decision) {
-                is ReplyDecision.AutoReply ->
-                    println("Jarvis Auto-Reply: ${decision.message}")
-
-                ReplyDecision.NoReply ->
-                    println("Jarvis will not reply")
-            }
+            ReplyDecision.NoReply ->
+                Log.i("JarvisService", "No reply decision")
         }
     }
 
     override fun onInterrupt() {
-        // required
+        Log.w("JarvisService", "Accessibility Service INTERRUPTED")
     }
 }
 
