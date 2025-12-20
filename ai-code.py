@@ -3,11 +3,8 @@ import re
 import sys
 import subprocess
 
-FILE_HEADER = re.compile(
-    r"(?:^|\n)(?:File:|\*\*File:|###)\s*(.+)", re.IGNORECASE
-)
-
-CODE_BLOCK = re.compile(r"```[\w+-]*\n(.*?)```", re.DOTALL)
+# Match your format: // ===== FILE: path =====
+FILE_HEADER = re.compile(r"//\s*={5,}\s*FILE:\s*(.+?)\s*={5,}", re.IGNORECASE)
 
 def sanitize(path):
     path = path.strip().replace("\\", "/")
@@ -23,13 +20,9 @@ def parse_ai_output(text):
         file_path = sanitize(match.group(1))
         start = match.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        chunk = text[start:end]
-
-        code = CODE_BLOCK.findall(chunk)
-        content = "\n\n".join(code).strip()
-
-        if content:
-            files[file_path] = content
+        code = text[start:end].strip()
+        if code:
+            files[file_path] = code
 
     return files
 
@@ -40,22 +33,14 @@ def write_files(files):
             f.write(content)
         print(f"✅ Written: {path}")
 
+# Git helper
 def git(cmd):
     subprocess.run(cmd, check=True)
 
 def setup_git_identity():
-    """Set git name/email if not already configured."""
     try:
-        name = subprocess.run(
-            ["git", "config", "--get", "user.name"],
-            capture_output=True, text=True
-        ).stdout.strip()
-
-        email = subprocess.run(
-            ["git", "config", "--get", "user.email"],
-            capture_output=True, text=True
-        ).stdout.strip()
-
+        name = subprocess.run(["git", "config", "--get", "user.name"], capture_output=True, text=True).stdout.strip()
+        email = subprocess.run(["git", "config", "--get", "user.email"], capture_output=True, text=True).stdout.strip()
         if not name:
             git(["git", "config", "user.name", "Amir Shams"])
         if not email:
@@ -67,14 +52,12 @@ def auto_commit_push(message="AI: generate project structure"):
     setup_git_identity()
     print("🔄 Git add")
     git(["git", "add", "."])
-
     print("📝 Git commit")
     try:
         git(["git", "commit", "-m", message])
     except subprocess.CalledProcessError:
         print("ℹ️ Nothing to commit")
         return
-
     print("🚀 Git push")
     git(["git", "push"])
 
@@ -87,5 +70,7 @@ if __name__ == "__main__":
         text = f.read()
 
     files = parse_ai_output(text)
+    if not files:
+        print("⚠️ No files detected in AI output. Check format!")
     write_files(files)
     auto_commit_push()
