@@ -59,12 +59,11 @@ class MainActivity : AppCompatActivity() {
 
         // Display the result
         when (decision) {
-            is AutoReplyDecision -> {
-                statusText.text = "AutoReply: ${decision.message}"
-            }
-            is NoReplyDecision -> {
-                statusText.text = "No reply decision made"
-            }
+    is ReplyDecision.AutoReply ->
+        statusText.text = "AutoReply: ${decision.message}"
+
+    ReplyDecision.NoReply ->
+        statusText.text = "No reply decision made"
         }
     }
 }
