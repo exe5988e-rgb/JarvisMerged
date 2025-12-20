@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jarvismini">
 
     <application
         android:label="@string/app_name"
@@ -17,20 +18,19 @@
             </intent-filter>
         </activity>
 
-        <!-- 🔥 THIS WAS MISSING -->
+        <!-- Accessibility Service Declaration -->
         <service
-    android:name=".AppAccessibilityService"
-    android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-    android:exported="false">
-    
-    <intent-filter>
-        <action android:name="android.accessibilityservice.AccessibilityService" />
-    </intent-filter>
+            android:name="com.jarvismini.automation.AppAutomationService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
 
-    <meta-data
-        android:name="android.accessibilityservice"
-        android:resource="@xml/accessibility_service_config" />
-</service>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
 
     </application>
 
