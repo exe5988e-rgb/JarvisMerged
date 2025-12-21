@@ -26,7 +26,6 @@ class AppAutomationService : AccessibilityService() {
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
         feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
         notificationTimeout = 100
-        canRetrieveWindowContent = true
     }
 
     setServiceInfo(info)
