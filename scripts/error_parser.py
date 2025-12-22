@@ -3,49 +3,79 @@ import os
 from scripts.logger import logger
 
 
+def _safe_int(value):
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
 def parse_build_errors(build_output: str) -> list[dict]:
     """
-    Parse Gradle/Kotlin build output.
+    Robust Gradle / Kotlin / AAPT error parser.
+    NEVER crashes.
     Returns list of {file, line, message}
     """
     errors = []
 
     patterns = [
-        # Kotlin compiler (Gradle 7.x common)
-        r"e:\s*(file://)?(.+?\.(kt|java)):(\d+):\s*(.+)",
-        # Java style
-        r"(.+?\.(kt|java|xml)):(\d+):\s*error:\s*(.+)",
-        # XML/AAPT
-        r"(.+?\.xml):(\d+):\s*(.+error.+)",
+        # Kotlin compiler (Gradle 7+)
+        re.compile(r"e:\s*(file://)?(.+?\.(kt|java)):(\d+):\s*(error:\s+.+)", re.IGNORECASE),
+
+        # Java / Kotlin (classic)
+        re.compile(r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
+
+        # XML with numeric line
+        re.compile(r"(.+?\.xml):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
+
+        # AAPT resource errors (NO line number)
+        re.compile(r"AAPT:\s+error:\s*(.+)", re.IGNORECASE),
     ]
 
-    for line in build_output.splitlines():
+    for raw_line in build_output.splitlines():
+        line = raw_line.strip()
+
+        # 🚫 hard filter warnings
+        if "warning:" in line.lower():
+            continue
+
         for pattern in patterns:
-            match = re.search(pattern, line)
+            match = pattern.search(line)
             if not match:
                 continue
 
             groups = match.groups()
 
-            # Normalize groups
-            if "file://" in line:
-                file_path = groups[1]
-                line_num = int(groups[3])
-                message = groups[4]
+            file_path = None
+            line_num = None
+            message = None
+
+            # Kotlin / Java
+            if len(groups) >= 4 and groups[1]:
+                file_path = groups[1].replace("file://", "").strip()
+                line_num = _safe_int(groups[3])
+                message = groups[-1]
+
+            # XML numeric
+            elif len(groups) == 3 and groups[0].endswith(".xml"):
+                file_path = groups[0].strip()
+                line_num = _safe_int(groups[1])
+                message = groups[2]
+
+            # AAPT (no file / no line)
             else:
-                file_path = groups[0]
-                line_num = int(groups[2])
-                message = groups[3]
+                message = groups[-1]
 
-            file_path = file_path.replace("file://", "").strip()
+            if file_path and not os.path.exists(file_path):
+                continue
 
-            if os.path.exists(file_path):
-                errors.append({
-                    "file": file_path,
-                    "line": line_num,
-                    "message": message.strip()
-                })
-                logger.debug(f"Parsed error: {file_path}:{line_num}")
+            errors.append({
+                "file": file_path,
+                "line": line_num,
+                "message": message.strip()
+            })
+
+            logger.debug(f"Parsed error: {file_path}:{line_num} → {message}")
             break
 
     # Deduplicate
@@ -63,14 +93,17 @@ def parse_build_errors(build_output: str) -> list[dict]:
 
 def extract_code_snippet(
     file_path: str,
-    error_line: int,
+    error_line: int | None,
     context_lines: int = 15
 ) -> dict | None:
     """
     BEST-EFFORT snippet extraction.
-    NEVER throws. Returns None if anything fails.
+    NEVER throws.
     """
     try:
+        if not file_path or not error_line:
+            return None
+
         if not os.path.exists(file_path):
             return None
 
