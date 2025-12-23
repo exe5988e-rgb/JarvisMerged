@@ -7,66 +7,68 @@ import android.widget.Toast
 
 class AppAutomationService : AccessibilityService() {
 
-    private val TARGET_PACKAGE = "com.whatsapp"
+    private val WHATSAPP = "com.whatsapp"
     private var lastMessage: String? = null
 
     override fun onServiceConnected() {
-        Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            this,
+            "Jarvis Accessibility Connected",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        if (event.packageName?.toString() != TARGET_PACKAGE) return
+        if (event.packageName != WHATSAPP) return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
 
         val root = rootInActiveWindow ?: return
-        val message = extractIncomingMessage(root) ?: return
 
+        val message = findRealIncomingMessage(root) ?: return
         if (message == lastMessage) return
+
         lastMessage = message
 
-        Toast.makeText(this, "New WhatsApp message", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            this,
+            "📩 WhatsApp message received",
+            Toast.LENGTH_SHORT
+        ).show()
 
-        sendReply(root)
+        // Close chat ONLY after real message
         performGlobalAction(GLOBAL_ACTION_BACK)
-
-        Toast.makeText(this, "Jarvis replied & closed chat", Toast.LENGTH_SHORT).show()
     }
 
-    private fun extractIncomingMessage(root: AccessibilityNodeInfo): String? {
+    private fun findRealIncomingMessage(node: AccessibilityNodeInfo): String? {
         val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
+        queue.add(node)
 
         while (queue.isNotEmpty()) {
-            val node = queue.removeFirst()
-            if (node.className == "android.widget.TextView") {
-                val text = node.text?.toString()
-                if (!text.isNullOrBlank() && text.length < 300) {
-                    return text
-                }
-            }
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { queue.add(it) }
+            val n = queue.removeFirst()
+
+            val text = n.text?.toString() ?: ""
+            if (text.length < 4) continue
+
+            // 🚫 Ignore UI labels
+            if (
+                text.equals("Message", true) ||
+                text.equals("Video call", true) ||
+                text.equals("Voice call", true)
+            ) continue
+
+            // 🚫 Ignore buttons & toolbar items
+            if (n.isClickable || n.isFocusable) continue
+            if (!n.contentDescription.isNullOrEmpty()) continue
+
+            // ✅ Likely real message bubble
+            return text
+
+            for (i in 0 until n.childCount) {
+                n.getChild(i)?.let { queue.add(it) }
             }
         }
         return null
-    }
-
-    private fun sendReply(root: AccessibilityNodeInfo) {
-        val input = NodeFinder.findInputField(root) ?: return
-        val send = NodeFinder.findSendButton(root) ?: return
-
-        input.performAction(
-            AccessibilityNodeInfo.ACTION_SET_TEXT,
-            android.os.Bundle().apply {
-                putCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                    "Hello Mr Shams, Jarvis here. I’ve received your message."
-                )
-            }
-        )
-
-        send.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 
     override fun onInterrupt() {}
