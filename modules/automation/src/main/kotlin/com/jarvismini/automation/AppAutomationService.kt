@@ -1,8 +1,8 @@
 package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
-import android.view.accessibility.AccessibilityEvent
 import android.util.Log
+import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
 
 class AppAutomationService : AccessibilityService() {
@@ -11,7 +11,6 @@ class AppAutomationService : AccessibilityService() {
         super.onServiceConnected()
 
         Log.e("JARVIS_PROOF", "🔥 SERVICE CONNECTED")
-
         Toast.makeText(
             this,
             "JARVIS ACCESSIBILITY CONNECTED",
