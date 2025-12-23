@@ -1,15 +1,22 @@
+<!-- ===== FILE: app/src/main/res/xml/accessibility_service.xml ===== -->
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="50"
+    android:description="@string/service_desc" />
+
+
+
 <!-- ===== FILE: app/src/main/AndroidManifest.xml ===== -->
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jarvismini">
-
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="@string/app_name"
         android:icon="@android:drawable/sym_def_app_icon"
-        android:allowBackup="true"
-        android:supportsRtl="true"
         android:theme="@style/Theme.JarvisMini">
 
         <activity
@@ -24,8 +31,7 @@
         <service
             android:name="com.jarvismini.automation.AppAutomationService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
-
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService"/>
             </intent-filter>
@@ -39,16 +45,13 @@
 </manifest>
 
 
-<!-- ===== FILE: app/src/main/res/xml/accessibility_service.xml ===== -->
-<?xml version="1.0" encoding="utf-8"?>
-<accessibility-service
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeAllMask"
-    android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
-    android:canRetrieveWindowContent="true"
-    android:notificationTimeout="100"
-    android:description="@string/service_desc"/>
+
+<!-- ===== FILE: app/src/main/res/values/strings.xml ===== -->
+<resources>
+    <string name="app_name">Jarvis Merged</string>
+    <string name="service_desc">Jarvis WhatsApp automation service</string>
+</resources>
+
 
 
 <!-- ===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt ===== -->
@@ -56,50 +59,72 @@ package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
-import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 
 class AppAutomationService : AccessibilityService() {
 
-    private val TAG = "JARVIS_PROOF"
     private val TARGET_PACKAGE = "com.whatsapp"
+    private var lastMessage: String? = null
 
     override fun onServiceConnected() {
-        super.onServiceConnected()
-
-        Log.e(TAG, "SERVICE CONNECTED")
-
-        Toast.makeText(
-            this,
-            "JARVIS ACCESSIBILITY CONNECTED",
-            Toast.LENGTH_LONG
-        ).show()
+        Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        if (event.packageName?.toString() != TARGET_PACKAGE) return
+        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
 
-        val pkg = event.packageName?.toString() ?: return
-        if (pkg != TARGET_PACKAGE) return
+        val root = rootInActiveWindow ?: return
+        val message = extractIncomingMessage(root) ?: return
 
-        Log.e(TAG, "WHATSAPP EVENT: ${event.eventType}")
+        if (message == lastMessage) return
+        lastMessage = message
 
-        Toast.makeText(
-            this,
-            "WhatsApp event detected",
-            Toast.LENGTH_SHORT
-        ).show()
+        Toast.makeText(this, "New WhatsApp message", Toast.LENGTH_SHORT).show()
+
+        sendReply(root)
+        performGlobalAction(GLOBAL_ACTION_BACK)
+
+        Toast.makeText(this, "Jarvis replied & closed chat", Toast.LENGTH_SHORT).show()
     }
 
-    override fun onInterrupt() {
-        Log.e(TAG, "SERVICE INTERRUPTED")
+    private fun extractIncomingMessage(root: AccessibilityNodeInfo): String? {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            if (node.className == "android.widget.TextView") {
+                val text = node.text?.toString()
+                if (!text.isNullOrBlank() && text.length < 300) {
+                    return text
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        return null
     }
+
+    private fun sendReply(root: AccessibilityNodeInfo) {
+        val input = NodeFinder.findInputField(root) ?: return
+        val send = NodeFinder.findSendButton(root) ?: return
+
+        input.performAction(
+            AccessibilityNodeInfo.ACTION_SET_TEXT,
+            android.os.Bundle().apply {
+                putCharSequence(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                    "Hello Mr Shams, Jarvis here. I’ve received your message."
+                )
+            }
+        )
+
+        send.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    override fun onInterrupt() {}
 }
-
-
-<!-- ===== FILE: app/src/main/res/values/strings.xml ===== -->
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Jarvis Merged</string>
-    <string name="service_desc">Jarvis accessibility automation service</string>
-</resources>
