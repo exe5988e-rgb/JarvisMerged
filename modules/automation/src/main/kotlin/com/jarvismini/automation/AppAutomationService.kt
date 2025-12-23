@@ -1,56 +1,48 @@
 package com.jarvismini.automation
-import android.accessibilityservice.AccessibilityService import android.view.accessibility.AccessibilityEvent import android.app.Notification import android.util.Log import android.widget.Toast
+
+import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import android.widget.Toast
+
 class AppAutomationService : AccessibilityService() {
-private val TAG = "JARVIS_NOTIFY"
-private val WHATSAPP_PKG = "com.whatsapp"
 
-override fun onServiceConnected() {
-    super.onServiceConnected()
+    private val TAG = "JARVIS"
+    private val WHATSAPP = "com.whatsapp"
 
-    Log.e(TAG, "SERVICE CONNECTED")
-    Toast.makeText(
-        this,
-        "Jarvis accessibility connected",
-        Toast.LENGTH_LONG
-    ).show()
-}
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
+        Log.e(TAG, "SERVICE CONNECTED")
+    }
 
-override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-    if (event == null) return
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
 
-    // 🔒 ONLY notification events
-    if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
+        // 🔒 PHASE 2: Notification only
+        if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
+        if (event.packageName?.toString() != WHATSAPP) return
 
-    // 🔒 ONLY WhatsApp
-    val pkg = event.packageName?.toString() ?: return
-    if (pkg != WHATSAPP_PKG) return
+        val data = event.parcelableData
+        if (data !is Notification) return
 
-    val notification = event.parcelableData as? Notification ?: return
-    val extras = notification.extras ?: return
+        val intent = data.contentIntent ?: return
 
-    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-    val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+        try {
+            intent.send()
+            Toast.makeText(
+                this,
+                "WhatsApp notification opened",
+                Toast.LENGTH_SHORT
+            ).show()
+            Log.e(TAG, "NOTIFICATION CLICKED")
+        } catch (e: Exception) {
+            Log.e(TAG, "FAILED TO OPEN NOTIFICATION", e)
+        }
+    }
 
-    if (text.isNullOrBlank()) return
-
-    // 🚫 Ignore "You", calls, media-only, system junk
-    if (
-        text.contains("calling", true) ||
-        text.contains("missed", true) ||
-        text.contains("video", true) ||
-        title == "WhatsApp"
-    ) return
-
-    Log.e(TAG, "REAL MESSAGE DETECTED → $title : $text")
-
-    Toast.makeText(
-        this,
-        "New WhatsApp message:\n$text",
-        Toast.LENGTH_LONG
-    ).show()
-}
-
-override fun onInterrupt() {
-    Log.e(TAG, "SERVICE INTERRUPTED")
-}
+    override fun onInterrupt() {
+        Log.e(TAG, "SERVICE INTERRUPTED")
+    }
 }
