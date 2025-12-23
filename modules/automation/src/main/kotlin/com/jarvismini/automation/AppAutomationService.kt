@@ -11,44 +11,38 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
-import com.jarvismini.automation.decision.ReplyDecision
 
 class AppAutomationService : AccessibilityService() {
 
-    private val TAG = "JarvisMini-AutoService"
+    private val TAG = "JarvisMini"
     private val CHANNEL_ID = "jarvis_debug"
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.i(TAG, "Jarvis Accessibility Service CONNECTED")
 
-        serviceInfo = serviceInfo.apply {
-            eventTypes =
-                AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED or
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            notificationTimeout = 100
-            flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
-                    AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-        }
+        Log.i(TAG, "🔥 ACCESSIBILITY SERVICE CONNECTED")
 
+        // ⚠️ DO NOT override serviceInfo fields here
         createNotificationChannel()
+        showDebugNotification("Service connected & alive")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
+        Log.d(
+            TAG,
+            "📡 EVENT: ${AccessibilityEvent.eventTypeToString(event.eventType)} | pkg=${event.packageName}"
+        )
 
+        // TEMP: accept ALL events for debugging
         val root = rootInActiveWindow ?: return
 
-        // 🔔 DEBUG NOTIFICATION (PROOF OF LIFE)
-        showDebugNotification("Jarvis detected screen update")
+        // Proof-of-life notification
+        showDebugNotification("Event from ${event.packageName}")
 
-        // 🔥 FORCED AUTO-REPLY (TEMP TEST MODE)
-        val reply = "Hello Mr Shams, Jarvis here. I received your message."
-
-        sendMessage(root, reply)
+        // ⚠️ Disable auto-reply until detection confirmed
+        // sendMessage(root, "Hello Mr Shams, Jarvis here.")
     }
 
     private fun sendMessage(root: AccessibilityNodeInfo, message: String) {
@@ -56,21 +50,22 @@ class AppAutomationService : AccessibilityService() {
         val sendButton = NodeFinder.findSendButton(root)
 
         if (inputField == null || sendButton == null) {
-            Log.w(TAG, "Input or Send button not found")
+            Log.w(TAG, "❌ Input or Send button not found")
             return
         }
 
-        val args = Bundle()
-        args.putCharSequence(
-            AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-            message
-        )
+        val args = Bundle().apply {
+            putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                message
+            )
+        }
 
         inputField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
 
-        Log.i(TAG, "Jarvis auto-reply SENT")
-        showDebugNotification("Jarvis sent auto-reply")
+        Log.i(TAG, "✅ AUTO-REPLY SENT")
+        showDebugNotification("Reply sent")
     }
 
     private fun showDebugNotification(text: String) {
@@ -100,6 +95,6 @@ class AppAutomationService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.i(TAG, "Jarvis Accessibility INTERRUPTED")
+        Log.w(TAG, "⚠️ SERVICE INTERRUPTED")
     }
 }
