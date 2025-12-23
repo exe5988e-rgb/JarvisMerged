@@ -218,6 +218,7 @@ dependencies {
 
 
 ===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jarvismini">
 
@@ -450,6 +451,7 @@ class MainActivity : AppCompatActivity() {
 
 
 ===== FILE: app/src/main/res/values/strings.xml =====
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Jarvis Merged</string>
     <string name="service_desc">Jarvis accessibility automation service</string>
@@ -469,6 +471,7 @@ class MainActivity : AppCompatActivity() {
 
 
 ===== FILE: app/src/main/res/xml/accessibility_service.xml =====
+<?xml version="1.0" encoding="utf-8"?>
 <accessibility-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeAllMask"
@@ -546,8 +549,8 @@ object AccessibilityServiceHelper {
 package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
-import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.util.Log
 import android.widget.Toast
 
 class AppAutomationService : AccessibilityService() {
@@ -556,6 +559,7 @@ class AppAutomationService : AccessibilityService() {
         super.onServiceConnected()
 
         Log.e("JARVIS_PROOF", "🔥 SERVICE CONNECTED")
+
         Toast.makeText(
             this,
             "JARVIS ACCESSIBILITY CONNECTED",
@@ -564,7 +568,18 @@ class AppAutomationService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        Log.e("JARVIS_PROOF", "EVENT RECEIVED: ${event?.eventType}")
+        if (event == null) return
+
+        Toast.makeText(
+            this,
+            "ACCESSIBILITY EVENT RECEIVED",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        Log.e(
+            "JARVIS_PROOF",
+            "EVENT TYPE=${event.eventType} PKG=${event.packageName}"
+        )
     }
 
     override fun onInterrupt() {
