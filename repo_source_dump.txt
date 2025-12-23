@@ -218,17 +218,12 @@ dependencies {
 
 
 ===== FILE: app/src/main/AndroidManifest.xml =====
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jarvismini">
-
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="@string/app_name"
         android:icon="@android:drawable/sym_def_app_icon"
-        android:allowBackup="true"
-        android:supportsRtl="true"
         android:theme="@style/Theme.JarvisMini">
 
         <activity
@@ -243,8 +238,7 @@ dependencies {
         <service
             android:name="com.jarvismini.automation.AppAutomationService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
-
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService"/>
             </intent-filter>
@@ -451,10 +445,9 @@ class MainActivity : AppCompatActivity() {
 
 
 ===== FILE: app/src/main/res/values/strings.xml =====
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Jarvis Merged</string>
-    <string name="service_desc">Jarvis accessibility automation service</string>
+    <string name="service_desc">Jarvis WhatsApp automation service</string>
 </resources>
 
 
@@ -471,15 +464,14 @@ class MainActivity : AppCompatActivity() {
 
 
 ===== FILE: app/src/main/res/xml/accessibility_service.xml =====
-<?xml version="1.0" encoding="utf-8"?>
 <accessibility-service
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityEventTypes="typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
-    android:notificationTimeout="100"
-    android:description="@string/service_desc"/>
+    android:notificationTimeout="50"
+    android:description="@string/service_desc" />
 
 
 ===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
@@ -550,41 +542,76 @@ package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
-import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 
 class AppAutomationService : AccessibilityService() {
 
+    private val WHATSAPP = "com.whatsapp"
+    private var lastMessage: String? = null
+
     override fun onServiceConnected() {
-        super.onServiceConnected()
-
-        Log.e("JARVIS_PROOF", "🔥 SERVICE CONNECTED")
-
         Toast.makeText(
             this,
-            "JARVIS ACCESSIBILITY CONNECTED",
+            "Jarvis Accessibility Connected",
             Toast.LENGTH_LONG
         ).show()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        if (event.packageName != WHATSAPP) return
+        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
+
+        val root = rootInActiveWindow ?: return
+
+        val message = findRealIncomingMessage(root) ?: return
+        if (message == lastMessage) return
+
+        lastMessage = message
 
         Toast.makeText(
             this,
-            "ACCESSIBILITY EVENT RECEIVED",
+            "📩 WhatsApp message received",
             Toast.LENGTH_SHORT
         ).show()
 
-        Log.e(
-            "JARVIS_PROOF",
-            "EVENT TYPE=${event.eventType} PKG=${event.packageName}"
-        )
+        // Close chat ONLY after real message
+        performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
-    override fun onInterrupt() {
-        Log.e("JARVIS_PROOF", "SERVICE INTERRUPTED")
+    private fun findRealIncomingMessage(node: AccessibilityNodeInfo): String? {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(node)
+
+        while (queue.isNotEmpty()) {
+            val n = queue.removeFirst()
+
+            val text = n.text?.toString() ?: ""
+            if (text.length < 4) continue
+
+            // 🚫 Ignore UI labels
+            if (
+                text.equals("Message", true) ||
+                text.equals("Video call", true) ||
+                text.equals("Voice call", true)
+            ) continue
+
+            // 🚫 Ignore buttons & toolbar items
+            if (n.isClickable || n.isFocusable) continue
+            if (!n.contentDescription.isNullOrEmpty()) continue
+
+            // ✅ Likely real message bubble
+            return text
+
+            for (i in 0 until n.childCount) {
+                n.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        return null
     }
+
+    override fun onInterrupt() {}
 }
 
 
