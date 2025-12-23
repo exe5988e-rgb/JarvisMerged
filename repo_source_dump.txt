@@ -552,70 +552,70 @@ object AccessibilityServiceHelper {
 package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.util.Log
 import android.widget.Toast
 
 class AppAutomationService : AccessibilityService() {
 
-    private val TARGET_PACKAGE = "com.whatsapp"
-    private var lastMessage: String? = null
+    private val TAG = "JARVIS"
+    private val WHATSAPP = "com.whatsapp"
 
     override fun onServiceConnected() {
-        Toast.makeText(
-            applicationContext,
-            "JARVIS CONNECTED",
-            Toast.LENGTH_LONG
-        ).show()
+        super.onServiceConnected()
+        Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
+        Log.e(TAG, "SERVICE CONNECTED")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        val pkg = event.packageName?.toString() ?: return
-        if (pkg != TARGET_PACKAGE) return
+        if (event.packageName?.toString() != WHATSAPP) return
 
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
 
         val root = rootInActiveWindow ?: return
 
-        val message = findLatestMessage(root) ?: return
-
-        if (message == lastMessage) return
-        lastMessage = message
-
-        Log.e("JARVIS_PROOF", "📩 NEW MESSAGE: $message")
+        val messageNode = findLatestMessage(root) ?: return
 
         Toast.makeText(
-            applicationContext,
-            "NEW MESSAGE RECEIVED",
+            this,
+            "New WhatsApp message detected",
             Toast.LENGTH_SHORT
         ).show()
+
+        Log.e(TAG, "REAL MESSAGE DETECTED")
+
+        // 🔓 AUTO OPEN CHAT (ONLY ONCE)
+        messageNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
     }
 
-    private fun findLatestMessage(node: AccessibilityNodeInfo): String? {
+    private fun findLatestMessage(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(node)
+        queue.add(root)
 
         while (queue.isNotEmpty()) {
-            val current = queue.removeFirst()
+            val node = queue.removeFirst()
 
-            if (current.className == "android.widget.TextView") {
-                val text = current.text?.toString()
-                if (!text.isNullOrBlank() && text.length < 300) {
-                    return text
-                }
+            if (
+                node.className == "android.widget.TextView" &&
+                !node.text.isNullOrBlank() &&
+                node.text.length < 300
+            ) {
+                return node
             }
 
-            for (i in 0 until current.childCount) {
-                current.getChild(i)?.let { queue.add(it) }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
             }
         }
         return null
     }
 
-    override fun onInterrupt() {}
+    override fun onInterrupt() {
+        Log.e(TAG, "SERVICE INTERRUPTED")
+    }
 }
 
 
