@@ -11,6 +11,7 @@ class AppAutomationService : AccessibilityService() {
         super.onServiceConnected()
 
         Log.e("JARVIS_PROOF", "🔥 SERVICE CONNECTED")
+
         Toast.makeText(
             this,
             "JARVIS ACCESSIBILITY CONNECTED",
