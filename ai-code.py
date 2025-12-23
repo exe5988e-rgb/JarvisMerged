@@ -12,17 +12,25 @@ def sanitize(path):
         raise ValueError(f"Unsafe path: {path}")
     return path
 
-def parse_ai_output(text):
+def parse_ai_output(text: str) -> dict[str, str]:
     matches = list(FILE_HEADER.finditer(text))
     files = {}
 
     for i, match in enumerate(matches):
-        file_path = sanitize(match.group(1))
+        raw_path = match.group(1)
+        file_path = sanitize(raw_path)
+
         start = match.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        code = text[start:end].strip()
-        if code:
-            files[file_path] = code
+        code = text[start:end].strip("\n")
+
+        if not code.strip():
+            continue
+
+        if file_path in files:
+            raise ValueError(f"❌ Duplicate file detected: {file_path}")
+
+        files[file_path] = code
 
     return files
 
