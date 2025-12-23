@@ -550,72 +550,60 @@ object AccessibilityServiceHelper {
 
 ===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt =====
 package com.jarvismini.automation
-
-import android.accessibilityservice.AccessibilityService
-import android.util.Log
-import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
-import android.widget.Toast
-
+import android.accessibilityservice.AccessibilityService import android.view.accessibility.AccessibilityEvent import android.app.Notification import android.util.Log import android.widget.Toast
 class AppAutomationService : AccessibilityService() {
+private val TAG = "JARVIS_NOTIFY"
+private val WHATSAPP_PKG = "com.whatsapp"
 
-    private val TAG = "JARVIS"
-    private val WHATSAPP = "com.whatsapp"
+override fun onServiceConnected() {
+    super.onServiceConnected()
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
-        Log.e(TAG, "SERVICE CONNECTED")
-    }
+    Log.e(TAG, "SERVICE CONNECTED")
+    Toast.makeText(
+        this,
+        "Jarvis accessibility connected",
+        Toast.LENGTH_LONG
+    ).show()
+}
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+    if (event == null) return
 
-        if (event.packageName?.toString() != WHATSAPP) return
+    // 🔒 ONLY notification events
+    if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
 
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
+    // 🔒 ONLY WhatsApp
+    val pkg = event.packageName?.toString() ?: return
+    if (pkg != WHATSAPP_PKG) return
 
-        val root = rootInActiveWindow ?: return
+    val notification = event.parcelableData as? Notification ?: return
+    val extras = notification.extras ?: return
 
-        val messageNode = findLatestMessage(root) ?: return
+    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+    val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
 
-        Toast.makeText(
-            this,
-            "New WhatsApp message detected",
-            Toast.LENGTH_SHORT
-        ).show()
+    if (text.isNullOrBlank()) return
 
-        Log.e(TAG, "REAL MESSAGE DETECTED")
+    // 🚫 Ignore "You", calls, media-only, system junk
+    if (
+        text.contains("calling", true) ||
+        text.contains("missed", true) ||
+        text.contains("video", true) ||
+        title == "WhatsApp"
+    ) return
 
-        // 🔓 AUTO OPEN CHAT (ONLY ONCE)
-        messageNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-    }
+    Log.e(TAG, "REAL MESSAGE DETECTED → $title : $text")
 
-    private fun findLatestMessage(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
+    Toast.makeText(
+        this,
+        "New WhatsApp message:\n$text",
+        Toast.LENGTH_LONG
+    ).show()
+}
 
-        while (queue.isNotEmpty()) {
-            val node = queue.removeFirst()
-
-            if (
-                node.className == "android.widget.TextView" &&
-                !node.text.isNullOrBlank() &&
-                node.text.length < 300
-            ) {
-                return node
-            }
-
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { queue.add(it) }
-            }
-        }
-        return null
-    }
-
-    override fun onInterrupt() {
-        Log.e(TAG, "SERVICE INTERRUPTED")
-    }
+override fun onInterrupt() {
+    Log.e(TAG, "SERVICE INTERRUPTED")
+}
 }
 
 
