@@ -955,8 +955,8 @@ class WhatsAppNotificationListener : NotificationListenerService() {
     }
 
     /** Prevent duplicate notification handling */
-    private val handledKeys = ConcurrentHashMap.newKeySet<String>()
-
+    private val handledKeys =
+    ConcurrentHashMap<String, Boolean>()
     /** Per-chat cooldown */
     private val lastReplyTime = ConcurrentHashMap<String, Long>()
 
