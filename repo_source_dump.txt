@@ -36,6 +36,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── themes.xml
 │   │   │   │   ├── xml
 │   │   │   │   │   ├── accessibility_service.xml
+│   │   │   │   │   ├── notification_listener.xml
 │   │   ├── test
 │   │   │   ├── java
 │   │   │   │   ├── com
@@ -495,6 +496,13 @@ class MainActivity : AppCompatActivity() {
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="50"
     android:description="@string/service_desc"/>
+
+
+===== FILE: app/src/main/res/xml/notification_listener.xml =====
+// ===== FILE: app/src/main/res/xml/notification_listener.xml =====
+<notification-listener-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/service_desc" />
 
 
 ===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
