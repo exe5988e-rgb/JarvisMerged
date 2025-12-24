@@ -1029,25 +1029,31 @@ class WhatsAppNotificationListener : NotificationListenerService() {
     }
 
     private fun sendReply(action: Notification.Action, replyText: String) {
-        val replyIntent = Intent()
-        val bundle = Bundle()
+    val replyIntent = Intent()
+    val bundle = Bundle()
 
-        for (input in action.remoteInputs) {
-            bundle.putCharSequence(input.resultKey, replyText)
-        }
+    val androidXInputs = mutableListOf<RemoteInput>()
 
-        RemoteInput.addResultsToIntent(
-            action.remoteInputs,
-            replyIntent,
-            bundle
-        )
+    for (sysInput in action.remoteInputs) {
+        bundle.putCharSequence(sysInput.resultKey, replyText)
 
-        try {
-            action.actionIntent.send(this, 0, replyIntent)
-            Log.d(TAG, "Jarvis auto-reply sent")
-        } catch (e: PendingIntent.CanceledException) {
-            Log.e(TAG, "Failed to send reply", e)
-        }
+        androidXInputs += RemoteInput.Builder(sysInput.resultKey)
+            .setAllowFreeFormInput(true)
+            .build()
+    }
+
+    RemoteInput.addResultsToIntent(
+        androidXInputs.toTypedArray(),
+        replyIntent,
+        bundle
+    )
+
+    try {
+        action.actionIntent.send(this, 0, replyIntent)
+        Log.d(TAG, "Jarvis auto-reply sent")
+    } catch (e: PendingIntent.CanceledException) {
+        Log.e(TAG, "Failed to send reply", e)
+    }
     }
 
     // =========================
