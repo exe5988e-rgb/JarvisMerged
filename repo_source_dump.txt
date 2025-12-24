@@ -549,10 +549,12 @@ object AccessibilityServiceHelper {
 
 
 ===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt =====
+// ===== FILE: app/src/main/java/com/jarvismini/automation/AppAutomationService.kt =====
 package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
 import android.app.Notification
+import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
@@ -571,26 +573,28 @@ class AppAutomationService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // 🔒 PHASE 2: Notification only
+        // 🔒 Notification only
         if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
         if (event.packageName?.toString() != WHATSAPP) return
 
         val data = event.parcelableData
         if (data !is Notification) return
 
-        val intent = data.contentIntent ?: return
+        // 🚀 HARD OPEN WhatsApp (reliable)
+        val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP)
+            ?: return
 
-        try {
-            intent.send()
-            Toast.makeText(
-                this,
-                "WhatsApp notification opened",
-                Toast.LENGTH_SHORT
-            ).show()
-            Log.e(TAG, "NOTIFICATION CLICKED")
-        } catch (e: Exception) {
-            Log.e(TAG, "FAILED TO OPEN NOTIFICATION", e)
-        }
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        startActivity(launchIntent)
+
+        Toast.makeText(
+            this,
+            "WhatsApp opened from notification",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        Log.e(TAG, "WHATSAPP LAUNCHED")
     }
 
     override fun onInterrupt() {
