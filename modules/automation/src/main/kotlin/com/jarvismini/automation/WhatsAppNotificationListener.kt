@@ -1,14 +1,15 @@
+// ===== FILE: app/src/main/java/com/jarvismini/automation/WhatsAppNotificationListener.kt =====
 package com.jarvismini.automation
 
 import android.app.Notification
 import android.app.PendingIntent
+import android.app.RemoteInput as SysRemoteInput
 import android.content.Intent
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import android.widget.Toast
-import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 
 class WhatsAppNotificationListener : NotificationListenerService() {
@@ -25,33 +26,37 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         val actions = notification.actions ?: return
 
         for (action in actions) {
-            val remoteInputs = action.remoteInputs ?: continue
+            val sysInputs = action.remoteInputs ?: continue
 
-            for (remoteInput in remoteInputs) {
-                if (remoteInput.allowFreeFormInput) {
+            for (sysInput in sysInputs) {
+                if (!sysInput.allowFreeFormInput) continue
 
-                    val replyIntent = Intent()
-                    val bundle = Bundle()
-                    bundle.putCharSequence(remoteInput.resultKey, REPLY_TEXT)
-                    RemoteInput.addResultsToIntent(
-                        arrayOf(remoteInput),
-                        replyIntent,
-                        bundle
-                    )
+                val replyIntent = Intent()
+                val bundle = Bundle()
+                bundle.putCharSequence(sysInput.resultKey, REPLY_TEXT)
 
-                    try {
-                        action.actionIntent.send(this, 0, replyIntent)
-                        Toast.makeText(
-                            this,
-                            "Jarvis auto-replied",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                RemoteInput.addResultsToIntent(
+                    arrayOf(
+                        RemoteInput.Builder(sysInput.resultKey)
+                            .setAllowFreeFormInput(true)
+                            .build()
+                    ),
+                    replyIntent,
+                    bundle
+                )
 
-                        Log.e(TAG, "AUTO-REPLY SENT")
-                        return
-                    } catch (e: PendingIntent.CanceledException) {
-                        Log.e(TAG, "FAILED TO SEND REPLY", e)
-                    }
+                try {
+                    action.actionIntent.send(this, 0, replyIntent)
+                    Toast.makeText(
+                        this,
+                        "Jarvis auto-replied",
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                    Log.e(TAG, "AUTO-REPLY SENT")
+                    return
+                } catch (e: PendingIntent.CanceledException) {
+                    Log.e(TAG, "FAILED TO SEND REPLY", e)
                 }
             }
         }
