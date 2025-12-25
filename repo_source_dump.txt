@@ -937,6 +937,9 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.core.app.RemoteInput
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.automation.decision.ReplyDecision
 import java.util.concurrent.ConcurrentHashMap
 
 class WhatsAppNotificationListener : NotificationListenerService() {
@@ -955,8 +958,8 @@ class WhatsAppNotificationListener : NotificationListenerService() {
     }
 
     /** Prevent duplicate notification handling */
-    private val handledKeys =
-    ConcurrentHashMap<String, Boolean>()
+    private val handledKeys = ConcurrentHashMap<String, Boolean>()
+
     /** Per-chat cooldown */
     private val lastReplyTime = ConcurrentHashMap<String, Long>()
 
@@ -967,13 +970,16 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         if (sbn == null) return
         if (sbn.packageName != WHATSAPP) return
 
+        // 🔒 MODE GUARD (hard stop)
+        if (!ModeGuard.allowsReply()) return
+
         val notification = sbn.notification
         val extras = notification.extras
 
         // 1️⃣ Ignore summary notifications
         if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
 
-        // 2️⃣ Ignore GROUP chats (hard rule)
+        // 2️⃣ Ignore group chats
         val isGroupFlag =
             extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
 
@@ -986,11 +992,11 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             title != convo
 
         if (isGroupFlag || isGroupHeuristic) {
-            Log.d(TAG, "Group chat detected — skipping reply")
+            Log.d(TAG, "Group chat detected — skipping")
             return
         }
 
-        // 3️⃣ Find reply action with RemoteInput
+        // 3️⃣ Find reply action
         val replyAction = notification.actions
             ?.firstOrNull { it.remoteInputs != null }
             ?: return
@@ -1010,7 +1016,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
 
         val isUrgent = URGENT_REGEX.containsMatchIn(messageText)
 
-        // 7️⃣ Cooldown handling
+        // 7️⃣ Cooldown
         if (isUrgent) {
             val lastUrgent = lastUrgentReplyTime[chatId] ?: 0L
             if (now - lastUrgent < URGENT_COOLDOWN_MS) return
@@ -1021,62 +1027,50 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             lastReplyTime[chatId] = now
         }
 
-        // 8️⃣ Choose reply text
-        val replyText = if (isUrgent) urgentReply() else normalReply()
+        // 8️⃣ ORCHESTRATOR DECISION (🔥 THIS WAS MISSING 🔥)
+        val decision = AutoReplyOrchestrator.handle(
+            AutoReplyInput(
+                messageText = messageText,
+                isFromOwner = false
+            )
+        )
 
-        // 9️⃣ Send reply
-        sendReply(replyAction, replyText)
+        when (decision) {
+            is ReplyDecision.AutoReply ->
+                sendReply(replyAction, decision.message)
+
+            ReplyDecision.NoReply ->
+                return
+        }
     }
 
     private fun sendReply(action: Notification.Action, replyText: String) {
-    val replyIntent = Intent()
-    val bundle = Bundle()
+        val replyIntent = Intent()
+        val bundle = Bundle()
 
-    val androidXInputs = mutableListOf<RemoteInput>()
+        val androidXInputs = mutableListOf<RemoteInput>()
 
-    for (sysInput in action.remoteInputs) {
-        bundle.putCharSequence(sysInput.resultKey, replyText)
+        for (sysInput in action.remoteInputs) {
+            bundle.putCharSequence(sysInput.resultKey, replyText)
 
-        androidXInputs += RemoteInput.Builder(sysInput.resultKey)
-            .setAllowFreeFormInput(true)
-            .build()
+            androidXInputs += RemoteInput.Builder(sysInput.resultKey)
+                .setAllowFreeFormInput(true)
+                .build()
+        }
+
+        RemoteInput.addResultsToIntent(
+            androidXInputs.toTypedArray(),
+            replyIntent,
+            bundle
+        )
+
+        try {
+            action.actionIntent.send(this, 0, replyIntent)
+            Log.d(TAG, "Jarvis auto-reply sent")
+        } catch (e: PendingIntent.CanceledException) {
+            Log.e(TAG, "Failed to send reply", e)
+        }
     }
-
-    RemoteInput.addResultsToIntent(
-        androidXInputs.toTypedArray(),
-        replyIntent,
-        bundle
-    )
-
-    try {
-        action.actionIntent.send(this, 0, replyIntent)
-        Log.d(TAG, "Jarvis auto-reply sent")
-    } catch (e: PendingIntent.CanceledException) {
-        Log.e(TAG, "Failed to send reply", e)
-    }
-    }
-
-    // =========================
-    // ✨ REPLY CONTENT
-    // =========================
-
-    private fun normalReply(): String =
-        """
-        Hello 👋
-        This is Jarvis, Aamir sir’s assistant.
-
-        Aamir is currently unavailable.
-        I’ll make sure your message is seen.
-        """.trimIndent()
-
-    private fun urgentReply(): String =
-        """
-        Hello 👋
-        This is Jarvis, Aamir sir’s assistant.
-
-        This message looks urgent.
-        Please call Aamir directly.
-        """.trimIndent()
 }
 
 
