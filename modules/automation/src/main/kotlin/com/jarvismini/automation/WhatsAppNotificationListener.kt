@@ -3,12 +3,12 @@ package com.jarvismini.automation
 
 import android.app.Notification
 import android.app.PendingIntent
+import android.app.RemoteInput
 import android.content.Intent
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import androidx.core.app.RemoteInput
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.automation.decision.ReplyDecision
@@ -78,7 +78,6 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             lastReplyTime[chatId] = now
         }
 
-        // 🔗 WIRED TO ORCHESTRATOR
         val decision = AutoReplyOrchestrator.handle(
             AutoReplyInput(
                 messageText = messageText,
@@ -95,24 +94,30 @@ class WhatsAppNotificationListener : NotificationListenerService() {
     }
 
     private fun sendReply(action: Notification.Action, replyText: String) {
-        val replyIntent = Intent()
-        val bundle = Bundle()
-        val inputs = mutableListOf<RemoteInput>()
+        val fillInIntent = Intent()
+        val results = Bundle()
 
-        for (sysInput in action.remoteInputs) {
-            bundle.putCharSequence(sysInput.resultKey, replyText)
-            inputs += RemoteInput.Builder(sysInput.resultKey).build()
+        for (input in action.remoteInputs) {
+            results.putCharSequence(input.resultKey, replyText)
         }
 
         RemoteInput.addResultsToIntent(
-            inputs.toTypedArray(),
-            replyIntent,
-            bundle
+            action.remoteInputs,
+            fillInIntent,
+            results
         )
 
         try {
-            action.actionIntent.send(this, 0, replyIntent)
-            Log.d(TAG, "Jarvis auto-reply sent")
+            action.actionIntent.send(
+                this,
+                0,
+                null,
+                null,
+                null,
+                null,
+                fillInIntent
+            )
+            Log.d(TAG, "Jarvis auto-reply sent (OOS safe)")
         } catch (e: PendingIntent.CanceledException) {
             Log.e(TAG, "Failed to send reply", e)
         }
