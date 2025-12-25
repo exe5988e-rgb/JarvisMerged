@@ -40,7 +40,6 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         val notification = sbn.notification
         val extras = notification.extras
 
-        // Ignore summary notifications
         if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
 
         val title = extras.getString(Notification.EXTRA_TITLE)
@@ -111,13 +110,9 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             action.actionIntent.send(
                 this,
                 0,
-                null,
-                null,
-                null,
-                null,
                 fillInIntent
             )
-            Log.d(TAG, "Jarvis auto-reply sent (OOS safe)")
+            Log.d(TAG, "Jarvis auto-reply sent (stable)")
         } catch (e: PendingIntent.CanceledException) {
             Log.e(TAG, "Failed to send reply", e)
         }
