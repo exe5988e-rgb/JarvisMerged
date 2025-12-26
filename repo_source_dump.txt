@@ -336,6 +336,8 @@ import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.jarvismini.automation.decision.ReplyDecision
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
@@ -348,20 +350,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var simulateButton: Button
     private lateinit var modeSpinner: Spinner
 
+    companion object {
+        private const val PERMISSION_REQ_CODE = 2001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ⚠️ Request notification permission for Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissions(
-                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-                    1001
-                )
-            }
-        }
+        requestRequiredPermissions()
 
         // Status text
         statusText = TextView(this).apply {
@@ -414,6 +410,54 @@ class MainActivity : AppCompatActivity() {
         setContentView(layout)
     }
 
+    private fun requestRequiredPermissions() {
+        val permissions = mutableListOf<String>()
+
+        // Android 13+ notifications
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissions += android.Manifest.permission.POST_NOTIFICATIONS
+            }
+        }
+
+        // SMS + Contacts (Phase 1)
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.RECEIVE_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissions += android.Manifest.permission.RECEIVE_SMS
+        }
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissions += android.Manifest.permission.SEND_SMS
+        }
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissions += android.Manifest.permission.READ_CONTACTS
+        }
+
+        if (permissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                this,
+                permissions.toTypedArray(),
+                PERMISSION_REQ_CODE
+            )
+        }
+    }
+
     private fun simulateIncomingMessage() {
         val input = AutoReplyInput(
             messageText = "Hello Jarvis! Are you there?",
@@ -430,19 +474,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Handle permission result (optional logging)
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 1001) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Notification permission denied", Toast.LENGTH_SHORT).show()
-            }
+
+        if (requestCode == PERMISSION_REQ_CODE) {
+            Toast.makeText(
+                this,
+                "Phase-1 permissions processed",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 }
