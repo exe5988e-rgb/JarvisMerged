@@ -1,3 +1,4 @@
+// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
 package com.jarvismini.callhandler
 
 import android.content.BroadcastReceiver
@@ -13,12 +14,13 @@ class SmsReceiver : BroadcastReceiver() {
 
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         for (msg in messages) {
-            val sender = msg.displayOriginatingAddress ?: return
-            val text = msg.messageBody ?: return
+
+            val sender = msg.displayOriginatingAddress ?: continue
+            val text = msg.messageBody ?: continue
 
             if (!ContactResolver.isContact(context, sender)) {
-                Log.d("CALL-HANDLER", "SMS ignored (not contact)")
-                return
+                Log.d("CALL-HANDLER", "SMS ignored (not contact): $sender")
+                continue
             }
 
             SmsAutoReplyService.reply(context, sender, text)
