@@ -1,20 +1,116 @@
-<!-- ===== FILE: app/src/main/res/xml/accessibility_service.xml ===== -->
-<accessibility-service
-    xmlns:android="http://schemas.android.com/apk/res/android"
+// ===== FILE: modules/callhandler/build.gradle.kts =====
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
 
-    android:accessibilityEventTypes="
-        typeWindowStateChanged
-        | typeWindowContentChanged
-        | typeViewTextChanged
-        | typeNotificationStateChanged"
+android {
+    namespace = "com.jarvismini.callhandler"
+    compileSdk = 34
 
-    android:accessibilityFeedbackType="feedbackGeneric"
+    defaultConfig {
+        minSdk = 26
+    }
 
-    android:accessibilityFlags="
-        flagReportViewIds
-        | flagRetrieveInteractiveWindows
-        | flagIncludeNotImportantViews"
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 
-    android:canRetrieveWindowContent="true"
-    android:notificationTimeout="50"
-    android:description="@string/service_desc"/>
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+}
+// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
+package com.jarvismini.callhandler
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.provider.Telephony
+import android.util.Log
+
+class SmsReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+
+        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+        for (msg in messages) {
+            val sender = msg.displayOriginatingAddress ?: return
+            val text = msg.messageBody ?: return
+
+            if (!ContactResolver.isContact(context, sender)) {
+                Log.d("CALL-HANDLER", "SMS ignored (not contact)")
+                return
+            }
+
+            SmsAutoReplyService.reply(context, sender, text)
+        }
+    }
+}
+// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsAutoReplyService.kt =====
+package com.jarvismini.callhandler
+
+import android.content.Context
+import android.util.Log
+
+object SmsAutoReplyService {
+
+    private const val AUTO_REPLY =
+        "Hello Aamir sir, Jarvis here. I’ll get back to you shortly."
+
+    fun reply(context: Context, number: String, incomingText: String) {
+        SmsSender.send(context, number, AUTO_REPLY)
+        Log.d("CALL-HANDLER", "Auto-reply sent to $number")
+    }
+}
+// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsSender.kt =====
+package com.jarvismini.callhandler
+
+import android.telephony.SmsManager
+
+object SmsSender {
+
+    fun send(context: android.content.Context, number: String, text: String) {
+        val manager = SmsManager.getDefault()
+        manager.sendTextMessage(number, null, text, null, null)
+    }
+}
+// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/ContactResolver.kt =====
+package com.jarvismini.callhandler
+
+import android.content.Context
+import android.provider.ContactsContract
+
+object ContactResolver {
+
+    fun isContact(context: Context, number: String): Boolean {
+        val uri = ContactsContract.PhoneLookup.CONTENT_FILTER_URI
+            .buildUpon()
+            .appendPath(number)
+            .build()
+
+        context.contentResolver.query(
+            uri,
+            arrayOf(ContactsContract.PhoneLookup._ID),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            return cursor.moveToFirst()
+        }
+
+        return false
+    }
+}
+// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/PhaseGuard.kt =====
+package com.jarvismini.callhandler
+
+object PhaseGuard {
+    const val PHASE = 1
+}
