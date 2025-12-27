@@ -1641,17 +1641,24 @@ class CallAutoReplyService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, createNotification())
+        Log.e(TAG, "Service CREATED")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.e(TAG, "Service STARTED with intent=$intent")
+
+        // 🔴 START FOREGROUND HERE (NOT in onCreate)
+        startForeground(NOTIFICATION_ID, createNotification())
+
         val number = intent?.getStringExtra(EXTRA_NUMBER)
         val message = intent?.getStringExtra(EXTRA_MESSAGE)
 
         if (!number.isNullOrBlank() && !message.isNullOrBlank()) {
-            Log.d(TAG, "Foreground SMS → $number")
+            Log.e(TAG, "Sending SMS to $number")
             SmsManager.getDefault()
                 .sendTextMessage(number, null, message, null, null)
+        } else {
+            Log.e(TAG, "Missing number or message")
         }
 
         stopSelf()
@@ -1675,8 +1682,9 @@ class CallAutoReplyService : Service() {
 
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Jarvis")
-            .setContentText("Sending call auto‑reply")
-            .setSmallIcon(android.R.drawable.sym_action_chat)
+            .setContentText("Sending call auto‑reply SMS")
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // SAFE ICON
+            .setOngoing(true)
             .build()
     }
 
@@ -1685,7 +1693,7 @@ class CallAutoReplyService : Service() {
         const val EXTRA_MESSAGE = "extra_message"
         const val CHANNEL_ID = "jarvis_call_reply"
         const val NOTIFICATION_ID = 1002
-        private const val TAG = "CALL-AUTO-REPLY"
+        private const val TAG = "CALL-FGS"
     }
 }
 
