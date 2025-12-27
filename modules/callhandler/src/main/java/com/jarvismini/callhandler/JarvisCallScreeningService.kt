@@ -1,4 +1,3 @@
-// ===== FILE: modules/callhandler/src/main/java/com/jarvismini/callhandler/JarvisCallScreeningService.kt =====
 package com.jarvismini.callhandler
 
 import android.net.Uri
@@ -12,103 +11,61 @@ import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
-import java.util.concurrent.ConcurrentHashMap
 
 class JarvisCallScreeningService : CallScreeningService() {
 
-    companion object {
-        private const val TAG = "CALL-HANDLER"
-        private const val COOLDOWN_MS = 60_000L
-    }
+    override fun onScreenCall(details: Call.Details) {
+        val number = details.handle?.schemeSpecificPart ?: return
 
-    private val lastHandled = ConcurrentHashMap<String, Long>()
-
-    override fun onScreenCall(callDetails: Call.Details) {
-        val handle = callDetails.handle ?: return
-        val number = handle.schemeSpecificPart ?: return
-        val now = System.currentTimeMillis()
-
-        // Helper: allow call
-        fun allowCall() {
-            respondToCall(
-                callDetails,
-                CallResponse.Builder().build()
-            )
-        }
-
-        // 🧠 NORMAL MODE → allow
+        // Jarvis OFF → do nothing
         if (JarvisState.currentMode == JarvisMode.NORMAL) {
-            allowCall()
+            allow()
             return
         }
 
-        // 🔒 CONTACT-ONLY
-        if (!isSavedContact(number)) {
-            allowCall()
+        // Contacts only
+        if (!isContact(number)) {
+            allow()
             return
         }
 
-        // 🔁 COOLDOWN
-        val last = lastHandled[number] ?: 0L
-        if (now - last < COOLDOWN_MS) {
-            allowCall()
-            return
-        }
-        lastHandled[number] = now
-
-        // 🧠 ORCHESTRATOR
         val decision = AutoReplyOrchestrator.handle(
-            AutoReplyInput(
-                messageText = "Incoming call",
-                isFromOwner = false
-            )
+            AutoReplyInput("Incoming call", false)
         )
 
-        if (decision !is ReplyDecision.AutoReply) {
-            allowCall()
-            return
+        if (decision is ReplyDecision.AutoReply) {
+            SmsManager.getDefault()
+                .sendTextMessage(number, null, decision.message, null, null)
+
+            reject()
+        } else {
+            allow()
         }
+    }
 
-        // 📩 SEND SMS
-        sendSms(number, decision.message)
+    private fun allow() {
+        respondToCall(CallResponse.Builder().build())
+    }
 
-        // 🔕 SILENCE + REJECT
+    private fun reject() {
         respondToCall(
-            callDetails,
             CallResponse.Builder()
                 .setDisallowCall(true)
                 .setRejectCall(true)
-                .setSkipCallLog(true)
                 .setSkipNotification(true)
+                .setSkipCallLog(true)
                 .build()
         )
-
-        Log.d(TAG, "Call silenced + SMS sent to $number")
     }
 
-    private fun isSavedContact(number: String): Boolean {
+    private fun isContact(number: String): Boolean {
         val uri = Uri.withAppendedPath(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
             Uri.encode(number)
         )
 
-        val cursor = contentResolver.query(
-            uri,
-            arrayOf(ContactsContract.PhoneLookup._ID),
-            null,
-            null,
-            null
-        )
-
-        return cursor?.use { it.moveToFirst() } == true
-    }
-
-    private fun sendSms(number: String, message: String) {
-        try {
-            SmsManager.getDefault()
-                .sendTextMessage(number, null, message, null, null)
-        } catch (e: Exception) {
-            Log.e(TAG, "SMS failed", e)
+        contentResolver.query(uri, null, null, null, null).use {
+            return it?.moveToFirst() == true
         }
     }
 }
