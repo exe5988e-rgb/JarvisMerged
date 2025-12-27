@@ -5,7 +5,6 @@ import android.view.accessibility.AccessibilityEvent
 import android.content.Intent
 import android.os.Build
 import android.util.Log
-import com.jarvismini.service.CallAutoReplyService
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.decision.ReplyDecision
@@ -38,15 +37,16 @@ class CallAccessibilityService : AccessibilityService() {
         val decision = AutoReplyOrchestrator.handle(
             AutoReplyInput(
                 messageText = "Incoming call",
-                isFromOwner = "false"   // ✅ FIX
+                isFromOwner = false
             )
         )
 
         if (decision !is ReplyDecision.AutoReply) return
 
-        val intent = Intent(applicationContext, CallAutoReplyService::class.java).apply {
-            putExtra(CallAutoReplyService.EXTRA_NUMBER, number)
-            putExtra(CallAutoReplyService.EXTRA_MESSAGE, decision.message)
+        // ✅ NO direct service reference (IMPORTANT)
+        val intent = Intent("com.jarvismini.ACTION_CALL_AUTO_REPLY").apply {
+            putExtra("extra_number", number)
+            putExtra("extra_message", decision.message)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -59,6 +59,7 @@ class CallAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     private fun extractPhoneNumber(text: String): String? {
-        return Regex("(\\+?\\d{10,13})").find(text)?.value
+        val regex = Regex("(\\+?\\d{10,13})")
+        return regex.find(text)?.value
     }
 }
