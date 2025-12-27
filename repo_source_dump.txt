@@ -1698,7 +1698,7 @@ class CallAutoReplyService : Service() {
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Jarvis")
             .setContentText("Sending call auto‑reply SMS")
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // SAFE ICON
+            .setSmallIcon(R.mipmap.ic_launcher) // SAFE ICON
             .setOngoing(true)
             .build()
     }
