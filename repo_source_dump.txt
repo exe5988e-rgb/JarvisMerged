@@ -1553,8 +1553,11 @@ class CallAccessibilityService : AccessibilityService() {
 
         if (decision !is ReplyDecision.AutoReply) return
 
-        // ✅ NO direct service reference (IMPORTANT)
-        val intent = Intent("com.jarvismini.ACTION_CALL_AUTO_REPLY").apply {
+        val intent = Intent().apply {
+            setClassName(
+                applicationContext.packageName,
+                "com.jarvismini.service.CallAutoReplyService"
+            )
             putExtra("extra_number", number)
             putExtra("extra_message", decision.message)
         }
