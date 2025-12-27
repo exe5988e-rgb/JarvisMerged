@@ -324,12 +324,17 @@ dependencies {
             </intent-filter>
         </service>
 
-        <!-- ✅ FOREGROUND SERVICE (APP MODULE) -->
-        <service
-            android:name="com.jarvismini.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
+        <!-- Foreground Service -->
+<service
+    android:name="com.jarvismini.service.CallAutoReplyService"
+    android:exported="false"
+    android:foregroundServiceType="phoneCall">
 
+    <intent-filter>
+        <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
+    </intent-filter>
+
+</service>
         <!-- Accessibility -->
         <service
             android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
