@@ -66,6 +66,10 @@
         <action android:name="android.telecom.CallScreeningService" />
     </intent-filter>
 </service>
+        <service
+    android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+    android:exported="false"
+    android:foregroundServiceType="dataSync" />
 
     </application>
 
