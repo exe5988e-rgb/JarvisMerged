@@ -252,7 +252,7 @@ dependencies {
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jarvismini">
 
-    <!-- Required permissions -->
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -260,7 +260,9 @@ dependencies {
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CALL_SCREENING" />
 
-    <!-- Optional: supports telephony (SMS & calls) -->
+    <!-- 🔴 REQUIRED on Android 14+ / 15 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
@@ -272,7 +274,6 @@ dependencies {
         android:supportsRtl="true"
         android:theme="@style/Theme.JarvisMini">
 
-        <!-- Main UI Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -282,7 +283,7 @@ dependencies {
             </intent-filter>
         </activity>
 
-        <!-- WhatsApp Notification auto-reply -->
+        <!-- Notification Listener -->
         <service
             android:name="com.jarvismini.automation.WhatsAppNotificationListener"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
@@ -302,7 +303,7 @@ dependencies {
             </intent-filter>
         </receiver>
 
-        <!-- Call State Receiver (legacy / fallback) -->
+        <!-- Call Receiver (fallback only) -->
         <receiver
             android:name="com.jarvismini.callhandler.receiver.CallReceiver"
             android:exported="true">
@@ -311,7 +312,7 @@ dependencies {
             </intent-filter>
         </receiver>
 
-        <!-- Call Screening Service -->
+        <!-- Call Screening -->
         <service
             android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
             android:permission="android.permission.BIND_SCREENING_SERVICE"
@@ -321,13 +322,13 @@ dependencies {
             </intent-filter>
         </service>
 
-        <!-- ✅ FIXED Foreground Service -->
+        <!-- ✅ FOREGROUND SERVICE (APP MODULE) -->
         <service
-            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+            android:name="com.jarvismini.service.CallAutoReplyService"
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
-        <!-- Accessibility-based call detection -->
+        <!-- Accessibility -->
         <service
             android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
