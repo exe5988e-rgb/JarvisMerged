@@ -1588,7 +1588,6 @@ import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
-import com.jarvismini.service.CallAutoReplyService
 import java.util.concurrent.ConcurrentHashMap
 
 object CallHandlerEngine {
@@ -1611,15 +1610,16 @@ object CallHandlerEngine {
         val decision = AutoReplyOrchestrator.handle(
             AutoReplyInput(
                 messageText = "Incoming call",
-                isFromOwner = "false"   // ✅ FIX
+                isFromOwner = false
             )
         )
 
         if (decision !is ReplyDecision.AutoReply) return
 
-        val intent = Intent(context.applicationContext, CallAutoReplyService::class.java).apply {
-            putExtra(CallAutoReplyService.EXTRA_NUMBER, number)
-            putExtra(CallAutoReplyService.EXTRA_MESSAGE, decision.message)
+        // ✅ NO app-module reference
+        val intent = Intent("com.jarvismini.ACTION_CALL_AUTO_REPLY").apply {
+            putExtra("extra_number", number)
+            putExtra("extra_message", decision.message)
         }
 
         context.applicationContext.startForegroundService(intent)
