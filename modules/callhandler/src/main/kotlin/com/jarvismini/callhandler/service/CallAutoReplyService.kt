@@ -1,6 +1,5 @@
 package com.jarvismini.callhandler.service
 
-import com.jarvismini.callhandler.R
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -22,7 +21,7 @@ class CallAutoReplyService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.e(TAG, "Service STARTED with intent=$intent")
 
-        // 🔴 START FOREGROUND HERE (NOT in onCreate)
+        // ✅ Start foreground service immediately
         startForeground(NOTIFICATION_ID, createNotification())
 
         val number = intent?.getStringExtra(EXTRA_NUMBER)
@@ -58,7 +57,7 @@ class CallAutoReplyService : Service() {
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Jarvis")
             .setContentText("Sending call auto‑reply SMS")
-            .setSmallIcon(com.jarvismini.R.mipmap.ic_launcher) // SAFE ICON
+            .setSmallIcon(android.R.drawable.stat_notify_chat) // ✅ SYSTEM ICON
             .setOngoing(true)
             .build()
     }
