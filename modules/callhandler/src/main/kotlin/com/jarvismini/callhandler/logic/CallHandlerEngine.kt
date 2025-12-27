@@ -52,8 +52,20 @@ object CallHandlerEngine {
 
 
         if (decision is ReplyDecision.AutoReply) {
-            sendSms(number, decision.message)
-            Log.d(TAG, "Auto-reply sent")
+    val serviceIntent = Intent(context, 
+        com.jarvismini.callhandler.service.CallAutoReplyService::class.java
+    ).apply {
+        putExtra(
+            com.jarvismini.callhandler.service.CallAutoReplyService.EXTRA_NUMBER,
+            number
+        )
+        putExtra(
+            com.jarvismini.callhandler.service.CallAutoReplyService.EXTRA_MESSAGE,
+            decision.message
+        )
+    }
+
+    context.startForegroundService(serviceIntent)
         }
     }
 
