@@ -1400,15 +1400,15 @@ object SmsSender {
 ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/logic/CallHandlerEngine.kt =====
 package com.jarvismini.callhandler.logic
 
-import android.content.Intent
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.ContactsContract
-import android.telephony.SmsManager
 import android.util.Log
 import com.jarvismini.automation.decision.ReplyDecision
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.callhandler.service.CallAutoReplyService
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import java.util.concurrent.ConcurrentHashMap
@@ -1423,52 +1423,53 @@ object CallHandlerEngine {
     fun handleIncomingCall(context: Context, number: String) {
         val now = System.currentTimeMillis()
 
-        // 🔕 Jarvis OFF → do nothing
+        Log.d(TAG, "Incoming call from $number")
+
+        // 🔕 Jarvis OFF
         if (JarvisState.currentMode == JarvisMode.NORMAL) {
-            Log.d(TAG, "NORMAL mode → allow call")
+            Log.d(TAG, "Jarvis NORMAL → ignoring call")
             return
         }
 
         // 🔒 Contacts only
         if (!isSavedContact(context, number)) {
-            Log.d(TAG, "Ignored (not contact)")
+            Log.d(TAG, "Number not in contacts → ignored")
             return
         }
 
         // 🔁 Cooldown
         val last = lastHandled[number] ?: 0L
         if (now - last < COOLDOWN_MS) {
-            Log.d(TAG, "Cooldown active")
+            Log.d(TAG, "Cooldown active → ignored")
             return
         }
         lastHandled[number] = now
 
-        // 🧠 Orchestrator decision
+        // 🧠 Decision
         val decision = AutoReplyOrchestrator.handle(
-    AutoReplyInput(
-        messageText = "Incoming call",
-        isFromOwner = false
-    )
-)
-
-
-        if (decision is ReplyDecision.AutoReply) {
-    val serviceIntent = Intent(context, 
-        com.jarvismini.callhandler.service.CallAutoReplyService::class.java
-    ).apply {
-        putExtra(
-            com.jarvismini.callhandler.service.CallAutoReplyService.EXTRA_NUMBER,
-            number
+            AutoReplyInput(
+                messageText = "Incoming call",
+                isFromOwner = false
+            )
         )
-        putExtra(
-            com.jarvismini.callhandler.service.CallAutoReplyService.EXTRA_MESSAGE,
-            decision.message
-        )
-    }
 
-    context.applicationContext.startForegroundService(serviceIntent)
-
+        if (decision !is ReplyDecision.AutoReply) {
+            Log.d(TAG, "No auto‑reply decision")
+            return
         }
+
+        Log.d(TAG, "Auto‑reply decided → starting foreground service")
+
+        val serviceIntent = Intent(
+            context.applicationContext,
+            CallAutoReplyService::class.java
+        ).apply {
+            putExtra(CallAutoReplyService.EXTRA_NUMBER, number)
+            putExtra(CallAutoReplyService.EXTRA_MESSAGE, decision.message)
+        }
+
+        // ✅ REQUIRED on Android 8+
+        context.applicationContext.startForegroundService(serviceIntent)
     }
 
     private fun isSavedContact(context: Context, number: String): Boolean {
@@ -1486,11 +1487,6 @@ object CallHandlerEngine {
         )
 
         return cursor?.use { it.moveToFirst() } == true
-    }
-
-    private fun sendSms(number: String, message: String) {
-        SmsManager.getDefault()
-            .sendTextMessage(number, null, message, null, null)
     }
 }
 
