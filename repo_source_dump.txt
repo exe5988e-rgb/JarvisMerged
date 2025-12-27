@@ -82,6 +82,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   │   ├── callhandler
 │   │   │   │   │   │   │   │   ├── CallConstants.kt
+│   │   │   │   │   │   │   │   ├── JarvisCallScreeningService.kt
 │   │   │   │   │   │   │   │   ├── receiver
 │   │   │   │   │   │   │   │   │   ├── CallReceiver.kt
 │   │   │   │   │   │   │   │   ├── resolver
@@ -245,6 +246,7 @@ dependencies {
 
 
 ===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jarvismini">
 
@@ -254,12 +256,16 @@ dependencies {
         android:required="false" />
 
     <!-- ================= PERMISSIONS ================= -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- Call Handler -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
+
+    <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- ================= APPLICATION ================= -->
+
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
@@ -267,7 +273,8 @@ dependencies {
         android:supportsRtl="true"
         android:theme="@style/Theme.JarvisMini">
 
-        <!-- UI -->
+        <!-- ================= UI ================= -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -277,7 +284,8 @@ dependencies {
             </intent-filter>
         </activity>
 
-        <!-- WhatsApp Notification Listener -->
+        <!-- ================= WHATSAPP AUTO-REPLY ================= -->
+
         <service
             android:name="com.jarvismini.automation.WhatsAppNotificationListener"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
@@ -287,14 +295,16 @@ dependencies {
             </intent-filter>
         </service>
 
-        <!-- ================= CALL HANDLER PHASE-1 ================= -->
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+        <!-- ================= CALL HANDLER – PHASE 2 ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
+                <action android:name="android.telecom.CallScreeningService" />
             </intent-filter>
-        </receiver>
+        </service>
 
     </application>
 
@@ -1256,6 +1266,115 @@ package com.jarvismini.callhandler
 object CallConstants {
     const val TAG = "CALL-HANDLER"
     const val AUTO_REPLY_TEXT = "I’m currently unavailable. Will call you back soon."
+}
+
+
+===== FILE: modules/callhandler/src/main/java/com/jarvismini/callhandler/JarvisCallScreeningService.kt =====
+package com.jarvismini.callhandler
+
+import android.net.Uri
+import android.provider.ContactsContract
+import android.telecom.Call
+import android.telecom.CallScreeningService
+import android.telephony.SmsManager
+import android.util.Log
+import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import java.util.concurrent.ConcurrentHashMap
+
+class JarvisCallScreeningService : CallScreeningService() {
+
+    companion object {
+        private const val TAG = "CALL-HANDLER"
+        private const val COOLDOWN_MS = 60_000L
+    }
+
+    private val lastHandled = ConcurrentHashMap<String, Long>()
+
+    override fun onScreenCall(callDetails: Call.Details) {
+        val handle = callDetails.handle ?: return
+        val number = handle.schemeSpecificPart ?: return
+        val now = System.currentTimeMillis()
+
+        // 🧠 ALWAYS RESPOND — even if letting it ring
+        fun allow() {
+            respondToCall(CallResponse.Builder().build())
+        }
+
+        // 🧠 JARVIS OFF → do nothing
+        if (JarvisState.currentMode == JarvisMode.OFF) {
+            allow()
+            return
+        }
+
+        // 🔒 CONTACT-ONLY
+        if (!isSavedContact(number)) {
+            allow()
+            return
+        }
+
+        // 🔁 COOLDOWN
+        val last = lastHandled[number] ?: 0L
+        if (now - last < COOLDOWN_MS) {
+            allow()
+            return
+        }
+        lastHandled[number] = now
+
+        val decision = AutoReplyOrchestrator.handle(
+            AutoReplyInput(
+                messageText = "Incoming call",
+                isFromOwner = false
+            )
+        )
+
+        if (decision !is ReplyDecision.AutoReply) {
+            allow()
+            return
+        }
+
+        sendSms(number, decision.message)
+
+        respondToCall(
+            CallResponse.Builder()
+                .setDisallowCall(true)
+                .setRejectCall(true)
+                .setSkipCallLog(true)
+                .setSkipNotification(true)
+                .build()
+        )
+
+        Log.d(TAG, "Call rejected + SMS sent")
+    }
+
+    private fun isSavedContact(number: String): Boolean {
+        val uri = Uri.withAppendedPath(
+            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+            Uri.encode(number)
+        )
+
+        contentResolver.query(
+            uri,
+            arrayOf(ContactsContract.PhoneLookup._ID),
+            null,
+            null,
+            null
+        )?.use { return it.moveToFirst() }
+
+        return false
+    }
+
+    private fun sendSms(number: String, message: String) {
+        try {
+            SmsManager.getDefault()
+                .sendTextMessage(number, null, message, null, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "SMS failed", e)
+        }
+    }
 }
 
 
