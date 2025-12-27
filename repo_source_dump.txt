@@ -1216,38 +1216,47 @@ class JarvisCallScreeningService : CallScreeningService() {
     override fun onScreenCall(details: Call.Details) {
         val number = details.handle?.schemeSpecificPart ?: return
 
-        // Jarvis OFF → do nothing
+        Log.d("JarvisCall", "Incoming call from $number")
+
+        // Jarvis OFF → allow
         if (JarvisState.currentMode == JarvisMode.NORMAL) {
-            allow()
+            allow(details)
             return
         }
 
-        // Contacts only
+        // Only respond to contacts
         if (!isContact(number)) {
-            allow()
+            allow(details)
             return
         }
 
         val decision = AutoReplyOrchestrator.handle(
-            AutoReplyInput("Incoming call", false)
+            AutoReplyInput(
+                content = "Incoming call",
+                isGroup = false
+            )
         )
 
         if (decision is ReplyDecision.AutoReply) {
             SmsManager.getDefault()
                 .sendTextMessage(number, null, decision.message, null, null)
 
-            reject()
+            reject(details)
         } else {
-            allow()
+            allow(details)
         }
     }
 
-    private fun allow() {
-        respondToCall(CallResponse.Builder().build())
+    private fun allow(details: Call.Details) {
+        respondToCall(
+            details,
+            CallResponse.Builder().build()
+        )
     }
 
-    private fun reject() {
+    private fun reject(details: Call.Details) {
         respondToCall(
+            details,
             CallResponse.Builder()
                 .setDisallowCall(true)
                 .setRejectCall(true)
@@ -1263,8 +1272,8 @@ class JarvisCallScreeningService : CallScreeningService() {
             Uri.encode(number)
         )
 
-        contentResolver.query(uri, null, null, null, null).use {
-            return it?.moveToFirst() == true
+        contentResolver.query(uri, null, null, null, null).use { cursor ->
+            return cursor?.moveToFirst() == true
         }
     }
 }
