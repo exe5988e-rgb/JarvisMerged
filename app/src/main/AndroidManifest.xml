@@ -70,6 +70,19 @@
     android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
     android:exported="false"
     android:foregroundServiceType="dataSync" />
+        <!-- Accessibility-based call detection service -->
+<service
+    android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+    android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+    android:exported="false">
+    <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+    </intent-filter>
+
+    <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/call_accessibility_config" />
+</service>
 
     </application>
 
