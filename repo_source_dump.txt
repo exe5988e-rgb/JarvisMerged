@@ -36,6 +36,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── themes.xml
 │   │   │   │   ├── xml
 │   │   │   │   │   ├── accessibility_service.xml
+│   │   │   │   │   ├── call_accessibility_config.xml
 │   │   │   │   │   ├── notification_listener.xml
 │   │   ├── test
 │   │   │   ├── java
@@ -87,6 +88,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── SmsAutoReplyService.kt
 │   │   │   │   │   │   │   │   ├── SmsReceiver.kt
 │   │   │   │   │   │   │   │   ├── SmsSender.kt
+│   │   │   │   │   │   │   │   ├── accessibility
+│   │   │   │   │   │   │   │   │   ├── CallAccessibilityService.kt
 │   │   │   │   │   │   │   │   ├── logic
 │   │   │   │   │   │   │   │   │   ├── CallHandlerEngine.kt
 │   │   │   │   │   │   │   │   ├── receiver
@@ -313,6 +316,19 @@ dependencies {
     android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
     android:exported="false"
     android:foregroundServiceType="dataSync" />
+        <!-- Accessibility-based call detection service -->
+<service
+    android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+    android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+    android:exported="false">
+    <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+    </intent-filter>
+
+    <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/call_accessibility_config" />
+</service>
 
     </application>
 
@@ -534,6 +550,17 @@ class MainActivity : AppCompatActivity() {
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
     android:description="@string/service_desc"/>
+
+
+===== FILE: app/src/main/res/xml/call_accessibility_config.xml =====
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="true"
+    android:accessibilityFlags="flagReportViewIds"
+    android:description="@string/accessibility_call_desc" />
 
 
 ===== FILE: app/src/main/res/xml/notification_listener.xml =====
@@ -1393,6 +1420,84 @@ object SmsSender {
     fun send(context: android.content.Context, number: String, text: String) {
         val manager = SmsManager.getDefault()
         manager.sendTextMessage(number, null, text, null, null)
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/accessibility/CallAccessibilityService.kt =====
+package com.jarvismini.callhandler.accessibility
+
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityEvent
+import android.content.Intent
+import android.util.Log
+import com.jarvismini.callhandler.service.CallAutoReplyService
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+
+class CallAccessibilityService : AccessibilityService() {
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+
+        if (
+            event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        ) return
+
+        val text = event.text?.joinToString(" ") ?: return
+
+        if (
+            !text.contains("incoming", ignoreCase = true) &&
+            !text.contains("calling", ignoreCase = true)
+        ) return
+
+        Log.d("CALL-A11Y", "Call UI detected: $text")
+
+        if (JarvisState.currentMode == JarvisMode.NORMAL) {
+            Log.d("CALL-A11Y", "Jarvis NORMAL → ignore")
+            return
+        }
+
+        val number = extractPhoneNumber(text)
+        if (number.isNullOrBlank()) {
+            Log.d("CALL-A11Y", "No number detected")
+            return
+        }
+
+        val decision = AutoReplyOrchestrator.handle(
+            AutoReplyInput(
+                messageText = "Incoming call",
+                isFromOwner = false
+            )
+        )
+
+        if (decision !is ReplyDecision.AutoReply) {
+            Log.d("CALL-A11Y", "No auto-reply decision")
+            return
+        }
+
+        val intent = Intent(
+            applicationContext,
+            CallAutoReplyService::class.java
+        ).apply {
+            putExtra(CallAutoReplyService.EXTRA_NUMBER, number)
+            putExtra(CallAutoReplyService.EXTRA_MESSAGE, decision.message)
+        }
+
+        startForegroundService(intent)
+    }
+
+    override fun onInterrupt() {
+        // no-op
+    }
+
+    private fun extractPhoneNumber(text: String): String? {
+        val regex = Regex("(\\+?\\d{10,13})")
+        return regex.find(text)?.value
     }
 }
 
