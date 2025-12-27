@@ -19,22 +19,23 @@ class JarvisCallScreeningService : CallScreeningService() {
 
         Log.d("JarvisCall", "Incoming call from $number")
 
-        // Jarvis OFF → allow
+        // Jarvis NORMAL → allow call
         if (JarvisState.currentMode == JarvisMode.NORMAL) {
             allow(details)
             return
         }
 
-        // Only respond to contacts
+        // Contacts only
         if (!isContact(number)) {
             allow(details)
             return
         }
 
+        // Use SAME AutoReplyInput contract as rest of repo
         val decision = AutoReplyOrchestrator.handle(
             AutoReplyInput(
-                content = "Incoming call",
-                isGroup = false
+                messageText = "Incoming call",
+                isFromOwner = false
             )
         )
 
