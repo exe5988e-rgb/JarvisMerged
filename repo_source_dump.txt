@@ -1,0 +1,2289 @@
+================================
+FILE TREE (SELECTED FOLDERS)
+================================
+
+.
+├── app
+│   ├── build.gradle.kts
+│   ├── keystore
+│   ├── proguard-rules.pro
+│   ├── src
+│   │   ├── androidTest
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── ExampleAndroidTest.kt
+│   │   ├── debug
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── DebugBuildConfig.kt
+│   │   ├── main
+│   │   │   ├── AndroidManifest.xml
+│   │   │   ├── kotlin
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── BuildConfigBridge.kt
+│   │   │   │   │   │   ├── CoreApp.kt
+│   │   │   │   │   │   ├── MainActivity.kt
+│   │   │   ├── res
+│   │   │   │   ├── layout
+│   │   │   │   │   ├── activity_main.xml
+│   │   │   │   │   ├── activity_settings.xml
+│   │   │   │   ├── values
+│   │   │   │   │   ├── colors.xml
+│   │   │   │   │   ├── strings.xml
+│   │   │   │   │   ├── themes.xml
+│   │   │   │   ├── xml
+│   │   │   │   │   ├── accessibility_service.xml
+│   │   │   │   │   ├── notification_listener.xml
+│   │   ├── test
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── ExampleUnitTest.kt
+├── modules
+│   ├── automation
+│   │   ├── build.gradle.kts
+│   │   ├── proguard-rules.pro
+│   │   ├── src
+│   │   │   ├── main
+│   │   │   │   ├── AndroidManifest.xml
+│   │   │   │   ├── kotlin
+│   │   │   │   │   ├── com
+│   │   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   │   ├── automation
+│   │   │   │   │   │   │   │   ├── AccessibilityServiceHelper.kt
+│   │   │   │   │   │   │   │   ├── AppAutomationService.kt
+│   │   │   │   │   │   │   │   ├── AutoCloser.kt
+│   │   │   │   │   │   │   │   ├── AutoReplyContext.kt
+│   │   │   │   │   │   │   │   ├── AutomationEngine.kt
+│   │   │   │   │   │   │   │   ├── AutomationStubs.kt
+│   │   │   │   │   │   │   │   ├── ChatOpener.kt
+│   │   │   │   │   │   │   │   ├── JarvisNotificationService.kt
+│   │   │   │   │   │   │   │   ├── MessageExtractor.kt
+│   │   │   │   │   │   │   │   ├── MessageSender.kt
+│   │   │   │   │   │   │   │   ├── ModeGuard.kt
+│   │   │   │   │   │   │   │   ├── NodeFinder.kt
+│   │   │   │   │   │   │   │   ├── SmartAutoReply.kt
+│   │   │   │   │   │   │   │   ├── WhatsAppNotificationListener.kt
+│   │   │   │   │   │   │   │   ├── decision
+│   │   │   │   │   │   │   │   │   ├── ReplyDecision.kt
+│   │   │   │   │   │   │   │   ├── input
+│   │   │   │   │   │   │   │   │   ├── AutoReplyInput.kt
+│   │   │   │   │   │   │   │   ├── orchestrator
+│   │   │   │   │   │   │   │   │   ├── AutoReplyOrchestrator.kt
+│   ├── callhandler
+│   │   ├── build.gradle.kts
+│   │   ├── src
+│   │   │   ├── main
+│   │   │   │   ├── kotlin
+│   │   │   │   │   ├── com
+│   │   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   │   ├── callhandler
+│   │   │   │   │   │   │   │   ├── ContactResolver.kt
+│   │   │   │   │   │   │   │   ├── JarvisCallScreeningService.kt
+│   │   │   │   │   │   │   │   ├── PhaseGuard.kt
+│   │   │   │   │   │   │   │   ├── SmsAutoReplyService.kt
+│   │   │   │   │   │   │   │   ├── SmsReceiver.kt
+│   │   │   │   │   │   │   │   ├── SmsSender.kt
+│   │   │   │   │   │   │   │   ├── logic
+│   │   │   │   │   │   │   │   │   ├── CallHandlerEngine.kt
+│   │   │   │   │   │   │   │   ├── receiver
+│   │   │   │   │   │   │   │   │   ├── CallReceiver.kt
+│   │   │   │   │   │   │   │   ├── service
+│   │   │   │   │   │   │   │   │   ├── CallAutoReplyService.kt
+│   ├── core
+│   │   ├── build.gradle.kts
+│   │   ├── proguard-rules.pro
+│   │   ├── src
+│   │   │   ├── main
+│   │   │   │   ├── AndroidManifest.xml
+│   │   │   │   ├── kotlin
+│   │   │   │   │   ├── com
+│   │   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   │   ├── core
+│   │   │   │   │   │   │   │   ├── AssistantProfile.kt
+│   │   │   │   │   │   │   │   ├── AssistantVoice.kt
+│   │   │   │   │   │   │   │   ├── CoreAppBridge.kt
+│   │   │   │   │   │   │   │   ├── Extensions.kt
+│   │   │   │   │   │   │   │   ├── JarvisMode.kt
+│   │   │   │   │   │   │   │   ├── JarvisState.kt
+│   │   │   │   │   │   │   │   ├── Logger.kt
+│   │   │   │   │   │   │   │   ├── TimeUtils.kt
+│   ├── engine
+│   │   ├── build.gradle.kts
+│   │   ├── proguard-rules.pro
+│   │   ├── src
+│   │   │   ├── main
+│   │   │   │   ├── AndroidManifest.xml
+│   │   │   │   ├── kotlin
+│   │   │   │   │   ├── com
+│   │   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   │   ├── engine
+│   │   │   │   │   │   │   │   ├── CommandEngine.kt
+│   │   │   │   │   │   │   │   ├── CoreTag.kt
+│   │   │   │   │   │   │   │   ├── EngineProvider.kt
+│   │   │   │   │   │   │   │   ├── EngineResult.kt
+│   │   │   │   │   │   │   │   ├── JarvisReplyGenerator.kt
+│   │   │   │   │   │   │   │   ├── LLMEngine.kt
+│   │   │   │   │   │   │   │   ├── ReplyReason.kt
+│   │   │   │   │   │   │   │   ├── ReplyToneResolver.kt
+│   │   │   │   │   │   │   │   ├── StubCommandEngine.kt
+│   │   │   │   │   │   │   │   ├── StubLLMEngine.kt
+│   ├── smart
+│   │   ├── build.gradle.kts
+│   │   ├── proguard-rules.pro
+│   │   ├── src
+│   │   │   ├── main
+│   │   │   │   ├── AndroidManifest.xml
+│   │   │   │   ├── kotlin
+│   │   │   │   │   ├── com
+│   │   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   │   ├── smart
+│   │   │   │   │   │   │   │   ├── ChatTypeDetector.kt
+│   │   │   │   │   │   │   │   ├── CooldownManager.kt
+│   │   │   │   │   │   │   │   ├── GroupDetection.kt
+│   │   │   │   │   │   │   │   ├── RateLimiter.kt
+│   │   │   │   │   │   │   │   ├── SleepMode.kt
+│   │   │   │   │   │   │   │   ├── SmartFilters.kt
+│   ├── ui
+│   │   ├── MainActivity.kt
+│   │   ├── build.gradle.kts
+│   │   ├── proguard-rules.pro
+│   │   ├── src
+│   │   │   ├── main
+│   │   │   │   ├── AndroidManifest.xml
+│   │   │   │   ├── kotlin
+│   │   │   │   │   ├── com
+│   │   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   │   ├── ui
+│   │   │   │   │   │   │   │   ├── DebugPanel.kt
+│   │   │   │   │   │   │   │   ├── ViewBindings.kt
+│   │   │   │   │   │   │   │   ├── settings
+│   │   │   │   │   │   │   │   │   ├── SettingsActivity.kt
+│   │   │   │   ├── res
+│   │   │   │   │   ├── layout
+│   │   │   │   │   │   ├── activity_main.xml
+│   │   │   │   │   ├── values
+│   │   │   │   │   │   ├── styles.xml
+├── gradle/wrapper
+│   ├── gradle-wrapper.properties
+├── scripts
+│   ├── __init__.py
+│   ├── error_parser.py
+│   ├── extract_repo_to_txt.py
+│   ├── git_utils.py
+│   ├── github.py
+│   ├── llm.py
+│   ├── logger.py
+│   ├── openrouter.py
+│   ├── patch_applier.py
+│   ├── pr_utils.py
+
+================================
+SOURCE CODE
+================================
+
+===== FILE: app/build.gradle.kts =====
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.jarvismini"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildFeatures {
+        viewBinding = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+
+    implementation(project(":modules:core"))
+    implementation(project(":modules:automation"))
+    implementation(project(":modules:engine"))
+    implementation(project(":modules:smart"))
+    implementation(project(":modules:ui"))
+    implementation(project(":modules:callhandler"))
+}
+
+
+===== FILE: app/proguard-rules.pro =====
+
+
+===== FILE: app/src/androidTest/java/com/jarvismini/ExampleAndroidTest.kt =====
+
+
+===== FILE: app/src/debug/java/com/jarvismini/DebugBuildConfig.kt =====
+
+
+===== FILE: app/src/main/AndroidManifest.xml =====
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jarvismini">
+
+    <!-- Required permissions -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <!-- Optional: supports telephony (SMS & calls) -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JarvisMini">
+
+        <!-- Main UI Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- WhatsApp Notification auto-reply -->
+        <service
+            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- SMS Receiver Phase-1 -->
+        <receiver
+            android:name="com.jarvismini.callhandler.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Call State Receiver Phase-2 -->
+        <receiver
+            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+        <service
+    android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+    android:permission="android.permission.BIND_SCREENING_SERVICE"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="android.telecom.CallScreeningService" />
+    </intent-filter>
+</service>
+        <service
+    android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+    android:exported="false"
+    android:foregroundServiceType="dataSync" />
+
+    </application>
+
+</manifest>
+
+
+===== FILE: app/src/main/kotlin/com/jarvismini/BuildConfigBridge.kt =====
+package com.jarvismini
+
+object BuildConfigBridge {
+    const val IS_DEBUG = true
+}
+
+
+===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
+package com.jarvismini
+
+import android.app.Application
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.JarvisState
+
+class CoreApp : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+
+        JarvisState.init(this)
+        AutoReplyOrchestrator.init()
+    }
+}
+
+
+===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
+package com.jarvismini
+
+import android.app.role.RoleManager
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.view.View
+import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var statusText: TextView
+    private lateinit var modeSpinner: Spinner
+    private lateinit var enableCallButton: Button
+
+    private val PERM_REQ = 2001
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        JarvisState.init(this)
+        requestPermissions()
+
+        statusText = TextView(this).apply {
+            text = "Current mode: ${JarvisState.currentMode}"
+            textSize = 16f
+        }
+
+        modeSpinner = Spinner(this)
+        val modes = JarvisMode.values().map { it.name }
+        modeSpinner.adapter =
+            ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
+
+        modeSpinner.setSelection(JarvisMode.values().indexOf(JarvisState.currentMode))
+
+        modeSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: AdapterView<*>,
+                    view: View?,
+                    pos: Int,
+                    id: Long
+                ) {
+                    val mode = JarvisMode.valueOf(modes[pos])
+                    JarvisState.setMode(this@MainActivity, mode)
+                    statusText.text = "Current mode: $mode"
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>) {}
+            }
+
+        enableCallButton = Button(this).apply {
+            text = "Enable Call Auto-Reply"
+            setOnClickListener { requestCallScreeningRole() }
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(statusText)
+            addView(modeSpinner)
+            addView(enableCallButton)
+        }
+
+        setContentView(layout)
+    }
+
+    private fun requestCallScreeningRole() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+
+        val roleManager = getSystemService(RoleManager::class.java)
+
+        if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)
+            && !roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
+        ) {
+            startActivity(
+                roleManager.createRequestRoleIntent(
+                    RoleManager.ROLE_CALL_SCREENING
+                )
+            )
+        } else {
+            Toast.makeText(this, "Call screening already enabled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun requestPermissions() {
+        val perms = mutableListOf<String>()
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.READ_CONTACTS
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.SEND_SMS
+
+        if (perms.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, perms.toTypedArray(), PERM_REQ)
+        }
+    }
+}
+
+
+===== FILE: app/src/main/res/layout/activity_main.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+</LinearLayout>
+
+
+===== FILE: app/src/main/res/layout/activity_settings.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <Spinner
+        android:id="@+id/modelSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp" />
+
+</LinearLayout>
+
+
+===== FILE: app/src/main/res/values/colors.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#BB86FC</color>
+    <color name="purple_500">#6200EE</color>
+    <color name="purple_700">#3700B3</color>
+    <color name="teal_200">#03DAC5</color>
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+</resources>
+
+
+===== FILE: app/src/main/res/values/strings.xml =====
+<resources>
+    <string name="app_name">Jarvis Merged</string>
+    <string name="service_desc">Jarvis WhatsApp automation service</string>
+</resources>
+
+
+===== FILE: app/src/main/res/values/themes.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.JarvisMerged" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+    </style>
+
+</resources>
+
+
+===== FILE: app/src/main/res/xml/accessibility_service.xml =====
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+
+    android:accessibilityEventTypes="
+        typeWindowStateChanged
+        | typeWindowContentChanged"
+
+    android:accessibilityFeedbackType="feedbackGeneric"
+
+    android:accessibilityFlags="
+        flagReportViewIds
+        | flagRetrieveInteractiveWindows
+        | flagIncludeNotImportantViews"
+
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="100"
+    android:description="@string/service_desc"/>
+
+
+===== FILE: app/src/main/res/xml/notification_listener.xml =====
+ <notification-listener-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/service_desc" />
+
+
+===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
+
+
+===== FILE: modules/automation/build.gradle.kts =====
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini.automation"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 23
+        targetSdk = 34
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation(project(":modules:smart"))
+    implementation(project(":modules:engine"))
+    implementation(project(":modules:core"))
+    implementation("androidx.core:core-ktx:1.12.0")
+}
+
+
+===== FILE: modules/automation/proguard-rules.pro =====
+
+
+===== FILE: modules/automation/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AccessibilityServiceHelper.kt =====
+package com.jarvismini.automation
+
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityNodeInfo
+
+object AccessibilityServiceHelper {
+    lateinit var service: AccessibilityService
+
+    fun init(s: AccessibilityService) {
+        service = s
+    }
+
+    fun getRootNode(): AccessibilityNodeInfo? {
+        return service.rootInActiveWindow
+    }
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt =====
+// ===== FILE: app/src/main/java/com/jarvismini/automation/AppAutomationService.kt =====
+package com.jarvismini.automation
+
+import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.content.Intent
+import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import android.widget.Toast
+
+class AppAutomationService : AccessibilityService() {
+
+    private val TAG = "JARVIS"
+    private val WHATSAPP = "com.whatsapp"
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
+        Log.e(TAG, "SERVICE CONNECTED")
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+
+        // 🔒 Notification only
+        if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
+        if (event.packageName?.toString() != WHATSAPP) return
+
+        val data = event.parcelableData
+        if (data !is Notification) return
+
+        // 🚀 HARD OPEN WhatsApp (reliable)
+        val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP)
+            ?: return
+
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        startActivity(launchIntent)
+
+        Toast.makeText(
+            this,
+            "WhatsApp opened from notification",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        Log.e(TAG, "WHATSAPP LAUNCHED")
+    }
+
+    override fun onInterrupt() {
+        Log.e(TAG, "SERVICE INTERRUPTED")
+    }
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoCloser.kt =====
+package com.jarvismini.automation
+
+import android.view.accessibility.AccessibilityNodeInfo
+
+object AutoCloser {
+    fun closeChat(root: AccessibilityNodeInfo?) {
+        val back = try {
+            root?.findAccessibilityNodeInfosByViewId("com.whatsapp:id/back")
+        } catch (_: Exception) { null }
+
+        if (!back.isNullOrEmpty()) {
+            back.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        }
+    }
+}
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoReplyContext.kt =====
+package com.jarvismini.automation
+
+import com.jarvismini.engine.ReplyReason
+import com.jarvismini.core.JarvisMode
+
+data class AutoReplyContext(
+    val reason: ReplyReason,
+    val currentMode: JarvisMode,
+    val isImportant: Boolean = false
+)
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
+package com.jarvismini.automation
+
+class AutomationEngine {
+
+    fun generateReply(input: String): String {
+        // STUB: real logic will come later
+        return ""
+    }
+
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationStubs.kt =====
+package com.jarvismini.automation
+
+fun ChatAllowed(): Boolean = false
+fun generateReply(text: String): String = ""
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ChatOpener.kt =====
+package com.jarvismini.automation
+
+import android.accessibilityservice.AccessibilityService
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
+
+object ChatOpener {
+
+    private const val TAG = "JarvisMini-ChatOpener"
+
+    private val unreadBadgeIds = listOf(
+        "com.whatsapp:id/unread_indicator",
+        "com.whatsapp:id/unread_count",
+        "com.whatsapp:id/message_count"
+    )
+
+    fun openChat(service: AccessibilityService, root: AccessibilityNodeInfo?) {
+        root ?: return
+
+        // Try “new message”
+        val nodes = root.findAccessibilityNodeInfosByText("new message")
+        if (!nodes.isNullOrEmpty()) {
+            nodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            Log.i(TAG, "Opened chat via 'new message'")
+            return
+        }
+
+        // Try unread badge
+        for (id in unreadBadgeIds) {
+            try {
+                val badges = root.findAccessibilityNodeInfosByViewId(id)
+                if (!badges.isNullOrEmpty()) {
+                    badges.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    Log.i(TAG, "Opened chat via unread badge: $id")
+                    return
+                }
+            } catch (_: Exception) {}
+        }
+    }
+}
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/JarvisNotificationService.kt =====
+package com.jarvismini.automation
+
+import android.app.Notification
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
+import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+
+class JarvisNotificationService : NotificationListenerService() {
+
+    private val TAG = "JarvisNotifService"
+
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        val packageName = sbn.packageName
+        if (packageName != "com.whatsapp") return
+
+        val notification = sbn.notification
+        val extras = notification.extras
+        val messageText = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()
+        val sender = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()
+
+        if (messageText.isNullOrEmpty() || sender.isNullOrEmpty()) return
+
+        Log.i(TAG, "Notification from $sender: $messageText")
+
+        val input = AutoReplyInput(
+            messageText = messageText,
+            isFromOwner = false
+        )
+
+        val decision = AutoReplyOrchestrator.handle(input)
+
+        when (decision) {
+            is ReplyDecision.AutoReply -> {
+                Log.i(TAG, "Jarvis AutoReply: ${decision.message}")
+                // Open chat and send message
+                val root = AccessibilityServiceHelper.getRootNode() // helper to get root node
+                ChatOpener.openChat(AccessibilityServiceHelper.service, root)
+                MessageSender.sendMessage(root, decision.message)
+            }
+
+            ReplyDecision.NoReply -> {
+                Log.i(TAG, "Jarvis will not reply")
+            }
+        }
+
+        // Auto-close chat
+        val root = AccessibilityServiceHelper.getRootNode()
+        AutoCloser.closeChat(root)
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {}
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/MessageExtractor.kt =====
+package com.jarvismini.automation
+
+import android.view.accessibility.AccessibilityNodeInfo
+
+object MessageExtractor {
+
+    private val chatTitleIds = listOf(
+        "com.whatsapp:id/conversation_contact_name",
+        "com.whatsapp:id/contact_name",
+        "com.whatsapp:id/toolbar_title"
+    )
+
+    private val incomingMessageIds = listOf(
+        "com.whatsapp:id/message_text",
+        "com.whatsapp:id/message_text_in"
+    )
+
+    fun getSenderName(root: AccessibilityNodeInfo): String {
+        chatTitleIds.forEach { id ->
+            try {
+                val list = root.findAccessibilityNodeInfosByViewId(id)
+                if (!list.isNullOrEmpty()) {
+                    return list.first().text?.toString()?.trim() ?: ""
+                }
+            } catch (_: Exception) {}
+        }
+        return ""
+    }
+
+    fun getLastIncomingMessage(root: AccessibilityNodeInfo): String {
+        for (id in incomingMessageIds) {
+            try {
+                val nodes = root.findAccessibilityNodeInfosByViewId(id)
+                if (!nodes.isNullOrEmpty()) {
+                    return nodes.last().text?.toString() ?: ""
+                }
+            } catch (_: Exception) {}
+        }
+        return ""
+    }
+}
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/MessageSender.kt =====
+package com.jarvismini.automation
+
+import android.view.accessibility.AccessibilityNodeInfo
+
+object MessageSender {
+    fun sendMessage(root: AccessibilityNodeInfo?, message: String) {
+        root ?: return
+        try {
+            val inputField = NodeFinder.findInputField(root)
+            inputField?.let {
+                val args = android.os.Bundle()
+                args.putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, message)
+                it.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                it.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+        } catch (_: Exception) {}
+    }
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ModeGuard.kt =====
+package com.jarvismini.automation
+
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+
+object ModeGuard {
+
+    fun allowsReply(): Boolean {
+        return when (JarvisState.currentMode) {
+            JarvisMode.NORMAL -> true
+            JarvisMode.WORK -> true
+            JarvisMode.DRIVING -> true
+            JarvisMode.SLEEP -> false
+            JarvisMode.FOCUS -> false
+        }
+    }
+}
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/NodeFinder.kt =====
+package com.jarvismini.automation
+
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
+
+object NodeFinder {
+
+    private const val TAG = "JarvisMini-NodeFinder"
+
+    private val inputIds = listOf(
+        "com.whatsapp:id/entry",
+        "com.whatsapp:id/voice_note_text_input",
+        "com.whatsapp:id/entry_container",
+        "com.whatsapp:id/entry_text",
+        "com.whatsapp:id/entry_input"
+    )
+
+    private val sendButtonIds = listOf(
+        "com.whatsapp:id/send",
+        "com.whatsapp:id/send_btn",
+        "com.whatsapp:id/send_button",
+        "com.whatsapp:id/send_icon",
+        "com.whatsapp:id/send_message"
+    )
+
+    fun findInputField(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        for (id in inputIds) {
+            safeFindById(root, id)?.firstOrNull()?.let { return it }
+        }
+
+        findByClass(root, "android.widget.EditText")?.let { return it }
+
+        for (id in inputIds) {
+            safeFindById(root, id)?.firstOrNull()?.parent?.let { parent ->
+                if (parent.className?.contains("EditText") == true) return parent
+            }
+        }
+
+        Log.w(TAG, "Input field not found")
+        return null
+    }
+
+    fun findSendButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        for (id in sendButtonIds) {
+            safeFindById(root, id)?.firstOrNull()?.let { return it }
+        }
+
+        findByClass(root, "android.widget.ImageButton")?.let { return it }
+
+        Log.w(TAG, "Send button not found")
+        return null
+    }
+
+    private fun safeFindById(node: AccessibilityNodeInfo, id: String): List<AccessibilityNodeInfo>? {
+        return try { node.findAccessibilityNodeInfosByViewId(id) } catch (_: Exception) { null }
+    }
+
+    private fun findByClass(node: AccessibilityNodeInfo, className: String): AccessibilityNodeInfo? {
+        if (node.className == className) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            findByClass(child, className)?.let { return it }
+        }
+        return null
+    }
+}
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/SmartAutoReply.kt =====
+package com.jarvismini.automation
+
+/**
+ * STUB implementation.
+ * Engine / LLM will be wired later.
+ */
+object SmartAutoReply {
+
+    suspend fun generate(message: String): String {
+        // TODO: connect to engine later
+        return ""
+    }
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/WhatsAppNotificationListener.kt =====
+// ===== FILE: app/src/main/java/com/jarvismini/automation/WhatsAppNotificationListener.kt =====
+package com.jarvismini.automation
+
+import android.app.Notification
+import android.app.PendingIntent
+import android.app.RemoteInput
+import android.content.Intent
+import android.os.Bundle
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import android.util.Log
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.automation.decision.ReplyDecision
+import java.util.concurrent.ConcurrentHashMap
+
+class WhatsAppNotificationListener : NotificationListenerService() {
+
+    companion object {
+        private const val TAG = "JARVIS-NOTIF"
+        private const val WHATSAPP = "com.whatsapp"
+
+        private const val NORMAL_COOLDOWN_MS = 30_000L
+        private const val URGENT_COOLDOWN_MS = 5 * 60 * 1000L
+
+        private val URGENT_REGEX = Regex(
+            "\\b(urgent|emergency|asap|important|immediately|call\\s*me|call\\s*now)\\b",
+            RegexOption.IGNORE_CASE
+        )
+    }
+
+    private val handledKeys = ConcurrentHashMap<String, Boolean>()
+    private val lastReplyTime = ConcurrentHashMap<String, Long>()
+    private val lastUrgentReplyTime = ConcurrentHashMap<String, Long>()
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (sbn == null) return
+        if (sbn.packageName != WHATSAPP) return
+
+        val notification = sbn.notification
+        val extras = notification.extras
+
+        if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+
+        val title = extras.getString(Notification.EXTRA_TITLE)
+        val convo = extras.getString(Notification.EXTRA_CONVERSATION_TITLE)
+
+        val isGroup =
+            extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false) ||
+            (!title.isNullOrEmpty() && !convo.isNullOrEmpty() && title != convo)
+
+        if (isGroup) return
+
+        val replyAction = notification.actions
+            ?.firstOrNull { it.remoteInputs != null }
+            ?: return
+
+        if (handledKeys.putIfAbsent(sbn.key, true) != null) return
+
+        val chatId = convo ?: title ?: return
+        val now = System.currentTimeMillis()
+
+        val messageText =
+            extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+                ?: ""
+
+        val isUrgent = URGENT_REGEX.containsMatchIn(messageText)
+
+        if (isUrgent) {
+            val last = lastUrgentReplyTime[chatId] ?: 0L
+            if (now - last < URGENT_COOLDOWN_MS) return
+            lastUrgentReplyTime[chatId] = now
+        } else {
+            val last = lastReplyTime[chatId] ?: 0L
+            if (now - last < NORMAL_COOLDOWN_MS) return
+            lastReplyTime[chatId] = now
+        }
+
+        val decision = AutoReplyOrchestrator.handle(
+            AutoReplyInput(
+                messageText = messageText,
+                isFromOwner = false
+            )
+        )
+
+        if (decision !is ReplyDecision.AutoReply) {
+            Log.d(TAG, "Jarvis mode blocks auto-reply")
+            return
+        }
+
+        sendReply(replyAction, decision.message)
+    }
+
+    private fun sendReply(action: Notification.Action, replyText: String) {
+        val fillInIntent = Intent()
+        val results = Bundle()
+
+        for (input in action.remoteInputs) {
+            results.putCharSequence(input.resultKey, replyText)
+        }
+
+        RemoteInput.addResultsToIntent(
+            action.remoteInputs,
+            fillInIntent,
+            results
+        )
+
+        try {
+            action.actionIntent.send(
+                this,
+                0,
+                fillInIntent
+            )
+            Log.d(TAG, "Jarvis auto-reply sent (stable)")
+        } catch (e: PendingIntent.CanceledException) {
+            Log.e(TAG, "Failed to send reply", e)
+        }
+    }
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/decision/ReplyDecision.kt =====
+package com.jarvismini.automation.decision
+
+/**
+ * Final decision returned by automation layer.
+ */
+sealed class ReplyDecision {
+
+    /**
+     * Jarvis should auto-reply with this message.
+     */
+    data class AutoReply(
+        val message: String
+    ) : ReplyDecision()
+
+    /**
+     * Jarvis should not reply.
+     */
+    object NoReply : ReplyDecision()
+}
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/input/AutoReplyInput.kt =====
+package com.jarvismini.automation.input
+
+data class AutoReplyInput(
+    val messageText: String,
+    val senderName: String = "",
+    val isFromOwner: Boolean = false
+)
+
+
+===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/orchestrator/AutoReplyOrchestrator.kt =====
+package com.jarvismini.automation.orchestrator
+
+import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.core.AssistantVoice
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+
+/**
+ * Orchestrates automation decisions for incoming messages.
+ * Pure decision layer — no hardcoded user-facing text.
+ */
+object AutoReplyOrchestrator {
+
+    fun handle(input: AutoReplyInput): ReplyDecision {
+        return when (JarvisState.currentMode) {
+
+            JarvisMode.DRIVING ->
+                ReplyDecision.AutoReply(
+                    message = AssistantVoice.driving()
+                )
+
+            JarvisMode.WORK ->
+                ReplyDecision.AutoReply(
+                    message = AssistantVoice.working()
+                )
+
+            JarvisMode.SLEEP ->
+                ReplyDecision.AutoReply(
+                    message = AssistantVoice.unavailable("sleeping")
+                )
+
+            JarvisMode.FOCUS ->
+                ReplyDecision.AutoReply(
+                    message = AssistantVoice.unavailable("focus mode")
+                )
+
+            JarvisMode.NORMAL ->
+                ReplyDecision.NoReply
+        }
+    }
+
+    fun init() {
+        // reserved for future signal wiring
+    }
+}
+
+
+===== FILE: modules/callhandler/build.gradle.kts =====
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini.callhandler"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 26
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation(project(":modules:automation"))
+    implementation(project(":modules:core"))
+    implementation("androidx.core:core-ktx:1.12.0")
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/ContactResolver.kt =====
+package com.jarvismini.callhandler
+
+import android.content.Context
+import android.provider.ContactsContract
+
+object ContactResolver {
+
+    fun isContact(context: Context, number: String): Boolean {
+        val uri = ContactsContract.PhoneLookup.CONTENT_FILTER_URI
+            .buildUpon()
+            .appendPath(number)
+            .build()
+
+        context.contentResolver.query(
+            uri,
+            arrayOf(ContactsContract.PhoneLookup._ID),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            return cursor.moveToFirst()
+        }
+
+        return false
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/JarvisCallScreeningService.kt =====
+package com.jarvismini.callhandler
+
+import android.net.Uri
+import android.provider.ContactsContract
+import android.telecom.Call
+import android.telecom.CallScreeningService
+import android.telephony.SmsManager
+import android.util.Log
+import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+
+class JarvisCallScreeningService : CallScreeningService() {
+
+    override fun onScreenCall(details: Call.Details) {
+        val number = details.handle?.schemeSpecificPart ?: return
+
+        Log.d("JarvisCall", "Incoming call from $number")
+
+        // Jarvis NORMAL → allow call
+        if (JarvisState.currentMode == JarvisMode.NORMAL) {
+            allow(details)
+            return
+        }
+
+        // Contacts only
+        if (!isContact(number)) {
+            allow(details)
+            return
+        }
+
+        // Use SAME AutoReplyInput contract as rest of repo
+        val decision = AutoReplyOrchestrator.handle(
+            AutoReplyInput(
+                messageText = "Incoming call",
+                isFromOwner = false
+            )
+        )
+
+        if (decision is ReplyDecision.AutoReply) {
+            SmsManager.getDefault()
+                .sendTextMessage(number, null, decision.message, null, null)
+
+            reject(details)
+        } else {
+            allow(details)
+        }
+    }
+
+    private fun allow(details: Call.Details) {
+        respondToCall(
+            details,
+            CallResponse.Builder().build()
+        )
+    }
+
+    private fun reject(details: Call.Details) {
+        respondToCall(
+            details,
+            CallResponse.Builder()
+                .setDisallowCall(true)
+                .setRejectCall(true)
+                .setSkipNotification(true)
+                .setSkipCallLog(true)
+                .build()
+        )
+    }
+
+    private fun isContact(number: String): Boolean {
+        val uri = Uri.withAppendedPath(
+            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+            Uri.encode(number)
+        )
+
+        contentResolver.query(uri, null, null, null, null).use { cursor ->
+            return cursor?.moveToFirst() == true
+        }
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/PhaseGuard.kt =====
+package com.jarvismini.callhandler
+
+object PhaseGuard {
+    const val PHASE = 1
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsAutoReplyService.kt =====
+package com.jarvismini.callhandler
+
+import android.content.Context
+import android.util.Log
+
+object SmsAutoReplyService {
+
+    private const val AUTO_REPLY =
+        "Hello Aamir sir, Jarvis here. I’ll get back to you shortly."
+
+    fun reply(context: Context, number: String, incomingText: String) {
+        SmsSender.send(context, number, AUTO_REPLY)
+        Log.d("CALL-HANDLER", "Auto-reply sent to $number")
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
+// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
+package com.jarvismini.callhandler
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.provider.Telephony
+import android.util.Log
+
+class SmsReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+
+        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+        for (msg in messages) {
+
+            val sender = msg.displayOriginatingAddress ?: continue
+            val text = msg.messageBody ?: continue
+
+            if (!ContactResolver.isContact(context, sender)) {
+                Log.d("CALL-HANDLER", "SMS ignored (not contact): $sender")
+                continue
+            }
+
+            SmsAutoReplyService.reply(context, sender, text)
+        }
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsSender.kt =====
+package com.jarvismini.callhandler
+
+import android.telephony.SmsManager
+
+object SmsSender {
+
+    fun send(context: android.content.Context, number: String, text: String) {
+        val manager = SmsManager.getDefault()
+        manager.sendTextMessage(number, null, text, null, null)
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/logic/CallHandlerEngine.kt =====
+package com.jarvismini.callhandler.logic
+
+import android.content.Intent
+import android.content.Context
+import android.net.Uri
+import android.provider.ContactsContract
+import android.telephony.SmsManager
+import android.util.Log
+import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import java.util.concurrent.ConcurrentHashMap
+
+object CallHandlerEngine {
+
+    private const val TAG = "CALL-HANDLER"
+    private const val COOLDOWN_MS = 60_000L
+
+    private val lastHandled = ConcurrentHashMap<String, Long>()
+
+    fun handleIncomingCall(context: Context, number: String) {
+        val now = System.currentTimeMillis()
+
+        // 🔕 Jarvis OFF → do nothing
+        if (JarvisState.currentMode == JarvisMode.NORMAL) {
+            Log.d(TAG, "NORMAL mode → allow call")
+            return
+        }
+
+        // 🔒 Contacts only
+        if (!isSavedContact(context, number)) {
+            Log.d(TAG, "Ignored (not contact)")
+            return
+        }
+
+        // 🔁 Cooldown
+        val last = lastHandled[number] ?: 0L
+        if (now - last < COOLDOWN_MS) {
+            Log.d(TAG, "Cooldown active")
+            return
+        }
+        lastHandled[number] = now
+
+        // 🧠 Orchestrator decision
+        val decision = AutoReplyOrchestrator.handle(
+    AutoReplyInput(
+        messageText = "Incoming call",
+        isFromOwner = false
+    )
+)
+
+
+        if (decision is ReplyDecision.AutoReply) {
+    val serviceIntent = Intent(context, 
+        com.jarvismini.callhandler.service.CallAutoReplyService::class.java
+    ).apply {
+        putExtra(
+            com.jarvismini.callhandler.service.CallAutoReplyService.EXTRA_NUMBER,
+            number
+        )
+        putExtra(
+            com.jarvismini.callhandler.service.CallAutoReplyService.EXTRA_MESSAGE,
+            decision.message
+        )
+    }
+
+    context.applicationContext.startForegroundService(serviceIntent)
+
+        }
+    }
+
+    private fun isSavedContact(context: Context, number: String): Boolean {
+        val uri = ContactsContract.PhoneLookup.CONTENT_FILTER_URI
+            .buildUpon()
+            .appendPath(Uri.encode(number))
+            .build()
+
+        val cursor = context.contentResolver.query(
+            uri,
+            arrayOf(ContactsContract.PhoneLookup._ID),
+            null,
+            null,
+            null
+        )
+
+        return cursor?.use { it.moveToFirst() } == true
+    }
+
+    private fun sendSms(number: String, message: String) {
+        SmsManager.getDefault()
+            .sendTextMessage(number, null, message, null, null)
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/receiver/CallReceiver.kt =====
+package com.jarvismini.callhandler.receiver
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.telephony.TelephonyManager
+import com.jarvismini.callhandler.logic.CallHandlerEngine
+
+class CallReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
+
+        val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+        val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+
+        if (state == TelephonyManager.EXTRA_STATE_RINGING && !number.isNullOrBlank()) {
+            CallHandlerEngine.handleIncomingCall(context, number)
+        }
+    }
+}
+
+
+===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/service/CallAutoReplyService.kt =====
+package com.jarvismini.callhandler.service
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import android.telephony.SmsManager
+import androidx.core.app.NotificationCompat
+import android.util.Log
+
+class CallAutoReplyService : Service() {
+
+    override fun onCreate() {
+        super.onCreate()
+        startForeground(NOTIFICATION_ID, createNotification())
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val number = intent?.getStringExtra(EXTRA_NUMBER)
+        val message = intent?.getStringExtra(EXTRA_MESSAGE)
+
+        if (!number.isNullOrBlank() && !message.isNullOrBlank()) {
+            Log.d(TAG, "Foreground SMS → $number")
+            SmsManager.getDefault()
+                .sendTextMessage(number, null, message, null, null)
+        }
+
+        stopSelf()
+        return START_NOT_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun createNotification(): Notification {
+        val channelId = CHANNEL_ID
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Jarvis Call Auto‑Reply",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+
+        return NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Jarvis")
+            .setContentText("Sending call auto‑reply")
+            .setSmallIcon(android.R.drawable.sym_action_chat)
+            .build()
+    }
+
+    companion object {
+        const val EXTRA_NUMBER = "extra_number"
+        const val EXTRA_MESSAGE = "extra_message"
+        const val CHANNEL_ID = "jarvis_call_reply"
+        const val NOTIFICATION_ID = 1002
+        private const val TAG = "CALL-AUTO-REPLY"
+    }
+}
+
+
+===== FILE: modules/core/build.gradle.kts =====
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini.core"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 23
+        targetSdk = 34
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+
+===== FILE: modules/core/proguard-rules.pro =====
+
+
+===== FILE: modules/core/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/AssistantProfile.kt =====
+package com.jarvismini.core
+
+object AssistantProfile {
+
+    const val ASSISTANT_NAME = "Jarvis"
+
+    // Default addressing (as you requested)
+    const val USER_PRIMARY = "Aamir Sir"
+    const val USER_FORMAL = "Mr Shams"
+
+    // Used everywhere
+    fun addressUser(): String = USER_PRIMARY
+}
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/AssistantVoice.kt =====
+package com.jarvismini.core
+
+object AssistantVoice {
+
+    fun driving(): String =
+        "${AssistantProfile.ASSISTANT_NAME}: ${AssistantProfile.addressUser()} is currently driving and will respond shortly."
+
+    fun working(): String =
+        "${AssistantProfile.ASSISTANT_NAME}: ${AssistantProfile.addressUser()} is working at the moment. Jarvis will notify him."
+
+    fun unavailable(reason: String): String =
+        "${AssistantProfile.ASSISTANT_NAME}: ${AssistantProfile.addressUser()} is unavailable right now ($reason)."
+
+    fun noReply(): String =
+        "${AssistantProfile.ASSISTANT_NAME}: No reply will be sent at this time."
+}
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/CoreAppBridge.kt =====
+package com.jarvismini.core
+object CoreAppBridge { fun appName() = "JarvisMerged" }
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/Extensions.kt =====
+package com.jarvismini.core
+
+fun String.trunc(n: Int): String =
+    if (this.length > n) this.substring(0, n) else this
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisMode.kt =====
+package com.jarvismini.core
+
+enum class JarvisMode {
+    NORMAL,
+    WORK,
+    DRIVING,
+    SLEEP,
+    FOCUS
+}
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisState.kt =====
+package com.jarvismini.core
+
+import android.content.Context
+
+object JarvisState {
+
+    private const val PREFS = "jarvis_state"
+    private const val KEY_MODE = "mode"
+
+    var currentMode: JarvisMode = JarvisMode.NORMAL
+        private set
+
+    fun init(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val saved = prefs.getString(KEY_MODE, JarvisMode.NORMAL.name)
+        currentMode = JarvisMode.valueOf(saved!!)
+    }
+
+    fun setMode(context: Context, mode: JarvisMode) {
+        currentMode = mode
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_MODE, mode.name)
+            .apply()
+    }
+}
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/Logger.kt =====
+package com.jarvismini.core
+
+object Logger {
+    fun i(tag: String, msg: String?) {
+        android.util.Log.i(tag, msg ?: "")
+    }
+}
+
+
+===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/TimeUtils.kt =====
+package com.jarvismini.core
+object TimeUtils { fun nowMs() = System.currentTimeMillis() }
+
+
+===== FILE: modules/engine/build.gradle.kts =====
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini.engine"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 34
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation(project(":modules:core"))
+}
+
+
+===== FILE: modules/engine/proguard-rules.pro =====
+
+
+===== FILE: modules/engine/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CommandEngine.kt =====
+package com.jarvismini.engine
+
+interface CommandEngine {
+    fun canHandle(input: String): Boolean
+    fun handle(input: String): EngineResult
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CoreTag.kt =====
+package com.jarvismini.engine
+
+object CoreTag {
+    const val ENGINE = "ENGINE"
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+package com.jarvismini.engine
+
+object EngineProvider {
+
+    val commandEngine: CommandEngine = StubCommandEngine
+    val llmEngine: LLMEngine = StubLLMEngine
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineResult.kt =====
+package com.jarvismini.engine
+
+sealed class EngineResult {
+
+    data class Success(
+        val reply: String
+    ) : EngineResult()
+
+    object Unhandled : EngineResult()
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/JarvisReplyGenerator.kt =====
+package com.jarvismini.engine
+
+import com.jarvismini.core.JarvisMode
+
+object JarvisReplyGenerator {
+
+    fun generate(
+        incomingMessage: String,
+        reason: ReplyReason,
+        mode: JarvisMode
+    ): String {
+
+        val baseReply = ReplyToneResolver.resolve(reason, mode)
+
+        return "$baseReply\n\nMessage received: \"$incomingMessage\""
+    }
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+interface LLMEngine {
+    fun init(context: Context)
+    fun generateReply(prompt: String): String
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ReplyReason.kt =====
+package com.jarvismini.engine
+
+enum class ReplyReason {
+    USER_BUSY,
+    MISSED_MESSAGE,
+    IMPORTANT_MESSAGE
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ReplyToneResolver.kt =====
+package com.jarvismini.engine
+
+import com.jarvismini.core.JarvisMode
+
+object ReplyToneResolver {
+
+    fun resolve(reason: ReplyReason, mode: JarvisMode): String {
+        return when (mode) {
+
+            JarvisMode.WORK ->
+                "This is Jarvis, assisting Mr. Aamir. He is currently in a meeting."
+
+            JarvisMode.DRIVING ->
+                "This is Jarvis, assisting Mr. Aamir. He is currently driving."
+
+            JarvisMode.SLEEP ->
+                "This is Jarvis, assisting Mr. Aamir. He is currently unavailable."
+
+            JarvisMode.FOCUS ->
+                "This is Jarvis, assisting Mr. Aamir. He is currently focused and unavailable."
+
+            JarvisMode.NORMAL ->
+                defaultByReason(reason)
+        }
+    }
+
+    private fun defaultByReason(reason: ReplyReason): String {
+        return when (reason) {
+            ReplyReason.USER_BUSY ->
+                "This is Jarvis, assisting Mr. Aamir. He is currently occupied and will respond when available."
+
+            ReplyReason.MISSED_MESSAGE ->
+                "This is Jarvis, assisting Mr. Aamir. He will review this message shortly."
+
+            ReplyReason.IMPORTANT_MESSAGE ->
+                "This is Jarvis, assisting Mr. Aamir. He has been notified and will respond as soon as possible."
+        }
+    }
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
+package com.jarvismini.engine
+
+object StubCommandEngine : CommandEngine {
+
+    override fun canHandle(input: String): Boolean {
+        return false
+    }
+
+    override fun handle(input: String): EngineResult {
+        return EngineResult.Unhandled
+    }
+}
+
+
+===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+object StubLLMEngine : LLMEngine {
+
+    override fun init(context: Context) {
+        // No-op for stub
+    }
+
+    override fun generateReply(prompt: String): String {
+        return "This is Jarvis. Mr. Aamir will respond shortly."
+    }
+}
+
+
+===== FILE: modules/smart/build.gradle.kts =====
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini.smart"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 23
+        targetSdk = 34
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}
+
+
+===== FILE: modules/smart/proguard-rules.pro =====
+
+
+===== FILE: modules/smart/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+
+
+===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/ChatTypeDetector.kt =====
+package com.jarvismini.smart
+
+import android.view.accessibility.AccessibilityNodeInfo
+
+/**
+ * ChatTypeDetector: heuristics to detect group vs personal chat from AccessibilityNodeInfo.
+ *
+ * This tries several strategies:
+ *  - check common WhatsApp view ids for group indicators
+ *  - read toolbar/title node and look for participant patterns
+ *  - scan visible text for keywords like "participants", "admins", etc.
+ */
+object ChatTypeDetector {
+
+    private val groupKeywords = listOf(
+        "participants",
+        "admins",
+        "member",
+        "you joined",
+        "added",
+        "left",
+        "Group"
+    )
+
+    /**
+     * Return true if given window root looks like a group chat.
+     * Accepts null root (returns false).
+     */
+    fun isGroupChat(root: AccessibilityNodeInfo?): Boolean {
+        if (root == null) return false
+
+        // 1. Try toolbar title nodes (common WhatsApp IDs)
+        val toolbarIds = listOf(
+            "com.whatsapp:id/conversation_contact_name",
+            "com.whatsapp:id/contact_name",
+            "com.whatsapp:id/toolbar_title"
+        )
+
+        for (id in toolbarIds) {
+            try {
+                val nodes = root.findAccessibilityNodeInfosByViewId(id)
+                if (!nodes.isNullOrEmpty()) {
+                    val txt = nodes.first().text?.toString() ?: ""
+                    if (looksLikeGroupTitle(txt)) return true
+                }
+            } catch (_: Exception) {
+                // ignore and continue
+            }
+        }
+
+        // 2. Check for explicit group info container
+        try {
+            val groupInfo = root.findAccessibilityNodeInfosByViewId("com.whatsapp:id/group_info_container")
+            if (!groupInfo.isNullOrEmpty()) return true
+        } catch (_: Exception) { }
+
+        // 3. Scan visible text for group keywords
+        val texts = collectVisibleTexts(root, 200) // limit to avoid huge searches
+        for (t in texts) {
+            if (groupKeywords.any { kw -> t.contains(kw, ignoreCase = true) }) return true
+        }
+
+        return false
+    }
+
+    private fun looksLikeGroupTitle(title: String): Boolean {
+        if (title.isBlank()) return false
+        // groups often have count like "Family (10)" or include keywords
+        if (title.contains("(") && title.contains(")")) return true
+        return groupKeywords.any { title.contains(it, ignoreCase = true) }
+    }
+
+    private fun collectVisibleTexts(root: AccessibilityNodeInfo, limit: Int): List<String> {
+        val out = mutableListOf<String>()
+        fun walk(n: AccessibilityNodeInfo?) {
+            if (n == null || out.size >= limit) return
+            n.text?.let { if (it.isNotBlank()) out.add(it.toString()) }
+            for (i in 0 until n.childCount) {
+                val c = n.getChild(i) ?: continue
+                walk(c)
+            }
+        }
+        walk(root)
+        return out
+    }
+}
+
+
+===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/CooldownManager.kt =====
+package com.jarvismini.smart
+
+/**
+ * CooldownManager: per-chat cooldown to avoid spam.
+ *
+ * Usage:
+ *  if (!CooldownManager.canReply(sender)) return
+ *  // reply...
+ *  CooldownManager.markReplied(sender)
+ */
+object CooldownManager {
+    private val lastReply = mutableMapOf<String, Long>()
+    private const val DEFAULT_COOLDOWN_MS = 8_000L
+
+    /** Check whether we can reply to this sender now (does not modify state). */
+    fun canReply(sender: String, cooldownMs: Long = DEFAULT_COOLDOWN_MS): Boolean {
+        val now = System.currentTimeMillis()
+        val prev = lastReply[sender] ?: 0L
+        return (now - prev) >= cooldownMs
+    }
+
+    /** Mark that we've replied to this sender now. */
+    fun markReplied(sender: String) {
+        lastReply[sender] = System.currentTimeMillis()
+    }
+
+    /** Force-reset cooldown for a sender (useful for tests / admin). */
+    fun reset(sender: String) {
+        lastReply.remove(sender)
+    }
+
+    /** Clear all tracked state (useful for tests). */
+    fun clearAll() {
+        lastReply.clear()
+    }
+}
+
+
+===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt =====
+package com.jarvismini.smart
+
+/**
+ * GroupDetection: helper to determine group by sender name heuristics.
+ * This is a lightweight fallback when AccessibilityNode root not available.
+ */
+object GroupDetection {
+
+    private val groupNameIndicators = listOf("group", "team", "family", "friends", "community")
+
+    /** Return true if the sender name strongly suggests a group. */
+    fun isGroupByName(senderName: String?): Boolean {
+        if (senderName == null) return false
+        val s = senderName.lowercase().trim()
+        if (s.isEmpty()) return false
+        // typical "X (10)" style or presence of keywords
+        if (s.contains("(") && s.contains(")")) return true
+        return groupNameIndicators.any { s.contains(it) }
+    }
+}
+
+
+===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/RateLimiter.kt =====
+package com.jarvismini.smart
+
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+
+/**
+ * RateLimiter: a simple global rate limiter for total replies over time.
+ *
+ * Useful to limit Jarvis across all chats (e.g., max 10 replies per minute).
+ */
+class RateLimiter(private val windowMs: Long, private val maxEvents: Int) {
+
+    private val events = ConcurrentHashMap<Long, AtomicInteger>()
+
+    fun recordEvent(): Boolean {
+        val now = System.currentTimeMillis()
+        val bucket = now / windowMs
+        events.putIfAbsent(bucket, AtomicInteger(0))
+        val count = events[bucket]!!.incrementAndGet()
+        // cleanup old buckets (simple)
+        val keysToRemove = events.keys.filter { it < bucket - 2 }
+        for (k in keysToRemove) events.remove(k)
+        return count <= maxEvents
+    }
+
+    fun reset() {
+        events.clear()
+    }
+}
+
+
+===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SleepMode.kt =====
+package com.jarvismini.smart
+
+/**
+ * SleepMode: a simple global "do not disturb" toggle.
+ * You can later replace this with a user-set schedule or UI toggle.
+ */
+object SleepMode {
+    @Volatile
+    var enabled: Boolean = false
+
+    /** Convenience: enable for N milliseconds (auto-disable). */
+    fun enableFor(millis: Long) {
+        enabled = true
+        Thread {
+            try {
+                Thread.sleep(millis)
+            } catch (_: InterruptedException) { }
+            enabled = false
+        }.start()
+    }
+}
+
+
+===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+package com.jarvismini.smart
+
+/**
+ * Minimal stub so module compiles.
+ * Real logic will be added later.
+ */
+object SmartFilters {
+
+    fun isAllowed(text: String): Boolean {
+        return true
+    }
+}
+
+
+===== FILE: modules/ui/MainActivity.kt =====
+package com.jarvismini.ui
+
+import android.app.Activity
+import android.os.Bundle
+import com.jarvismini.ui.R
+
+class MainActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+    }
+}
+
+
+===== FILE: modules/ui/build.gradle.kts =====
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini.ui"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 23
+        targetSdk = 34
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    // UI module should stay lightweight
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+}
+
+
+===== FILE: modules/ui/proguard-rules.pro =====
+
+
+===== FILE: modules/ui/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+
+
+===== FILE: modules/ui/src/main/kotlin/com/jarvismini/ui/DebugPanel.kt =====
+
+
+===== FILE: modules/ui/src/main/kotlin/com/jarvismini/ui/ViewBindings.kt =====
+package com.jarvismini.ui
+
+import android.app.Activity
+import android.view.View
+
+// Simple helper extension to keep your UI clean
+fun <T : View> Activity.bind(id: Int): Lazy<T> = lazy { findViewById(id) }
+
+
+===== FILE: modules/ui/src/main/kotlin/com/jarvismini/ui/settings/SettingsActivity.kt =====
+package com.jarvismini.ui.settings
+
+import android.app.Activity
+import android.os.Bundle
+
+class SettingsActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Minimal stub
+    }
+}
+
+
+===== FILE: modules/ui/src/main/res/layout/activity_main.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+
+
+===== FILE: modules/ui/src/main/res/values/styles.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.JarvisMini" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>
+
+
+===== FILE: gradle/wrapper/gradle-wrapper.properties =====
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-all.zip
+networkTimeout=10000
+validateDistributionUrl=true
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+
