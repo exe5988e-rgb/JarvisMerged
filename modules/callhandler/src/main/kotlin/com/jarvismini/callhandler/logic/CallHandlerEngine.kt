@@ -10,6 +10,7 @@ import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
+import com.jarvismini.service.CallAutoReplyService
 import java.util.concurrent.ConcurrentHashMap
 
 object CallHandlerEngine {
@@ -23,7 +24,6 @@ object CallHandlerEngine {
         val now = System.currentTimeMillis()
 
         if (JarvisState.currentMode == JarvisMode.NORMAL) return
-
         if (!isSavedContact(context, number)) return
 
         val last = lastHandled[number] ?: 0L
@@ -31,19 +31,20 @@ object CallHandlerEngine {
         lastHandled[number] = now
 
         val decision = AutoReplyOrchestrator.handle(
-            AutoReplyInput("Incoming call", false)
+            AutoReplyInput(
+                messageText = "Incoming call",
+                isFromOwner = "false"   // ✅ FIX
+            )
         )
 
         if (decision !is ReplyDecision.AutoReply) return
 
-        // 🔥 DO NOT reference app service class
-        val intent = Intent("com.jarvismini.ACTION_CALL_AUTO_REPLY").apply {
-            setPackage(context.packageName)
-            putExtra("extra_number", number)
-            putExtra("extra_message", decision.message)
+        val intent = Intent(context.applicationContext, CallAutoReplyService::class.java).apply {
+            putExtra(CallAutoReplyService.EXTRA_NUMBER, number)
+            putExtra(CallAutoReplyService.EXTRA_MESSAGE, decision.message)
         }
 
-        context.startForegroundService(intent)
+        context.applicationContext.startForegroundService(intent)
     }
 
     private fun isSavedContact(context: Context, number: String): Boolean {
