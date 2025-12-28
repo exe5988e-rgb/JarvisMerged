@@ -71,9 +71,9 @@
             </intent-filter>
         </service>
 
-        <!-- Foreground Service -->
+        <!-- Foreground Service (from callhandler module) -->
 <service
-    android:name=".service.CallAutoReplyService"
+    android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
     android:exported="false"
     android:foregroundServiceType="phoneCall">
 
