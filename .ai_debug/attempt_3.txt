@@ -1,0 +1,29 @@
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 1234567..abcdefg 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -73,7 +73,7 @@
+     
+             <!-- Foreground Service -->
+     <service
+-        android:name=".service.CallAutoReplyService"
++        android:name="com.jarvismini.service.CallAutoReplyService"
+         android:exported="false"
+         android:foregroundServiceType="phoneCall">
+     
+diff --git a/app/src/main/java/com/jarvismini/service/CallAutoReplyService.kt b/app/src/main/java/com/jarvismini/service/CallAutoReplyService.kt
+new file mode 100644
+index 0000000..abcdefg
+--- /dev/null
++++ b/app/src/main/java/com/jarvismini/service/CallAutoReplyService.kt
+@@ -0,0 +1,10 @@
++package com.jarvismini.service
++
++import android.app.Service
++import android.content.Intent
++import android.os.IBinder
++
++class CallAutoReplyService : Service() {
++    override fun onBind(intent: Intent?): IBinder? = null
++    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
++}
