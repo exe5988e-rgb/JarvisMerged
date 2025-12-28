@@ -1,0 +1,21 @@
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 1234567..abcdefg 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -72,10 +72,6 @@
+             </service>
+     
+             <!-- Foreground Service -->
+-<service
+-    android:name=".service.CallAutoReplyService"
+-    android:exported="false"
+-    android:foregroundServiceType="phoneCall">
+-
+-    <intent-filter>
+-        <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
+-    </intent-filter>
+-
+-</service>
+             <!-- Accessibility -->
+             <service
+                 android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
