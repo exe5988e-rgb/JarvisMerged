@@ -347,8 +347,16 @@ dependencies {
                 android:name="android.accessibilityservice"
                 android:resource="@xml/call_accessibility_config" />
         </service>
-
-    </application>
+        <!-- Quick Settings Tile -->
+<service
+    android:name=".service.WorkModeTileService"
+    android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+    android:exported="false">
+    <intent-filter>
+        <action android:name="android.service.quicksettings.action.QS_TILE" />
+    </intent-filter>
+</service>
+         </application>
 
 </manifest>
 
