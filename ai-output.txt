@@ -1,65 +1,136 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/service/CallAutoReplyService.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/WorkModeManager.kt =====
+package com.jarvismini.core
+
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.media.AudioManager
+import android.os.Build
+import android.speech.tts.TextToSpeech
+import java.util.*
+
+object WorkModeManager {
+
+    fun activate(context: Context) {
+        // 1️⃣ Set mode
+        JarvisState.setMode(context, JarvisMode.WORK)
+
+        // 2️⃣ Silence notifications
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
+        }
+
+        // 3️⃣ Launch required apps
+        launchApp(context, "xyz.penpencil.physicswala") // Physics Wallah
+        launchStopwatch(context)
+        launchApp(context, "com.pittvandewitt.wavelet") // Wavelet
+        launchYouTubeMusic(context)
+
+        // 4️⃣ Announce
+        speak(context, "Grind Mode Initiated")
+    }
+
+    private fun launchApp(context: Context, pkg: String) {
+        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent?.let { context.startActivity(it) }
+    }
+
+    private fun launchStopwatch(context: Context) {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_APP_CLOCK)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
+
+    private fun launchYouTubeMusic(context: Context) {
+        launchApp(context, "com.google.android.apps.youtube.music")
+    }
+
+    private fun speak(context: Context, text: String) {
+        val tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts.language = Locale.US
+                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "WORK_MODE")
+            }
+        }
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/WorkModeCommandEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+import com.jarvismini.core.WorkModeManager
+
+class WorkModeCommandEngine(
+    private val context: Context
+) : CommandEngine {
+
+    override fun canHandle(input: String): Boolean {
+        val text = input.lowercase()
+        return text.contains("work mode")
+                || text.contains("grind mode")
+                || text.contains("start working")
+    }
+
+    override fun handle(input: String): EngineResult {
+        WorkModeManager.activate(context)
+        return EngineResult.Success("Work mode activated")
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+package com.jarvismini.engine
+
+lateinit var appContext: android.content.Context
+
+object EngineProvider {
+    lateinit var commandEngine: CommandEngine
+    val llmEngine: LLMEngine = StubLLMEngine
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/service/WorkModeTileService.kt =====
 package com.jarvismini.service
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
-import android.content.Intent
-import android.os.Build
-import android.os.IBinder
-import android.telephony.SmsManager
-import androidx.core.app.NotificationCompat
-import android.util.Log
-import com.jarvismini.R
+import android.service.quicksettings.Tile
+import android.service.quicksettings.TileService
+import com.jarvismini.core.WorkModeManager
 
-class CallAutoReplyService : Service() {
+class WorkModeTileService : TileService() {
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.e(TAG, "Foreground Service STARTED")
+    override fun onClick() {
+        super.onClick()
+        WorkModeManager.activate(this)
+        qsTile.state = Tile.STATE_ACTIVE
+        qsTile.updateTile()
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/MediaController.kt =====
+package com.jarvismini.core
 
-        startForeground(NOTIFICATION_ID, createNotification())
+import android.content.Context
+import android.media.AudioManager
+import android.view.KeyEvent
 
-        val number = intent?.getStringExtra(EXTRA_NUMBER)
-        val message = intent?.getStringExtra(EXTRA_MESSAGE)
+object MediaController {
 
-        if (!number.isNullOrBlank() && !message.isNullOrBlank()) {
-            SmsManager.getDefault()
-                .sendTextMessage(number, null, message, null, null)
-        } else {
-            Log.e(TAG, "Missing number or message")
-        }
+    fun playPause(context: Context) = send(context, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+    fun next(context: Context) = send(context, KeyEvent.KEYCODE_MEDIA_NEXT)
+    fun previous(context: Context) = send(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
 
-        stopSelf()
-        return START_NOT_STICKY
+    fun volumeUp(context: Context) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    private fun createNotification(): Notification {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Jarvis Call Auto‑Reply",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
-        }
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Jarvis")
-            .setContentText("Auto‑replying to incoming call")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setOngoing(true)
-            .build()
+    fun volumeDown(context: Context) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.adjustVolume(AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
     }
 
-    companion object {
-        const val EXTRA_NUMBER = "extra_number"
-        const val EXTRA_MESSAGE = "extra_message"
-        const val CHANNEL_ID = "jarvis_call_reply"
-        const val NOTIFICATION_ID = 1002
-        private const val TAG = "CALL-FGS"
+    private fun send(context: Context, keyCode: Int) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+        am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
     }
 }
