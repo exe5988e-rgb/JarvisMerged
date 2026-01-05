@@ -6,9 +6,14 @@ import android.view.KeyEvent
 
 object MediaController {
 
-    fun playPause(context: Context) = send(context, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-    fun next(context: Context) = send(context, KeyEvent.KEYCODE_MEDIA_NEXT)
-    fun previous(context: Context) = send(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+    fun playPause(context: Context) =
+        send(context, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+
+    fun next(context: Context) =
+        send(context, KeyEvent.KEYCODE_MEDIA_NEXT)
+
+    fun previous(context: Context) =
+        send(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
 
     fun volumeUp(context: Context) {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager

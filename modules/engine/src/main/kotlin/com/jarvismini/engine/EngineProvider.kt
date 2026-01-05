@@ -1,8 +1,15 @@
 package com.jarvismini.engine
 
-lateinit var appContext: android.content.Context
+import android.content.Context
 
 object EngineProvider {
+
     lateinit var commandEngine: CommandEngine
+        private set
+
     val llmEngine: LLMEngine = StubLLMEngine
+
+    fun init(context: Context) {
+        commandEngine = WorkModeCommandEngine(context.applicationContext)
+    }
 }
