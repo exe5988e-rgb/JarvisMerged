@@ -94,9 +94,9 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/call_accessibility_config" />
         </service>
-        <!-- Quick Settings Tile -->
+        <!-- ===== FILE: app/src/main/AndroidManifest.xml ===== -->
 <service
-    android:name=".service.WorkModeTileService"
+    android:name="com.jarvismini.service.WorkModeTileService"
     android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
     android:exported="false">
     <intent-filter>
