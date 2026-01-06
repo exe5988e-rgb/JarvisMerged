@@ -57,6 +57,15 @@ class MainActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>) {}
             }
 
+        // 🔁 Work mode toggle
+        workModeButton = Button(this).apply {
+            text = "Toggle Work Mode"
+            setOnClickListener {
+                WorkModeManager.toggle(this@MainActivity)
+                statusText.text = "Current mode: ${JarvisState.currentMode}"
+            }
+        }
+
         // 📱 App launch buttons (THIS IS THE KEY PART)
         val openPW = Button(this).apply {
             text = "Open Physics Wallah"
