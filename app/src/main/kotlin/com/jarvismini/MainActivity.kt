@@ -9,14 +9,14 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.jarvismini.core.JarvisMode
-import com.jarvismini.core.JarvisState
+import com.jarvismini.core.*
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
     private lateinit var modeSpinner: Spinner
     private lateinit var enableCallButton: Button
+    private lateinit var workModeButton: Button
 
     private val PERM_REQ = 2001
 
@@ -54,6 +54,18 @@ class MainActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>) {}
             }
 
+        workModeButton = Button(this).apply {
+            text = "Toggle Work Mode"
+            setOnClickListener {
+                if (JarvisState.currentMode == JarvisMode.WORK) {
+                    WorkModeManager.deactivate(this@MainActivity)
+                } else {
+                    WorkModeManager.activate(this@MainActivity)
+                }
+                statusText.text = "Current mode: ${JarvisState.currentMode}"
+            }
+        }
+
         enableCallButton = Button(this).apply {
             text = "Enable Call Auto-Reply"
             setOnClickListener { requestCallScreeningRole() }
@@ -63,6 +75,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             addView(statusText)
             addView(modeSpinner)
+            addView(workModeButton)
             addView(enableCallButton)
         }
 

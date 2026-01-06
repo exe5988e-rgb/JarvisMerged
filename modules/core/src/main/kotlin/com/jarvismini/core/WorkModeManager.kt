@@ -1,4 +1,3 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/WorkModeManager.kt =====
 package com.jarvismini.core
 
 import android.app.NotificationManager
@@ -8,27 +7,45 @@ import android.os.Build
 
 object WorkModeManager {
 
+    fun toggle(context: Context) {
+        if (JarvisState.currentMode == JarvisMode.WORK) {
+            deactivate(context)
+        } else {
+            activate(context)
+        }
+    }
+
     fun activate(context: Context) {
-        // 1️⃣ Set mode
         JarvisState.setMode(context, JarvisMode.WORK)
 
-        // 2️⃣ Silence notifications (DND)
         val nm =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (nm.isNotificationPolicyAccessGranted) {
-                nm.setInterruptionFilter(
-                    NotificationManager.INTERRUPTION_FILTER_NONE
-                )
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            nm.isNotificationPolicyAccessGranted
+        ) {
+            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
         }
 
-        // 3️⃣ Launch required apps (SAFE)
-        launchApp(context, "xyz.penpencil.physicswala")      // Physics Wallah
-        launchApp(context, "com.oneplus.deskclock")          // OnePlus Clock
-        launchApp(context, "com.pittvandewitt.wavelet")      // Wavelet
-        launchApp(context, "com.google.android.apps.youtube.music") // YT Music
+        launchApp(context, "xyz.penpencil.physicswala")
+        launchApp(context, "com.pittvandewitt.wavelet")
+        launchApp(context, "com.google.android.apps.youtube.music")
+
+        // OnePlus clock (safe)
+        launchApp(context, "com.oneplus.deskclock")
+    }
+
+    fun deactivate(context: Context) {
+        JarvisState.setMode(context, JarvisMode.NORMAL)
+
+        val nm =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            nm.isNotificationPolicyAccessGranted
+        ) {
+            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+        }
     }
 
     private fun launchApp(context: Context, pkg: String) {
