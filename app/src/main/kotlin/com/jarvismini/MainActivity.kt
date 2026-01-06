@@ -1,6 +1,8 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
 package com.jarvismini
 
 import android.app.role.RoleManager
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -31,6 +33,7 @@ class MainActivity : AppCompatActivity() {
             textSize = 16f
         }
 
+        // 🔘 Mode spinner
         modeSpinner = Spinner(this)
         val modes = JarvisMode.values().map { it.name }
         modeSpinner.adapter =
@@ -54,18 +57,28 @@ class MainActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>) {}
             }
 
-        workModeButton = Button(this).apply {
-            text = "Toggle Work Mode"
-            setOnClickListener {
-                if (JarvisState.currentMode == JarvisMode.WORK) {
-                    WorkModeManager.deactivate(this@MainActivity)
-                } else {
-                    WorkModeManager.activate(this@MainActivity)
-                }
-                statusText.text = "Current mode: ${JarvisState.currentMode}"
-            }
+        // 📱 App launch buttons (THIS IS THE KEY PART)
+        val openPW = Button(this).apply {
+            text = "Open Physics Wallah"
+            setOnClickListener { launchApp("xyz.penpencil.physicswala") }
         }
 
+        val openWavelet = Button(this).apply {
+            text = "Open Wavelet"
+            setOnClickListener { launchApp("com.pittvandewitt.wavelet") }
+        }
+
+        val openYTM = Button(this).apply {
+            text = "Open YouTube Music"
+            setOnClickListener { launchApp("com.google.android.apps.youtube.music") }
+        }
+
+        val openClock = Button(this).apply {
+            text = "Open Clock"
+            setOnClickListener { launchApp("com.oneplus.deskclock") }
+        }
+
+        // 📞 Call auto-reply
         enableCallButton = Button(this).apply {
             text = "Enable Call Auto-Reply"
             setOnClickListener { requestCallScreeningRole() }
@@ -76,10 +89,23 @@ class MainActivity : AppCompatActivity() {
             addView(statusText)
             addView(modeSpinner)
             addView(workModeButton)
+            addView(openPW)
+            addView(openWavelet)
+            addView(openYTM)
+            addView(openClock)
             addView(enableCallButton)
         }
 
         setContentView(layout)
+    }
+
+    private fun launchApp(pkg: String) {
+        val intent = packageManager.getLaunchIntentForPackage(pkg)
+        if (intent == null) {
+            Toast.makeText(this, "App not installed", Toast.LENGTH_SHORT).show()
+            return
+        }
+        startActivity(intent)
     }
 
     private fun requestCallScreeningRole() {
