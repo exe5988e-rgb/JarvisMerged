@@ -262,36 +262,45 @@ dependencies {
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jarvismini">
 
-    <!-- Permissions -->
+    <!-- ================= PERMISSIONS ================= -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    
 
-    <!-- 🔴 REQUIRED on Android 14+ / 15 -->
+    <!-- Android 14+ foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
 
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
+
+    <!-- ================= PACKAGE VISIBILITY ================= -->
+
     <queries>
-    <package android:name="xyz.penpencil.physicswala" />
-    <package android:name="com.pittvandewitt.wavelet" />
-    <package android:name="com.google.android.apps.youtube.music" />
-    <package android:name="com.oneplus.deskclock" />
-</queries> 
+        <package android:name="xyz.penpencil.physicswala" />
+        <package android:name="com.pittvandewitt.wavelet" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.oneplus.deskclock" />
+    </queries>
+
+    <!-- ================= APPLICATION ================= -->
+
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMini">
-        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.JarvisMini"
+
+        <!-- 🔴 THIS FIXES: Cleartext HTTP traffic not permitted -->
         android:usesCleartextTraffic="true">
+
+        <!-- ================= MAIN ACTIVITY ================= -->
 
         <activity
             android:name=".MainActivity"
@@ -302,7 +311,8 @@ dependencies {
             </intent-filter>
         </activity>
 
-        <!-- Notification Listener -->
+        <!-- ================= NOTIFICATION LISTENER ================= -->
+
         <service
             android:name="com.jarvismini.automation.WhatsAppNotificationListener"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
@@ -312,7 +322,8 @@ dependencies {
             </intent-filter>
         </service>
 
-        <!-- SMS Receiver -->
+        <!-- ================= SMS RECEIVER ================= -->
+
         <receiver
             android:name="com.jarvismini.callhandler.SmsReceiver"
             android:permission="android.permission.BROADCAST_SMS"
@@ -322,7 +333,8 @@ dependencies {
             </intent-filter>
         </receiver>
 
-        <!-- Call Receiver (fallback only) -->
+        <!-- ================= CALL STATE RECEIVER ================= -->
+
         <receiver
             android:name="com.jarvismini.callhandler.receiver.CallReceiver"
             android:exported="true">
@@ -331,7 +343,8 @@ dependencies {
             </intent-filter>
         </receiver>
 
-        <!-- Call Screening -->
+        <!-- ================= CALL SCREENING SERVICE ================= -->
+
         <service
             android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
             android:permission="android.permission.BIND_SCREENING_SERVICE"
@@ -341,18 +354,19 @@ dependencies {
             </intent-filter>
         </service>
 
-        <!-- Foreground Service (from callhandler module) -->
-<service
-    android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
-    android:exported="false"
-    android:foregroundServiceType="phoneCall">
+        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
 
-    <intent-filter>
-        <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
-    </intent-filter>
+        <service
+            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall">
+            <intent-filter>
+                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
+            </intent-filter>
+        </service>
 
-</service>
-        <!-- Accessibility -->
+        <!-- ================= ACCESSIBILITY SERVICE ================= -->
+
         <service
             android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -364,16 +378,19 @@ dependencies {
                 android:name="android.accessibilityservice"
                 android:resource="@xml/call_accessibility_config" />
         </service>
-        <!-- ===== FILE: app/src/main/AndroidManifest.xml ===== -->
-<service
-    android:name="com.jarvismini.service.WorkModeTileService"
-    android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-    android:exported="true">
-    <intent-filter>
-        <action android:name="android.service.quicksettings.action.QS_TILE" />
-    </intent-filter>
-</service>
-         </application>
+
+        <!-- ================= QUICK SETTINGS TILE ================= -->
+
+        <service
+            android:name="com.jarvismini.service.WorkModeTileService"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+    </application>
 
 </manifest>
 
