@@ -1,9 +1,10 @@
 package com.jarvismini.ui
 
-import android.content.Context
-import android.content.Intent
-import android.os.Build
+import android.app.Activity
 import android.app.role.RoleManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -11,6 +12,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.jarvismini.api.JarvisApiClient
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
@@ -20,9 +23,42 @@ import kotlinx.coroutines.launch
 @Composable
 fun JarvisChatScreen() {
     val context = LocalContext.current
+    val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
-    // ===== State =====
+    // 🔧 ADDED: initialize JarvisState once
+    LaunchedEffect(Unit) {
+        JarvisState.init(context)
+    }
+
+    // 🔧 ADDED: request required permissions once
+    LaunchedEffect(Unit) {
+        if (activity == null) return@LaunchedEffect
+
+        val perms = mutableListOf<String>()
+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.READ_CONTACTS
+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.SEND_SMS
+
+        if (perms.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                activity,
+                perms.toTypedArray(),
+                2001
+            )
+        }
+    }
+
+    // ===== UI STATE =====
     var currentMode by remember {
         mutableStateOf(JarvisState.currentMode)
     }
@@ -37,7 +73,6 @@ fun JarvisChatScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
 
-        // ===== Status =====
         Text(
             text = "Current mode: $currentMode",
             style = MaterialTheme.typography.titleMedium
@@ -73,7 +108,6 @@ fun JarvisChatScreen() {
             }
         }
 
-        // ===== Work mode =====
         Button(onClick = {
             WorkModeManager.toggle(context)
             currentMode = JarvisState.currentMode
@@ -83,7 +117,6 @@ fun JarvisChatScreen() {
 
         Divider()
 
-        // ===== App launch buttons =====
         AppButton("Open Physics Wallah", "xyz.penpencil.physicswala", context)
         AppButton("Open Wavelet", "com.pittvandewitt.wavelet", context)
         AppButton("Open YouTube Music", "com.google.android.apps.youtube.music", context)
@@ -91,7 +124,6 @@ fun JarvisChatScreen() {
 
         Divider()
 
-        // ===== Call auto-reply =====
         Button(onClick = {
             requestCallScreeningRole(context)
         }) {
@@ -100,18 +132,17 @@ fun JarvisChatScreen() {
 
         Divider()
 
-        // ===== Jarvis API =====
         Button(onClick = {
             scope.launch {
                 try {
                     val reply = JarvisApiClient.getResponse("Hello Jarvis")
-                    Toast
-                        .makeText(context, reply, Toast.LENGTH_LONG)
-                        .show()
+                    Toast.makeText(context, reply, Toast.LENGTH_LONG).show()
                 } catch (e: Exception) {
-                    Toast
-                        .makeText(context, "API Error: ${e.message}", Toast.LENGTH_LONG)
-                        .show()
+                    Toast.makeText(
+                        context,
+                        "API Error: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }) {
