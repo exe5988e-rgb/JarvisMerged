@@ -2696,8 +2696,16 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        minSdk = 23
+        minSdk = 26   // ⚠️ MATCH app module
         targetSdk = 34
+    }
+
+    buildFeatures {
+        compose = true   // ✅ REQUIRED
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 
     compileOptions {
@@ -2711,10 +2719,21 @@ android {
 }
 
 dependencies {
-    // UI module should stay lightweight
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.11.0")
+
+    // Compose BOM
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+
+    // Compose core
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.activity:activity-compose")
+
+    // Runtime
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+
+    // Debug
+    debugImplementation("androidx.compose.ui:ui-tooling")
 }
 
 
