@@ -1,41 +1,17 @@
 package com.jarvismini.api
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 object JarvisApiClient {
 
-    private const val BASE_URL = "http://127.0.0.1:8080"
+    private val client = OkHttpClient()
 
-    suspend fun getResponse(): String = withContext(Dispatchers.IO) {
-        val url = URL("$BASE_URL/response")
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
+    suspend fun getResponse(prompt: String): String {
+        val request = Request.Builder()
+            .url("http://127.0.0.1:8080/response?prompt=$prompt")
+            .build()
 
-        try {
-            conn.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    suspend fun sendQuery(text: String): String = withContext(Dispatchers.IO) {
-        val url = URL("$BASE_URL/query")
-        val conn = url.openConnection() as HttpURLConnection
-
-        conn.requestMethod = "POST"
-        conn.doOutput = true
-        conn.setRequestProperty("Content-Type", "application/json")
-
-        val body = """{ "text": "$text" }"""
-        conn.outputStream.use { it.write(body.toByteArray()) }
-
-        try {
-            conn.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            conn.disconnect()
-        }
+        return client.newCall(request).execute().body!!.string()
     }
 }
