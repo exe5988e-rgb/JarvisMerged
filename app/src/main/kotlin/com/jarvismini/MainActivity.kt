@@ -2,7 +2,7 @@
 package com.jarvismini
 
 import androidx.lifecycle.lifecycleScope
-import com.jarvismini.api.ApiClient
+import com.jarvismini.api.JarvisApiClient
 import kotlinx.coroutines.launch
 import android.app.role.RoleManager
 import android.content.Intent
