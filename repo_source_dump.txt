@@ -31,6 +31,9 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── service
 │   │   │   │   │   │   │   ├── CallAutoReplyService.kt
 │   │   │   │   │   │   │   ├── WorkModeTileService.kt
+│   │   │   │   │   │   ├── ui
+│   │   │   │   │   │   │   ├── ChatMessage.kt
+│   │   │   │   │   │   │   ├── JarvisChatScreen.kt
 │   │   │   ├── res
 │   │   │   │   ├── layout
 │   │   │   │   │   ├── activity_main.xml
@@ -555,7 +558,13 @@ class MainActivity : AppCompatActivity() {
             addView(fetchJarvis)
         }
 
-        setContentView(layout)
+        
+setContent {
+    MaterialTheme {
+        JarvisChatScreen()
+    }
+}
+
     }
 
     // ===== Helpers =====
@@ -611,43 +620,19 @@ class MainActivity : AppCompatActivity() {
 ===== FILE: app/src/main/kotlin/com/jarvismini/api/JarvisApiClient.kt =====
 package com.jarvismini.api
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 object JarvisApiClient {
 
-    private const val BASE_URL = "http://127.0.0.1:8080"
+    private val client = OkHttpClient()
 
-    suspend fun getResponse(): String = withContext(Dispatchers.IO) {
-        val url = URL("$BASE_URL/response")
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
+    suspend fun getResponse(prompt: String): String {
+        val request = Request.Builder()
+            .url("http://127.0.0.1:8080/response?prompt=$prompt")
+            .build()
 
-        try {
-            conn.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    suspend fun sendQuery(text: String): String = withContext(Dispatchers.IO) {
-        val url = URL("$BASE_URL/query")
-        val conn = url.openConnection() as HttpURLConnection
-
-        conn.requestMethod = "POST"
-        conn.doOutput = true
-        conn.setRequestProperty("Content-Type", "application/json")
-
-        val body = """{ "text": "$text" }"""
-        conn.outputStream.use { it.write(body.toByteArray()) }
-
-        try {
-            conn.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            conn.disconnect()
-        }
+        return client.newCall(request).execute().body!!.string()
     }
 }
 
@@ -742,6 +727,78 @@ class WorkModeTileService : TileService() {
                 Tile.STATE_INACTIVE
 
         qsTile.updateTile()
+    }
+}
+
+
+===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChatMessage.kt =====
+package com.jarvismini.ui
+
+data class ChatMessage(
+    val text: String,
+    val isUser: Boolean
+)
+
+
+===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
+package com.jarvismini.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import com.jarvismini.api.JarvisApiClient
+
+@Composable
+fun JarvisChatScreen() {
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var input by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            reverseLayout = true
+        ) {
+            items(messages.reversed()) { msg ->
+                Text(
+                    text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}",
+                    modifier = Modifier.padding(6.dp)
+                )
+            }
+        }
+
+        Row {
+            TextField(
+                value = input,
+                onValueChange = { input = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Ask Jarvis…") }
+            )
+
+            Button(
+                onClick = {
+                    val userText = input
+                    input = ""
+                    messages.add(ChatMessage(userText, true))
+
+                    scope.launch {
+                        try {
+                            val reply = JarvisApiClient.getResponse(userText)
+                            messages.add(ChatMessage(reply, false))
+                        } catch (e: Exception) {
+                            messages.add(ChatMessage("Error: ${e.message}", false))
+                        }
+                    }
+                }
+            ) {
+                Text("Send")
+            }
+        }
     }
 }
 
