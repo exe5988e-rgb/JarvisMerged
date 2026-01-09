@@ -33,7 +33,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
-
+    // 🔌 HTTP client for localhost API (Termux → Jarvis)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation(project(":modules:core"))
     implementation(project(":modules:automation"))
     implementation(project(":modules:engine"))
