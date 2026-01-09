@@ -1,6 +1,9 @@
 //===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
 package com.jarvismini
 
+import androidx.lifecycle.lifecycleScope
+import com.jarvismini.api.ApiClient
+import kotlinx.coroutines.launch
 import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -103,9 +106,33 @@ class MainActivity : AppCompatActivity() {
             addView(openYTM)
             addView(openClock)
             addView(enableCallButton)
+            addView(fetchJarvis)
         }
 
         setContentView(layout)
+
+        val fetchJarvis = Button(this).apply {
+    text = "Ask Jarvis (Termux)"
+    setOnClickListener {
+        lifecycleScope.launch {
+            try {
+                val response = ApiClient.api.getResponse()
+                Toast.makeText(
+                    this@MainActivity,
+                    response,
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "API Error: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+        }
+        
     }
 
     private fun launchApp(pkg: String) {
