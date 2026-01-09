@@ -26,6 +26,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── BuildConfigBridge.kt
 │   │   │   │   │   │   ├── CoreApp.kt
 │   │   │   │   │   │   ├── MainActivity.kt
+│   │   │   │   │   │   ├── api
+│   │   │   │   │   │   │   ├── JarvisApiClient.kt
 │   │   │   │   │   │   ├── service
 │   │   │   │   │   │   │   ├── CallAutoReplyService.kt
 │   │   │   │   │   │   │   ├── WorkModeTileService.kt
@@ -235,7 +237,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
-
+    // 🔌 HTTP client for localhost API (Termux → Jarvis)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation(project(":modules:core"))
     implementation(project(":modules:automation"))
     implementation(project(":modules:engine"))
@@ -551,6 +555,50 @@ class MainActivity : AppCompatActivity() {
 
         if (perms.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, perms.toTypedArray(), PERM_REQ)
+        }
+    }
+}
+
+
+===== FILE: app/src/main/kotlin/com/jarvismini/api/JarvisApiClient.kt =====
+package com.jarvismini.api
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+
+object JarvisApiClient {
+
+    private const val BASE_URL = "http://127.0.0.1:8080"
+
+    suspend fun getResponse(): String = withContext(Dispatchers.IO) {
+        val url = URL("$BASE_URL/response")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "GET"
+
+        try {
+            conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    suspend fun sendQuery(text: String): String = withContext(Dispatchers.IO) {
+        val url = URL("$BASE_URL/query")
+        val conn = url.openConnection() as HttpURLConnection
+
+        conn.requestMethod = "POST"
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/json")
+
+        val body = """{ "text": "$text" }"""
+        conn.outputStream.use { it.write(body.toByteArray()) }
+
+        try {
+            conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            conn.disconnect()
         }
     }
 }
