@@ -133,7 +133,13 @@ class MainActivity : AppCompatActivity() {
             addView(fetchJarvis)
         }
 
-        setContentView(layout)
+        
+setContent {
+    MaterialTheme {
+        JarvisChatScreen()
+    }
+}
+
     }
 
     // ===== Helpers =====
