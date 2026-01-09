@@ -1,11 +1,7 @@
 //===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
 package com.jarvismini
 
-import androidx.lifecycle.lifecycleScope
-import com.jarvismini.api.JarvisApiClient
-import kotlinx.coroutines.launch
 import android.app.role.RoleManager
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -14,7 +10,10 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.jarvismini.api.JarvisApiClient
 import com.jarvismini.core.*
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -31,12 +30,13 @@ class MainActivity : AppCompatActivity() {
         JarvisState.init(this)
         requestPermissions()
 
+        // ===== Status text =====
         statusText = TextView(this).apply {
             text = "Current mode: ${JarvisState.currentMode}"
             textSize = 16f
         }
 
-        // 🔘 Mode spinner
+        // ===== Mode spinner =====
         modeSpinner = Spinner(this)
         val modes = JarvisMode.values().map { it.name }
         modeSpinner.adapter =
@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>) {}
             }
 
-        // 🔁 Work mode toggle
+        // ===== Work mode =====
         workModeButton = Button(this).apply {
             text = "Toggle Work Mode"
             setOnClickListener {
@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 📱 App launch buttons (THIS IS THE KEY PART)
+        // ===== App launch buttons =====
         val openPW = Button(this).apply {
             text = "Open Physics Wallah"
             setOnClickListener { launchApp("xyz.penpencil.physicswala") }
@@ -90,12 +90,36 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { launchApp("com.oneplus.deskclock") }
         }
 
-        // 📞 Call auto-reply
+        // ===== Call auto‑reply =====
         enableCallButton = Button(this).apply {
             text = "Enable Call Auto-Reply"
             setOnClickListener { requestCallScreeningRole() }
         }
 
+        // ===== Jarvis API button (FIXED) =====
+        val fetchJarvis = Button(this).apply {
+            text = "Ask Jarvis (Termux)"
+            setOnClickListener {
+                lifecycleScope.launch {
+                    try {
+                        val response = JarvisApiClient.getResponse()
+                        Toast.makeText(
+                            this@MainActivity,
+                            response,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "API Error: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
+
+        // ===== Layout =====
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(statusText)
@@ -110,31 +134,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(layout)
-
-        val fetchJarvis = Button(this).apply {
-    text = "Ask Jarvis (Termux)"
-    setOnClickListener {
-        lifecycleScope.launch {
-            try {
-                val response = ApiClient.api.getResponse()
-                Toast.makeText(
-                    this@MainActivity,
-                    response,
-                    Toast.LENGTH_LONG
-                ).show()
-            } catch (e: Exception) {
-                Toast.makeText(
-                    this@MainActivity,
-                    "API Error: ${e.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-        }
-        
     }
 
+    // ===== Helpers =====
     private fun launchApp(pkg: String) {
         val intent = packageManager.getLaunchIntentForPackage(pkg)
         if (intent == null) {
