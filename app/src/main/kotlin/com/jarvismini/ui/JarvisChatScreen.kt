@@ -1,24 +1,136 @@
 package com.jarvismini.ui
 
+import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.jarvismini.api.JarvisApiClient
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.WorkModeManager
+import kotlinx.coroutines.launch
 
 @Composable
 fun JarvisChatScreen() {
-    val messages = remember { mutableStateListOf<ChatMessage>() }
-    var input by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+    val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+    // ================= INIT =================
+
+    LaunchedEffect(Unit) {
+        JarvisState.init(context)
+    }
+
+    LaunchedEffect(Unit) {
+        if (activity == null) return@LaunchedEffect
+
+        val perms = mutableListOf<String>()
+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.READ_CONTACTS
+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.SEND_SMS
+
+        if (perms.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                activity,
+                perms.toTypedArray(),
+                2001
+            )
+        }
+    }
+
+    // ================= STATE =================
+
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var input by remember { mutableStateOf("") }
+
+    var currentMode by remember {
+        mutableStateOf(JarvisState.currentMode)
+    }
+
+    var expanded by remember { mutableStateOf(false) }
+    val modes = JarvisMode.values().toList()
+
+    // ================= UI =================
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+
+        // ===== MODE INFO =====
+        Text(
+            text = "Current mode: $currentMode",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        // ===== MODE SELECTOR =====
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            TextField(
+                value = currentMode.name,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Select Mode") },
+                modifier = Modifier.menuAnchor()
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                modes.forEach { mode ->
+                    DropdownMenuItem(
+                        text = { Text(mode.name) },
+                        onClick = {
+                            JarvisState.setMode(context, mode)
+                            currentMode = mode
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Button(onClick = {
+            WorkModeManager.toggle(context)
+            currentMode = JarvisState.currentMode
+        }) {
+            Text("Toggle Work Mode")
+        }
+
+        Divider()
+
+        // ================= CHAT =================
 
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
             reverseLayout = true
         ) {
             items(messages.reversed()) { msg ->
@@ -48,13 +160,38 @@ fun JarvisChatScreen() {
                             val reply = JarvisApiClient.getResponse(userText)
                             messages.add(ChatMessage(reply, false))
                         } catch (e: Exception) {
-                            messages.add(ChatMessage("Error: ${e.message}", false))
+                            messages.add(
+                                ChatMessage(
+                                    "Error: ${e.message}",
+                                    false
+                                )
+                            )
                         }
                     }
                 }
             ) {
                 Text("Send")
             }
+        }
+
+        Divider()
+
+        // ===== QUICK API TEST =====
+        Button(onClick = {
+            scope.launch {
+                try {
+                    val reply = JarvisApiClient.getResponse("Hello Jarvis")
+                    Toast.makeText(context, reply, Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        context,
+                        "API Error: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }) {
+            Text("Ask Jarvis (Test)")
         }
     }
 }
