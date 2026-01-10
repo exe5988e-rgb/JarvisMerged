@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.jarvismini.ui
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
