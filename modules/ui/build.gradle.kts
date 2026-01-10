@@ -8,12 +8,12 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        minSdk = 26   // ⚠️ MATCH app module
+        minSdk = 26
         targetSdk = 34
     }
 
     buildFeatures {
-        compose = true   // ✅ REQUIRED
+        compose = true
     }
 
     composeOptions {
@@ -35,14 +35,18 @@ dependencies {
     // Compose BOM
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
 
-    // Compose core
+    // Compose
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose")
 
-    // Runtime
+    // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+
+    // 🔗 REQUIRED: access API + core state
+    implementation(project(":modules:api"))
+    implementation(project(":modules:core"))
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
