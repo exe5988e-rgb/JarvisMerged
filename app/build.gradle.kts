@@ -64,6 +64,5 @@ dependencies {
     implementation(project(":modules:automation"))
     implementation(project(":modules:engine"))
     implementation(project(":modules:smart"))
-    implementation(project(":modules:ui"))
     implementation(project(":modules:callhandler"))
 }
