@@ -478,19 +478,12 @@ object JarvisApiClient {
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw Exception("HTTP ${response.code}")
-            }
-
             val body = response.body?.string()
-                ?: throw Exception("Empty response")
+                ?: return "Empty response from server"
 
-            // Server returns JSON → extract safely
-            return try {
-                JSONObject(body).optString("response", body)
-            } catch (_: Exception) {
-                body // fallback if server ever returns plain text
-            }
+            // 🔴 THIS WAS THE BUG
+            val json = JSONObject(body)
+            return json.optString("response", "No response field")
         }
     }
 }
