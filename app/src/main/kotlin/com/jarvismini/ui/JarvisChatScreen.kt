@@ -19,6 +19,7 @@ import com.jarvismini.api.JarvisApiClient
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -26,11 +27,7 @@ fun JarvisChatScreen() {
 
     val context = LocalContext.current
     val activity = context as? Activity
-
-    // UI coroutine scope (Main-safe)
     val scope = rememberCoroutineScope()
-
-    // ================= INIT =================
 
     LaunchedEffect(Unit) {
         JarvisState.init(context)
@@ -54,27 +51,16 @@ fun JarvisChatScreen() {
         ) perms += android.Manifest.permission.SEND_SMS
 
         if (perms.isNotEmpty()) {
-            ActivityCompat.requestPermissions(
-                activity,
-                perms.toTypedArray(),
-                2001
-            )
+            ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
         }
     }
-
-    // ================= STATE =================
 
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
 
-    var currentMode by remember {
-        mutableStateOf(JarvisState.currentMode)
-    }
-
+    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
     var expanded by remember { mutableStateOf(false) }
     val modes = JarvisMode.values().toList()
-
-    // ================= UI =================
 
     Column(
         modifier = Modifier
@@ -83,15 +69,9 @@ fun JarvisChatScreen() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
 
-        Text(
-            text = "Current mode: $currentMode",
-            style = MaterialTheme.typography.titleMedium
-        )
+        Text("Current mode: $currentMode", style = MaterialTheme.typography.titleMedium)
 
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
+        ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
             TextField(
                 value = currentMode.name,
                 onValueChange = {},
@@ -100,10 +80,7 @@ fun JarvisChatScreen() {
                 modifier = Modifier.menuAnchor()
             )
 
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
+            ExposedDropdownMenu(expanded, { expanded = false }) {
                 modes.forEach { mode ->
                     DropdownMenuItem(
                         text = { Text(mode.name) },
@@ -127,17 +104,12 @@ fun JarvisChatScreen() {
         Divider()
 
         LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             reverseLayout = true
         ) {
             items(messages.reversed()) { msg ->
                 Text(
-                    text = if (msg.isUser)
-                        "You: ${msg.text}"
-                    else
-                        "Jarvis: ${msg.text}",
+                    text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}",
                     modifier = Modifier.padding(6.dp)
                 )
             }
@@ -157,10 +129,25 @@ fun JarvisChatScreen() {
 
                 input = ""
                 messages.add(ChatMessage(userText, true))
+                messages.add(ChatMessage("Jarvis is thinking…", false))
 
                 scope.launch {
-                    val reply = JarvisApiClient.getResponse(userText)
-                    messages.add(ChatMessage(reply, false))
+                    JarvisApiClient.sendQuery(userText)
+
+                    var last = ""
+                    repeat(15) {
+                        delay(1000)
+                        val response = JarvisApiClient.getResponse()
+                        if (response != last && !response.contains("running")) {
+                            messages.removeLast()
+                            messages.add(ChatMessage(response, false))
+                            return@launch
+                        }
+                        last = response
+                    }
+
+                    messages.removeLast()
+                    messages.add(ChatMessage("No response (timeout)", false))
                 }
             }) {
                 Text("Send")
@@ -171,7 +158,9 @@ fun JarvisChatScreen() {
 
         Button(onClick = {
             scope.launch {
-                val reply = JarvisApiClient.getResponse("Hello Jarvis")
+                JarvisApiClient.sendQuery("Hello Jarvis")
+                delay(3000)
+                val reply = JarvisApiClient.getResponse()
                 Toast.makeText(context, reply, Toast.LENGTH_LONG).show()
             }
         }) {
