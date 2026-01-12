@@ -1,63 +1,58 @@
 import asyncio
 import os
 import time
-import re
 from playwright.async_api import async_playwright, TimeoutError
-
 from scripts.logger import logger
 
-
-CHAT_URL = "https://chat.openai.com/"
-MAX_WAIT_SECONDS = 60
+# ==================================================
+# CONFIG
+# ==================================================
+CHATGPT_URL = "https://chat.openai.com/"
+DEFAULT_TIMEOUT = 45  # seconds
 MAX_RESPONSE_CHARS = 12000
-POLL_INTERVAL_MS = 1200
 
-
+# ==================================================
+# Browser LLM Runner
+# ==================================================
 class BrowserLLMRunner:
+    """
+    API-less LLM runner using headless Chromium.
+    Runs ONLY inside GitHub Actions.
+    """
+
     def __init__(self):
         self.headless = True
+        self.timeout = DEFAULT_TIMEOUT
 
+    # -------------------------------
+    # Wait for ChatGPT input box
+    # -------------------------------
     async def _wait_for_input(self, page):
-        for _ in range(50):
-            textarea = await page.query_selector("textarea")
-            if textarea:
-                return textarea
-            await page.wait_for_timeout(500)
-        raise RuntimeError("Chat input not found")
+        try:
+            # Prefer ARIA role — more stable than class names
+            textarea = await page.get_by_role("textbox", name="Message ChatGPT")
 
-    async def _collect_response(self, page) -> str:
-        start = time.time()
-        last_text = ""
+            # Fallback if ARIA fails
+            if not textarea:
+                textarea = await page.get_by_placeholder("Message ChatGPT")
 
-        while time.time() - start < MAX_WAIT_SECONDS:
-            await page.wait_for_timeout(POLL_INTERVAL_MS)
+            # Fallback generic selector
+            if not textarea:
+                textarea = await page.wait_for_selector(
+                    "textarea", state="visible", timeout=60000
+                )
 
-            blocks = await page.query_selector_all("div.markdown")
-            if not blocks:
-                continue
+            if not textarea:
+                raise RuntimeError("Chat input not found")
 
-            text = (await blocks[-1].inner_text()).strip()
-            if not text or text == last_text:
-                continue
+            return textarea
 
-            last_text = text
+        except Exception as e:
+            raise RuntimeError(f"Chat input not found: {e}")
 
-            if text.startswith("diff --git"):
-                return self._sanitize(text)
-
-        raise RuntimeError("Timed out waiting for LLM response")
-
-    def _sanitize(self, text: str) -> str:
-        text = text.replace("\u200b", "")
-        text = text.replace("\r\n", "\n").strip()
-
-        match = re.search(r"(diff --git[\s\S]+)", text)
-        if not match:
-            raise RuntimeError("No valid git diff found in response")
-
-        diff = match.group(1)
-        return diff[:MAX_RESPONSE_CHARS]
-
+    # -------------------------------
+    # Run prompt in browser
+    # -------------------------------
     async def _run(self, prompt: str) -> str:
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -69,30 +64,52 @@ class BrowserLLMRunner:
                 ],
             )
 
-            context = await browser.new_context(
-                viewport={"width": 1280, "height": 800}
-            )
+            context = await browser.new_context()
             page = await context.new_page()
 
             logger.info("🌐 Opening ChatGPT UI")
-            await page.goto(CHAT_URL, timeout=90_000)
+            await page.goto(CHATGPT_URL, timeout=60_000)
 
             logger.info("⏳ Waiting for chat input")
             textarea = await self._wait_for_input(page)
 
+            logger.info("✍️ Sending prompt to browser LLM")
             await textarea.fill(prompt)
             await textarea.press("Enter")
 
-            logger.info("🧠 Waiting for browser LLM response")
-            response = await self._collect_response(page)
+            start = time.time()
+            last_text = ""
+
+            while time.time() - start < self.timeout:
+                await page.wait_for_timeout(1500)
+
+                messages = await page.query_selector_all("div.markdown")
+                if not messages:
+                    continue
+
+                last = messages[-1]
+                text = (await last.inner_text()).strip()
+
+                if text and text != last_text:
+                    last_text = text
+
+                # Heuristic: response looks complete
+                if len(text) > 200 and not text.endswith("…"):
+                    break
 
             await browser.close()
+
+            if not last_text:
+                raise RuntimeError("No response captured from browser LLM")
+
             logger.info("✅ Browser LLM response captured")
+            return last_text[:MAX_RESPONSE_CHARS]
 
-            return response
-
+    # ==================================================
+    # Public API (sync wrapper)
+    # ==================================================
     def ask(self, prompt: str) -> str:
-        logger.info("🧠 Using browser-based LLM")
+        logger.info("🧠 Using Browser-based LLM (API-less)")
         try:
             return asyncio.run(self._run(prompt))
         except TimeoutError:
@@ -102,5 +119,8 @@ class BrowserLLMRunner:
             raise
 
 
+# ==================================================
+# Factory
+# ==================================================
 def get_browser_llm():
     return BrowserLLMRunner()
