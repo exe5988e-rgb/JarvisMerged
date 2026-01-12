@@ -21,7 +21,6 @@ object JarvisApiClient {
             val body = response.body?.string()
                 ?: return "Empty response"
 
-            // ✅ THIS is the missing piece
             val json = JSONObject(body)
             return json.optString("response", "No response field")
         }
