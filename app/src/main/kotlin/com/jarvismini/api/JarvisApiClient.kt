@@ -2,6 +2,7 @@ package com.jarvismini.api
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 
 object JarvisApiClient {
 
@@ -14,9 +15,15 @@ object JarvisApiClient {
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw Exception("HTTP ${response.code}")
+                return "HTTP ${response.code}"
             }
-            return response.body?.string() ?: "Empty response"
+
+            val body = response.body?.string()
+                ?: return "Empty response"
+
+            // ✅ THIS is the missing piece
+            val json = JSONObject(body)
+            return json.optString("response", "No response field")
         }
     }
 }
