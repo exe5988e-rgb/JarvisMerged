@@ -1,4 +1,4 @@
-name: AI Autofix
+name: AI Autofix (Browser LLM)
 
 on:
   push:
@@ -14,42 +14,63 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -------------------
+      # Checkout the repo
+      # -------------------
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # -------------------
+      # Set up JDK
+      # -------------------
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
 
+      # -------------------
+      # Set up Python
+      # -------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # -------------------
+      # Install dependencies
+      # -------------------
       - name: Install Python dependencies
         run: |
-          pip install requests
+          pip install requests playwright
+          playwright install chromium
 
+      # -------------------
+      # Configure Git
+      # -------------------
       - name: Configure Git
         run: |
           git config user.name "AI Autofix Bot"
           git config user.email "bot@autofix.ai"
 
-      - name: Run Android build (capture output)
+      # -------------------
+      # Run Android build (capture output)
+      # -------------------
+      - name: Run Gradle build
         run: |
           chmod +x ./gradlew
           ./gradlew build 2>&1 | tee build.log || true
 
-      - name: Run AI Autofix
+      # -------------------
+      # Run Browser LLM AI Autofix
+      # -------------------
+      - name: Run Browser LLM AI Autofix
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          LLM_MODE: browser
         run: |
-          python main.py || true
+          python main.py --llm browser
