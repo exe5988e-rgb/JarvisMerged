@@ -22,7 +22,7 @@ INCLUDE_EXTENSIONS = {
 
 # ❌ Always excluded
 EXCLUDE_DIRS = {
-    ".git", ".github", ".gradle",
+    ".git", ".gradle",
     "build", "venv", "__pycache__",
     "node_modules"
 }
