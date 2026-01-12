@@ -1,25 +1,24 @@
 import os
-from scripts.logger import logger
-
-# Optional OpenRouter imports
 import requests
 from requests import HTTPError, RequestException
 
-# Browser runner import
-from scripts.llm_runners.browser import get_browser_llm
+from scripts.logger import logger
 
-# -----------------------------
-# Configuration
-# -----------------------------
-LLM_MODE = os.getenv("LLM_MODE", "browser")  # "browser" or "openrouter"
+# --------------------------------------------------
+# ENV
+# --------------------------------------------------
+
+LLM_MODE = os.getenv("LLM_MODE", "openrouter").lower()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "kwaipilot/kat-coder-pro:free"
 
-# -----------------------------
-# Providers
-# -----------------------------
+
+# ==================================================
+# OpenRouter Provider (fallback / optional)
+# ==================================================
+
 class OpenRouterProvider:
     def __init__(self):
         if not OPENROUTER_API_KEY:
@@ -29,8 +28,11 @@ class OpenRouterProvider:
         payload = {
             "model": OPENROUTER_MODEL,
             "messages": [
-                {"role": "system", "content": "You are an expert Android/Kotlin build fixer."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are an expert Android/Kotlin build-fixing agent.",
+                },
+                {"role": "user", "content": prompt},
             ],
             "temperature": 0.1,
             "max_tokens": 2000,
@@ -41,7 +43,13 @@ class OpenRouterProvider:
             "Content-Type": "application/json",
         }
 
-        r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+        r = requests.post(
+            OPENROUTER_URL,
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+
         if not r.ok:
             logger.error(f"❌ OpenRouter HTTP {r.status_code}: {r.text}")
             r.raise_for_status()
@@ -54,18 +62,29 @@ class OpenRouterProvider:
 
         return data["choices"][0]["message"]["content"]
 
+
+# ==================================================
+# Composite Provider
+# ==================================================
+
 class CompositeProvider:
     """
-    Unified LLM provider. Chooses backend based on LLM_MODE.
+    Provider selector:
+    - browser     → Playwright-based UI automation (API-less)
+    - openrouter  → Free OpenRouter model (fallback)
     """
 
     def __init__(self):
+        self.provider = self._select_provider()
+
+    def _select_provider(self):
         if LLM_MODE == "browser":
-            logger.info("🧠 Using Browser-based API-less LLM")
-            self.provider = get_browser_llm()
-        else:
-            logger.info("🧠 Using OpenRouter LLM")
-            self.provider = OpenRouterProvider()
+            logger.info("🧠 LLM mode: browser (API-less)")
+            from scripts.llm_runners.browser import get_browser_llm
+            return get_browser_llm()
+
+        logger.info("🧠 LLM mode: openrouter (free tier)")
+        return OpenRouterProvider()
 
     def ask(self, prompt: str) -> str:
         try:
@@ -74,9 +93,11 @@ class CompositeProvider:
             logger.error(f"❌ LLM request failed: {e}")
             raise
 
-# -----------------------------
+
+# ==================================================
 # Factory
-# -----------------------------
+# ==================================================
+
 def get_llm_provider():
-    logger.info(f"🧠 LLM provider initialized ({LLM_MODE})")
+    logger.info(f"🧠 Initializing LLM provider (mode={LLM_MODE})")
     return CompositeProvider()
