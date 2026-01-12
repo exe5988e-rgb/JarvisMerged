@@ -598,10 +598,8 @@ data class ChatMessage(
 
 package com.jarvismini.ui
 
-import androidx.compose.material3.ExperimentalMaterial3Api
 import android.app.Activity
 import android.content.pm.PackageManager
-import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -624,6 +622,8 @@ fun JarvisChatScreen() {
 
     val context = LocalContext.current
     val activity = context as? Activity
+
+    // UI coroutine scope (Main-safe)
     val scope = rememberCoroutineScope()
 
     // ================= INIT =================
@@ -679,13 +679,11 @@ fun JarvisChatScreen() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
 
-        // ===== MODE INFO =====
         Text(
             text = "Current mode: $currentMode",
             style = MaterialTheme.typography.titleMedium
         )
 
-        // ===== MODE SELECTOR =====
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded }
@@ -724,8 +722,6 @@ fun JarvisChatScreen() {
 
         Divider()
 
-        // ================= CHAT =================
-
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -734,7 +730,10 @@ fun JarvisChatScreen() {
         ) {
             items(messages.reversed()) { msg ->
                 Text(
-                    text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}",
+                    text = if (msg.isUser)
+                        "You: ${msg.text}"
+                    else
+                        "Jarvis: ${msg.text}",
                     modifier = Modifier.padding(6.dp)
                 )
             }
@@ -748,46 +747,28 @@ fun JarvisChatScreen() {
                 placeholder = { Text("Ask Jarvis…") }
             )
 
-            Button(
-                onClick = {
-                    val userText = input
-                    input = ""
-                    messages.add(ChatMessage(userText, true))
+            Button(onClick = {
+                val userText = input.trim()
+                if (userText.isEmpty()) return@Button
 
-                    scope.launch {
-                        try {
-                            val reply = JarvisApiClient.getResponse(userText)
-                            messages.add(ChatMessage(reply, false))
-                        } catch (e: Exception) {
-                            messages.add(
-                                ChatMessage(
-                                    "Error: ${e.message}",
-                                    false
-                                )
-                            )
-                        }
-                    }
+                input = ""
+                messages.add(ChatMessage(userText, true))
+
+                scope.launch {
+                    val reply = JarvisApiClient.getResponse(userText)
+                    messages.add(ChatMessage(reply, false))
                 }
-            ) {
+            }) {
                 Text("Send")
             }
         }
 
         Divider()
 
-        // ===== QUICK API TEST =====
         Button(onClick = {
             scope.launch {
-                try {
-                    val reply = JarvisApiClient.getResponse("Hello Jarvis")
-                    Toast.makeText(context, reply, Toast.LENGTH_LONG).show()
-                } catch (e: Exception) {
-                    Toast.makeText(
-                        context,
-                        "API Error: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                val reply = JarvisApiClient.getResponse("Hello Jarvis")
+                Toast.makeText(context, reply, Toast.LENGTH_LONG).show()
             }
         }) {
             Text("Ask Jarvis (Test)")
