@@ -1,14 +1,25 @@
 import os
-import requests
-from requests import HTTPError, RequestException
 from scripts.logger import logger
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+# Optional OpenRouter imports
+import requests
+from requests import HTTPError, RequestException
 
+# Browser runner import
+from scripts.llm_runners.browser import get_browser_llm
+
+# -----------------------------
+# Configuration
+# -----------------------------
+LLM_MODE = os.getenv("LLM_MODE", "browser")  # "browser" or "openrouter"
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "kwaipilot/kat-coder-pro:free"
 
-
+# -----------------------------
+# Providers
+# -----------------------------
 class OpenRouterProvider:
     def __init__(self):
         if not OPENROUTER_API_KEY:
@@ -30,13 +41,7 @@ class OpenRouterProvider:
             "Content-Type": "application/json",
         }
 
-        r = requests.post(
-            OPENROUTER_URL,
-            headers=headers,
-            json=payload,
-            timeout=60,
-        )
-
+        r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
         if not r.ok:
             logger.error(f"❌ OpenRouter HTTP {r.status_code}: {r.text}")
             r.raise_for_status()
@@ -49,26 +54,29 @@ class OpenRouterProvider:
 
         return data["choices"][0]["message"]["content"]
 
-
 class CompositeProvider:
     """
-    OpenRouter-only provider.
-    Free-tier safe.
-    Never touches paid models.
+    Unified LLM provider. Chooses backend based on LLM_MODE.
     """
 
     def __init__(self):
-        self.provider = OpenRouterProvider()
+        if LLM_MODE == "browser":
+            logger.info("🧠 Using Browser-based API-less LLM")
+            self.provider = get_browser_llm()
+        else:
+            logger.info("🧠 Using OpenRouter LLM")
+            self.provider = OpenRouterProvider()
 
     def ask(self, prompt: str) -> str:
-        logger.info("🧠 Using OpenRouter (kat-coder-pro:free)")
         try:
             return self.provider.ask(prompt)
         except (HTTPError, RequestException, RuntimeError) as e:
             logger.error(f"❌ LLM request failed: {e}")
             raise
 
-
+# -----------------------------
+# Factory
+# -----------------------------
 def get_llm_provider():
-    logger.info("🧠 LLM provider initialized (OpenRouter only)")
+    logger.info(f"🧠 LLM provider initialized ({LLM_MODE})")
     return CompositeProvider()
