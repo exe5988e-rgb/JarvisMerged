@@ -8,6 +8,7 @@ INCLUDE_DIRS = [
     "modules",
     "gradle/wrapper",
     "scripts",
+    ".github",
 ]
 
 # ✅ Source extensions only
@@ -16,7 +17,7 @@ INCLUDE_EXTENSIONS = {
     ".gradle", ".kts",
     ".properties", ".json",
     ".yml", ".yaml",
-    ".md", ".txt", ".pro"
+    ".md", ".txt", ".pro" , ".py"
 }
 
 # ❌ Always excluded
