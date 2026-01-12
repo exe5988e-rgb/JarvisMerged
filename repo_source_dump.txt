@@ -3133,32 +3133,62 @@ def get_llm_provider():
 import asyncio
 import os
 import time
+import re
 from playwright.async_api import async_playwright, TimeoutError
+
 from scripts.logger import logger
 
 
-# ==================================================
-# CONFIG
-# ==================================================
-
-CHATGPT_URL = "https://chat.openai.com/"
-DEFAULT_TIMEOUT = 45  # seconds
+CHAT_URL = "https://chat.openai.com/"
+MAX_WAIT_SECONDS = 60
 MAX_RESPONSE_CHARS = 12000
+POLL_INTERVAL_MS = 1200
 
-
-# ==================================================
-# Browser LLM Runner
-# ==================================================
 
 class BrowserLLMRunner:
-    """
-    API-less LLM runner using headless Chromium.
-    Runs ONLY inside GitHub Actions.
-    """
-
     def __init__(self):
         self.headless = True
-        self.timeout = DEFAULT_TIMEOUT
+
+    async def _wait_for_input(self, page):
+        for _ in range(50):
+            textarea = await page.query_selector("textarea")
+            if textarea:
+                return textarea
+            await page.wait_for_timeout(500)
+        raise RuntimeError("Chat input not found")
+
+    async def _collect_response(self, page) -> str:
+        start = time.time()
+        last_text = ""
+
+        while time.time() - start < MAX_WAIT_SECONDS:
+            await page.wait_for_timeout(POLL_INTERVAL_MS)
+
+            blocks = await page.query_selector_all("div.markdown")
+            if not blocks:
+                continue
+
+            text = (await blocks[-1].inner_text()).strip()
+            if not text or text == last_text:
+                continue
+
+            last_text = text
+
+            if text.startswith("diff --git"):
+                return self._sanitize(text)
+
+        raise RuntimeError("Timed out waiting for LLM response")
+
+    def _sanitize(self, text: str) -> str:
+        text = text.replace("\u200b", "")
+        text = text.replace("\r\n", "\n").strip()
+
+        match = re.search(r"(diff --git[\s\S]+)", text)
+        if not match:
+            raise RuntimeError("No valid git diff found in response")
+
+        diff = match.group(1)
+        return diff[:MAX_RESPONSE_CHARS]
 
     async def _run(self, prompt: str) -> str:
         async with async_playwright() as p:
@@ -3171,60 +3201,30 @@ class BrowserLLMRunner:
                 ],
             )
 
-            context = await browser.new_context()
+            context = await browser.new_context(
+                viewport={"width": 1280, "height": 800}
+            )
             page = await context.new_page()
 
-            logger.info("🌐 Opening ChatGPT web UI")
-            await page.goto(CHATGPT_URL, timeout=60_000)
+            logger.info("🌐 Opening ChatGPT UI")
+            await page.goto(CHAT_URL, timeout=90_000)
 
-            # -------- Login Wait (manual cookie reuse if needed later) --------
-            logger.info("⏳ Waiting for chat input box")
-            await page.wait_for_selector("textarea", timeout=60_000)
+            logger.info("⏳ Waiting for chat input")
+            textarea = await self._wait_for_input(page)
 
-            textarea = await page.query_selector("textarea")
-            if not textarea:
-                raise RuntimeError("Chat input box not found")
-
-            # -------- Send prompt --------
-            logger.info("✍️ Sending prompt to browser LLM")
             await textarea.fill(prompt)
             await textarea.press("Enter")
 
-            # -------- Wait for response --------
-            start = time.time()
-            last_text = ""
-
-            while time.time() - start < self.timeout:
-                await page.wait_for_timeout(1500)
-
-                messages = await page.query_selector_all("div.markdown")
-                if not messages:
-                    continue
-
-                last = messages[-1]
-                text = (await last.inner_text()).strip()
-
-                if text and text != last_text:
-                    last_text = text
-
-                # Heuristic: response looks complete
-                if len(text) > 200 and not text.endswith("…"):
-                    break
+            logger.info("🧠 Waiting for browser LLM response")
+            response = await self._collect_response(page)
 
             await browser.close()
-
-            if not last_text:
-                raise RuntimeError("No response captured from browser LLM")
-
             logger.info("✅ Browser LLM response captured")
-            return last_text[:MAX_RESPONSE_CHARS]
 
-    # ==================================================
-    # Public API (sync wrapper)
-    # ==================================================
+            return response
 
     def ask(self, prompt: str) -> str:
-        logger.info("🧠 Using Browser-based LLM (API-less)")
+        logger.info("🧠 Using browser-based LLM")
         try:
             return asyncio.run(self._run(prompt))
         except TimeoutError:
@@ -3233,10 +3233,6 @@ class BrowserLLMRunner:
             logger.error(f"❌ Browser LLM failed: {e}")
             raise
 
-
-# ==================================================
-# Factory
-# ==================================================
 
 def get_browser_llm():
     return BrowserLLMRunner()
