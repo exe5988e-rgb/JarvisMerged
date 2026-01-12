@@ -180,6 +180,7 @@ FILE TREE (SELECTED FOLDERS)
 │   ├── openrouter.py
 │   ├── patch_applier.py
 │   ├── pr_utils.py
+├── .github
 
 ================================
 SOURCE CODE
@@ -2668,4 +2669,668 @@ networkTimeout=10000
 validateDistributionUrl=true
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
+
+
+===== FILE: scripts/__init__.py =====
+
+
+
+===== FILE: scripts/error_parser.py =====
+import re
+import os
+from scripts.logger import logger
+
+
+def _safe_int(value):
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def parse_build_errors(build_output: str) -> list[dict]:
+    """
+    Robust Gradle / Kotlin / AAPT error parser.
+    NEVER crashes.
+    Returns list of {file, line, message}
+    """
+    errors = []
+
+    patterns = [
+        # Kotlin compiler (Gradle 7+)
+        re.compile(r"e:\s*(file://)?(.+?\.(kt|java)):(\d+):\s*(error:\s+.+)", re.IGNORECASE),
+
+        # Java / Kotlin (classic)
+        re.compile(r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
+
+        # XML with numeric line
+        re.compile(r"(.+?\.xml):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
+
+        # AAPT resource errors (NO line number)
+        re.compile(r"AAPT:\s+error:\s*(.+)", re.IGNORECASE),
+    ]
+
+    for raw_line in build_output.splitlines():
+        line = raw_line.strip()
+
+        # 🚫 hard filter warnings
+        if "warning:" in line.lower():
+            continue
+
+        for pattern in patterns:
+            match = pattern.search(line)
+            if not match:
+                continue
+
+            groups = match.groups()
+
+            file_path = None
+            line_num = None
+            message = None
+
+            # Kotlin / Java
+            if len(groups) >= 4 and groups[1]:
+                file_path = groups[1].replace("file://", "").strip()
+                line_num = _safe_int(groups[3])
+                message = groups[-1]
+
+            # XML numeric
+            elif len(groups) == 3 and groups[0].endswith(".xml"):
+                file_path = groups[0].strip()
+                line_num = _safe_int(groups[1])
+                message = groups[2]
+
+            # AAPT (no file / no line)
+            else:
+                message = groups[-1]
+
+            if file_path and not os.path.exists(file_path):
+                continue
+
+            errors.append({
+                "file": file_path,
+                "line": line_num,
+                "message": message.strip()
+            })
+
+            logger.debug(f"Parsed error: {file_path}:{line_num} → {message}")
+            break
+
+    # Deduplicate
+    seen = set()
+    unique = []
+    for e in errors:
+        key = (e["file"], e["line"], e["message"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(e)
+
+    logger.info(f"📋 Parsed {len(unique)} build errors")
+    return unique
+
+
+def extract_code_snippet(
+    file_path: str,
+    error_line: int | None,
+    context_lines: int = 15
+) -> dict | None:
+    """
+    BEST-EFFORT snippet extraction.
+    NEVER throws.
+    """
+    try:
+        if not file_path or not error_line:
+            return None
+
+        if not os.path.exists(file_path):
+            return None
+
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+
+        total = len(lines)
+        if error_line < 1 or error_line > total:
+            return None
+
+        start = max(1, error_line - context_lines)
+        end = min(total, error_line + context_lines)
+
+        snippet = []
+        for i in range(start - 1, end):
+            ln = i + 1
+            prefix = ">>> " if ln == error_line else "    "
+            snippet.append(f"{ln:4d}{prefix}{lines[i].rstrip()}")
+
+        return {
+            "code": "\n".join(snippet),
+            "start_line": start,
+            "end_line": end
+        }
+
+    except Exception as e:
+        logger.debug(f"Snippet skipped for {file_path}:{error_line} → {e}")
+        return None
+
+
+===== FILE: scripts/extract_repo_to_txt.py =====
+from pathlib import Path
+
+OUTPUT_FILE = "repo_source_dump.txt"
+
+# ✅ WHITELIST folders (relative to repo root)
+INCLUDE_DIRS = [
+    "app",
+    "modules",
+    "gradle/wrapper",
+    "scripts",
+    ".github",
+]
+
+# ✅ Source extensions only
+INCLUDE_EXTENSIONS = {
+    ".kt", ".java", ".xml",
+    ".gradle", ".kts",
+    ".properties", ".json",
+    ".yml", ".yaml",
+    ".md", ".txt", ".pro" , ".py"
+}
+
+# ❌ Always excluded
+EXCLUDE_DIRS = {
+    ".git", ".github", ".gradle",
+    "build", "venv", "__pycache__",
+    "node_modules"
+}
+
+EXCLUDE_FILES = {
+    "gradle-wrapper.jar",
+    ".keystore",
+    ".zip"
+}
+
+
+def is_excluded(path: Path) -> bool:
+    return (
+        any(p in EXCLUDE_DIRS for p in path.parts)
+        or any(path.name.endswith(f) for f in EXCLUDE_FILES)
+    )
+
+
+def generate_tree(root: Path) -> str:
+    lines = ["."]
+    for base_dir in INCLUDE_DIRS:
+        base = root / base_dir
+        if not base.exists():
+            continue
+
+        lines.append(f"├── {base_dir}")
+        for path in sorted(base.rglob("*")):
+            if is_excluded(path):
+                continue
+
+            depth = len(path.relative_to(base).parts)
+            indent = "│   " * depth
+            lines.append(f"{indent}├── {path.name}")
+
+    return "\n".join(lines)
+
+
+def dump_source(root: Path, out):
+    for base_dir in INCLUDE_DIRS:
+        base = root / base_dir
+        if not base.exists():
+            continue
+
+        for path in sorted(base.rglob("*")):
+            if (
+                path.is_file()
+                and not is_excluded(path)
+                and path.suffix in INCLUDE_EXTENSIONS
+            ):
+                out.write(f"\n===== FILE: {path.relative_to(root)} =====\n")
+                try:
+                    out.write(path.read_text(encoding="utf-8"))
+                except Exception:
+                    out.write("[UNREADABLE FILE]")
+                out.write("\n")
+
+
+def main():
+    root = Path(".").resolve()
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
+        out.write("================================\n")
+        out.write("FILE TREE (SELECTED FOLDERS)\n")
+        out.write("================================\n\n")
+        out.write(generate_tree(root))
+
+        out.write("\n\n================================\n")
+        out.write("SOURCE CODE\n")
+        out.write("================================\n")
+
+        dump_source(root, out)
+
+    print("✅ Selected folders extracted successfully")
+
+
+if __name__ == "__main__":
+    main()
+
+
+===== FILE: scripts/git_utils.py =====
+import subprocess
+from scripts.logger import logger
+
+def commit_changes(message: str, files: list[str]):
+    """Stage and commit specified files."""
+    logger.info("📦 Committing changes")
+
+    subprocess.run(
+        ["git", "add"] + files,
+        check=True
+    )
+
+    subprocess.run(
+        ["git", "commit", "-m", message],
+        check=True
+    )
+
+    logger.info("✅ Commit created (not pushed)")
+
+def create_branch(branch_name: str):
+    """Create or switch to a new branch."""
+    logger.info(f"🌿 Creating/switching to branch '{branch_name}'")
+    subprocess.run(
+        ["git", "checkout", "-B", branch_name],
+        check=True
+    )
+    logger.info(f"✅ Branch '{branch_name}' ready")
+
+def push_branch(branch_name: str):
+    """Push the current branch to origin."""
+    logger.info(f"⬆️ Pushing branch '{branch_name}' to origin")
+    subprocess.run(
+        ["git", "push", "-u", "origin", branch_name, "--force"],
+        check=True
+    )
+    logger.info(f"✅ Branch '{branch_name}' pushed")
+
+
+===== FILE: scripts/github.py =====
+import os
+import subprocess
+import requests
+from scripts.logger import logger
+
+def create_branch(branch_name):
+    import subprocess
+
+    # Check if branch exists
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", branch_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    if result.returncode == 0:
+        subprocess.run(["git", "checkout", branch_name], check=True)
+    else:
+        subprocess.run(["git", "checkout", "-b", branch_name], check=True)
+
+
+def push_branch(branch_name: str):
+    """Push branch to origin."""
+    subprocess.run(
+        ["git", "push", "-u", "origin", branch_name, "--force"],
+        check=True
+    )
+    logger.info(f"⬆️ Pushed branch: {branch_name}")
+
+def open_pull_request(branch_name: str, title: str, body: str):
+    """Create a pull request on GitHub."""
+    repo = os.getenv("GITHUB_REPOSITORY")
+    token = os.getenv("GITHUB_TOKEN")
+
+    if not repo or not token:
+        raise RuntimeError("GITHUB_TOKEN or GITHUB_REPOSITORY not set")
+
+    url = f"https://api.github.com/repos/{repo}/pulls"
+
+    payload = {
+        "title": title,
+        "head": branch_name,
+        "base": "main",
+        "body": body
+    }
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    r = requests.post(url, headers=headers, json=payload)
+    r.raise_for_status()
+
+    pr_url = r.json()["html_url"]
+    logger.info(f"🔀 PR created: {pr_url}")
+
+
+===== FILE: scripts/llm.py =====
+import os
+import requests
+from requests import HTTPError, RequestException
+from scripts.logger import logger
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "kwaipilot/kat-coder-pro:free"
+
+
+class OpenRouterProvider:
+    def __init__(self):
+        if not OPENROUTER_API_KEY:
+            raise RuntimeError("OPENROUTER_API_KEY not set")
+
+    def ask(self, prompt: str) -> str:
+        payload = {
+            "model": OPENROUTER_MODEL,
+            "messages": [
+                {"role": "system", "content": "You are an expert Android/Kotlin build fixer."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.1,
+            "max_tokens": 2000,
+        }
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        r = requests.post(
+            OPENROUTER_URL,
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+
+        if not r.ok:
+            logger.error(f"❌ OpenRouter HTTP {r.status_code}: {r.text}")
+            r.raise_for_status()
+
+        try:
+            data = r.json()
+        except ValueError:
+            logger.error("❌ OpenRouter returned non-JSON response")
+            raise RuntimeError("OpenRouter returned invalid JSON")
+
+        return data["choices"][0]["message"]["content"]
+
+
+class CompositeProvider:
+    """
+    OpenRouter-only provider.
+    Free-tier safe.
+    Never touches paid models.
+    """
+
+    def __init__(self):
+        self.provider = OpenRouterProvider()
+
+    def ask(self, prompt: str) -> str:
+        logger.info("🧠 Using OpenRouter (kat-coder-pro:free)")
+        try:
+            return self.provider.ask(prompt)
+        except (HTTPError, RequestException, RuntimeError) as e:
+            logger.error(f"❌ LLM request failed: {e}")
+            raise
+
+
+def get_llm_provider():
+    logger.info("🧠 LLM provider initialized (OpenRouter only)")
+    return CompositeProvider()
+
+
+===== FILE: scripts/logger.py =====
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    stream=sys.stdout,
+)
+
+logger = logging.getLogger("ai-autofix")
+
+
+===== FILE: scripts/openrouter.py =====
+import os
+import requests
+from requests import HTTPError, RequestException
+from scripts.logger import logger
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "kwaipilot/kat-coder-pro:free"
+
+
+class OpenRouterProvider:
+    def __init__(self):
+        if not OPENROUTER_API_KEY:
+            raise RuntimeError("OPENROUTER_API_KEY not set")
+
+    def ask(self, prompt: str) -> str:
+        payload = {
+            "model": OPENROUTER_MODEL,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.1,
+            "max_tokens": 2000,
+        }
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        r = requests.post(
+            OPENROUTER_URL,
+            headers=headers,
+            json=payload,
+            timeout=90,
+        )
+
+        try:
+            r.raise_for_status()
+        except HTTPError as e:
+            logger.error(f"❌ OpenRouter HTTP {r.status_code}: {r.text}")
+            raise RuntimeError("OpenRouter request failed") from e
+
+        try:
+            data = r.json()
+        except ValueError:
+            logger.error("❌ OpenRouter returned non-JSON response")
+            logger.error(r.text[:500])
+            raise RuntimeError("OpenRouter returned invalid JSON")
+
+        try:
+            return data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError):
+            logger.error(f"❌ Malformed OpenRouter response: {data}")
+            raise RuntimeError("OpenRouter response malformed")
+
+
+class CompositeProvider:
+    def __init__(self):
+        self.provider = OpenRouterProvider()
+
+    def ask(self, prompt: str) -> str:
+        logger.info("🧠 Using OpenRouter (kat-coder-pro:free)")
+        return self.provider.ask(prompt)
+
+
+def get_llm_provider():
+    logger.info("🧠 LLM provider initialized (OpenRouter only)")
+    return CompositeProvider()
+
+
+===== FILE: scripts/patch_applier.py =====
+import os
+import re
+import subprocess
+import tempfile
+from typing import List
+
+
+# --------------------------------------------------
+# Structural corruption detector
+# --------------------------------------------------
+
+def is_structurally_corrupt(content: str) -> bool:
+    return (
+        content.count("class ") > 3
+        or "override fun onCreate" in content and "class" not in content
+        or re.search(r"^\s*override\s+fun", content, re.MULTILINE)
+        or content.count("package ") > 1
+    )
+
+
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
+
+def run(cmd: List[str]):
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    return p.returncode, p.stdout + p.stderr
+
+
+def write_file(path: str, content: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+# --------------------------------------------------
+# Diff handling
+# --------------------------------------------------
+
+def extract_diff(text: str) -> str:
+    lines = []
+    in_diff = False
+    for line in text.splitlines():
+        if line.startswith("diff --git"):
+            in_diff = True
+        if in_diff:
+            lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def apply_diff(diff: str) -> List[str]:
+    with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
+        tf.write(diff)
+        name = tf.name
+
+    try:
+        code, _ = run(["git", "apply", "--check", name])
+        if code != 0:
+            return []
+
+        run(["git", "apply", name])
+        _, out = run(["git", "diff", "--name-only"])
+        return out.splitlines()
+    finally:
+        os.unlink(name)
+
+
+# --------------------------------------------------
+# Overwrite fallback (SAFE)
+# --------------------------------------------------
+
+def extract_code(text: str) -> str:
+    fence = re.search(r"```(?:kotlin|java|groovy)?\s*(.*?)```", text, re.DOTALL)
+    return fence.group(1).strip() if fence else text.strip()
+
+
+def looks_like_code(content: str) -> bool:
+    return (
+        ("class " in content or "fun " in content or "dependencies {" in content)
+        and len(content.splitlines()) > 20
+    )
+
+
+# --------------------------------------------------
+# Main entry
+# --------------------------------------------------
+
+def apply_patch(ai_response: str, build_log: str) -> List[str]:
+    diff = extract_diff(ai_response)
+    if diff:
+        files = apply_diff(diff)
+        if files:
+            return files
+
+    content = extract_code(ai_response)
+    if not looks_like_code(content):
+        return []
+
+    match = re.search(r"File:\s*(.*)", build_log)
+    if not match:
+        return []
+
+    target = match.group(1)
+    if not os.path.isfile(target):
+        return []
+
+    write_file(target, content)
+    return [target]
+
+
+===== FILE: scripts/pr_utils.py =====
+import os
+import subprocess
+import requests
+from logger import logger
+
+
+def create_branch(branch_name: str):
+    subprocess.run(["git", "checkout", "-b", branch_name], check=True)
+
+
+def push_branch(branch_name: str):
+    subprocess.run(
+        ["git", "push", "-u", "origin", branch_name],
+        check=True
+    )
+
+
+def open_pull_request(branch_name: str, title: str, body: str):
+    repo = os.getenv("GITHUB_REPOSITORY")
+    token = os.getenv("GITHUB_TOKEN")
+
+    if not repo or not token:
+        raise RuntimeError("GITHUB_TOKEN or GITHUB_REPOSITORY not set")
+
+    url = f"https://api.github.com/repos/{repo}/pulls"
+
+    payload = {
+        "title": title,
+        "head": branch_name,
+        "base": "main",
+        "body": body
+    }
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    r = requests.post(url, headers=headers, json=payload)
+    r.raise_for_status()
+
+    pr_url = r.json()["html_url"]
+    logger.info(f"🔀 PR created: {pr_url}")
 
