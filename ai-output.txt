@@ -1,141 +1,112 @@
-//===== FILE: modules/ui/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
-package com.jarvismini.ui
+# ===== FILE: scripts/llm_runners/browser.py =====
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import com.jarvismini.api.JarvisApiClient
+import asyncio
+import os
+import time
+from playwright.async_api import async_playwright, TimeoutError
+from scripts.logger import logger
 
-// ✅ DATA MODEL (MISSING BEFORE)
-data class ChatMessage(
-    val text: String,
-    val isUser: Boolean
-)
 
-@Composable
-fun JarvisChatScreen() {
+# ==================================================
+# CONFIG
+# ==================================================
 
-    val messages = remember { mutableStateListOf<ChatMessage>() }
-    var input by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
+CHATGPT_URL = "https://chat.openai.com/"
+DEFAULT_TIMEOUT = 45  # seconds
+MAX_RESPONSE_CHARS = 12000
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-    ) {
 
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            reverseLayout = true
-        ) {
-            items(messages.reversed()) { msg ->
-                Text(
-                    text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}",
-                    modifier = Modifier.padding(6.dp)
-                )
-            }
-        }
+# ==================================================
+# Browser LLM Runner
+# ==================================================
 
-        Row(modifier = Modifier.fillMaxWidth()) {
+class BrowserLLMRunner:
+    """
+    API-less LLM runner using headless Chromium.
+    Runs ONLY inside GitHub Actions.
+    """
 
-            TextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask Jarvis…") }
+    def __init__(self):
+        self.headless = True
+        self.timeout = DEFAULT_TIMEOUT
+
+    async def _run(self, prompt: str) -> str:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=self.headless,
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",
+                ],
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            context = await browser.new_context()
+            page = await context.new_page()
 
-            Button(
-                onClick = {
-                    val userText = input.trim()
-                    if (userText.isEmpty()) return@Button
+            logger.info("🌐 Opening ChatGPT web UI")
+            await page.goto(CHATGPT_URL, timeout=60_000)
 
-                    input = ""
-                    messages.add(ChatMessage(userText, true))
+            # -------- Login Wait (manual cookie reuse if needed later) --------
+            logger.info("⏳ Waiting for chat input box")
+            await page.wait_for_selector("textarea", timeout=60_000)
 
-                    scope.launch {
-                        try {
-                            // ✅ CORRECT API CALL
-                            JarvisApiClient.sendQuery(userText)
+            textarea = await page.query_selector("textarea")
+            if not textarea:
+                raise RuntimeError("Chat input box not found")
 
-                            val reply = JarvisApiClient.getResponse()
-                            messages.add(ChatMessage(reply, false))
+            # -------- Send prompt --------
+            logger.info("✍️ Sending prompt to browser LLM")
+            await textarea.fill(prompt)
+            await textarea.press("Enter")
 
-                        } catch (e: Exception) {
-                            messages.add(
-                                ChatMessage(
-                                    "Error: ${e.message}",
-                                    false
-                                )
-                            )
-                        }
-                    }
-                }
-            ) {
-                Text("Send")
-            }
-        }
-    }
-}
-//===== FILE: modules/ui/build.gradle.kts =====
-plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
-}
+            # -------- Wait for response --------
+            start = time.time()
+            last_text = ""
 
-android {
-    namespace = "com.jarvismini.ui"
-    compileSdk = 34
+            while time.time() - start < self.timeout:
+                await page.wait_for_timeout(1500)
 
-    defaultConfig {
-        minSdk = 26
-        targetSdk = 34
-    }
+                messages = await page.query_selector_all("div.markdown")
+                if not messages:
+                    continue
 
-    buildFeatures {
-        compose = true
-    }
+                last = messages[-1]
+                text = (await last.inner_text()).strip()
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
+                if text and text != last_text:
+                    last_text = text
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
+                # Heuristic: response looks complete
+                if len(text) > 200 and not text.endswith("…"):
+                    break
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-}
+            await browser.close()
 
-dependencies {
+            if not last_text:
+                raise RuntimeError("No response captured from browser LLM")
 
-    // Compose BOM
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+            logger.info("✅ Browser LLM response captured")
+            return last_text[:MAX_RESPONSE_CHARS]
 
-    // Compose
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.activity:activity-compose")
+    # ==================================================
+    # Public API (sync wrapper)
+    # ==================================================
 
-    // Lifecycle
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    def ask(self, prompt: str) -> str:
+        logger.info("🧠 Using Browser-based LLM (API-less)")
+        try:
+            return asyncio.run(self._run(prompt))
+        except TimeoutError:
+            raise RuntimeError("Browser LLM timed out")
+        except Exception as e:
+            logger.error(f"❌ Browser LLM failed: {e}")
+            raise
 
-    // 🔗 REQUIRED: access API + core state
-    implementation(project(":modules:api"))
-    implementation(project(":modules:core"))
 
-    // Debug
-    debugImplementation("androidx.compose.ui:ui-tooling")
-}
+# ==================================================
+# Factory
+# ==================================================
+
+def get_browser_llm():
+    return BrowserLLMRunner()
