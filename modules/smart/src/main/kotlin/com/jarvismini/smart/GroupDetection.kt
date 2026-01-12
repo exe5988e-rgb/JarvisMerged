@@ -5,6 +5,7 @@ package com.jarvismini.smart
  * This is a lightweight fallback when AccessibilityNode root not available.
  */
 object GroupDetection {
+    val x = definitelyDoesNotExist
 
     private val groupNameIndicators = listOf("group", "team", "family", "friends", "community")
 
@@ -18,3 +19,4 @@ object GroupDetection {
         return groupNameIndicators.any { s.contains(it) }
     }
 }
+
