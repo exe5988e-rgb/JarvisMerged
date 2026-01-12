@@ -777,13 +777,24 @@ fun JarvisChatScreen() {
         Divider()
 
         Button(onClick = {
-            scope.launch {
-                JarvisApiClient.sendQuery("Hello Jarvis")
-                delay(3000)
-                val reply = JarvisApiClient.getResponse()
-                Toast.makeText(context, reply, Toast.LENGTH_LONG).show()
-            }
-        }) {
+    val userText = input.trim()
+    if (userText.isEmpty()) return@Button
+
+    input = ""
+    messages.add(ChatMessage(userText, true))
+
+    scope.launch {
+        try {
+            val reply = JarvisApiClient.submitQueryAndWait(userText)
+            messages.add(ChatMessage(reply, false))
+        } catch (e: Exception) {
+            messages.add(ChatMessage("Error: ${e.message}", false))
+        }
+    }
+}) {
+    Text("Send")
+}
+ {
             Text("Ask Jarvis (Test)")
         }
     }
