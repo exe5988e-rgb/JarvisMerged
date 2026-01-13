@@ -192,7 +192,7 @@ FILE TREE (SELECTED FOLDERS)
 SOURCE CODE
 ================================
 
-===== FILE: app/build.gradle.kts =====
+//===== FILE: app/build.gradle.kts =====
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -263,16 +263,16 @@ dependencies {
 }
 
 
-===== FILE: app/proguard-rules.pro =====
+//===== FILE: app/proguard-rules.pro =====
 
 
-===== FILE: app/src/androidTest/java/com/jarvismini/ExampleAndroidTest.kt =====
+//===== FILE: app/src/androidTest/java/com/jarvismini/ExampleAndroidTest.kt =====
 
 
-===== FILE: app/src/debug/java/com/jarvismini/DebugBuildConfig.kt =====
+//===== FILE: app/src/debug/java/com/jarvismini/DebugBuildConfig.kt =====
 
 
-===== FILE: app/src/main/AndroidManifest.xml =====
+//===== FILE: app/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jarvismini">
@@ -408,7 +408,7 @@ dependencies {
 </manifest>
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/BuildConfigBridge.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/BuildConfigBridge.kt =====
 package com.jarvismini
 
 object BuildConfigBridge {
@@ -416,7 +416,7 @@ object BuildConfigBridge {
 }
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
 package com.jarvismini
 
 import android.app.Application
@@ -434,7 +434,7 @@ class CoreApp : Application() {
 }
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
 package com.jarvismini
 
 import android.os.Bundle
@@ -466,7 +466,7 @@ class MainActivity : ComponentActivity() {
 }
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/api/JarvisApiClient.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/api/JarvisApiClient.kt =====
 package com.jarvismini.api
 
 import kotlinx.coroutines.Dispatchers
@@ -549,7 +549,7 @@ object JarvisApiClient {
 }
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/service/CallAutoReplyService.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/service/CallAutoReplyService.kt =====
 package com.jarvismini.callhandler.service
 
 import android.app.Notification
@@ -616,7 +616,7 @@ class CallAutoReplyService : Service() {
 }
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/service/WorkModeTileService.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/service/WorkModeTileService.kt =====
 package com.jarvismini.service
 
 import android.service.quicksettings.Tile
@@ -643,7 +643,7 @@ class WorkModeTileService : TileService() {
 }
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChatMessage.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChatMessage.kt =====
 package com.jarvismini.ui
 
 data class ChatMessage(
@@ -652,7 +652,7 @@ data class ChatMessage(
 )
 
 
-===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.jarvismini.ui
@@ -808,7 +808,7 @@ fun JarvisChatScreen() {
 }
 
 
-===== FILE: app/src/main/res/layout/activity_main.xml =====
+//===== FILE: app/src/main/res/layout/activity_main.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
@@ -818,7 +818,7 @@ fun JarvisChatScreen() {
 </LinearLayout>
 
 
-===== FILE: app/src/main/res/layout/activity_settings.xml =====
+//===== FILE: app/src/main/res/layout/activity_settings.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
@@ -836,7 +836,7 @@ fun JarvisChatScreen() {
 </LinearLayout>
 
 
-===== FILE: app/src/main/res/values/colors.xml =====
+//===== FILE: app/src/main/res/values/colors.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="purple_200">#BB86FC</color>
@@ -848,7 +848,7 @@ fun JarvisChatScreen() {
 </resources>
 
 
-===== FILE: app/src/main/res/values/strings.xml =====
+//===== FILE: app/src/main/res/values/strings.xml =====
 <resources>
     <string name="app_name">Jarvis Merged</string>
     <string name="service_desc">Jarvis WhatsApp automation service</string>
@@ -858,7 +858,7 @@ fun JarvisChatScreen() {
 </resources>
 
 
-===== FILE: app/src/main/res/values/themes.xml =====
+//===== FILE: app/src/main/res/values/themes.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
@@ -870,7 +870,7 @@ fun JarvisChatScreen() {
 </resources>
 
 
-===== FILE: app/src/main/res/xml/accessibility_service.xml =====
+//===== FILE: app/src/main/res/xml/accessibility_service.xml =====
 <accessibility-service
     xmlns:android="http://schemas.android.com/apk/res/android"
 
@@ -890,7 +890,7 @@ fun JarvisChatScreen() {
     android:description="@string/service_desc"/>
 
 
-===== FILE: app/src/main/res/xml/call_accessibility_config.xml =====
+//===== FILE: app/src/main/res/xml/call_accessibility_config.xml =====
 <accessibility-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
@@ -901,7 +901,7 @@ fun JarvisChatScreen() {
     android:description="@string/accessibility_call_desc" />
 
 
-===== FILE: app/src/main/res/xml/network_security_config.xml =====
+//===== FILE: app/src/main/res/xml/network_security_config.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
@@ -917,16 +917,16 @@ fun JarvisChatScreen() {
 </network-security-config>
 
 
-===== FILE: app/src/main/res/xml/notification_listener.xml =====
+//===== FILE: app/src/main/res/xml/notification_listener.xml =====
  <notification-listener-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/service_desc" />
 
 
-===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
+//===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
 
 
-===== FILE: modules/automation/build.gradle.kts =====
+//===== FILE: modules/automation/build.gradle.kts =====
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -959,15 +959,15 @@ dependencies {
 }
 
 
-===== FILE: modules/automation/proguard-rules.pro =====
+//===== FILE: modules/automation/proguard-rules.pro =====
 
 
-===== FILE: modules/automation/src/main/AndroidManifest.xml =====
+//===== FILE: modules/automation/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AccessibilityServiceHelper.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AccessibilityServiceHelper.kt =====
 package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
@@ -986,7 +986,7 @@ object AccessibilityServiceHelper {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt =====
 // ===== FILE: app/src/main/java/com/jarvismini/automation/AppAutomationService.kt =====
 package com.jarvismini.automation
 
@@ -1041,7 +1041,7 @@ class AppAutomationService : AccessibilityService() {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoCloser.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoCloser.kt =====
 package com.jarvismini.automation
 
 import android.view.accessibility.AccessibilityNodeInfo
@@ -1058,7 +1058,7 @@ object AutoCloser {
     }
 }
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoReplyContext.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoReplyContext.kt =====
 package com.jarvismini.automation
 
 import com.jarvismini.engine.ReplyReason
@@ -1071,7 +1071,7 @@ data class AutoReplyContext(
 )
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 package com.jarvismini.automation
 
 class AutomationEngine {
@@ -1084,13 +1084,13 @@ class AutomationEngine {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationStubs.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationStubs.kt =====
 package com.jarvismini.automation
 
 fun ChatAllowed(): Boolean = false
 fun generateReply(text: String): String = ""
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ChatOpener.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ChatOpener.kt =====
 package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
@@ -1132,7 +1132,7 @@ object ChatOpener {
     }
 }
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/JarvisNotificationService.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/JarvisNotificationService.kt =====
 package com.jarvismini.automation
 
 import android.app.Notification
@@ -1191,7 +1191,7 @@ class JarvisNotificationService : NotificationListenerService() {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/MessageExtractor.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/MessageExtractor.kt =====
 package com.jarvismini.automation
 
 import android.view.accessibility.AccessibilityNodeInfo
@@ -1234,7 +1234,7 @@ object MessageExtractor {
     }
 }
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/MessageSender.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/MessageSender.kt =====
 package com.jarvismini.automation
 
 import android.view.accessibility.AccessibilityNodeInfo
@@ -1255,7 +1255,7 @@ object MessageSender {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ModeGuard.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ModeGuard.kt =====
 package com.jarvismini.automation
 
 import com.jarvismini.core.JarvisMode
@@ -1274,7 +1274,7 @@ object ModeGuard {
     }
 }
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/NodeFinder.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/NodeFinder.kt =====
 package com.jarvismini.automation
 
 import android.util.Log
@@ -1342,7 +1342,7 @@ object NodeFinder {
     }
 }
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/SmartAutoReply.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/SmartAutoReply.kt =====
 package com.jarvismini.automation
 
 /**
@@ -1358,7 +1358,7 @@ object SmartAutoReply {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/WhatsAppNotificationListener.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/WhatsAppNotificationListener.kt =====
 // ===== FILE: app/src/main/java/com/jarvismini/automation/WhatsAppNotificationListener.kt =====
 package com.jarvismini.automation
 
@@ -1481,7 +1481,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/decision/ReplyDecision.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/decision/ReplyDecision.kt =====
 package com.jarvismini.automation.decision
 
 /**
@@ -1503,7 +1503,7 @@ sealed class ReplyDecision {
 }
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/input/AutoReplyInput.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/input/AutoReplyInput.kt =====
 package com.jarvismini.automation.input
 
 data class AutoReplyInput(
@@ -1513,7 +1513,7 @@ data class AutoReplyInput(
 )
 
 
-===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/orchestrator/AutoReplyOrchestrator.kt =====
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/orchestrator/AutoReplyOrchestrator.kt =====
 package com.jarvismini.automation.orchestrator
 
 import com.jarvismini.automation.decision.ReplyDecision
@@ -1562,7 +1562,7 @@ object AutoReplyOrchestrator {
 }
 
 
-===== FILE: modules/callhandler/build.gradle.kts =====
+//===== FILE: modules/callhandler/build.gradle.kts =====
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -1593,7 +1593,7 @@ dependencies {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/ContactResolver.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/ContactResolver.kt =====
 package com.jarvismini.callhandler
 
 import android.content.Context
@@ -1622,7 +1622,7 @@ object ContactResolver {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/JarvisCallScreeningService.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/JarvisCallScreeningService.kt =====
 package com.jarvismini.callhandler
 
 import android.net.Uri
@@ -1706,7 +1706,7 @@ class JarvisCallScreeningService : CallScreeningService() {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/PhaseGuard.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/PhaseGuard.kt =====
 package com.jarvismini.callhandler
 
 object PhaseGuard {
@@ -1714,7 +1714,7 @@ object PhaseGuard {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsAutoReplyService.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsAutoReplyService.kt =====
 package com.jarvismini.callhandler
 
 import android.content.Context
@@ -1732,7 +1732,7 @@ object SmsAutoReplyService {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
 // ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
 package com.jarvismini.callhandler
 
@@ -1764,7 +1764,7 @@ class SmsReceiver : BroadcastReceiver() {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsSender.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsSender.kt =====
 package com.jarvismini.callhandler
 
 import android.telephony.SmsManager
@@ -1778,7 +1778,7 @@ object SmsSender {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/accessibility/CallAccessibilityService.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/accessibility/CallAccessibilityService.kt =====
 package com.jarvismini.callhandler.accessibility
 
 import android.accessibilityservice.AccessibilityService
@@ -1849,7 +1849,7 @@ class CallAccessibilityService : AccessibilityService() {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/logic/CallHandlerEngine.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/logic/CallHandlerEngine.kt =====
 package com.jarvismini.callhandler.logic
 
 import android.content.Context
@@ -1918,7 +1918,7 @@ object CallHandlerEngine {
 }
 
 
-===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/receiver/CallReceiver.kt =====
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/receiver/CallReceiver.kt =====
 package com.jarvismini.callhandler.receiver
 
 import android.content.BroadcastReceiver
@@ -1942,14 +1942,14 @@ class CallReceiver : BroadcastReceiver() {
 }
 
 
-===== FILE: modules/callhandler/src/main/res/values/strings.xml =====
+//===== FILE: modules/callhandler/src/main/res/values/strings.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="callhandler_dummy">dummy</string>
 </resources>
 
 
-===== FILE: modules/core/build.gradle.kts =====
+//===== FILE: modules/core/build.gradle.kts =====
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -1975,15 +1975,15 @@ android {
 }
 
 
-===== FILE: modules/core/proguard-rules.pro =====
+//===== FILE: modules/core/proguard-rules.pro =====
 
 
-===== FILE: modules/core/src/main/AndroidManifest.xml =====
+//===== FILE: modules/core/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/AssistantProfile.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/AssistantProfile.kt =====
 package com.jarvismini.core
 
 object AssistantProfile {
@@ -1999,7 +1999,7 @@ object AssistantProfile {
 }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/AssistantVoice.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/AssistantVoice.kt =====
 package com.jarvismini.core
 
 object AssistantVoice {
@@ -2018,19 +2018,19 @@ object AssistantVoice {
 }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/CoreAppBridge.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/CoreAppBridge.kt =====
 package com.jarvismini.core
 object CoreAppBridge { fun appName() = "JarvisMerged" }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/Extensions.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/Extensions.kt =====
 package com.jarvismini.core
 
 fun String.trunc(n: Int): String =
     if (this.length > n) this.substring(0, n) else this
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisMode.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisMode.kt =====
 package com.jarvismini.core
 
 enum class JarvisMode {
@@ -2042,7 +2042,7 @@ enum class JarvisMode {
 }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisState.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisState.kt =====
 package com.jarvismini.core
 
 import android.content.Context
@@ -2071,7 +2071,7 @@ object JarvisState {
 }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/Logger.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/Logger.kt =====
 package com.jarvismini.core
 
 object Logger {
@@ -2081,7 +2081,7 @@ object Logger {
 }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/MediaController.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/MediaController.kt =====
 package com.jarvismini.core
 
 import android.content.Context
@@ -2117,12 +2117,12 @@ object MediaController {
 }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/TimeUtils.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/TimeUtils.kt =====
 package com.jarvismini.core
 object TimeUtils { fun nowMs() = System.currentTimeMillis() }
 
 
-===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/WorkModeManager.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/WorkModeManager.kt =====
 package com.jarvismini.core
 
 import android.app.NotificationManager
@@ -2181,7 +2181,7 @@ object WorkModeManager {
 }
 
 
-===== FILE: modules/engine/build.gradle.kts =====
+//===== FILE: modules/engine/build.gradle.kts =====
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -2212,15 +2212,15 @@ dependencies {
 }
 
 
-===== FILE: modules/engine/proguard-rules.pro =====
+//===== FILE: modules/engine/proguard-rules.pro =====
 
 
-===== FILE: modules/engine/src/main/AndroidManifest.xml =====
+//===== FILE: modules/engine/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CommandEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CommandEngine.kt =====
 package com.jarvismini.engine
 
 interface CommandEngine {
@@ -2229,7 +2229,7 @@ interface CommandEngine {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CoreTag.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CoreTag.kt =====
 package com.jarvismini.engine
 
 object CoreTag {
@@ -2237,7 +2237,7 @@ object CoreTag {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -2255,7 +2255,7 @@ object EngineProvider {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineResult.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineResult.kt =====
 package com.jarvismini.engine
 
 sealed class EngineResult {
@@ -2268,7 +2268,7 @@ sealed class EngineResult {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/JarvisReplyGenerator.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/JarvisReplyGenerator.kt =====
 package com.jarvismini.engine
 
 import com.jarvismini.core.JarvisMode
@@ -2288,7 +2288,7 @@ object JarvisReplyGenerator {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -2299,7 +2299,7 @@ interface LLMEngine {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ReplyReason.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ReplyReason.kt =====
 package com.jarvismini.engine
 
 enum class ReplyReason {
@@ -2309,7 +2309,7 @@ enum class ReplyReason {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ReplyToneResolver.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ReplyToneResolver.kt =====
 package com.jarvismini.engine
 
 import com.jarvismini.core.JarvisMode
@@ -2351,7 +2351,7 @@ object ReplyToneResolver {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
 package com.jarvismini.engine
 
 object StubCommandEngine : CommandEngine {
@@ -2366,7 +2366,7 @@ object StubCommandEngine : CommandEngine {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -2383,7 +2383,7 @@ object StubLLMEngine : LLMEngine {
 }
 
 
-===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/WorkModeCommandEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/WorkModeCommandEngine.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -2407,7 +2407,7 @@ class WorkModeCommandEngine(
 }
 
 
-===== FILE: modules/smart/build.gradle.kts =====
+//===== FILE: modules/smart/build.gradle.kts =====
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -2437,15 +2437,15 @@ dependencies {
 }
 
 
-===== FILE: modules/smart/proguard-rules.pro =====
+//===== FILE: modules/smart/proguard-rules.pro =====
 
 
-===== FILE: modules/smart/src/main/AndroidManifest.xml =====
+//===== FILE: modules/smart/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
 
 
-===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/ChatTypeDetector.kt =====
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/ChatTypeDetector.kt =====
 package com.jarvismini.smart
 
 import android.view.accessibility.AccessibilityNodeInfo
@@ -2534,7 +2534,7 @@ object ChatTypeDetector {
 }
 
 
-===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/CooldownManager.kt =====
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/CooldownManager.kt =====
 package com.jarvismini.smart
 
 /**
@@ -2573,7 +2573,7 @@ object CooldownManager {
 }
 
 
-===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt =====
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt =====
 package com.jarvismini.smart
 
 /**
@@ -2598,7 +2598,7 @@ object GroupDetection {
 
 
 
-===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/RateLimiter.kt =====
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/RateLimiter.kt =====
 package com.jarvismini.smart
 
 import java.util.concurrent.ConcurrentHashMap
@@ -2630,7 +2630,7 @@ class RateLimiter(private val windowMs: Long, private val maxEvents: Int) {
 }
 
 
-===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SleepMode.kt =====
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SleepMode.kt =====
 package com.jarvismini.smart
 
 /**
@@ -2654,7 +2654,7 @@ object SleepMode {
 }
 
 
-===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 package com.jarvismini.smart
 
 /**
@@ -2669,7 +2669,7 @@ object SmartFilters {
 }
 
 
-===== FILE: gradle/wrapper/gradle-wrapper.properties =====
+//===== FILE: gradle/wrapper/gradle-wrapper.properties =====
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
 distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-all.zip
@@ -2679,11 +2679,11 @@ zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
 
 
-===== FILE: scripts/__init__.py =====
+//===== FILE: scripts/__init__.py =====
 
 
 
-===== FILE: scripts/error_parser.py =====
+//===== FILE: scripts/error_parser.py =====
 import re
 import os
 from scripts.logger import logger
@@ -2706,33 +2706,22 @@ def parse_build_errors(build_output: str) -> list[dict]:
 
     patterns = [
         # Kotlin compiler (Gradle 7+)
-        re.compile(
-            r"e:\s*(file://)?(.+?\.(kt|java)):(\d+):\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"e:\s*(file://)?(.+?\.(kt|java)):(\d+):\s*(error:\s+.+)", re.IGNORECASE),
 
         # Java / Kotlin (classic)
-        re.compile(
-            r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
 
         # XML with numeric line
-        re.compile(
-            r"(.+?\.xml):(\d+):\s*error:\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"(.+?\.xml):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
 
         # AAPT resource errors (NO line number)
-        re.compile(
-            r"AAPT:\s+error:\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"AAPT:\s+error:\s*(.+)", re.IGNORECASE),
     ]
 
     for raw_line in build_output.splitlines():
         line = raw_line.strip()
 
+        # 🚫 hard filter warnings
         if "warning:" in line.lower():
             continue
 
@@ -2774,14 +2763,6 @@ def parse_build_errors(build_output: str) -> list[dict]:
 
             logger.debug(f"Parsed error: {file_path}:{line_num} → {message}")
             break
-
-    # Fallback: Gradle failure with no parsed compiler error
-    if not errors and "FAILED" in build_output:
-        errors.append({
-            "file": None,
-            "line": None,
-            "message": "Gradle task failed (unparsed compiler error)"
-        })
 
     # Deduplicate
     seen = set()
@@ -2839,7 +2820,7 @@ def extract_code_snippet(
         return None
 
 
-===== FILE: scripts/extract_repo_to_txt.py =====
+//===== FILE: scripts/extract_repo_to_txt.py =====
 from pathlib import Path
 
 OUTPUT_FILE = "repo_source_dump.txt"
@@ -2914,7 +2895,7 @@ def dump_source(root: Path, out):
                 and not is_excluded(path)
                 and path.suffix in INCLUDE_EXTENSIONS
             ):
-                out.write(f"\n===== FILE: {path.relative_to(root)} =====\n")
+                out.write(f"\n//===== FILE: {path.relative_to(root)} =====\n")
                 try:
                     out.write(path.read_text(encoding="utf-8"))
                 except Exception:
@@ -2944,7 +2925,7 @@ if __name__ == "__main__":
     main()
 
 
-===== FILE: scripts/git_utils.py =====
+//===== FILE: scripts/git_utils.py =====
 import subprocess
 from scripts.logger import logger
 
@@ -2983,7 +2964,7 @@ def push_branch(branch_name: str):
     logger.info(f"✅ Branch '{branch_name}' pushed")
 
 
-===== FILE: scripts/github.py =====
+//===== FILE: scripts/github.py =====
 import os
 import subprocess
 import requests
@@ -3042,113 +3023,47 @@ def open_pull_request(branch_name: str, title: str, body: str):
     logger.info(f"🔀 PR created: {pr_url}")
 
 
-===== FILE: scripts/llm.py =====
+//===== FILE: scripts/llm.py =====
 import os
 import requests
-from requests import HTTPError, RequestException
-
 from scripts.logger import logger
 
-# --------------------------------------------------
-# ENV
-# --------------------------------------------------
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_URL = "https://gemini.api/v1/completions"
+GEMINI_MODEL = "gemini-coder-pro"
 
-LLM_MODE = os.getenv("LLM_MODE", "openrouter").lower()
-
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "kwaipilot/kat-coder-pro:free"
-
-
-# ==================================================
-# OpenRouter Provider (fallback / optional)
-# ==================================================
-
-class OpenRouterProvider:
+class GeminiProvider:
     def __init__(self):
-        if not OPENROUTER_API_KEY:
-            raise RuntimeError("OPENROUTER_API_KEY not set")
+        if not GEMINI_API_KEY:
+            raise RuntimeError("GEMINI_API_KEY not set")
 
     def ask(self, prompt: str) -> str:
         payload = {
-            "model": OPENROUTER_MODEL,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an expert Android/Kotlin build-fixing agent.",
-                },
-                {"role": "user", "content": prompt},
-            ],
+            "model": GEMINI_MODEL,
+            "prompt": prompt,
             "temperature": 0.1,
             "max_tokens": 2000,
         }
-
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        }
-
-        r = requests.post(
-            OPENROUTER_URL,
-            headers=headers,
-            json=payload,
-            timeout=60,
-        )
-
-        if not r.ok:
-            logger.error(f"❌ OpenRouter HTTP {r.status_code}: {r.text}")
-            r.raise_for_status()
-
-        try:
-            data = r.json()
-        except ValueError:
-            logger.error("❌ OpenRouter returned non-JSON response")
-            raise RuntimeError("OpenRouter returned invalid JSON")
-
-        return data["choices"][0]["message"]["content"]
-
-
-# ==================================================
-# Composite Provider
-# ==================================================
+        headers = {"Authorization": f"Bearer {GEMINI_API_KEY}"}
+        r = requests.post(GEMINI_URL, json=payload, headers=headers, timeout=60)
+        r.raise_for_status()
+        data = r.json()
+        return data["choices"][0]["text"]
 
 class CompositeProvider:
-    """
-    Provider selector:
-    - browser     → Playwright-based UI automation (API-less)
-    - openrouter  → Free OpenRouter model (fallback)
-    """
-
     def __init__(self):
-        self.provider = self._select_provider()
-
-    def _select_provider(self):
-        if LLM_MODE == "browser":
-            logger.info("🧠 LLM mode: browser (API-less)")
-            from scripts.llm_runners.browser import get_browser_llm
-            return get_browser_llm()
-
-        logger.info("🧠 LLM mode: openrouter (free tier)")
-        return OpenRouterProvider()
+        self.provider = GeminiProvider()
 
     def ask(self, prompt: str) -> str:
-        try:
-            return self.provider.ask(prompt)
-        except (HTTPError, RequestException, RuntimeError) as e:
-            logger.error(f"❌ LLM request failed: {e}")
-            raise
-
-
-# ==================================================
-# Factory
-# ==================================================
+        logger.info("🧠 Using Gemini (coder-pro)")
+        return self.provider.ask(prompt)
 
 def get_llm_provider():
-    logger.info(f"🧠 Initializing LLM provider (mode={LLM_MODE})")
+    logger.info("🧠 LLM provider initialized (Gemini only)")
     return CompositeProvider()
 
 
-===== FILE: scripts/logger.py =====
+//===== FILE: scripts/logger.py =====
 import logging
 import sys
 
@@ -3161,7 +3076,7 @@ logging.basicConfig(
 logger = logging.getLogger("ai-autofix")
 
 
-===== FILE: scripts/openrouter.py =====
+//===== FILE: scripts/openrouter.py =====
 import os
 import requests
 from requests import HTTPError, RequestException
@@ -3234,7 +3149,7 @@ def get_llm_provider():
     return CompositeProvider()
 
 
-===== FILE: scripts/patch_applier.py =====
+//===== FILE: scripts/patch_applier.py =====
 import os
 import re
 import subprocess
@@ -3345,7 +3260,7 @@ def apply_patch(ai_response: str, build_log: str) -> List[str]:
     return [target]
 
 
-===== FILE: scripts/pr_utils.py =====
+//===== FILE: scripts/pr_utils.py =====
 import os
 import subprocess
 import requests
@@ -3391,8 +3306,8 @@ def open_pull_request(branch_name: str, title: str, body: str):
     logger.info(f"🔀 PR created: {pr_url}")
 
 
-===== FILE: .github/workflows/Ai-autofix.yml =====
-name: AI Autofix (Browser LLM)
+//===== FILE: .github/workflows/Ai-autofix.yml =====
+name: AI Autofix
 
 on:
   push:
@@ -3408,69 +3323,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------
-      # Checkout the repo
-      # -------------------
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # -------------------
-      # Set up JDK
-      # -------------------
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
 
-      # -------------------
-      # Set up Python
-      # -------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # -------------------
-      # Install dependencies
-      # -------------------
       - name: Install Python dependencies
         run: |
-          pip install requests playwright
-          playwright install chromium
+          pip install requests
 
-      # -------------------
-      # Configure Git
-      # -------------------
       - name: Configure Git
         run: |
           git config user.name "AI Autofix Bot"
           git config user.email "bot@autofix.ai"
 
-      # -------------------
-      # Run Android build (capture output)
-      # -------------------
-      - name: Run Gradle build
+      - name: Run Android build (capture output)
         run: |
           chmod +x ./gradlew
           ./gradlew build 2>&1 | tee build.log || true
 
-      # -------------------
-      # Run Browser LLM AI Autofix
-      # -------------------
-      - name: Run Browser LLM AI Autofix
+      - name: Run AI Autofix
         env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          LLM_MODE: browser
         run: |
-          python main.py --llm browser
+          python main.py || true
 
 
-===== FILE: .github/workflows/Ai-codegen.yml =====
+//===== FILE: .github/workflows/Ai-codegen.yml =====
 name: AI Code Generator
 
 on:
@@ -3498,7 +3392,7 @@ jobs:
           python ai-code.py ai-output.txt
 
 
-===== FILE: .github/workflows/Apk.yml =====
+//===== FILE: .github/workflows/Apk.yml =====
 name: Build APK
 
 on:
@@ -3532,7 +3426,7 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
 
 
-===== FILE: .github/workflows/main.yml =====
+//===== FILE: .github/workflows/main.yml =====
 name: Extract Repo Source to TXT
 
 on:
@@ -3568,7 +3462,7 @@ jobs:
           git push
 
 
-===== FILE: .github/workflows/pr-build.yml =====
+//===== FILE: .github/workflows/pr-build.yml =====
 name: PR Build (No AI)
 
 on:
