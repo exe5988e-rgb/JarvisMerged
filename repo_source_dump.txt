@@ -3053,77 +3053,71 @@ def open_pull_request(branch_name: str, title: str, body: str):
 //===== FILE: scripts/llm.py =====
 import os
 import requests
-from requests import HTTPError, RequestException
 from scripts.logger import logger
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = "llama3-8b-8192"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "kwaipilot/kat-coder-pro:free"
 
-
-class OpenRouterProvider:
+class GroqProvider:
     def __init__(self):
-        if not OPENROUTER_API_KEY:
-            raise RuntimeError("OPENROUTER_API_KEY not set")
+        if not GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY not set")
 
     def ask(self, prompt: str) -> str:
         payload = {
-            "model": OPENROUTER_MODEL,
+            "model": GROQ_MODEL,
             "messages": [
-                {"role": "system", "content": "You are an expert Android/Kotlin build fixer."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are an expert Android/Kotlin build fixer. Output ONLY valid unified git diffs."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
             ],
             "temperature": 0.1,
-            "max_tokens": 2000,
+            "max_tokens": 4096,
         }
 
         headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json",
         }
 
         r = requests.post(
-            OPENROUTER_URL,
+            GROQ_URL,
             headers=headers,
             json=payload,
             timeout=60,
         )
 
         if not r.ok:
-            logger.error(f"❌ OpenRouter HTTP {r.status_code}: {r.text}")
+            logger.error(f"❌ Groq HTTP {r.status_code}: {r.text}")
             r.raise_for_status()
 
-        try:
-            data = r.json()
-        except ValueError:
-            logger.error("❌ OpenRouter returned non-JSON response")
-            raise RuntimeError("OpenRouter returned invalid JSON")
+        data = r.json()
 
-        return data["choices"][0]["message"]["content"]
+        try:
+            return data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError) as e:
+            logger.error(f"❌ Malformed Groq response: {data}")
+            raise RuntimeError("Groq response malformed") from e
 
 
 class CompositeProvider:
-    """
-    OpenRouter-only provider.
-    Free-tier safe.
-    Never touches paid models.
-    """
-
     def __init__(self):
-        self.provider = OpenRouterProvider()
+        self.provider = GroqProvider()
 
     def ask(self, prompt: str) -> str:
-        logger.info("🧠 Using OpenRouter (kat-coder-pro:free)")
-        try:
-            return self.provider.ask(prompt)
-        except (HTTPError, RequestException, RuntimeError) as e:
-            logger.error(f"❌ LLM request failed: {e}")
-            raise
+        logger.info(f"🧠 Using Groq ({GROQ_MODEL})")
+        return self.provider.ask(prompt)
 
 
 def get_llm_provider():
-    logger.info("🧠 LLM provider initialized (OpenRouter only)")
+    logger.info("🧠 LLM provider initialized (Groq)")
     return CompositeProvider()
 
 
