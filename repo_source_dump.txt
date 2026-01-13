@@ -2698,62 +2698,74 @@ def _safe_int(value):
 
 def parse_build_errors(build_output: str) -> list[dict]:
     """
-    Robust Gradle / Kotlin / Java / XML / AAPT error parser.
-    LESS strict: captures errors even if files are missing.
-    Returns list of {file, line, message}
+    Flexible Gradle/Kotlin/AAPT error parser.
+    Returns list of {file, line, message}.
+    Never crashes.
     """
     errors = []
 
+    # Modern + classic patterns
     patterns = [
-        # Kotlin / Java compiler errors
+        # Kotlin/Java modern: e.g., e: file://app/src/Main.kt:23: error: ...
         re.compile(r"(?:e:\s*)?(file://)?(.+?\.(kt|java)):(\d+):\s*(error:?.+)", re.IGNORECASE),
+        # Classic Kotlin/Java
+        re.compile(r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
         # XML errors with line
         re.compile(r"(.+?\.xml):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
         # AAPT resource errors (no line)
         re.compile(r"AAPT:\s*error:\s*(.+)", re.IGNORECASE),
-        # Generic "error:" anywhere
+        # Generic fallback: any "error:" line
         re.compile(r"(.+?):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
     ]
 
     for raw_line in build_output.splitlines():
         line = raw_line.strip()
-        if not line or "warning:" in line.lower():
-            continue
+        if "warning:" in line.lower():
+            continue  # ignore warnings
 
         matched = False
         for pattern in patterns:
-            match = pattern.search(line)
-            if not match:
+            m = pattern.search(line)
+            if not m:
                 continue
 
-            groups = match.groups()
-            file_path, line_num, message = None, None, None
+            groups = m.groups()
+            file_path = None
+            line_num = None
+            message = None
 
-            if len(groups) >= 4 and groups[1]:  # Kotlin / Java
+            # Kotlin/Java
+            if len(groups) >= 4 and groups[1]:
                 file_path = groups[1].replace("file://", "").strip()
                 line_num = _safe_int(groups[3])
                 message = groups[-1]
-            elif len(groups) == 3 and groups[0].endswith(".xml"):  # XML
+
+            # XML
+            elif len(groups) == 3 and groups[0].endswith(".xml"):
                 file_path = groups[0].strip()
                 line_num = _safe_int(groups[1])
                 message = groups[2]
-            else:  # AAPT or generic
+
+            # Generic fallback (no file/line)
+            else:
                 message = groups[-1]
 
-            # Do NOT skip missing files anymore
             errors.append({
                 "file": file_path,
                 "line": line_num,
-                "message": message.strip() if message else "<unknown>"
+                "message": message.strip()
             })
-
             logger.debug(f"Parsed error: {file_path}:{line_num} → {message}")
             matched = True
             break
 
         if not matched and "error:" in line.lower():
-            # Fallback: capture line as message even if pattern fails
-            errors.append({"file": None, "line": None, "message": line})
+            # fallback generic error line
+            errors.append({
+                "file": None,
+                "line": None,
+                "message": line
+            })
 
     # Deduplicate
     seen = set()
@@ -2768,20 +2780,13 @@ def parse_build_errors(build_output: str) -> list[dict]:
     return unique
 
 
-def extract_code_snippet(
-    file_path: str,
-    error_line: int | None,
-    context_lines: int = 15
-) -> dict | None:
+def extract_code_snippet(file_path: str, error_line: int | None, context_lines: int = 15) -> dict | None:
     """
-    BEST-EFFORT snippet extraction.
-    NEVER throws.
+    Extracts code snippet around an error line.
+    Never throws.
     """
     try:
-        if not file_path or not error_line:
-            return None
-
-        if not os.path.exists(file_path):
+        if not file_path or not error_line or not os.path.exists(file_path):
             return None
 
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -2800,7 +2805,11 @@ def extract_code_snippet(
             prefix = ">>> " if ln == error_line else "    "
             snippet.append(f"{ln:4d}{prefix}{lines[i].rstrip()}")
 
-        return {"code": "\n".join(snippet), "start_line": start, "end_line": end}
+        return {
+            "code": "\n".join(snippet),
+            "start_line": start,
+            "end_line": end
+        }
 
     except Exception as e:
         logger.debug(f"Snippet skipped for {file_path}:{error_line} → {e}")
