@@ -3153,6 +3153,7 @@ def get_llm_provider():
 ===== FILE: scripts/llm_runners/browser.py =====
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 from playwright.async_api import async_playwright, TimeoutError
@@ -3163,21 +3164,22 @@ DEFAULT_TIMEOUT = 60
 MAX_RESPONSE_CHARS = 12000
 
 COOKIES_FILE = Path(".cookies.json")
+HEADLESS = os.getenv("HEADLESS", "1") != "0"
 
 
 class BrowserLLMRunner:
     """
-    API-less LLM runner using headless Chromium with cookie-based login.
-    Fully hardened for Playwright + ChatGPT (2026).
+    API-less LLM runner using Chromium + cookies.
+    No persistent profile.
     """
 
     def __init__(self):
-        self.headless = True
+        self.headless = HEADLESS
         self.timeout = DEFAULT_TIMEOUT
 
-    # ----------------------------
-    # Cookie sanitization (FINAL)
-    # ----------------------------
+    # -------------------------------------------------
+    # Cookie sanitization (Playwright-safe)
+    # -------------------------------------------------
     def _sanitize_cookie(self, c: dict) -> dict:
         c = dict(c)
 
@@ -3194,7 +3196,7 @@ class BrowserLLMRunner:
             else:
                 c["sameSite"] = "Lax"
 
-        # ❌ Playwright does NOT accept null/object partitionKey
+        # Remove invalid partitionKey
         if "partitionKey" in c and not isinstance(c["partitionKey"], str):
             del c["partitionKey"]
 
@@ -3213,31 +3215,55 @@ class BrowserLLMRunner:
         except Exception as e:
             logger.error(f"❌ Failed to load cookies: {e}")
 
-    # ----------------------------
-    # Chat input detection
-    # ----------------------------
-    async def _wait_for_input(self, page):
-        try:
+    # -------------------------------------------------
+    # Robust chat input detection (page + iframes)
+    # -------------------------------------------------
+    async def _find_chat_input(self, page):
+        start = time.time()
+
+        while time.time() - start < 45:
+            # Top-level page
             textarea = page.locator("textarea#prompt-textarea")
+            if await textarea.count() > 0:
+                await textarea.first.wait_for(state="visible", timeout=5000)
+                return textarea.first
 
-            try:
-                await textarea.wait_for(state="visible", timeout=30000)
-                return textarea
-            except Exception:
-                pass
+            textarea = page.locator("textarea")
+            if await textarea.count() > 0:
+                await textarea.first.wait_for(state="visible", timeout=5000)
+                return textarea.first
 
-            textarea = page.locator("textarea").first
-            await textarea.wait_for(state="visible", timeout=30000)
-            return textarea
+            # Iframes
+            for frame in page.frames:
+                ta = frame.locator("textarea#prompt-textarea")
+                if await ta.count() > 0:
+                    await ta.first.wait_for(state="visible", timeout=5000)
+                    return ta.first
 
-        except Exception as e:
-            raise RuntimeError(f"Chat input not found: {e}")
+                ta = frame.locator("textarea")
+                if await ta.count() > 0:
+                    await ta.first.wait_for(state="visible", timeout=5000)
+                    return ta.first
 
-    # ----------------------------
-    # Main runner
-    # ----------------------------
+            # Login / captcha detection
+            url = page.url.lower()
+            if any(x in url for x in ("login", "auth", "signin", "challenge")):
+                raise RuntimeError(
+                    "ChatGPT login or verification page detected. "
+                    "Cookies may be invalid or expired."
+                )
+
+            await page.wait_for_timeout(1000)
+
+        raise RuntimeError("Chat input not found (no textarea detected)")
+
+    # -------------------------------------------------
+    # Main browser LLM logic
+    # -------------------------------------------------
     async def _run(self, prompt: str) -> str:
         async with async_playwright() as p:
+            logger.info(f"🧠 Launching Chromium (headless={self.headless})")
+
             browser = await p.chromium.launch(
                 headless=self.headless,
                 args=[
@@ -3251,11 +3277,12 @@ class BrowserLLMRunner:
             await self._load_cookies(context)
 
             page = await context.new_page()
+
             logger.info("🌐 Opening ChatGPT UI")
             await page.goto(CHATGPT_URL, timeout=60_000)
 
             logger.info("⏳ Waiting for chat input")
-            textarea = await self._wait_for_input(page)
+            textarea = await self._find_chat_input(page)
 
             logger.info("✍️ Sending prompt")
             await textarea.click()
@@ -3268,16 +3295,16 @@ class BrowserLLMRunner:
             while time.time() - start < self.timeout:
                 await page.wait_for_timeout(1500)
 
-                messages = await page.query_selector_all("div.markdown")
-                if not messages:
-                    continue
+                for frame in page.frames:
+                    messages = await frame.query_selector_all("div.markdown")
+                    if not messages:
+                        continue
 
-                text = (await messages[-1].inner_text()).strip()
+                    text = (await messages[-1].inner_text()).strip()
+                    if text and text != last_text:
+                        last_text = text
 
-                if text and text != last_text:
-                    last_text = text
-
-                if len(text) > 200 and not text.endswith("…"):
+                if len(last_text) > 200 and not last_text.endswith("…"):
                     break
 
             await browser.close()
@@ -3288,11 +3315,11 @@ class BrowserLLMRunner:
             logger.info("✅ Browser LLM response captured")
             return last_text[:MAX_RESPONSE_CHARS]
 
-    # ----------------------------
+    # -------------------------------------------------
     # Public API
-    # ----------------------------
+    # -------------------------------------------------
     def ask(self, prompt: str) -> str:
-        logger.info("🧠 Using Browser-based LLM (API-less, cookies)")
+        logger.info("🧠 Using Browser-based LLM (cookies, no profile)")
         try:
             return asyncio.run(self._run(prompt))
         except TimeoutError:
