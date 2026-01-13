@@ -3159,7 +3159,7 @@ from playwright.async_api import async_playwright, TimeoutError
 from scripts.logger import logger
 
 CHATGPT_URL = "https://chat.openai.com/"
-DEFAULT_TIMEOUT = 45
+DEFAULT_TIMEOUT = 60
 MAX_RESPONSE_CHARS = 12000
 
 COOKIES_FILE = Path(".cookies.json")
@@ -3168,7 +3168,7 @@ COOKIES_FILE = Path(".cookies.json")
 class BrowserLLMRunner:
     """
     API-less LLM runner using headless Chromium with cookie-based login.
-    Safe for GitHub Actions.
+    Fully hardened for Playwright + ChatGPT (2026).
     """
 
     def __init__(self):
@@ -3176,45 +3176,65 @@ class BrowserLLMRunner:
         self.timeout = DEFAULT_TIMEOUT
 
     # ----------------------------
-    # Cookie handling (FIXED)
+    # Cookie sanitization (FINAL)
     # ----------------------------
-    def _normalize_samesite(self, value):
-        if not value:
-            return "Lax"
-        value = value.lower()
-        if value == "strict":
-            return "Strict"
-        if value == "none":
-            return "None"
-        return "Lax"
+    def _sanitize_cookie(self, c: dict) -> dict:
+        c = dict(c)
+
+        # sameSite must be Strict | Lax | None
+        ss = c.get("sameSite")
+        if not ss:
+            c["sameSite"] = "Lax"
+        else:
+            ss = ss.lower()
+            if ss == "strict":
+                c["sameSite"] = "Strict"
+            elif ss == "none":
+                c["sameSite"] = "None"
+            else:
+                c["sameSite"] = "Lax"
+
+        # ❌ Playwright does NOT accept null/object partitionKey
+        if "partitionKey" in c and not isinstance(c["partitionKey"], str):
+            del c["partitionKey"]
+
+        return c
 
     async def _load_cookies(self, context):
         if not COOKIES_FILE.exists():
-            logger.warning("⚠️ Cookie file not found; login screen may appear")
+            logger.warning("⚠️ Cookie file not found; login may be required")
             return
 
         try:
-            cookies = json.loads(COOKIES_FILE.read_text())
-            for c in cookies:
-                c["sameSite"] = self._normalize_samesite(c.get("sameSite"))
+            raw = json.loads(COOKIES_FILE.read_text())
+            cookies = [self._sanitize_cookie(c) for c in raw]
             await context.add_cookies(cookies)
             logger.info("🔑 Cookies loaded successfully")
         except Exception as e:
             logger.error(f"❌ Failed to load cookies: {e}")
 
     # ----------------------------
-    # Chat input detection (FIXED)
+    # Chat input detection
     # ----------------------------
     async def _wait_for_input(self, page):
         try:
-            textarea = page.locator("textarea[placeholder*='Message']")
-            await textarea.wait_for(state="visible", timeout=60000)
+            textarea = page.locator("textarea#prompt-textarea")
+
+            try:
+                await textarea.wait_for(state="visible", timeout=30000)
+                return textarea
+            except Exception:
+                pass
+
+            textarea = page.locator("textarea").first
+            await textarea.wait_for(state="visible", timeout=30000)
             return textarea
+
         except Exception as e:
             raise RuntimeError(f"Chat input not found: {e}")
 
     # ----------------------------
-    # Main browser LLM runner
+    # Main runner
     # ----------------------------
     async def _run(self, prompt: str) -> str:
         async with async_playwright() as p:
@@ -3252,13 +3272,11 @@ class BrowserLLMRunner:
                 if not messages:
                     continue
 
-                last = messages[-1]
-                text = (await last.inner_text()).strip()
+                text = (await messages[-1].inner_text()).strip()
 
                 if text and text != last_text:
                     last_text = text
 
-                # heuristic: response complete
                 if len(text) > 200 and not text.endswith("…"):
                     break
 
