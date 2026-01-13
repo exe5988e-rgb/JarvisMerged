@@ -72,7 +72,7 @@ def dump_source(root: Path, out):
                 and not is_excluded(path)
                 and path.suffix in INCLUDE_EXTENSIONS
             ):
-                out.write(f"\n===== FILE: {path.relative_to(root)} =====\n")
+                out.write(f"\n//===== FILE: {path.relative_to(root)} =====\n")
                 try:
                     out.write(path.read_text(encoding="utf-8"))
                 except Exception:

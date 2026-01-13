@@ -20,33 +20,22 @@ def parse_build_errors(build_output: str) -> list[dict]:
 
     patterns = [
         # Kotlin compiler (Gradle 7+)
-        re.compile(
-            r"e:\s*(file://)?(.+?\.(kt|java)):(\d+):\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"e:\s*(file://)?(.+?\.(kt|java)):(\d+):\s*(error:\s+.+)", re.IGNORECASE),
 
         # Java / Kotlin (classic)
-        re.compile(
-            r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
 
         # XML with numeric line
-        re.compile(
-            r"(.+?\.xml):(\d+):\s*error:\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"(.+?\.xml):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
 
         # AAPT resource errors (NO line number)
-        re.compile(
-            r"AAPT:\s+error:\s*(.+)",
-            re.IGNORECASE,
-        ),
+        re.compile(r"AAPT:\s+error:\s*(.+)", re.IGNORECASE),
     ]
 
     for raw_line in build_output.splitlines():
         line = raw_line.strip()
 
+        # 🚫 hard filter warnings
         if "warning:" in line.lower():
             continue
 
@@ -88,14 +77,6 @@ def parse_build_errors(build_output: str) -> list[dict]:
 
             logger.debug(f"Parsed error: {file_path}:{line_num} → {message}")
             break
-
-    # Fallback: Gradle failure with no parsed compiler error
-    if not errors and "FAILED" in build_output:
-        errors.append({
-            "file": None,
-            "line": None,
-            "message": "Gradle task failed (unparsed compiler error)"
-        })
 
     # Deduplicate
     seen = set()
