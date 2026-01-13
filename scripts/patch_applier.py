@@ -1,4 +1,3 @@
-//===== FILE: scripts/patch_applier.py =====
 import os
 import re
 import subprocess
