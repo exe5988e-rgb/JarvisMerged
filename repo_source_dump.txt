@@ -3152,7 +3152,6 @@ def get_llm_provider():
 
 ===== FILE: scripts/llm_runners/browser.py =====
 import asyncio
-import os
 import json
 import time
 from pathlib import Path
@@ -3163,46 +3162,60 @@ CHATGPT_URL = "https://chat.openai.com/"
 DEFAULT_TIMEOUT = 45
 MAX_RESPONSE_CHARS = 12000
 
-COOKIES_FILE = Path(".cookies.json")  # <-- local or from repo/secret
+COOKIES_FILE = Path(".cookies.json")
 
 
 class BrowserLLMRunner:
     """
     API-less LLM runner using headless Chromium with cookie-based login.
-    Runs headless in GitHub Actions.
+    Safe for GitHub Actions.
     """
 
     def __init__(self):
         self.headless = True
         self.timeout = DEFAULT_TIMEOUT
 
+    # ----------------------------
+    # Cookie handling (FIXED)
+    # ----------------------------
+    def _normalize_samesite(self, value):
+        if not value:
+            return "Lax"
+        value = value.lower()
+        if value == "strict":
+            return "Strict"
+        if value == "none":
+            return "None"
+        return "Lax"
+
     async def _load_cookies(self, context):
         if not COOKIES_FILE.exists():
-            logger.warning("⚠️ Cookie file not found; page may show login")
+            logger.warning("⚠️ Cookie file not found; login screen may appear")
             return
 
         try:
             cookies = json.loads(COOKIES_FILE.read_text())
+            for c in cookies:
+                c["sameSite"] = self._normalize_samesite(c.get("sameSite"))
             await context.add_cookies(cookies)
             logger.info("🔑 Cookies loaded successfully")
         except Exception as e:
             logger.error(f"❌ Failed to load cookies: {e}")
 
+    # ----------------------------
+    # Chat input detection (FIXED)
+    # ----------------------------
     async def _wait_for_input(self, page):
         try:
-            textarea = await page.get_by_role("textbox", name="Message ChatGPT")
-            if not textarea:
-                textarea = await page.get_by_placeholder("Message ChatGPT")
-            if not textarea:
-                textarea = await page.wait_for_selector(
-                    "textarea", state="visible", timeout=60000
-                )
-            if not textarea:
-                raise RuntimeError("Chat input not found")
+            textarea = page.locator("textarea[placeholder*='Message']")
+            await textarea.wait_for(state="visible", timeout=60000)
             return textarea
         except Exception as e:
             raise RuntimeError(f"Chat input not found: {e}")
 
+    # ----------------------------
+    # Main browser LLM runner
+    # ----------------------------
     async def _run(self, prompt: str) -> str:
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -3225,6 +3238,7 @@ class BrowserLLMRunner:
             textarea = await self._wait_for_input(page)
 
             logger.info("✍️ Sending prompt")
+            await textarea.click()
             await textarea.fill(prompt)
             await textarea.press("Enter")
 
@@ -3233,13 +3247,18 @@ class BrowserLLMRunner:
 
             while time.time() - start < self.timeout:
                 await page.wait_for_timeout(1500)
+
                 messages = await page.query_selector_all("div.markdown")
                 if not messages:
                     continue
+
                 last = messages[-1]
                 text = (await last.inner_text()).strip()
+
                 if text and text != last_text:
                     last_text = text
+
+                # heuristic: response complete
                 if len(text) > 200 and not text.endswith("…"):
                     break
 
@@ -3251,6 +3270,9 @@ class BrowserLLMRunner:
             logger.info("✅ Browser LLM response captured")
             return last_text[:MAX_RESPONSE_CHARS]
 
+    # ----------------------------
+    # Public API
+    # ----------------------------
     def ask(self, prompt: str) -> str:
         logger.info("🧠 Using Browser-based LLM (API-less, cookies)")
         try:
