@@ -1,89 +1,89 @@
-import re
 import os
+import re
 from scripts.logger import logger
-
-
-def _safe_int(value):
-    try:
-        return int(value)
-    except Exception:
-        return None
 
 
 def parse_build_errors(build_output: str) -> list[dict]:
     """
-    Flexible Gradle/Kotlin/AAPT error parser.
-    Returns list of {file, line, message}.
-    Never crashes.
+    Modern Gradle / Kotlin / Java error parser.
+    Permissive by design. NEVER misses real errors.
     """
     errors = []
 
-    # Modern + classic patterns
     patterns = [
-        # Kotlin/Java modern: e.g., e: file://app/src/Main.kt:23: error: ...
-        re.compile(r"(?:e:\s*)?(file://)?(.+?\.(kt|java)):(\d+):\s*(error:?.+)", re.IGNORECASE),
-        # Classic Kotlin/Java
-        re.compile(r"(.+?\.(kt|java)):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
-        # XML errors with line
-        re.compile(r"(.+?\.xml):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
-        # AAPT resource errors (no line)
-        re.compile(r"AAPT:\s*error:\s*(.+)", re.IGNORECASE),
-        # Generic fallback: any "error:" line
-        re.compile(r"(.+?):(\d+):\s*error:\s*(.+)", re.IGNORECASE),
+        # Kotlin compiler (modern)
+        re.compile(
+            r"^[ew]:\s*(file://)?(.+?\.(kt|java)):(\d+):(\d+)?\s+(.*)",
+            re.IGNORECASE,
+        ),
+
+        # Kotlin / Java classic
+        re.compile(
+            r"(.+?\.(kt|java)):(\d+):\s*(error|exception):?\s*(.+)",
+            re.IGNORECASE,
+        ),
+
+        # XML resource errors
+        re.compile(
+            r"(.+?\.xml):(\d+):\s*(error):?\s*(.+)",
+            re.IGNORECASE,
+        ),
+
+        # AAPT / Gradle errors without file
+        re.compile(
+            r"(AAPT|Execution failed|Could not resolve|Build failed).*",
+            re.IGNORECASE,
+        ),
     ]
 
-    for raw_line in build_output.splitlines():
-        line = raw_line.strip()
-        if "warning:" in line.lower():
-            continue  # ignore warnings
+    for raw in build_output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
 
-        matched = False
+        # Skip warnings explicitly
+        if line.lower().startswith("w:"):
+            continue
+
         for pattern in patterns:
             m = pattern.search(line)
             if not m:
                 continue
 
             groups = m.groups()
+
             file_path = None
             line_num = None
-            message = None
+            message = line
 
-            # Kotlin/Java
-            if len(groups) >= 4 and groups[1]:
-                file_path = groups[1].replace("file://", "").strip()
-                line_num = _safe_int(groups[3])
+            if len(groups) >= 6 and groups[1]:
+                file_path = groups[1].replace("file://", "")
+                try:
+                    line_num = int(groups[3])
+                except Exception:
+                    line_num = None
                 message = groups[-1]
 
-            # XML
-            elif len(groups) == 3 and groups[0].endswith(".xml"):
-                file_path = groups[0].strip()
-                line_num = _safe_int(groups[1])
-                message = groups[2]
-
-            # Generic fallback (no file/line)
-            else:
+            elif len(groups) >= 4 and groups[0] and os.path.exists(groups[0]):
+                file_path = groups[0]
+                try:
+                    line_num = int(groups[2])
+                except Exception:
+                    line_num = None
                 message = groups[-1]
 
             errors.append({
                 "file": file_path,
                 "line": line_num,
-                "message": message.strip()
+                "message": message.strip(),
             })
-            logger.debug(f"Parsed error: {file_path}:{line_num} → {message}")
-            matched = True
+
+            logger.debug(f"Parsed error: {file_path}:{line_num} -> {message}")
             break
 
-        if not matched and "error:" in line.lower():
-            # fallback generic error line
-            errors.append({
-                "file": None,
-                "line": None,
-                "message": line
-            })
-
     # Deduplicate
-    seen = set()
     unique = []
+    seen = set()
     for e in errors:
         key = (e["file"], e["line"], e["message"])
         if key not in seen:
@@ -94,37 +94,32 @@ def parse_build_errors(build_output: str) -> list[dict]:
     return unique
 
 
-def extract_code_snippet(file_path: str, error_line: int | None, context_lines: int = 15) -> dict | None:
+def extract_code_snippet(file_path: str, error_line: int | None, context: int = 20):
     """
-    Extracts code snippet around an error line.
-    Never throws.
+    Extract +/- 20 lines around error.
     """
-    try:
-        if not file_path or not error_line or not os.path.exists(file_path):
-            return None
+    if not file_path or not error_line:
+        return None
+    if not os.path.exists(file_path):
+        return None
 
+    try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
 
-        total = len(lines)
-        if error_line < 1 or error_line > total:
-            return None
-
-        start = max(1, error_line - context_lines)
-        end = min(total, error_line + context_lines)
+        start = max(0, error_line - context - 1)
+        end = min(len(lines), error_line + context)
 
         snippet = []
-        for i in range(start - 1, end):
-            ln = i + 1
-            prefix = ">>> " if ln == error_line else "    "
-            snippet.append(f"{ln:4d}{prefix}{lines[i].rstrip()}")
+        for i in range(start, end):
+            prefix = ">>> " if i == error_line - 1 else "    "
+            snippet.append(f"{i+1:4d}{prefix}{lines[i].rstrip()}")
 
         return {
             "code": "\n".join(snippet),
-            "start_line": start,
-            "end_line": end
+            "start_line": start + 1,
+            "end_line": end,
         }
 
-    except Exception as e:
-        logger.debug(f"Snippet skipped for {file_path}:{error_line} → {e}")
+    except Exception:
         return None
