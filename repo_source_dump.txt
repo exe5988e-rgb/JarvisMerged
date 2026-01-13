@@ -3490,6 +3490,15 @@ def apply_patch(ai_response: str, build_log: str) -> List[str]:
     logger.info(f"📝 Overwrote file with validated code: {found_file}")
     return [found_file]
 
+# -----------------------------
+# Structural corruption detection
+# -----------------------------
+def is_structurally_corrupt(content: str) -> bool:
+    """
+    Returns True if the Kotlin file appears broken or structurally invalid.
+    """
+    return not looks_like_kotlin_code(content)
+
 
 //===== FILE: scripts/pr_utils.py =====
 import os
