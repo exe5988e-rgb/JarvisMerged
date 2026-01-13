@@ -3,7 +3,6 @@ import re
 import subprocess
 import tempfile
 from typing import List, Optional, Tuple
-from pathlib import Path
 
 try:
     from scripts.logger import logger
@@ -11,31 +10,17 @@ except ImportError:
     import logging
     logger = logging.getLogger("patch_applier")
 
-
-# --------------------------------------------------
-# Structural corruption detector
-# --------------------------------------------------
-def is_structurally_corrupt(content: str) -> bool:
-    return (
-        content.count("class ") > 3
-        or ("override fun onCreate" in content and "class" not in content)
-        or content.count("package ") > 1
-    )
-
-
-# --------------------------------------------------
-# Helpers
-# --------------------------------------------------
+# -----------------------------
+# Utilities
+# -----------------------------
 def run(cmd: List[str], cwd: Optional[str] = None) -> Tuple[int, str]:
     p = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     return p.returncode, p.stdout + p.stderr
-
 
 def write_file(path: str, content: str):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-
 
 def get_repo_root() -> str:
     code, out = run(["git", "rev-parse", "--show-toplevel"])
@@ -43,10 +28,9 @@ def get_repo_root() -> str:
         return out.strip()
     return os.getcwd()
 
-
-# --------------------------------------------------
-# Diff extraction and cleaning
-# --------------------------------------------------
+# -----------------------------
+# Diff extraction & cleaning
+# -----------------------------
 def clean_diff_text(text: str) -> str:
     text = re.sub(r"```(?:diff|patch|unified)?\s*\n?", "", text)
     text = re.sub(r"```\s*$", "", text, flags=re.MULTILINE)
@@ -57,7 +41,6 @@ def clean_diff_text(text: str) -> str:
         else:
             lines.append(line.strip())
     return "\n".join(lines)
-
 
 def extract_diff(text: str) -> str:
     text = clean_diff_text(text)
@@ -77,7 +60,6 @@ def extract_diff(text: str) -> str:
         result += "\n"
     return result
 
-
 def normalize_file_path(path: str, repo_root: str) -> str:
     path = re.sub(r"^[ab]/", "", path)
     if path.startswith("/"):
@@ -92,7 +74,6 @@ def normalize_file_path(path: str, repo_root: str) -> str:
     path = re.sub(r"^/workspaces/[^/]+/", "", path)
     path = re.sub(r"^workspaces/[^/]+/", "", path)
     return path
-
 
 def fix_diff_paths(diff: str, repo_root: str) -> str:
     lines = []
@@ -114,7 +95,6 @@ def fix_diff_paths(diff: str, repo_root: str) -> str:
         lines.append(line)
     return "\n".join(lines) + "\n"
 
-
 def extract_files_from_diff(diff: str) -> List[str]:
     files = []
     for line in diff.splitlines():
@@ -126,23 +106,20 @@ def extract_files_from_diff(diff: str) -> List[str]:
             files.append(path)
     return files
 
-
-# --------------------------------------------------
+# -----------------------------
 # Patch application strategies
-# --------------------------------------------------
+# -----------------------------
 def try_git_apply(diff: str, options: List[str] = None) -> Tuple[bool, List[str]]:
     options = options or []
     with tempfile.NamedTemporaryFile("w+", suffix=".patch", delete=False) as tf:
         tf.write(diff)
         patch_file = tf.name
     try:
-        check_cmd = ["git", "apply", "--check"] + options + [patch_file]
-        code, output = run(check_cmd)
+        code, output = run(["git", "apply", "--check"] + options + [patch_file])
         if code != 0:
             logger.debug(f"git apply --check failed: {output}")
             return False, []
-        apply_cmd = ["git", "apply"] + options + [patch_file]
-        code, output = run(apply_cmd)
+        code, output = run(["git", "apply"] + options + [patch_file])
         if code != 0:
             logger.debug(f"git apply failed: {output}")
             return False, []
@@ -150,7 +127,6 @@ def try_git_apply(diff: str, options: List[str] = None) -> Tuple[bool, List[str]
         return True, files
     finally:
         os.unlink(patch_file)
-
 
 def try_patch_command(diff: str, repo_root: str) -> Tuple[bool, List[str]]:
     with tempfile.NamedTemporaryFile("w+", suffix=".patch", delete=False) as tf:
@@ -160,43 +136,69 @@ def try_patch_command(diff: str, repo_root: str) -> Tuple[bool, List[str]]:
         cmd = ["patch", "-p1", "-l", "-F", "3", "--no-backup-if-mismatch", "-i", patch_file]
         code, output = run(cmd, cwd=repo_root)
         if code == 0 or "succeeded" in output.lower():
-            files = extract_files_from_diff(diff)
-            existing_files = [f for f in files if os.path.exists(os.path.join(repo_root, f))]
-            if existing_files:
-                return True, existing_files
+            files = [f for f in extract_files_from_diff(diff) if os.path.exists(os.path.join(repo_root, f))]
+            if files:
+                return True, files
         logger.debug(f"patch command failed: {output}")
         return False, []
     finally:
         os.unlink(patch_file)
+        # Clean up .orig files
         for f in extract_files_from_diff(diff):
             orig_file = os.path.join(repo_root, f + ".orig")
             if os.path.exists(orig_file):
                 os.unlink(orig_file)
 
-
 def apply_diff(diff: str) -> List[str]:
-    if not diff or not diff.strip():
+    if not diff.strip():
         return []
     repo_root = get_repo_root()
     diff = fix_diff_paths(diff, repo_root)
-    # Try multiple strategies
-    for opts in [[], ["--ignore-whitespace"], ["--3way"], ["--reject", "--ignore-whitespace"]]:
+
+    strategies = [
+        ("strict", []),
+        ("ignore-whitespace", ["--ignore-whitespace"]),
+        ("3way", ["--3way"]),
+        ("reject", ["--reject", "--ignore-whitespace"])
+    ]
+
+    for name, opts in strategies:
+        logger.debug(f"Trying git apply strategy: {name}")
         success, files = try_git_apply(diff, opts)
         if success and files:
+            logger.info(f"✅ Patch applied ({name}): {files}")
             return files
+
+    # Fuzzy patch fallback
+    logger.debug("Trying patch command with fuzzy matching...")
     success, files = try_patch_command(diff, repo_root)
     if success and files:
+        logger.info(f"✅ Patch applied (fuzzy): {files}")
         return files
+
+    logger.warning("⚠️ All patch strategies failed")
     return []
 
+# -----------------------------
+# Code extraction & validation
+# -----------------------------
+def looks_like_kotlin_code(content: str) -> bool:
+    content = content.strip()
+    if not content.startswith("package ") and "class " not in content and "object " not in content:
+        return False
+    indicators = ["class ", "object ", "fun ", "interface ", "import ", "package "]
+    return any(ind in content for ind in indicators) and len(content.splitlines()) > 5
 
-# --------------------------------------------------
-# Code block extraction
-# --------------------------------------------------
 def extract_code_blocks(text: str) -> List[Tuple[str, str]]:
+    blocks = []
     pattern = r"```(\w*)\s*\n(.*?)```"
-    return [(lang.lower() if lang else "", code.strip()) for lang, code in re.findall(pattern, text, re.DOTALL) if code.strip()]
-
+    matches = re.findall(pattern, text, re.DOTALL)
+    for lang, code in matches:
+        lang = lang.lower() if lang else ""
+        code = code.strip()
+        if code:
+            blocks.append((lang, code))
+    return blocks
 
 def extract_code(text: str) -> str:
     blocks = extract_code_blocks(text)
@@ -204,40 +206,26 @@ def extract_code(text: str) -> str:
         if lang in ("kotlin", "kt", "java", "groovy", "gradle", "kts"):
             return code
     for lang, code in blocks:
-        if looks_like_code(code):
+        if looks_like_kotlin_code(code):
             return code
     match = re.search(r"(package\s+[\w.]+.*)", text, re.DOTALL)
     if match:
         return match.group(1).strip()
     return text.strip()
 
-
-def looks_like_code(content: str) -> bool:
-    indicators = [
-        "class ", "fun ", "object ", "interface ",
-        "public class", "private class", "void ",
-        "dependencies {", "plugins {", "android {",
-        "import ", "package "
-    ]
-    return any(ind in content for ind in indicators) and len(content.splitlines()) > 5
-
-
-# --------------------------------------------------
-# Target file resolution
-# --------------------------------------------------
+# -----------------------------
+# Target file detection
+# -----------------------------
 def extract_target_file_from_response(text: str) -> Optional[str]:
     patterns = [
         r"(?:file|path):\s*[`'\"]?([^\s`'\"]+\.(kt|java|xml|gradle|kts))[`'\"]?",
-        r"(?:modify|update|change|fix)\s+[`'\"]?([^\s`'\"]+\.(kt|java|xml|gradle|kts))[`'\"]?",
-        r"^//\s*([^\s]+\.(kt|java|xml|gradle|kts))\s*$",
-        r"[`'\"]([^\s`'\"]+\.(kt|java|xml|gradle|kts))[`'\"]",
+        r"(?:modify|update|change|fix)\s+[`'\"]?([^\s`'\"]+\.(kt|java|xml|gradle|kts))[`'\"]?"
     ]
     for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+        match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return match.group(1)
     return None
-
 
 def find_file_in_repo(filename: str, repo_root: str) -> Optional[str]:
     full_path = os.path.join(repo_root, filename)
@@ -250,69 +238,44 @@ def find_file_in_repo(filename: str, repo_root: str) -> Optional[str]:
             return os.path.relpath(os.path.join(root, basename), repo_root)
     return None
 
-
-# --------------------------------------------------
+# -----------------------------
 # Main patch application
-# --------------------------------------------------
+# -----------------------------
 def apply_patch(ai_response: str, build_log: str) -> List[str]:
     repo_root = get_repo_root()
 
-    # 1️⃣ Try diff
+    # Strategy 1: Try diff application
     diff = extract_diff(ai_response)
     if diff:
-        logger.info("📝 Found diff, applying...")
+        logger.info("📝 Found diff in response, attempting to apply...")
         files = apply_diff(diff)
         if files:
             return files
-        logger.warning("⚠️ Diff failed, falling back to code overwrite...")
+        logger.warning("⚠️ Diff application failed, trying code overwrite fallback...")
 
-    # 2️⃣ Extract code
-    content = extract_code(ai_response)
-    if not looks_like_code(content):
-        logger.warning("⚠️ No valid code found in response")
+    # Strategy 2: Extract code and overwrite file
+    code_content = extract_code(ai_response)
+    if not looks_like_kotlin_code(code_content):
+        logger.warning("⚠️ Extracted code is not valid Kotlin; aborting overwrite.")
         return []
 
-    # 3️⃣ Robust target file detection
-    target_candidates = []
+    target_file = extract_target_file_from_response(ai_response)
+    if not target_file:
+        match = re.search(r"File:\s*(\S+)", build_log)
+        if match:
+            target_file = match.group(1)
 
-    # From response
-    tf = extract_target_file_from_response(ai_response)
-    if tf:
-        target_candidates.append(tf)
-
-    # From build log
-    target_candidates.extend(re.findall(r"File:\s*(\S+)", build_log))
-
-    # From diff headers
-    for line in diff.splitlines():
-        if line.startswith("+++ b/"):
-            target_candidates.append(line[6:])
-
-    # Normalize and pick first existing file
-    target = None
-    for t in target_candidates:
-        t = normalize_file_path(t, repo_root)
-        found = find_file_in_repo(t, repo_root)
-        if found:
-            target = found
-            break
-
-    if not target and target_candidates:
-        # Create new file if all else fails
-        target = normalize_file_path(target_candidates[0], repo_root)
-        logger.info(f"📝 Creating new file: {target}")
-        full_path = os.path.join(repo_root, target)
-        write_file(full_path, "")
-
-    if not target:
-        logger.warning("⚠️ Could not determine target file")
+    if not target_file:
+        logger.warning("⚠️ Could not determine target file for code overwrite")
         return []
 
-    full_path = os.path.join(repo_root, target)
-    if is_structurally_corrupt(content):
-        logger.warning("⚠️ Extracted code appears structurally corrupt")
+    target_file = normalize_file_path(target_file, repo_root)
+    found_file = find_file_in_repo(target_file, repo_root)
+    if not found_file:
+        logger.warning(f"⚠️ Target file not found in repo: {target_file}")
         return []
 
-    logger.info(f"📝 Writing to file: {target}")
-    write_file(full_path, content)
-    return [target]
+    full_path = os.path.join(repo_root, found_file)
+    write_file(full_path, code_content)
+    logger.info(f"📝 Overwrote file with validated code: {found_file}")
+    return [found_file]
