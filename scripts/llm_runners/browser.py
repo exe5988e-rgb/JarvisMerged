@@ -28,9 +28,22 @@ class BrowserLLMRunner:
         return PROFILE_DIR.exists() and any(PROFILE_DIR.iterdir())
 
     async def _wait_for_input(self, page):
-        textarea = page.locator("textarea#prompt-textarea")
-        await textarea.wait_for(state="visible", timeout=60_000)
-        return textarea
+        """Try multiple selectors to find ChatGPT input"""
+        selectors = [
+            "textarea#prompt-textarea",                          # current textarea
+            "textarea",                                         # fallback textarea
+            "div[role='textbox'][contenteditable='true']"      # newest ChatGPT UI
+        ]
+
+        for sel in selectors:
+            locator = page.locator(sel).first
+            try:
+                await locator.wait_for(state="visible", timeout=30000)
+                return locator
+            except Exception:
+                continue
+
+        raise RuntimeError("Chat input not found on page. Check ChatGPT UI changes.")
 
     async def _run(self, prompt: str) -> str:
         PROFILE_DIR.mkdir(exist_ok=True)
@@ -65,6 +78,7 @@ class BrowserLLMRunner:
             textarea = await self._wait_for_input(page)
 
             logger.info("✍️ Sending prompt")
+            await textarea.click()
             await textarea.fill(prompt)
             await textarea.press("Enter")
 
@@ -81,6 +95,7 @@ class BrowserLLMRunner:
                 if text and text != last_text:
                     last_text = text
 
+                # Heuristic: response finished
                 if len(text) > 200 and not text.endswith("…"):
                     break
 
@@ -89,6 +104,7 @@ class BrowserLLMRunner:
             if not last_text:
                 raise RuntimeError("No response captured")
 
+            logger.info("✅ Browser LLM response captured")
             return last_text[:MAX_RESPONSE_CHARS]
 
     def ask(self, prompt: str) -> str:
@@ -96,3 +112,7 @@ class BrowserLLMRunner:
             return asyncio.run(self._run(prompt))
         except TimeoutError:
             raise RuntimeError("Browser LLM timed out")
+
+
+def get_browser_llm():
+    return BrowserLLMRunner()
