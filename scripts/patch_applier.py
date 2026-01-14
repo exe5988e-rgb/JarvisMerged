@@ -298,30 +298,4 @@ def apply_patch(ai_response: str, build_log: str) -> List[str]:
 
     logger.warning("⚠️ Patch application failed")
     return []
-# --------------------------------------------------
-# Structural validation
-# --------------------------------------------------
-
-def is_structurally_corrupt(repo_root: Optional[str] = None) -> bool:
-    """
-    Returns True if repository structure is invalid or unsafe to patch.
-    """
-    repo_root = repo_root or get_repo_root()
-
-    required_paths = [
-        "main.py",
-        "scripts",
-    ]
-
-    for path in required_paths:
-        if not os.path.exists(os.path.join(repo_root, path)):
-            logger.warning(f"❌ Missing required path: {path}")
-            return True
-
-    # Git sanity check
-    code, _ = run(["git", "rev-parse", "--is-inside-work-tree"], cwd=repo_root)
-    if code != 0:
-        logger.warning("❌ Not inside a git repository")
-        return True
-
-    return False
+    
