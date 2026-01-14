@@ -10,6 +10,7 @@ except ImportError:
     import logging
     logger = logging.getLogger("patch_applier")
 
+
 # --------------------------------------------------
 # Utilities
 # --------------------------------------------------
@@ -27,13 +28,50 @@ def write_file(path: str, content: str):
 
 def get_repo_root() -> str:
     code, out = run(["git", "rev-parse", "--show-toplevel"])
-    if code == 0:
-        return out.strip()
-    return os.getcwd()
+    return out.strip() if code == 0 else os.getcwd()
+
 
 # --------------------------------------------------
-# Diff sanitization (CRITICAL FIX)
+# Diff sanitization (HARDENED)
 # --------------------------------------------------
+
+HEADER_TOKENS = ("diff --git ", "index ", "--- ", "+++ ")
+
+
+def split_glued_headers(line: str) -> List[str]:
+    """
+    Split lines where multiple diff headers are glued together.
+    Preserves order and content.
+    """
+    parts = []
+    rest = line
+
+    while True:
+        indices = [(rest.find(tok), tok) for tok in HEADER_TOKENS if rest.find(tok) > 0]
+        if not indices:
+            parts.append(rest.rstrip())
+            break
+
+        idx, tok = min(indices, key=lambda x: x[0])
+        parts.append(rest[:idx].rstrip())
+        rest = rest[idx:]
+
+    return [p for p in parts if p]
+
+
+def is_valid_unified_diff(text: str) -> bool:
+    if not text.startswith("diff --git"):
+        return False
+
+    seen_file = False
+    for line in text.splitlines():
+        if line.startswith("diff --git"):
+            seen_file = True
+        elif line.startswith(("@@", "--- ", "+++ ")) and not seen_file:
+            return False
+
+    return seen_file
+
 
 def sanitize_unified_diff(diff: str) -> str:
     """
@@ -45,36 +83,28 @@ def sanitize_unified_diff(diff: str) -> str:
     # Normalize line endings
     diff = diff.replace("\r\n", "\n").replace("\r", "\n")
 
-    # Remove zero-width / non-breaking spaces
-    diff = diff.replace("\u00a0", " ").replace("\u200b", "")
+    # Remove zero-width / NBSP characters
+    diff = (
+        diff.replace("\u00a0", " ")
+            .replace("\u200b", "")
+            .replace("\ufeff", "")
+    )
 
-    lines = diff.splitlines()
-    fixed = []
+    fixed_lines: List[str] = []
 
-    for line in lines:
-        # Fix glued index lines:
-        # file.ktindex 123..456 100644
-        if "index " in line and not line.startswith("index "):
-            before, after = line.split("index ", 1)
-            if before.strip():
-                fixed.append(before.rstrip())
-            fixed.append("index " + after.strip())
-            continue
+    for raw_line in diff.splitlines():
+        if any(tok in raw_line for tok in HEADER_TOKENS):
+            fixed_lines.extend(split_glued_headers(raw_line))
+        else:
+            fixed_lines.append(raw_line.rstrip())
 
-        # Fix "--- a/file+++ b/file"
-        if line.startswith("--- ") and "+++" in line:
-            a, b = line.split("+++", 1)
-            fixed.append(a.rstrip())
-            fixed.append("+++ " + b.strip())
-            continue
+    text = "\n".join(fixed_lines)
 
-        fixed.append(line.rstrip())
+    # Trim only leading/trailing blank lines
+    text = re.sub(r"^\n+", "", text)
+    text = re.sub(r"\n+$", "\n", text)
 
-    text = "\n".join(fixed).strip()
-
-    # Validate minimal diff structure
-    required = ["diff --git", "--- ", "+++ ", "@@"]
-    if not all(k in text for k in required):
+    if not is_valid_unified_diff(text):
         return ""
 
     if not text.endswith("\n"):
@@ -82,44 +112,39 @@ def sanitize_unified_diff(diff: str) -> str:
 
     return text
 
+
 # --------------------------------------------------
-# Diff extraction & cleaning
+# Diff extraction
 # --------------------------------------------------
 
 def clean_diff_text(text: str) -> str:
+    # Remove markdown fences only
     text = re.sub(r"```(?:diff|patch|unified)?\s*\n?", "", text)
     text = re.sub(r"```\s*$", "", text, flags=re.MULTILINE)
-    lines = []
-    for line in text.splitlines():
-        if line.startswith(
-            ("diff ", "---", "+++", "@@", "+", "-", " ", "index ", "new file", "deleted file")
-        ):
-            lines.append(line)
-        else:
-            lines.append(line.strip())
-    return "\n".join(lines)
+    return text
 
 
 def extract_diff(text: str) -> str:
     text = clean_diff_text(text)
+
     lines = []
     in_diff = False
 
     for line in text.splitlines():
         if line.startswith("diff --git"):
             in_diff = True
-            lines.append(line)
-        elif in_diff:
-            if line and not line.startswith(
-                ("---", "+++", "@@", "+", "-", " ", "index ", "new file", "deleted file", "diff ")
-            ):
+
+        if in_diff:
+            if line.startswith("```"):
                 break
             lines.append(line)
 
-    result = "\n".join(lines).strip()
-    if result and not result.endswith("\n"):
-        result += "\n"
+    result = "\n".join(lines)
+    result = re.sub(r"^\n+", "", result)
+    result = re.sub(r"\n+$", "\n", result)
+
     return result
+
 
 # --------------------------------------------------
 # Path normalization
@@ -134,7 +159,7 @@ def normalize_file_path(path: str, repo_root: str) -> str:
         else:
             parts = path.split("/")
             for i, part in enumerate(parts):
-                if part in ("app", "modules", "src", "main"):
+                if part in ("app", "modules", "src"):
                     path = "/".join(parts[i:])
                     break
 
@@ -145,6 +170,7 @@ def normalize_file_path(path: str, repo_root: str) -> str:
 
 def fix_diff_paths(diff: str, repo_root: str) -> str:
     lines = []
+
     for line in diff.splitlines():
         if line.startswith("diff --git"):
             m = re.match(r"diff --git a/(.*) b/(.*)", line)
@@ -152,14 +178,21 @@ def fix_diff_paths(diff: str, repo_root: str) -> str:
                 a = normalize_file_path(m.group(1), repo_root)
                 b = normalize_file_path(m.group(2), repo_root)
                 line = f"diff --git a/{a} b/{b}"
+
         elif line.startswith("--- "):
-            path = normalize_file_path(line[4:], repo_root)
+            raw = re.sub(r"^[ab]/", "", line[4:])
+            path = normalize_file_path(raw, repo_root)
             line = f"--- a/{path}"
+
         elif line.startswith("+++ "):
-            path = normalize_file_path(line[4:], repo_root)
+            raw = re.sub(r"^[ab]/", "", line[4:])
+            path = normalize_file_path(raw, repo_root)
             line = f"+++ b/{path}"
+
         lines.append(line)
+
     return "\n".join(lines) + "\n"
+
 
 # --------------------------------------------------
 # Patch application
@@ -167,9 +200,16 @@ def fix_diff_paths(diff: str, repo_root: str) -> str:
 
 def extract_files_from_diff(diff: str) -> List[str]:
     files = []
+    seen = set()
+
     for line in diff.splitlines():
         if line.startswith("+++ b/"):
-            files.append(line[6:])
+            path = line[6:]
+            if path in seen:
+                raise ValueError(f"Duplicate diff for file: {path}")
+            seen.add(path)
+            files.append(path)
+
     return files
 
 
@@ -181,15 +221,22 @@ def try_git_apply(diff: str, options: List[str] = None) -> Tuple[bool, List[str]
         patch_file = tf.name
 
     try:
-        code, out = run(["git", "apply", "--check"] + options + [patch_file])
+        code, _ = run(["git", "apply", "--check"] + options + [patch_file])
         if code != 0:
             return False, []
 
-        code, out = run(["git", "apply"] + options + [patch_file])
+        code, _ = run(["git", "apply"] + options + [patch_file])
         if code != 0:
+            return False, []
+
+        code, status = run(["git", "status", "--porcelain"])
+        if ".rej" in status:
+            logger.warning("⚠️ Reject files detected; reverting patch")
+            run(["git", "reset", "--hard"])
             return False, []
 
         return True, extract_files_from_diff(diff)
+
     finally:
         os.unlink(patch_file)
 
@@ -197,13 +244,27 @@ def try_git_apply(diff: str, options: List[str] = None) -> Tuple[bool, List[str]
 def apply_diff(diff: str) -> List[str]:
     repo_root = get_repo_root()
 
-    # 🔧 SANITIZE FIRST (THIS FIXES YOUR ERROR)
     diff = sanitize_unified_diff(diff)
     if not diff:
         logger.warning("⚠️ Diff unrecoverable after sanitization")
         return []
 
     diff = fix_diff_paths(diff, repo_root)
+
+    try:
+        files = extract_files_from_diff(diff)
+    except ValueError as e:
+        logger.warning(str(e))
+        return []
+
+    ALLOWED_EXTENSIONS = {".kt", ".kts", ".java"}
+    for f in files:
+        if os.path.splitext(f)[1] not in ALLOWED_EXTENSIONS:
+            logger.warning(f"⚠️ Disallowed file type: {f}")
+            return []
+        if not os.path.exists(f):
+            logger.warning(f"⚠️ File does not exist: {f}")
+            return []
 
     strategies = [
         [],
@@ -213,27 +274,14 @@ def apply_diff(diff: str) -> List[str]:
     ]
 
     for opts in strategies:
-        ok, files = try_git_apply(diff, opts)
-        if ok and files:
-            logger.info(f"✅ Patch applied: {files}")
-            return files
+        ok, applied = try_git_apply(diff, opts)
+        if ok and applied:
+            logger.info(f"✅ Patch applied: {applied}")
+            return applied
 
     logger.warning("⚠️ All git apply strategies failed")
     return []
 
-# --------------------------------------------------
-# Structural validation
-# --------------------------------------------------
-
-def looks_like_kotlin_code(content: str) -> bool:
-    return (
-        len(content.splitlines()) > 5
-        and any(k in content for k in ("class ", "object ", "fun ", "package "))
-    )
-
-
-def is_structurally_corrupt(content: str) -> bool:
-    return not looks_like_kotlin_code(content)
 
 # --------------------------------------------------
 # Main entry
@@ -241,6 +289,7 @@ def is_structurally_corrupt(content: str) -> bool:
 
 def apply_patch(ai_response: str, build_log: str) -> List[str]:
     diff = extract_diff(ai_response)
+
     if diff:
         logger.info("📝 Found diff in response, attempting to apply...")
         files = apply_diff(diff)
