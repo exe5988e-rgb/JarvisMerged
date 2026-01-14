@@ -175,7 +175,8 @@ FILE TREE:
 """.strip()
 
     provider = get_llm_provider()
-    response = provider.ask(prompt)
+    response = provider.ask(prompt, retry_count=attempt)
+    
 
     DEBUG_DIR.mkdir(exist_ok=True)
     debug_file = DEBUG_DIR / f"attempt_{attempt}.txt"
