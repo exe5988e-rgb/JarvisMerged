@@ -58,7 +58,6 @@ def read_build_log():
 
 
 def filter_errors_only(errors: list[dict]) -> list[dict]:
-    """Remove warnings and keep only real build errors"""
     filtered = []
     for e in errors:
         msg = (e.get("message") or "").lower()
@@ -149,7 +148,7 @@ def run_autofix_attempt(attempt: int) -> bool:
             [str(DEBUG_DIR / "structural_failure.txt")]
         )
         push_branch("ai-autofix/structural-failure")
-        return True  # STOP further attempts safely
+        return True
 
     prepare_context()
 
@@ -179,21 +178,6 @@ diff --git
 === FIX STRATEGY ===
 Error category: {error_type}
 
-Rules:
-- missing_symbol → add minimal Kotlin stub
-- type_error → adjust signature or cast
-- override_error → fix method signature
-- manifest → modify AndroidManifest.xml only
-- gradle → modify build.gradle only
-- generic → minimal local fix only
-
-=== ANDROID RULES ===
-- Kotlin only (no Java)
-- Do NOT add dependencies
-- Do NOT refactor unrelated files
-- Prefer stubs over logic
-- Touch the fewest files possible
-
 === BUILD ERROR ===
 File: {file_path}
 Line: {line}
@@ -204,67 +188,37 @@ Error: {message}
 
 === FULL FILE ===
 {full_file[:MAX_FILE_CHARS]}
-
-=== PROJECT FILE TREE ===
-{read_file_safe(CONTEXT_DIR / "file_tree.txt")}
-
-=== ANDROID MANIFEST ===
-{read_file_safe(CONTEXT_DIR / "AndroidManifest.xml")}
-
-=== MODULE GRADLE ===
-{read_file_safe(CONTEXT_DIR / "app_build.gradle")}
 """
 
     provider = get_llm_provider()
-    response = provider.ask(prompt)
+
+    # ✅ CRITICAL FIX: pass retry count to LLM
+    response = provider.ask(prompt, retry_count=attempt)
 
     DEBUG_DIR.mkdir(exist_ok=True)
     debug_file = DEBUG_DIR / f"attempt_{attempt}.txt"
     debug_file.write_text(response)
 
-    # 🔒 Hard diff validation
     response = response.lstrip()
     if not response.startswith("diff --git"):
         logger.warning("⚠️ Invalid LLM output (not a diff)")
-        branch = f"ai-autofix/invalid-output-{attempt}"
-        create_branch(branch)
-        commit_changes(
-            f"debug: invalid LLM output attempt {attempt}",
-            [str(debug_file)]
-        )
-        push_branch(branch)
         return False
 
     patched = apply_patch(response, build_log)
     if not patched:
-        logger.warning("⚠️ Patch failed — committing AI output")
-        branch = f"ai-autofix/debug-output-{attempt}"
-        create_branch(branch)
-        commit_changes(
-            f"debug: AI output attempt {attempt}",
-            [str(debug_file)]
-        )
-        push_branch(branch)
+        logger.warning("⚠️ Patch failed")
         return False
 
     subprocess.run(["./gradlew", "build"], check=False)
     ok, _ = read_build_log()
-
     if not ok:
         subprocess.run(["git", "reset", "--hard", "HEAD"], check=False)
         return False
 
-    # 🔹 Confidence check
     confidence = estimate_confidence(response)
     logger.info(f"🧠 Fix confidence: {confidence:.2f}")
+
     if confidence < 0.5:
-        branch = f"ai-autofix/low-confidence-{attempt}"
-        create_branch(branch)
-        commit_changes(
-            f"debug: low confidence autofix ({confidence:.2f})",
-            patched
-        )
-        push_branch(branch)
         return False
 
     branch = "ai-autofix/build-fix"
@@ -276,13 +230,8 @@ Error: {message}
     return True
 
 
-# --------------------------------------------------
-# Main
-# --------------------------------------------------
-
 def main():
     logger.info("🚀 AI Autofix starting")
-
     try:
         for i in range(1, MAX_RETRIES + 1):
             if run_autofix_attempt(i):
