@@ -3270,6 +3270,24 @@ def extract_diff(text: str) -> str:
         result += "\n"
     return result
 
+def clean_ai_patch(diff_text: str) -> str:
+    """
+    Prepares AI-generated patch for git apply:
+    - Removes placeholder index lines
+    - Normalizes line endings to LF
+    - Strips trailing spaces
+    """
+    lines = diff_text.splitlines()
+    cleaned_lines = []
+    for line in lines:
+        if line.startswith("index "):
+            continue
+        cleaned_lines.append(line.rstrip())
+    cleaned_diff = "\n".join(cleaned_lines).replace("\r\n", "\n").replace("\r", "\n")
+    if not cleaned_diff.endswith("\n"):
+        cleaned_diff += "\n"
+    return cleaned_diff
+
 def normalize_file_path(path: str, repo_root: str) -> str:
     path = re.sub(r"^[ab]/", "", path)
     if path.startswith("/"):
@@ -3353,7 +3371,6 @@ def try_patch_command(diff: str, repo_root: str) -> Tuple[bool, List[str]]:
         return False, []
     finally:
         os.unlink(patch_file)
-        # Clean up .orig files
         for f in extract_files_from_diff(diff):
             orig_file = os.path.join(repo_root, f + ".orig")
             if os.path.exists(orig_file):
@@ -3364,6 +3381,7 @@ def apply_diff(diff: str) -> List[str]:
         return []
     repo_root = get_repo_root()
     diff = fix_diff_paths(diff, repo_root)
+    diff = clean_ai_patch(diff)
 
     strategies = [
         ("strict", []),
@@ -3379,7 +3397,6 @@ def apply_diff(diff: str) -> List[str]:
             logger.info(f"✅ Patch applied ({name}): {files}")
             return files
 
-    # Fuzzy patch fallback
     logger.debug("Trying patch command with fuzzy matching...")
     success, files = try_patch_command(diff, repo_root)
     if success and files:
@@ -3423,9 +3440,6 @@ def extract_code(text: str) -> str:
         return match.group(1).strip()
     return text.strip()
 
-# -----------------------------
-# Target file detection
-# -----------------------------
 def extract_target_file_from_response(text: str) -> Optional[str]:
     patterns = [
         r"(?:file|path):\s*[`'\"]?([^\s`'\"]+\.(kt|java|xml|gradle|kts))[`'\"]?",
@@ -3453,10 +3467,10 @@ def find_file_in_repo(filename: str, repo_root: str) -> Optional[str]:
 # -----------------------------
 def apply_patch(ai_response: str, build_log: str) -> List[str]:
     repo_root = get_repo_root()
-
     # Strategy 1: Try diff application
     diff = extract_diff(ai_response)
     if diff:
+        diff = clean_ai_patch(diff)
         logger.info("📝 Found diff in response, attempting to apply...")
         files = apply_diff(diff)
         if files:
