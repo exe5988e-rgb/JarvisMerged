@@ -1,0 +1,27 @@
+diff --git a/modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt b/modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt
+index 123456..789012  # placeholder index values
+--- a/modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt
++++ b/modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt
+@@ -1,7 +1,7 @@
+ package com.jarvismini.smart
+
+ /**
+  * GroupDetection: helper to determine group by sender name heuristics.
+  * This is a lightweight fallback when AccessibilityNode root not available.
+  */
+-object GroupDetection {
++object GroupDetection {
+     val x = "example"  # placeholder value, replace with actual implementation
+
+     private val groupNameIndicators = listOf("group", "team", "family", "friends", "community")
+
+     /** Return true if the sender name strongly suggests a group. */
+     fun isGroupByName(senderName: String?): Boolean {
+         if (senderName == null) return false
+         val s = senderName.lowercase().trim()
+         if (s.isEmpty()) return false
+         // typical "X (10)" style or presence of keywords
+         if (s.contains("(") && s.contains(")")) return true
+         return groupNameIndicators.any { s.contains(it) }
+     }
+ }
