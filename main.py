@@ -61,7 +61,7 @@ def filter_errors_only(errors: list[dict]) -> list[dict]:
     filtered = []
     for e in errors:
         msg = (e.get("message") or "").lower()
-        if any(k in msg for k in ["warning", "deprecated", "uses or overrides a deprecated api"]):
+        if "warning" in msg or "deprecated" in msg:
             continue
         filtered.append(e)
     return filtered
@@ -79,8 +79,6 @@ def classify_error(msg: str) -> str:
         return "manifest"
     if "execution failed for task" in msg:
         return "gradle"
-    if "cannot access" in msg:
-        return "visibility"
     return "generic"
 
 
@@ -90,19 +88,6 @@ def retry_mode(attempt: int) -> str:
     if attempt == 2:
         return "strict"
     return "emergency"
-
-
-def estimate_confidence(diff: str) -> float:
-    score = 1.0
-    if diff.count("diff --git") > 4:
-        score -= 0.3
-    if "todo" in diff.lower() or "fixme" in diff.lower():
-        score -= 0.3
-    if "stub" in diff.lower():
-        score -= 0.2
-    if "temporary" in diff.lower():
-        score -= 0.2
-    return max(score, 0.0)
 
 
 # --------------------------------------------------
@@ -117,8 +102,7 @@ def run_autofix_attempt(attempt: int) -> bool:
         logger.info("✅ Build already successful")
         return True
 
-    errors = parse_build_errors(build_log)
-    errors = filter_errors_only(errors)
+    errors = filter_errors_only(parse_build_errors(build_log))
     logger.info(f"📋 Parsed {len(errors)} build errors (warnings ignored)")
 
     if not errors:
@@ -135,19 +119,17 @@ def run_autofix_attempt(attempt: int) -> bool:
     full_file = read_file_safe(Path(file_path))
     snippet = extract_code_snippet(file_path, line, 12)
 
-    # 🚨 Structural corruption detection BEFORE LLM
+    # 🚨 Structural corruption guard
     if is_structurally_corrupt(full_file):
         logger.error("🚨 Structural corruption detected — aborting autofix")
         DEBUG_DIR.mkdir(exist_ok=True)
-        (DEBUG_DIR / "structural_failure.txt").write_text(
-            f"File: {file_path}\n\n{full_file}"
-        )
-        create_branch("ai-autofix/structural-failure")
-        commit_changes(
-            "debug: structural corruption detected",
-            [str(DEBUG_DIR / "structural_failure.txt")]
-        )
-        push_branch("ai-autofix/structural-failure")
+        fail_file = DEBUG_DIR / "structural_failure.txt"
+        fail_file.write_text(f"File: {file_path}\n\n{full_file}")
+
+        branch = "ai-autofix/structural-failure"
+        create_branch(branch)
+        commit_changes("debug: structural corruption detected", [str(fail_file)])
+        push_branch(branch)
         return True
 
     prepare_context()
@@ -156,44 +138,44 @@ def run_autofix_attempt(attempt: int) -> bool:
     mode = retry_mode(attempt)
 
     extra_rules = ""
-    if mode == "strict":
-        extra_rules = "\nINVALID OUTPUT PREVIOUSLY. RETURN ONLY A GIT DIFF."
-    elif mode == "emergency":
-        extra_rules = "\nEMERGENCY MODE. APPLY MINIMAL STUB FIX ONLY."
+    if attempt == 1:
+        extra_rules = "\n- FULL FILE OUTPUT IS FORBIDDEN."
+    elif attempt == 2:
+        extra_rules = "\n- Full file allowed ONLY if diff fails."
+    else:
+        extra_rules = "\n- Full file allowed. Prefer correctness over minimalism."
 
-    prompt = f"""SYSTEM:
-You are an automated Android build-fixing agent.{extra_rules}
+    prompt = f"""
+You are an automated Android build-fixing agent.
 
-RULES (MANDATORY):
+MANDATORY RULES:
 - Output ONLY a valid unified git diff.
-- Do NOT include explanations, markdown, comments, or code fences.
-- Do NOT repeat warnings.
-- Fix ONLY build-breaking errors.
-- Every change MUST be in diff format.
-- If unsure, apply the smallest possible stub fix.
+- Output MUST start with: diff --git
+- No explanations. No markdown. No comments.
+- Fix ONLY the build-breaking error.
+- Prefer minimal diffs unless explicitly allowed.
 
-The output MUST start with:
-diff --git
+ATTEMPT: {attempt}/{MAX_RETRIES}
+ERROR TYPE: {error_type}
+{extra_rules}
 
-=== FIX STRATEGY ===
-Error category: {error_type}
-
-=== BUILD ERROR ===
+ERROR:
 File: {file_path}
 Line: {line}
-Error: {message}
+Message: {message}
 
-=== CODE SNIPPET ===
-{snippet.get('code') if snippet else ''}
+CODE SNIPPET:
+{snippet.get("code") if snippet else ""}
 
-=== FULL FILE ===
+FULL FILE (TRUNCATED):
 {full_file[:MAX_FILE_CHARS]}
-"""
+
+FILE TREE:
+{read_file_safe(CONTEXT_DIR / "file_tree.txt")}
+""".strip()
 
     provider = get_llm_provider()
-
-    # ✅ CRITICAL FIX: pass retry count to LLM
-    response = provider.ask(prompt, retry_count=attempt)
+    response = provider.ask(prompt)
 
     DEBUG_DIR.mkdir(exist_ok=True)
     debug_file = DEBUG_DIR / f"attempt_{attempt}.txt"
@@ -201,34 +183,42 @@ Error: {message}
 
     response = response.lstrip()
     if not response.startswith("diff --git"):
-        logger.warning("⚠️ Invalid LLM output (not a diff)")
+        branch = f"ai-autofix/invalid-output-{attempt}"
+        create_branch(branch)
+        commit_changes(f"debug: invalid LLM output attempt {attempt}", [str(debug_file)])
+        push_branch(branch)
         return False
 
-    patched = apply_patch(response, build_log)
-    if not patched:
-        logger.warning("⚠️ Patch failed")
+    # ✅ CRITICAL FIX: pass retry_count
+    patched_files = apply_patch(response, build_log, retry_count=attempt)
+
+    if not patched_files:
+        logger.warning("⚠️ Patch rejected or failed — committing AI output")
+        branch = f"ai-autofix/debug-output-{attempt}"
+        create_branch(branch)
+        commit_changes(f"debug: patch rejected attempt {attempt}", [str(debug_file)])
+        push_branch(branch)
         return False
 
     subprocess.run(["./gradlew", "build"], check=False)
     ok, _ = read_build_log()
+
     if not ok:
         subprocess.run(["git", "reset", "--hard", "HEAD"], check=False)
         return False
 
-    confidence = estimate_confidence(response)
-    logger.info(f"🧠 Fix confidence: {confidence:.2f}")
-
-    if confidence < 0.5:
-        return False
-
     branch = "ai-autofix/build-fix"
     create_branch(branch)
-    commit_changes("fix: AI autofix build error", patched)
+    commit_changes("fix: AI autofix build error", patched_files)
     push_branch(branch)
 
     logger.info("🎉 Autofix successful")
     return True
 
+
+# --------------------------------------------------
+# Main
+# --------------------------------------------------
 
 def main():
     logger.info("🚀 AI Autofix starting")
