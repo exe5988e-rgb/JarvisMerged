@@ -298,4 +298,29 @@ def apply_patch(ai_response: str, build_log: str) -> List[str]:
 
     logger.warning("⚠️ Patch application failed")
     return []
-    
+    # --------------------------------------------------
+# Structural validation (required by main.py)
+# --------------------------------------------------
+
+def looks_like_kotlin_code(content: str) -> bool:
+    if not content:
+        return False
+
+    if "package " not in content:
+        return False
+
+    if not re.search(r"\b(class|object|interface|fun)\b", content):
+        return False
+
+    if content.count("{") < content.count("}"):
+        return False
+
+    return True
+
+
+def is_structurally_corrupt(content: str) -> bool:
+    """
+    Returns True if content is NOT safe Kotlin source.
+    Used to gate full-file overwrite fallback.
+    """
+    return not looks_like_kotlin_code(content)
