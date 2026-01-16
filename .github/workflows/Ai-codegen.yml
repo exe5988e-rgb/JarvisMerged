@@ -2,6 +2,9 @@ name: AI Code Generator
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ai-output.txt
 
 permissions:
   contents: write
@@ -23,3 +26,4 @@ jobs:
       - name: Run AI Code Generator
         run: |
           python ai-code.py ai-output.txt
+          
