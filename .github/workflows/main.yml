@@ -1,6 +1,10 @@
 name: Extract Repo Source to TXT
 
 on:
+  workflow_run:
+    workflows: ["AI Code Generator"]
+    types:
+      - completed
   workflow_dispatch:
   push:
     branches: [ main ]
@@ -11,6 +15,8 @@ permissions:
 jobs:
   extract:
     runs-on: ubuntu-latest
+    # Only run if the AI Code Generator workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout repo
@@ -31,3 +37,4 @@ jobs:
           git add repo_source_dump.txt
           git commit -m "Auto: repo file tree + source dump" || echo "No changes"
           git push
+          
