@@ -1,0 +1,36 @@
+==== GRADLE BUILD ERROR REPORT ====
+
+-- COMPILE / RESOURCE / LINT ERRORS --
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt:8:13 Unresolved reference: definitelyDoesNotExistsexy
+
+-- BUILD FAILURE / EXCEPTIONS --
+FAILURE: Build failed with an exception.
+BUILD FAILED in 3m 55s
+
+==== SOURCE CODE (UNIQUE ERROR FILES) ====
+
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt =====
+1	package com.jarvismini.smart
+2	
+3	/**
+4	 * GroupDetection: helper to determine group by sender name heuristics.
+5	 * This is a lightweight fallback when AccessibilityNode root not available.
+6	 */
+7	object GroupDetection {
+>>>>> ERROR HERE
+8	    val x = definitelyDoesNotExistsexy
+9	
+10	    private val groupNameIndicators = listOf("group", "team", "family", "friends", "community")
+11	
+12	    /** Return true if the sender name strongly suggests a group. */
+13	    fun isGroupByName(senderName: String?): Boolean {
+14	        if (senderName == null) return false
+15	        val s = senderName.lowercase().trim()
+16	        if (s.isEmpty()) return false
+17	        // typical "X (10)" style or presence of keywords
+18	        if (s.contains("(") && s.contains(")")) return true
+19	        return groupNameIndicators.any { s.contains(it) }
+20	    }
+21	}
+22	
+23	
