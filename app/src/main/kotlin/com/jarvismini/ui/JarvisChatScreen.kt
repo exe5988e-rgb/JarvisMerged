@@ -14,10 +14,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.jarvismini.api.JarvisApiClient
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
+import com.jarvismini.engine.EngineProvider
+import com.jarvismini.engine.EngineResult
 import kotlinx.coroutines.launch
 
 @Composable
@@ -27,8 +28,11 @@ fun JarvisChatScreen() {
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
+    // ================= INIT =================
+
     LaunchedEffect(Unit) {
         JarvisState.init(context)
+        EngineProvider.init(context)
     }
 
     LaunchedEffect(Unit) {
@@ -53,12 +57,16 @@ fun JarvisChatScreen() {
         }
     }
 
+    // ================= STATE =================
+
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
 
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
     var expanded by remember { mutableStateOf(false) }
     val modes = JarvisMode.values().toList()
+
+    // ================= UI =================
 
     Column(
         modifier = Modifier
@@ -67,11 +75,15 @@ fun JarvisChatScreen() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
 
-        Text("Current mode: $currentMode", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "Current mode: $currentMode",
+            style = MaterialTheme.typography.titleMedium
+        )
 
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = {
-            expanded = !expanded
-        }) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
             TextField(
                 value = currentMode.name,
                 onValueChange = {},
@@ -80,9 +92,10 @@ fun JarvisChatScreen() {
                 modifier = Modifier.menuAnchor()
             )
 
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = {
-                expanded = false
-            }) {
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
                 modes.forEach { mode ->
                     DropdownMenuItem(
                         text = { Text(mode.name) },
@@ -113,7 +126,10 @@ fun JarvisChatScreen() {
         ) {
             items(messages.reversed()) { msg ->
                 Text(
-                    text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}",
+                    text = if (msg.isUser)
+                        "You: ${msg.text}"
+                    else
+                        "Jarvis: ${msg.text}",
                     modifier = Modifier.padding(6.dp)
                 )
             }
@@ -133,17 +149,19 @@ fun JarvisChatScreen() {
 
                 input = ""
                 messages.add(ChatMessage(userText, true))
-                messages.add(ChatMessage("Jarvis is thinking…", false))
+                messages.add(ChatMessage("Thinking…", false))
 
                 scope.launch {
-                    try {
-                        val reply = JarvisApiClient.submitQueryAndWait(userText)
-                        messages.removeLast()
-                        messages.add(ChatMessage(reply, false))
-                    } catch (e: Exception) {
-                        messages.removeLast()
-                        messages.add(ChatMessage("Error: ${e.message}", false))
+                    val result = EngineProvider.commandEngine.handle(userText)
+
+                    val reply = when (result) {
+                        is EngineResult.Success -> result.reply
+                        EngineResult.Unhandled ->
+                            EngineProvider.llmEngine.generateReply(userText)
                     }
+
+                    messages.removeLast()
+                    messages.add(ChatMessage(reply, false))
                 }
             }) {
                 Text("Send")
