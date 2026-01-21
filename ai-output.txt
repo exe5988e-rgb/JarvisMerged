@@ -1,130 +1,3 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/SchedulerCommandEngine.kt =====
-package com.jarvismini.engine
-
-import android.content.Context
-import android.content.Intent
-import android.provider.AlarmClock
-import android.provider.CalendarContract
-import com.jarvismini.core.TimeUtils
-import java.util.Calendar
-import java.util.Locale
-
-class SchedulerCommandEngine(
-    private val context: Context
-) : CommandEngine {
-
-    override fun canHandle(input: String): Boolean {
-        val text = input.lowercase(Locale.getDefault())
-        return listOf(
-            "alarm",
-            "wake",
-            "timer",
-            "remind",
-            "schedule",
-            "meeting"
-        ).any { text.contains(it) }
-    }
-
-    override fun handle(input: String): EngineResult {
-        if (!canHandle(input)) return EngineResult.Unhandled
-
-        val text = input.lowercase(Locale.getDefault())
-
-        return when {
-            text.contains("alarm") || text.contains("wake") ->
-                handleAlarm(text)
-
-            text.contains("timer") ->
-                handleTimer(text)
-
-            text.contains("remind") || text.contains("schedule") || text.contains("meeting") ->
-                handleCalendar(text)
-
-            else -> EngineResult.Unhandled
-        }
-    }
-
-    // -------------------- ALARM --------------------
-
-    private fun handleAlarm(text: String): EngineResult {
-        val (hour, minute) = extractTime(text) ?: return EngineResult.Success(
-            "Please tell me a time for the alarm."
-        )
-
-        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-            putExtra(AlarmClock.EXTRA_HOUR, hour)
-            putExtra(AlarmClock.EXTRA_MINUTES, minute)
-            putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Alarm")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        context.startActivity(intent)
-        return EngineResult.Success("Alarm set for $hour:$minute")
-    }
-
-    // -------------------- TIMER --------------------
-
-    private fun handleTimer(text: String): EngineResult {
-        val minutes = extractMinutes(text)
-            ?: return EngineResult.Success("Please specify timer duration.")
-
-        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
-            putExtra(AlarmClock.EXTRA_LENGTH, minutes * 60)
-            putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Timer")
-            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        context.startActivity(intent)
-        return EngineResult.Success("Timer set for $minutes minutes.")
-    }
-
-    // -------------------- CALENDAR --------------------
-
-    private fun handleCalendar(text: String): EngineResult {
-        val start = Calendar.getInstance().apply {
-            add(Calendar.MINUTE, 5)
-        }
-
-        val end = Calendar.getInstance().apply {
-            timeInMillis = start.timeInMillis
-            add(Calendar.HOUR, 1)
-        }
-
-        val intent = Intent(Intent.ACTION_INSERT).apply {
-            data = CalendarContract.Events.CONTENT_URI
-            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.timeInMillis)
-            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.timeInMillis)
-            putExtra(CalendarContract.Events.TITLE, "Jarvis Task")
-            putExtra(CalendarContract.Events.DESCRIPTION, text)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        context.startActivity(intent)
-        return EngineResult.Success("Added to your calendar.")
-    }
-
-    // -------------------- HELPERS --------------------
-
-    private fun extractTime(text: String): Pair<Int, Int>? {
-        val regex = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?")
-        val match = regex.find(text) ?: return null
-
-        var hour = match.groupValues[1].toInt()
-        val minute = match.groupValues[2].ifEmpty { "0" }.toInt()
-        val meridian = match.groupValues[3]
-
-        if (meridian == "pm" && hour < 12) hour += 12
-        if (meridian == "am" && hour == 12) hour = 0
-
-        return hour to minute
-    }
-
-    private fun extractMinutes(text: String): Int? {
-        val regex = Regex("(\\d+)\\s*(minute|min)")
-        return regex.find(text)?.groupValues?.get(1)?.toInt()
-    }
-}
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
 package com.jarvismini.engine
 
@@ -132,23 +5,201 @@ import android.content.Context
 
 object EngineProvider {
 
-    private val engines = mutableListOf<CommandEngine>()
+    private lateinit var appContext: Context
 
     fun init(context: Context) {
-        engines.clear()
-
-        engines += WorkModeCommandEngine(context.applicationContext)
-        engines += SchedulerCommandEngine(context.applicationContext)
+        appContext = context.applicationContext
     }
 
-    fun handle(input: String): EngineResult {
-        for (engine in engines) {
-            if (engine.canHandle(input)) {
-                val result = engine.handle(input)
-                if (result !is EngineResult.Unhandled) return result
+    // -------------------- COMMAND ENGINES --------------------
+    private val workModeCommandEngine by lazy { WorkModeCommandEngine() }
+    private val schedulerCommandEngine by lazy { SchedulerCommandEngine(appContext) }
+    private val stubCommandEngine by lazy { StubCommandEngine() }
+
+    private val commandEngines: List<CommandEngine> by lazy {
+        listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
+    }
+
+    val commandEngine: CommandEngine
+        get() = object : CommandEngine {
+            override fun canHandle(input: String): Boolean =
+                commandEngines.any { it.canHandle(input) }
+
+            override fun handle(input: String): EngineResult =
+                commandEngines.firstOrNull { it.canHandle(input) }?.handle(input)
+                    ?: EngineResult.Unhandled
+        }
+
+    // -------------------- LLM ENGINE --------------------
+    private val stubLLMEngine by lazy { StubLLMEngine() }
+
+    val llmEngine: LLMEngine
+        get() = stubLLMEngine
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
+@file:OptIn(ExperimentalMaterial3Api::class)
+
+package com.jarvismini.ui
+
+import android.app.Activity
+import android.content.pm.PackageManager
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.WorkModeManager
+import com.jarvismini.engine.EngineProvider
+import com.jarvismini.engine.EngineResult
+import kotlinx.coroutines.launch
+
+@Composable
+fun JarvisChatScreen() {
+
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
+
+    // ================= INIT =================
+    LaunchedEffect(Unit) {
+        JarvisState.init(context)
+        EngineProvider.init(context)
+    }
+
+    LaunchedEffect(Unit) {
+        if (activity == null) return@LaunchedEffect
+
+        val perms = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.READ_CONTACTS
+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) perms += android.Manifest.permission.SEND_SMS
+
+        if (perms.isNotEmpty()) {
+            ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+        }
+    }
+
+    // ================= STATE =================
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var input by remember { mutableStateOf("") }
+
+    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+    var expanded by remember { mutableStateOf(false) }
+    val modes = JarvisMode.values().toList()
+
+    // ================= UI =================
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+
+        Text(
+            text = "Current mode: $currentMode",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            TextField(
+                value = currentMode.name,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Select Mode") },
+                modifier = Modifier.menuAnchor()
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                modes.forEach { mode ->
+                    DropdownMenuItem(
+                        text = { Text(mode.name) },
+                        onClick = {
+                            JarvisState.setMode(context, mode)
+                            currentMode = mode
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
-        return EngineResult.Unhandled
+
+        Button(onClick = {
+            WorkModeManager.toggle(context)
+            currentMode = JarvisState.currentMode
+        }) {
+            Text("Toggle Work Mode")
+        }
+
+        Divider()
+
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            reverseLayout = true
+        ) {
+            items(messages.reversed()) { msg ->
+                Text(
+                    text = if (msg.isUser)
+                        "You: ${msg.text}"
+                    else
+                        "Jarvis: ${msg.text}",
+                    modifier = Modifier.padding(6.dp)
+                )
+            }
+        }
+
+        Row {
+            TextField(
+                value = input,
+                onValueChange = { input = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Ask Jarvis…") }
+            )
+
+            Button(onClick = {
+                val userText = input.trim()
+                if (userText.isEmpty()) return@Button
+
+                input = ""
+                messages.add(ChatMessage(userText, true))
+                messages.add(ChatMessage("Thinking…", false))
+
+                scope.launch {
+                    val result = EngineProvider.commandEngine.handle(userText)
+                    val reply = when (result) {
+                        is EngineResult.Success -> result.reply
+                        EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
+                        else -> EngineProvider.llmEngine.generateReply(userText)
+                    }
+
+                    messages.removeLast()
+                    messages.add(ChatMessage(reply, false))
+                }
+            }) {
+                Text("Send")
+            }
+        }
     }
 }
-
