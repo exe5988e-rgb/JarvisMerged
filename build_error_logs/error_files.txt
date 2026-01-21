@@ -1,15 +1,14 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:14:45 Expression 'StubCommandEngine' of type 'StubCommandEngine' cannot be invoked as a function. The function 'invoke()' is not found
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:15:70 No value passed for parameter 'context'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:14:45 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:18:49 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:33:33 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:33:40 Expression 'StubLLMEngine' of type 'StubLLMEngine' cannot be invoked as a function. The function 'invoke()' is not found
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:34:33 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:34:40 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 34s
+BUILD FAILED in 35s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -28,9 +27,8 @@ BUILD FAILED in 34s
 12
 13	    // ---------------- COMMAND ENGINES ----------------
 >>>>> ERROR HERE
-14	    private val stubCommandEngine by lazy { StubCommandEngine() }
->>>>> ERROR HERE
-15	    private val workModeCommandEngine by lazy { WorkModeCommandEngine() }
+14	    private val stubCommandEngine by lazy { StubCommandEngine(appContext) }
+15	    private val workModeCommandEngine by lazy { WorkModeCommandEngine(appContext) }
 16	    private val schedulerCommandEngine by lazy { SchedulerCommandEngine(appContext) }
 17
 >>>>> ERROR HERE
@@ -49,9 +47,10 @@ BUILD FAILED in 34s
 30	                    ?: EngineResult.Unhandled
 31	        }
 32
+33	    // ---------------- LLM ENGINE ----------------
 >>>>> ERROR HERE
-33	    val llmEngine: LLMEngine by lazy { StubLLMEngine() }
-34	}
+34	    val llmEngine: LLMEngine by lazy { StubLLMEngine(appContext) }
+35	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
