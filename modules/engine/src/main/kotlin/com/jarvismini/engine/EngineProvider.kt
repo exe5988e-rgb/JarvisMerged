@@ -1,6 +1,10 @@
 package com.jarvismini.engine
 
 import android.content.Context
+import com.jarvismini.engine.commands.SchedulerCommandEngine
+import com.jarvismini.engine.commands.WorkModeCommandEngine
+import com.jarvismini.engine.stubs.StubCommandEngine
+import com.jarvismini.engine.stubs.StubLLMEngine
 
 object EngineProvider {
 
@@ -11,9 +15,9 @@ object EngineProvider {
     }
 
     // ---------------- COMMAND ENGINES ----------------
-    private val stubCommandEngine by lazy { StubCommandEngine(appContext) }
-    private val workModeCommandEngine by lazy { WorkModeCommandEngine(appContext) }
-    private val schedulerCommandEngine by lazy { SchedulerCommandEngine(appContext) }
+    private val stubCommandEngine: CommandEngine by lazy { StubCommandEngine(appContext) }
+    private val workModeCommandEngine: CommandEngine by lazy { WorkModeCommandEngine(appContext) }
+    private val schedulerCommandEngine: CommandEngine by lazy { SchedulerCommandEngine(appContext) }
 
     private val engines: List<CommandEngine> by lazy {
         listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
