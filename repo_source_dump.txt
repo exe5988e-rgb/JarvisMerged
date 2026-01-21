@@ -149,6 +149,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── IntentParser.kt
 │   │   │   │   │   │   │   │   ├── JarvisReplyGenerator.kt
 │   │   │   │   │   │   │   │   ├── LLMEngine.kt
+│   │   │   │   │   │   │   │   ├── LocalRuleLLMEngine.kt
 │   │   │   │   │   │   │   │   ├── ReplyReason.kt
 │   │   │   │   │   │   │   │   ├── ReplyToneResolver.kt
 │   │   │   │   │   │   │   │   ├── RuleBasedCommandEngine.kt
@@ -2264,6 +2265,7 @@ object EngineProvider {
 
     fun init(context: Context) {
         commandEngine = WorkModeCommandEngine(context.applicationContext)
+        llmEngine.init(context.applicationContext)
     }
 }
 
@@ -2341,10 +2343,21 @@ package com.jarvismini.engine
 
 import android.content.Context
 
-class LocalRuleLLMEngine : LLMEngine {
+interface LLMEngine {
+    fun init(context: Context)
+    fun generateReply(prompt: String): String
+}
+
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LocalRuleLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+object LocalRuleLLMEngine : LLMEngine {
 
     override fun init(context: Context) {
-        // No-op (local engine)
+        // Local-only engine, no init needed
     }
 
     override fun generateReply(prompt: String): String {
