@@ -8,7 +8,7 @@ class WorkModeCommandEngine(
 ) : CommandEngine {
 
     private val triggerPhrases = listOf(
-        "workmode",
+        "work mode",
         "toggle work",
         "enable work",
         "disable work"
@@ -24,7 +24,7 @@ class WorkModeCommandEngine(
             return EngineResult.Unhandled
         }
 
-        // Core only supports toggle right now
+        // Core API ONLY supports toggle
         WorkModeManager.toggle(context)
 
         return EngineResult.Success("Work mode updated.")
