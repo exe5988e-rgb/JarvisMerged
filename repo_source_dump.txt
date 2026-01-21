@@ -141,15 +141,20 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   │   ├── engine
 │   │   │   │   │   │   │   │   ├── CommandEngine.kt
+│   │   │   │   │   │   │   │   ├── ContextStore.kt
 │   │   │   │   │   │   │   │   ├── CoreTag.kt
 │   │   │   │   │   │   │   │   ├── EngineProvider.kt
 │   │   │   │   │   │   │   │   ├── EngineResult.kt
+│   │   │   │   │   │   │   │   ├── Intent.kt
+│   │   │   │   │   │   │   │   ├── IntentParser.kt
 │   │   │   │   │   │   │   │   ├── JarvisReplyGenerator.kt
 │   │   │   │   │   │   │   │   ├── LLMEngine.kt
 │   │   │   │   │   │   │   │   ├── ReplyReason.kt
 │   │   │   │   │   │   │   │   ├── ReplyToneResolver.kt
+│   │   │   │   │   │   │   │   ├── RuleBasedCommandEngine.kt
 │   │   │   │   │   │   │   │   ├── StubCommandEngine.kt
 │   │   │   │   │   │   │   │   ├── StubLLMEngine.kt
+│   │   │   │   │   │   │   │   ├── TimeParser.kt
 │   │   │   │   │   │   │   │   ├── WorkModeCommandEngine.kt
 │   ├── smart
 │   │   ├── build.gradle.kts
@@ -2229,6 +2234,14 @@ interface CommandEngine {
 }
 
 
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ContextStore.kt =====
+package com.jarvismini.engine
+
+object ContextStore {
+    val history = mutableListOf<String>()
+}
+
+
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CoreTag.kt =====
 package com.jarvismini.engine
 
@@ -2259,12 +2272,47 @@ object EngineProvider {
 package com.jarvismini.engine
 
 sealed class EngineResult {
-
-    data class Success(
-        val reply: String
-    ) : EngineResult()
-
+    data class Success(val reply: String) : EngineResult()
     object Unhandled : EngineResult()
+}
+
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/Intent.kt =====
+package com.jarvismini.engine
+
+sealed class Intent {
+    data class SetAlarm(val timeMs: Long) : Intent()
+    data class SetTimer(val durationMs: Long) : Intent()
+    data class AddReminder(val text: String, val timeMs: Long) : Intent()
+    data class ScheduleStudy(val subject: String, val timeMs: Long) : Intent()
+    object Unknown : Intent()
+}
+
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/IntentParser.kt =====
+package com.jarvismini.engine
+
+object IntentParser {
+
+    fun parse(input: String): Intent {
+        val time = TimeParser.parse(input) ?: return Intent.Unknown
+
+        return when {
+            input.contains("alarm", true) ->
+                Intent.SetAlarm(time)
+
+            input.contains("timer", true) ->
+                Intent.SetTimer(time - System.currentTimeMillis())
+
+            input.contains("remind", true) ->
+                Intent.AddReminder(input, time)
+
+            input.contains("study", true) ->
+                Intent.ScheduleStudy("Study Session", time)
+
+            else -> Intent.Unknown
+        }
+    }
 }
 
 
@@ -2293,9 +2341,15 @@ package com.jarvismini.engine
 
 import android.content.Context
 
-interface LLMEngine {
-    fun init(context: Context)
-    fun generateReply(prompt: String): String
+class LocalRuleLLMEngine : LLMEngine {
+
+    override fun init(context: Context) {
+        // No-op (local engine)
+    }
+
+    override fun generateReply(prompt: String): String {
+        return "Processing: $prompt"
+    }
 }
 
 
@@ -2351,6 +2405,38 @@ object ReplyToneResolver {
 }
 
 
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/RuleBasedCommandEngine.kt =====
+package com.jarvismini.engine
+
+class RuleBasedCommandEngine : CommandEngine {
+
+    override fun canHandle(input: String): Boolean = true
+
+    override fun handle(input: String): EngineResult {
+        ContextStore.history.add(input)
+
+        val intent = IntentParser.parse(input)
+
+        return when (intent) {
+            is Intent.SetAlarm ->
+                EngineResult.Success("Alarm set successfully.")
+
+            is Intent.SetTimer ->
+                EngineResult.Success("Timer started.")
+
+            is Intent.AddReminder ->
+                EngineResult.Success("Reminder added.")
+
+            is Intent.ScheduleStudy ->
+                EngineResult.Success("Study session scheduled.")
+
+            Intent.Unknown ->
+                EngineResult.Unhandled
+        }
+    }
+}
+
+
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
 package com.jarvismini.engine
 
@@ -2379,6 +2465,43 @@ object StubLLMEngine : LLMEngine {
 
     override fun generateReply(prompt: String): String {
         return "This is Jarvis. Mr. Aamir will respond shortly."
+    }
+}
+
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/TimeParser.kt =====
+package com.jarvismini.engine
+
+import com.jarvismini.core.TimeUtils
+import java.util.concurrent.TimeUnit
+
+object TimeParser {
+
+    fun parse(input: String): Long? {
+        val now = TimeUtils.nowMs()
+
+        Regex("(\\d+)\\s*min").find(input)?.let {
+            return now + TimeUnit.MINUTES.toMillis(it.groupValues[1].toLong())
+        }
+
+        Regex("(\\d+)\\s*hour").find(input)?.let {
+            return now + TimeUnit.HOURS.toMillis(it.groupValues[1].toLong())
+        }
+
+        Regex("(\\d{1,2})\\s*(am|pm)", RegexOption.IGNORE_CASE)
+            .find(input)?.let {
+                val hour =
+                    (it.groupValues[1].toInt() % 12) +
+                            if (it.groupValues[2].lowercase() == "pm") 12 else 0
+
+                val cal = java.util.Calendar.getInstance()
+                cal.set(java.util.Calendar.HOUR_OF_DAY, hour)
+                cal.set(java.util.Calendar.MINUTE, 0)
+                cal.set(java.util.Calendar.SECOND, 0)
+                return cal.timeInMillis
+            }
+
+        return null
     }
 }
 
@@ -2581,7 +2704,6 @@ package com.jarvismini.smart
  * This is a lightweight fallback when AccessibilityNode root not available.
  */
 object GroupDetection {
-    val x = definitelyDoesNotExist
 
     private val groupNameIndicators = listOf("group", "team", "family", "friends", "community")
 
@@ -2595,6 +2717,8 @@ object GroupDetection {
         return groupNameIndicators.any { s.contains(it) }
     }
 }
+
+
 
 
 
@@ -3583,15 +3707,17 @@ name: Build APK
 
 on:
   workflow_run:
-    workflows: ["AI Code Generator"]
+    workflows: ["Extract Repo Source to TXT"]
     types:
       - completed
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout repo
@@ -3603,36 +3729,121 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # 🚀 Gradle Cache
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: >
-            gradle-${{ runner.os }}-
-            ${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
-      - name: Build Debug APK
+      # ---------------- BUILD (never hard-fails) ----------------
+      - name: Build Debug APK and capture log
+        id: gradle_build
+        continue-on-error: true
         run: |
           chmod +x ./gradlew
-          ./gradlew build --no-daemon
+          mkdir -p build_error_logs
 
+          ./gradlew assembleDebug lintDebug --no-daemon \
+            2>&1 | tee build_error_logs/build_output.txt
+
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+      # ---------------- APK UPLOAD ----------------
       - name: Upload Debug APK
+        if: steps.gradle_build.outputs.exit_code == '0'
         uses: actions/upload-artifact@v4
         with:
           name: jarvis-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-          
+
+      # ---------------- ERROR + SOURCE EXTRACTION ----------------
+      - name: Extract errors + source (highlighted)
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          mkdir -p build_error_logs
+
+          {
+            echo "==== GRADLE BUILD ERROR REPORT ===="
+            echo
+
+            echo "-- COMPILE / RESOURCE / LINT ERRORS --"
+            # Capture both standard "error" lines and Kotlin/Gradle "e:" lines
+            grep -E "(\.kt|\.java|\.xml|\.gradle|\.properties):[0-9]+.*error|^e: " build_error_logs/build_output.txt || true
+
+            echo
+            echo "-- BUILD FAILURE / EXCEPTIONS --"
+            grep -E "(BUILD FAILED|FAILURE:|Exception|Caused by:)" build_error_logs/build_output.txt || true
+
+            echo
+            echo "==== SOURCE CODE (UNIQUE ERROR FILES) ===="
+          } > build_error_logs/error_files.txt
+
+          # Extract file:line pairs (include e: style)
+          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+" build_error_logs/build_output.txt \
+            | sort -u > build_error_logs/error_locations.txt || true
+
+          # Process each unique file
+          cut -d: -f1 build_error_logs/error_locations.txt | sort -u | while read -r file; do
+            if [ -f "$file" ]; then
+              # Strip absolute workspace path -> repo-relative
+              REL_PATH=$(realpath --relative-to="$GITHUB_WORKSPACE" "$file")
+              echo "" >> build_error_logs/error_files.txt
+              echo "//===== FILE: $REL_PATH =====" >> build_error_logs/error_files.txt
+
+              # Collect error line numbers
+              grep "^$file:" build_error_logs/error_locations.txt \
+                | cut -d: -f2 | sort -n | uniq > build_error_logs/_lines.tmp
+
+              # Dump file once with highlighted error lines
+              nl -ba "$file" | sed -n '1,300p' | while read -r line; do
+                LINE_NO=$(echo "$line" | awk '{print $1}')
+                if grep -qx "$LINE_NO" build_error_logs/_lines.tmp; then
+                  echo ">>>>> ERROR HERE" >> build_error_logs/error_files.txt
+                fi
+                echo "$line" >> build_error_logs/error_files.txt
+              done
+            fi
+          done
+
+          rm -f build_error_logs/_lines.tmp build_error_logs/error_locations.txt
+
+          cat build_error_logs/error_files.txt
+
+      # ---------------- COMMIT ERROR REPORT (safe push) ----------------
+      - name: Commit & push error report
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          git config user.name "build-error-bot"
+          git config user.email "bot@users.noreply.github.com"
+
+          # Add changes
+          git add build_error_logs/error_files.txt
+          git commit -m "Auto: Gradle error report with source highlighting" || echo "No changes"
+
+          # Pull latest changes to avoid push rejection
+          git fetch origin main
+
+          git push origin main
+
+      # ---------------- FINAL FAILURE SIGNAL ----------------
+      - name: Fail job if build failed
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: exit 1
+        
 
 
 //===== FILE: .github/workflows/main.yml =====
 name: Extract Repo Source to TXT
 
 on:
+  workflow_run:
+    workflows: ["AI Code Generator"]
+    types:
+      - completed
   workflow_dispatch:
   push:
     branches: [ main ]
@@ -3643,6 +3854,8 @@ permissions:
 jobs:
   extract:
     runs-on: ubuntu-latest
+    # Only run if the AI Code Generator workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout repo
@@ -3663,6 +3876,7 @@ jobs:
           git add repo_source_dump.txt
           git commit -m "Auto: repo file tree + source dump" || echo "No changes"
           git push
+          
 
 
 //===== FILE: .github/workflows/pr-build.yml =====
