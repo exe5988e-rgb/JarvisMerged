@@ -11,5 +11,6 @@ object EngineProvider {
 
     fun init(context: Context) {
         commandEngine = WorkModeCommandEngine(context.applicationContext)
+        llmEngine.init(context.applicationContext)
     }
 }
