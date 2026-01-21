@@ -29,7 +29,6 @@ fun JarvisChatScreen() {
     val scope = rememberCoroutineScope()
 
     // ================= INIT =================
-
     LaunchedEffect(Unit) {
         JarvisState.init(context)
         EngineProvider.init(context)
@@ -39,7 +38,6 @@ fun JarvisChatScreen() {
         if (activity == null) return@LaunchedEffect
 
         val perms = mutableListOf<String>()
-
         if (ContextCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.READ_CONTACTS
@@ -58,7 +56,6 @@ fun JarvisChatScreen() {
     }
 
     // ================= STATE =================
-
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
 
@@ -67,7 +64,6 @@ fun JarvisChatScreen() {
     val modes = JarvisMode.values().toList()
 
     // ================= UI =================
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -153,11 +149,10 @@ fun JarvisChatScreen() {
 
                 scope.launch {
                     val result = EngineProvider.commandEngine.handle(userText)
-
                     val reply = when (result) {
                         is EngineResult.Success -> result.reply
-                        EngineResult.Unhandled ->
-                            EngineProvider.llmEngine.generateReply(userText)
+                        EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
+                        else -> EngineProvider.llmEngine.generateReply(userText)
                     }
 
                     messages.removeLast()
