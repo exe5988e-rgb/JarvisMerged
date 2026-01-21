@@ -3,126 +3,54 @@ package com.jarvismini.engine
 
 import android.content.Context
 
-class LocalRuleLLMEngine : LLMEngine {
+interface LLMEngine {
+    fun init(context: Context)
+    fun generateReply(prompt: String): String
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LocalRuleLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+object LocalRuleLLMEngine : LLMEngine {
 
     override fun init(context: Context) {
-        // No-op (local engine)
+        // Local-only engine, no init needed
     }
 
     override fun generateReply(prompt: String): String {
         return "Processing: $prompt"
     }
 }
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineResult.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt =====
 package com.jarvismini.engine
 
-sealed class EngineResult {
-    data class Success(val reply: String) : EngineResult()
-    object Unhandled : EngineResult()
-}
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/Intent.kt =====
-package com.jarvismini.engine
+import android.content.Context
 
-sealed class Intent {
-    data class SetAlarm(val timeMs: Long) : Intent()
-    data class SetTimer(val durationMs: Long) : Intent()
-    data class AddReminder(val text: String, val timeMs: Long) : Intent()
-    data class ScheduleStudy(val subject: String, val timeMs: Long) : Intent()
-    object Unknown : Intent()
-}
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/TimeParser.kt =====
-package com.jarvismini.engine
+object StubLLMEngine : LLMEngine {
 
-import com.jarvismini.core.TimeUtils
-import java.util.concurrent.TimeUnit
+    override fun init(context: Context) {
+        // No-op for stub
+    }
 
-object TimeParser {
-
-    fun parse(input: String): Long? {
-        val now = TimeUtils.nowMs()
-
-        Regex("(\\d+)\\s*min").find(input)?.let {
-            return now + TimeUnit.MINUTES.toMillis(it.groupValues[1].toLong())
-        }
-
-        Regex("(\\d+)\\s*hour").find(input)?.let {
-            return now + TimeUnit.HOURS.toMillis(it.groupValues[1].toLong())
-        }
-
-        Regex("(\\d{1,2})\\s*(am|pm)", RegexOption.IGNORE_CASE)
-            .find(input)?.let {
-                val hour =
-                    (it.groupValues[1].toInt() % 12) +
-                            if (it.groupValues[2].lowercase() == "pm") 12 else 0
-
-                val cal = java.util.Calendar.getInstance()
-                cal.set(java.util.Calendar.HOUR_OF_DAY, hour)
-                cal.set(java.util.Calendar.MINUTE, 0)
-                cal.set(java.util.Calendar.SECOND, 0)
-                return cal.timeInMillis
-            }
-
-        return null
+    override fun generateReply(prompt: String): String {
+        return "This is Jarvis. Mr. Aamir will respond shortly."
     }
 }
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/IntentParser.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
 package com.jarvismini.engine
 
-object IntentParser {
+import android.content.Context
 
-    fun parse(input: String): Intent {
-        val time = TimeParser.parse(input) ?: return Intent.Unknown
+object EngineProvider {
 
-        return when {
-            input.contains("alarm", true) ->
-                Intent.SetAlarm(time)
+    lateinit var commandEngine: CommandEngine
+        private set
 
-            input.contains("timer", true) ->
-                Intent.SetTimer(time - System.currentTimeMillis())
+    val llmEngine: LLMEngine = StubLLMEngine
 
-            input.contains("remind", true) ->
-                Intent.AddReminder(input, time)
-
-            input.contains("study", true) ->
-                Intent.ScheduleStudy("Study Session", time)
-
-            else -> Intent.Unknown
-        }
-    }
-}
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ContextStore.kt =====
-package com.jarvismini.engine
-
-object ContextStore {
-    val history = mutableListOf<String>()
-}
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/RuleBasedCommandEngine.kt =====
-package com.jarvismini.engine
-
-class RuleBasedCommandEngine : CommandEngine {
-
-    override fun canHandle(input: String): Boolean = true
-
-    override fun handle(input: String): EngineResult {
-        ContextStore.history.add(input)
-
-        val intent = IntentParser.parse(input)
-
-        return when (intent) {
-            is Intent.SetAlarm ->
-                EngineResult.Success("Alarm set successfully.")
-
-            is Intent.SetTimer ->
-                EngineResult.Success("Timer started.")
-
-            is Intent.AddReminder ->
-                EngineResult.Success("Reminder added.")
-
-            is Intent.ScheduleStudy ->
-                EngineResult.Success("Study session scheduled.")
-
-            Intent.Unknown ->
-                EngineResult.Unhandled
-        }
+    fun init(context: Context) {
+        commandEngine = WorkModeCommandEngine(context.applicationContext)
+        llmEngine.init(context.applicationContext)
     }
 }
