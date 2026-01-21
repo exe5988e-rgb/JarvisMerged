@@ -1,33 +1,154 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/WorkModeCommandEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/SchedulerCommandEngine.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
-import com.jarvismini.core.WorkModeManager
+import android.content.Intent
+import android.provider.AlarmClock
+import android.provider.CalendarContract
+import com.jarvismini.core.TimeUtils
+import java.util.Calendar
+import java.util.Locale
 
-class WorkModeCommandEngine(
+class SchedulerCommandEngine(
     private val context: Context
 ) : CommandEngine {
 
-    private val triggerPhrases = listOf(
-        "work mode",
-        "toggle work",
-        "enable work",
-        "disable work"
-    )
-
     override fun canHandle(input: String): Boolean {
-        val text = input.lowercase()
-        return triggerPhrases.any { text.contains(it) }
+        val text = input.lowercase(Locale.getDefault())
+        return listOf(
+            "alarm",
+            "wake",
+            "timer",
+            "remind",
+            "schedule",
+            "meeting"
+        ).any { text.contains(it) }
     }
 
     override fun handle(input: String): EngineResult {
-        if (!canHandle(input)) {
-            return EngineResult.Unhandled
+        if (!canHandle(input)) return EngineResult.Unhandled
+
+        val text = input.lowercase(Locale.getDefault())
+
+        return when {
+            text.contains("alarm") || text.contains("wake") ->
+                handleAlarm(text)
+
+            text.contains("timer") ->
+                handleTimer(text)
+
+            text.contains("remind") || text.contains("schedule") || text.contains("meeting") ->
+                handleCalendar(text)
+
+            else -> EngineResult.Unhandled
+        }
+    }
+
+    // -------------------- ALARM --------------------
+
+    private fun handleAlarm(text: String): EngineResult {
+        val (hour, minute) = extractTime(text) ?: return EngineResult.Success(
+            "Please tell me a time for the alarm."
+        )
+
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(AlarmClock.EXTRA_HOUR, hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Alarm")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        // Core API ONLY supports toggle
-        WorkModeManager.toggle(context)
+        context.startActivity(intent)
+        return EngineResult.Success("Alarm set for $hour:$minute")
+    }
 
-        return EngineResult.Success("Work mode updated.")
+    // -------------------- TIMER --------------------
+
+    private fun handleTimer(text: String): EngineResult {
+        val minutes = extractMinutes(text)
+            ?: return EngineResult.Success("Please specify timer duration.")
+
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, minutes * 60)
+            putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Timer")
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        context.startActivity(intent)
+        return EngineResult.Success("Timer set for $minutes minutes.")
+    }
+
+    // -------------------- CALENDAR --------------------
+
+    private fun handleCalendar(text: String): EngineResult {
+        val start = Calendar.getInstance().apply {
+            add(Calendar.MINUTE, 5)
+        }
+
+        val end = Calendar.getInstance().apply {
+            timeInMillis = start.timeInMillis
+            add(Calendar.HOUR, 1)
+        }
+
+        val intent = Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.timeInMillis)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.timeInMillis)
+            putExtra(CalendarContract.Events.TITLE, "Jarvis Task")
+            putExtra(CalendarContract.Events.DESCRIPTION, text)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        context.startActivity(intent)
+        return EngineResult.Success("Added to your calendar.")
+    }
+
+    // -------------------- HELPERS --------------------
+
+    private fun extractTime(text: String): Pair<Int, Int>? {
+        val regex = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?")
+        val match = regex.find(text) ?: return null
+
+        var hour = match.groupValues[1].toInt()
+        val minute = match.groupValues[2].ifEmpty { "0" }.toInt()
+        val meridian = match.groupValues[3]
+
+        if (meridian == "pm" && hour < 12) hour += 12
+        if (meridian == "am" && hour == 12) hour = 0
+
+        return hour to minute
+    }
+
+    private fun extractMinutes(text: String): Int? {
+        val regex = Regex("(\\d+)\\s*(minute|min)")
+        return regex.find(text)?.groupValues?.get(1)?.toInt()
     }
 }
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+object EngineProvider {
+
+    private val engines = mutableListOf<CommandEngine>()
+
+    fun init(context: Context) {
+        engines.clear()
+
+        engines += WorkModeCommandEngine(context.applicationContext)
+        engines += SchedulerCommandEngine(context.applicationContext)
+    }
+
+    fun handle(input: String): EngineResult {
+        for (engine in engines) {
+            if (engine.canHandle(input)) {
+                val result = engine.handle(input)
+                if (result !is EngineResult.Unhandled) return result
+            }
+        }
+        return EngineResult.Unhandled
+    }
+}
+
