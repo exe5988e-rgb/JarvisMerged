@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun JarvisChatScreen() {
-
     val context = LocalContext.current
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
@@ -34,52 +33,35 @@ fun JarvisChatScreen() {
         EngineProvider.init(context)
     }
 
+    // ================= PERMISSIONS =================
     LaunchedEffect(Unit) {
         if (activity == null) return@LaunchedEffect
 
         val perms = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.READ_CONTACTS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) perms += android.Manifest.permission.READ_CONTACTS
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+            perms += android.Manifest.permission.READ_CONTACTS
 
-        if (ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.SEND_SMS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) perms += android.Manifest.permission.SEND_SMS
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+            perms += android.Manifest.permission.SEND_SMS
 
-        if (perms.isNotEmpty()) {
-            ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
-        }
+        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
     }
 
     // ================= STATE =================
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
-
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
     var expanded by remember { mutableStateOf(false) }
     val modes = JarvisMode.values().toList()
 
     // ================= UI =================
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp),
+        modifier = Modifier.fillMaxSize().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Text(text = "Current mode: $currentMode", style = MaterialTheme.typography.titleMedium)
 
-        Text(
-            text = "Current mode: $currentMode",
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
             TextField(
                 value = currentMode.name,
                 onValueChange = {},
@@ -88,10 +70,7 @@ fun JarvisChatScreen() {
                 modifier = Modifier.menuAnchor()
             )
 
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 modes.forEach { mode ->
                     DropdownMenuItem(
                         text = { Text(mode.name) },
@@ -108,36 +87,18 @@ fun JarvisChatScreen() {
         Button(onClick = {
             WorkModeManager.toggle(context)
             currentMode = JarvisState.currentMode
-        }) {
-            Text("Toggle Work Mode")
-        }
+        }) { Text("Toggle Work Mode") }
 
         Divider()
 
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            reverseLayout = true
-        ) {
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), reverseLayout = true) {
             items(messages.reversed()) { msg ->
-                Text(
-                    text = if (msg.isUser)
-                        "You: ${msg.text}"
-                    else
-                        "Jarvis: ${msg.text}",
-                    modifier = Modifier.padding(6.dp)
-                )
+                Text(text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}", modifier = Modifier.padding(6.dp))
             }
         }
 
         Row {
-            TextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask Jarvis…") }
-            )
+            TextField(value = input, onValueChange = { input = it }, modifier = Modifier.weight(1f), placeholder = { Text("Ask Jarvis…") })
 
             Button(onClick = {
                 val userText = input.trim()
@@ -151,16 +112,14 @@ fun JarvisChatScreen() {
                     val result = EngineProvider.commandEngine.handle(userText)
                     val reply = when (result) {
                         is EngineResult.Success -> result.reply
-                        EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
-                        else -> EngineProvider.llmEngine.generateReply(userText)
+                        is EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
+                        else -> EngineProvider.llmEngine.generateReply(userText) // exhaustive fallback
                     }
 
                     messages.removeLast()
                     messages.add(ChatMessage(reply, false))
                 }
-            }) {
-                Text("Send")
-            }
+            }) { Text("Send") }
         }
     }
 }

@@ -10,28 +10,25 @@ object EngineProvider {
         appContext = context.applicationContext
     }
 
-    // -------------------- COMMAND ENGINES --------------------
+    // ---------------- COMMAND ENGINES ----------------
+    private val stubCommandEngine by lazy { StubCommandEngine() }
     private val workModeCommandEngine by lazy { WorkModeCommandEngine() }
     private val schedulerCommandEngine by lazy { SchedulerCommandEngine(appContext) }
-    private val stubCommandEngine by lazy { StubCommandEngine() }
 
-    private val commandEngines: List<CommandEngine> by lazy {
+    private val engines: List<CommandEngine> by lazy {
         listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
     }
 
+    // ---------------- PUBLIC ACCESS ----------------
     val commandEngine: CommandEngine
         get() = object : CommandEngine {
             override fun canHandle(input: String): Boolean =
-                commandEngines.any { it.canHandle(input) }
+                engines.any { it.canHandle(input) }
 
             override fun handle(input: String): EngineResult =
-                commandEngines.firstOrNull { it.canHandle(input) }?.handle(input)
+                engines.firstOrNull { it.canHandle(input) }?.handle(input)
                     ?: EngineResult.Unhandled
         }
 
-    // -------------------- LLM ENGINE --------------------
-    private val stubLLMEngine by lazy { StubLLMEngine() }
-
-    val llmEngine: LLMEngine
-        get() = stubLLMEngine
+    val llmEngine: LLMEngine by lazy { StubLLMEngine() }
 }
