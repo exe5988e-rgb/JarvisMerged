@@ -606,7 +606,6 @@ fun JarvisChatScreen() {
     val scope = rememberCoroutineScope()
 
     // ================= INIT =================
-
     LaunchedEffect(Unit) {
         JarvisState.init(context)
         EngineProvider.init(context)
@@ -616,7 +615,6 @@ fun JarvisChatScreen() {
         if (activity == null) return@LaunchedEffect
 
         val perms = mutableListOf<String>()
-
         if (ContextCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.READ_CONTACTS
@@ -635,7 +633,6 @@ fun JarvisChatScreen() {
     }
 
     // ================= STATE =================
-
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
 
@@ -644,7 +641,6 @@ fun JarvisChatScreen() {
     val modes = JarvisMode.values().toList()
 
     // ================= UI =================
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -730,11 +726,10 @@ fun JarvisChatScreen() {
 
                 scope.launch {
                     val result = EngineProvider.commandEngine.handle(userText)
-
                     val reply = when (result) {
                         is EngineResult.Success -> result.reply
-                        EngineResult.Unhandled ->
-                            EngineProvider.llmEngine.generateReply(userText)
+                        EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
+                        else -> EngineProvider.llmEngine.generateReply(userText)
                     }
 
                     messages.removeLast()
@@ -2192,24 +2187,36 @@ import android.content.Context
 
 object EngineProvider {
 
-    private val engines = mutableListOf<CommandEngine>()
+    private lateinit var appContext: Context
 
     fun init(context: Context) {
-        engines.clear()
-
-        engines += WorkModeCommandEngine(context.applicationContext)
-        engines += SchedulerCommandEngine(context.applicationContext)
+        appContext = context.applicationContext
     }
 
-    fun handle(input: String): EngineResult {
-        for (engine in engines) {
-            if (engine.canHandle(input)) {
-                val result = engine.handle(input)
-                if (result !is EngineResult.Unhandled) return result
-            }
+    // -------------------- COMMAND ENGINES --------------------
+    private val workModeCommandEngine by lazy { WorkModeCommandEngine() }
+    private val schedulerCommandEngine by lazy { SchedulerCommandEngine(appContext) }
+    private val stubCommandEngine by lazy { StubCommandEngine() }
+
+    private val commandEngines: List<CommandEngine> by lazy {
+        listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
+    }
+
+    val commandEngine: CommandEngine
+        get() = object : CommandEngine {
+            override fun canHandle(input: String): Boolean =
+                commandEngines.any { it.canHandle(input) }
+
+            override fun handle(input: String): EngineResult =
+                commandEngines.firstOrNull { it.canHandle(input) }?.handle(input)
+                    ?: EngineResult.Unhandled
         }
-        return EngineResult.Unhandled
-    }
+
+    // -------------------- LLM ENGINE --------------------
+    private val stubLLMEngine by lazy { StubLLMEngine() }
+
+    val llmEngine: LLMEngine
+        get() = stubLLMEngine
 }
 
 
