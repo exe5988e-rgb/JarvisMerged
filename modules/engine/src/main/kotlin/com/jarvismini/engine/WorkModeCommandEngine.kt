@@ -7,16 +7,16 @@ class WorkModeCommandEngine(
     private val context: Context
 ) : CommandEngine {
 
-    private val keywords = listOf(
-        "work mode",
+    private val triggerPhrases = listOf(
+        "workmode",
+        "toggle work",
         "enable work",
-        "disable work",
-        "toggle work"
+        "disable work"
     )
 
     override fun canHandle(input: String): Boolean {
         val text = input.lowercase()
-        return keywords.any { text.contains(it) }
+        return triggerPhrases.any { text.contains(it) }
     }
 
     override fun handle(input: String): EngineResult {
@@ -24,25 +24,9 @@ class WorkModeCommandEngine(
             return EngineResult.Unhandled
         }
 
-        val text = input.lowercase()
+        // Core only supports toggle right now
+        WorkModeManager.toggle(context)
 
-        val reply = when {
-            text.contains("enable") || text.contains("on") -> {
-                WorkModeManager.enable(context)
-                "Work mode enabled."
-            }
-
-            text.contains("disable") || text.contains("off") -> {
-                WorkModeManager.disable(context)
-                "Work mode disabled."
-            }
-
-            else -> {
-                WorkModeManager.toggle(context)
-                "Work mode toggled."
-            }
-        }
-
-        return EngineResult.Success(reply)
+        return EngineResult.Success("Work mode updated.")
     }
 }
