@@ -1,36 +1,87 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt:8:13 Unresolved reference: definitelyDoesNotExistsexy
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:10:20 Unresolved reference: LLMEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt:5:28 Unresolved reference: LLMEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt:7:5 'init' overrides nothing
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt:11:5 'generateReply' overrides nothing
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt:5:24 Unresolved reference: LLMEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt:7:5 'init' overrides nothing
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt:11:5 'generateReply' overrides nothing
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 3m 55s
+BUILD FAILED in 34s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/GroupDetection.kt =====
-1	package com.jarvismini.smart
-2	
-3	/**
-4	 * GroupDetection: helper to determine group by sender name heuristics.
-5	 * This is a lightweight fallback when AccessibilityNode root not available.
-6	 */
-7	object GroupDetection {
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+1	package com.jarvismini.engine
+2
+3	import android.content.Context
+4
+5	object EngineProvider {
+6
+7	    lateinit var commandEngine: CommandEngine
+8	        private set
+9
 >>>>> ERROR HERE
-8	    val x = definitelyDoesNotExistsexy
-9	
-10	    private val groupNameIndicators = listOf("group", "team", "family", "friends", "community")
-11	
-12	    /** Return true if the sender name strongly suggests a group. */
-13	    fun isGroupByName(senderName: String?): Boolean {
-14	        if (senderName == null) return false
-15	        val s = senderName.lowercase().trim()
-16	        if (s.isEmpty()) return false
-17	        // typical "X (10)" style or presence of keywords
-18	        if (s.contains("(") && s.contains(")")) return true
-19	        return groupNameIndicators.any { s.contains(it) }
-20	    }
-21	}
-22	
-23	
+10	    val llmEngine: LLMEngine = StubLLMEngine
+11
+12	    fun init(context: Context) {
+13	        commandEngine = WorkModeCommandEngine(context.applicationContext)
+14	    }
+15	}
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt =====
+1	package com.jarvismini.engine
+2
+3	import android.content.Context
+4
+>>>>> ERROR HERE
+5	class LocalRuleLLMEngine : LLMEngine {
+6
+>>>>> ERROR HERE
+7	    override fun init(context: Context) {
+8	        // No-op (local engine)
+9	    }
+10
+>>>>> ERROR HERE
+11	    override fun generateReply(prompt: String): String {
+12	        return "Processing: $prompt"
+13	    }
+14	}
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt =====
+1	package com.jarvismini.engine
+2
+3	import android.content.Context
+4
+>>>>> ERROR HERE
+5	object StubLLMEngine : LLMEngine {
+6
+>>>>> ERROR HERE
+7	    override fun init(context: Context) {
+8	        // No-op for stub
+9	    }
+10
+>>>>> ERROR HERE
+11	    override fun generateReply(prompt: String): String {
+12	        return "This is Jarvis. Mr. Aamir will respond shortly."
+13	    }
+14	}
+
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+1	package com.jarvismini.smart
+2
+3	/**
+4	 * Minimal stub so module compiles.
+5	 * Real logic will be added later.
+6	 */
+7	object SmartFilters {
+8
+>>>>> ERROR HERE
+9	    fun isAllowed(text: String): Boolean {
+10	        return true
+11	    }
+12	}
