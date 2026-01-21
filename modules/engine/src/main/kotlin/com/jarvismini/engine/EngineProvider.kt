@@ -11,8 +11,8 @@ object EngineProvider {
     }
 
     // ---------------- COMMAND ENGINES ----------------
-    private val stubCommandEngine by lazy { StubCommandEngine() }
-    private val workModeCommandEngine by lazy { WorkModeCommandEngine() }
+    private val stubCommandEngine by lazy { StubCommandEngine(appContext) }
+    private val workModeCommandEngine by lazy { WorkModeCommandEngine(appContext) }
     private val schedulerCommandEngine by lazy { SchedulerCommandEngine(appContext) }
 
     private val engines: List<CommandEngine> by lazy {
@@ -30,5 +30,6 @@ object EngineProvider {
                     ?: EngineResult.Unhandled
         }
 
-    val llmEngine: LLMEngine by lazy { StubLLMEngine() }
+    // ---------------- LLM ENGINE ----------------
+    val llmEngine: LLMEngine by lazy { StubLLMEngine(appContext) }
 }
