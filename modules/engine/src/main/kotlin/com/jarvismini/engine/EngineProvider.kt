@@ -4,13 +4,22 @@ import android.content.Context
 
 object EngineProvider {
 
-    lateinit var commandEngine: CommandEngine
-        private set
-
-    val llmEngine: LLMEngine = StubLLMEngine
+    private val engines = mutableListOf<CommandEngine>()
 
     fun init(context: Context) {
-        commandEngine = WorkModeCommandEngine(context.applicationContext)
-        llmEngine.init(context.applicationContext)
+        engines.clear()
+
+        engines += WorkModeCommandEngine(context.applicationContext)
+        engines += SchedulerCommandEngine(context.applicationContext)
+    }
+
+    fun handle(input: String): EngineResult {
+        for (engine in engines) {
+            if (engine.canHandle(input)) {
+                val result = engine.handle(input)
+                if (result !is EngineResult.Unhandled) return result
+            }
+        }
+        return EngineResult.Unhandled
     }
 }
