@@ -1,10 +1,8 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:4:30 Unresolved reference: commands
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:5:30 Unresolved reference: commands
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:6:30 Unresolved reference: stubs
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:7:30 Unresolved reference: stubs
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:4:30 Unresolved reference: stubs
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:5:30 Unresolved reference: stubs
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:18:53 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:18:60 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:38:33 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
@@ -12,7 +10,7 @@ e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/ko
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 35s
+BUILD FAILED in 36s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -21,13 +19,11 @@ BUILD FAILED in 35s
 2
 3	import android.content.Context
 >>>>> ERROR HERE
-4	import com.jarvismini.engine.commands.SchedulerCommandEngine
+4	import com.jarvismini.engine.stubs.StubCommandEngine
 >>>>> ERROR HERE
-5	import com.jarvismini.engine.commands.WorkModeCommandEngine
->>>>> ERROR HERE
-6	import com.jarvismini.engine.stubs.StubCommandEngine
->>>>> ERROR HERE
-7	import com.jarvismini.engine.stubs.StubLLMEngine
+5	import com.jarvismini.engine.stubs.StubLLMEngine
+6	import com.jarvismini.engine.SchedulerCommandEngine
+7	import com.jarvismini.engine.WorkModeCommandEngine
 8
 9	object EngineProvider {
 10
