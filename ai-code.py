@@ -16,8 +16,12 @@ def sanitize(path):
     return path
 
 def parse_ai_output(text: str) -> dict[str, str]:
+    """
+    Parse AI output and return a mapping of file_path -> content.
+    If the same file appears multiple times, the LAST occurrence wins.
+    """
     matches = list(FILE_HEADER.finditer(text))
-    files = {}
+    files: dict[str, str] = {}
 
     for i, match in enumerate(matches):
         file_path = sanitize(match.group(1))
@@ -29,8 +33,9 @@ def parse_ai_output(text: str) -> dict[str, str]:
         if not code.strip():
             continue
 
+        # ✅ Overwrite on duplicates (later definition wins)
         if file_path in files:
-            raise ValueError(f"Duplicate file detected: {file_path}")
+            print(f"🔁 Overwriting duplicate file: {file_path}")
 
         files[file_path] = code
 
@@ -71,6 +76,7 @@ def setup_git_identity():
 
 def auto_commit_push(message="AI: generate project structure"):
     setup_git_identity()
+
     print("🔄 Git add")
     git(["git", "add", "."])
 
@@ -95,8 +101,8 @@ if __name__ == "__main__":
     files = parse_ai_output(text)
 
     print(f"📦 Detected {len(files)} files")
-    for f in files:
-        print(" -", f)
+    for fpath in files:
+        print(" -", fpath)
 
     if not files:
         print("⚠️ No files detected in AI output")
