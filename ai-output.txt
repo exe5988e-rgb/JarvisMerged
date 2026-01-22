@@ -1,21 +1,38 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+ //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
 package com.jarvismini.engine
+
+import android.content.Context
 
 object EngineProvider {
 
+    private lateinit var appContext: Context
+
     // Command engines
-    private val stubCommandEngine: CommandEngine by lazy { StubCommandEngine() }
-    private val workModeCommandEngine: CommandEngine by lazy { WorkModeCommandEngine() }
-    private val schedulerCommandEngine: CommandEngine by lazy { SchedulerCommandEngine() }
-    private val engines: List<CommandEngine> by lazy {
-        listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
-    }
+    private lateinit var workModeCommandEngine: CommandEngine
+    private lateinit var schedulerCommandEngine: CommandEngine
+    private val stubCommandEngine: CommandEngine = StubCommandEngine
+    private lateinit var engines: List<CommandEngine>
 
     // LLM engine
-    private val llmEngineInstance: LLMEngine by lazy { StubLLMEngine() }
+    private val llmEngineInstance: LLMEngine = StubLLMEngine
 
     /**
-     * CommandEngine aggregator
+     * Initialize engines that require context
+     */
+    fun init(context: Context) {
+        appContext = context.applicationContext
+
+        workModeCommandEngine = WorkModeCommandEngine(appContext)
+        schedulerCommandEngine = SchedulerCommandEngine(appContext)
+
+        engines = listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
+
+        // Initialize LLM engine if needed
+        llmEngineInstance.init(appContext)
+    }
+
+    /**
+     * Aggregated CommandEngine
      */
     val commandEngine: CommandEngine
         get() = object : CommandEngine {
