@@ -1,4 +1,3 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -11,9 +10,7 @@ object EngineProvider {
 
     private lateinit var workModeCommandEngine: CommandEngine
     private lateinit var schedulerCommandEngine: CommandEngine
-
-    // Stub engine MUST be an object
-    private val stubCommandEngine: CommandEngine = StubCommandEngine
+    private lateinit var stubCommandEngine: CommandEngine
 
     private lateinit var engines: List<CommandEngine>
 
@@ -27,8 +24,10 @@ object EngineProvider {
     fun init(context: Context) {
         appContext = context.applicationContext
 
+        // Correct constructors based on actual classes
         workModeCommandEngine = WorkModeCommandEngine(appContext)
-        schedulerCommandEngine = SchedulerCommandEngine(appContext)
+        schedulerCommandEngine = SchedulerCommandEngine()
+        stubCommandEngine = StubCommandEngine(appContext)
 
         engines = listOf(
             workModeCommandEngine,
@@ -36,7 +35,6 @@ object EngineProvider {
             stubCommandEngine
         )
 
-        // Safe init (no-op if stub)
         llmEngineInstance.init(appContext)
     }
 
