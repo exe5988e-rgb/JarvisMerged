@@ -1,4 +1,4 @@
- //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -22,6 +22,7 @@ object EngineProvider {
     fun init(context: Context) {
         appContext = context.applicationContext
 
+        // Context-dependent engines
         workModeCommandEngine = WorkModeCommandEngine(appContext)
         schedulerCommandEngine = SchedulerCommandEngine(appContext)
 
