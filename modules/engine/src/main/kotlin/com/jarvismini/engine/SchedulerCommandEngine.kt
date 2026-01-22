@@ -1,16 +1,12 @@
 package com.jarvismini.engine
 
-import android.content.Context
 import android.content.Intent
 import android.provider.AlarmClock
 import android.provider.CalendarContract
-import com.jarvismini.core.TimeUtils
 import java.util.Calendar
 import java.util.Locale
 
-class SchedulerCommandEngine(
-    private val context: Context
-) : CommandEngine {
+class SchedulerCommandEngine : CommandEngine {
 
     override fun canHandle(input: String): Boolean {
         val text = input.lowercase(Locale.getDefault())
@@ -43,25 +39,21 @@ class SchedulerCommandEngine(
         }
     }
 
-    // -------------------- ALARM --------------------
-
     private fun handleAlarm(text: String): EngineResult {
-        val (hour, minute) = extractTime(text) ?: return EngineResult.Success(
-            "Please tell me a time for the alarm."
-        )
+        val time = extractTime(text)
+            ?: return EngineResult.Success("Please tell me a time for the alarm.")
 
         val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-            putExtra(AlarmClock.EXTRA_HOUR, hour)
-            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            putExtra(AlarmClock.EXTRA_HOUR, time.first)
+            putExtra(AlarmClock.EXTRA_MINUTES, time.second)
             putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Alarm")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        context.startActivity(intent)
-        return EngineResult.Success("Alarm set for $hour:$minute")
+        return EngineResult.LaunchIntent(
+            intent,
+            "Setting alarm for ${time.first}:${time.second}"
+        )
     }
-
-    // -------------------- TIMER --------------------
 
     private fun handleTimer(text: String): EngineResult {
         val minutes = extractMinutes(text)
@@ -71,14 +63,13 @@ class SchedulerCommandEngine(
             putExtra(AlarmClock.EXTRA_LENGTH, minutes * 60)
             putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Timer")
             putExtra(AlarmClock.EXTRA_SKIP_UI, false)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        context.startActivity(intent)
-        return EngineResult.Success("Timer set for $minutes minutes.")
+        return EngineResult.LaunchIntent(
+            intent,
+            "Setting timer for $minutes minutes"
+        )
     }
-
-    // -------------------- CALENDAR --------------------
 
     private fun handleCalendar(text: String): EngineResult {
         val start = Calendar.getInstance().apply {
@@ -94,16 +85,15 @@ class SchedulerCommandEngine(
             data = CalendarContract.Events.CONTENT_URI
             putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.timeInMillis)
             putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.timeInMillis)
-            putExtra(CalendarContract.Events.TITLE, "Jarvis Task")
+            putExtra(CalendarContract.Events.TITLE, "Jarvis Reminder")
             putExtra(CalendarContract.Events.DESCRIPTION, text)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        context.startActivity(intent)
-        return EngineResult.Success("Added to your calendar.")
+        return EngineResult.LaunchIntent(
+            intent,
+            "Adding this to your calendar"
+        )
     }
-
-    // -------------------- HELPERS --------------------
 
     private fun extractTime(text: String): Pair<Int, Int>? {
         val regex = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?")

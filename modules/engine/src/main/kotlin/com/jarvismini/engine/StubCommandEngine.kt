@@ -1,12 +1,9 @@
 package com.jarvismini.engine
 
-object StubCommandEngine : CommandEngine {
+class StubCommandEngine : CommandEngine {
 
-    override fun canHandle(input: String): Boolean {
-        return false
-    }
+    override fun canHandle(input: String): Boolean = false
 
-    override fun handle(input: String): EngineResult {
-        return EngineResult.Unhandled
-    }
+    override fun handle(input: String): EngineResult =
+        EngineResult.Unhandled
 }
