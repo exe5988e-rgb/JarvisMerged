@@ -24,10 +24,10 @@ object EngineProvider {
     fun init(context: Context) {
         appContext = context.applicationContext
 
-        // Correct constructors based on actual classes
+        // ✔ Correct constructors (verified)
         workModeCommandEngine = WorkModeCommandEngine(appContext)
         schedulerCommandEngine = SchedulerCommandEngine()
-        stubCommandEngine = StubCommandEngine(appContext)
+        stubCommandEngine = StubCommandEngine()
 
         engines = listOf(
             workModeCommandEngine,
@@ -48,7 +48,6 @@ object EngineProvider {
             }
 
             return object : CommandEngine {
-
                 override fun canHandle(input: String): Boolean =
                     engines.any { it.canHandle(input) }
 
