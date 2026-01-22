@@ -1,70 +1,86 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:12:52 Classifier 'StubCommandEngine' does not have a companion object, and thus must be initialized here
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:26:57 Too many arguments for public constructor SchedulerCommandEngine() defined in com.jarvismini.engine.SchedulerCommandEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:16:52 Classifier 'StubCommandEngine' does not have a companion object, and thus must be initialized here
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:31:57 Too many arguments for public constructor SchedulerCommandEngine() defined in com.jarvismini.engine.SchedulerCommandEngine
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 34s
+BUILD FAILED in 38s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
-1	package com.jarvismini.engine
-2
-3	import android.content.Context
-4
-5	object EngineProvider {
-6
-7	    private lateinit var appContext: Context
-8
-9	    // Command engines
-10	    private lateinit var workModeCommandEngine: CommandEngine
-11	    private lateinit var schedulerCommandEngine: CommandEngine
->>>>> ERROR HERE
-12	    private val stubCommandEngine: CommandEngine = StubCommandEngine
-13	    private lateinit var engines: List<CommandEngine>
+1	//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+2	package com.jarvismini.engine
+3
+4	import android.content.Context
+5
+6	object EngineProvider {
+7
+8	    private lateinit var appContext: Context
+9
+10	    // ---------------- COMMAND ENGINES ----------------
+11
+12	    private lateinit var workModeCommandEngine: CommandEngine
+13	    private lateinit var schedulerCommandEngine: CommandEngine
 14
-15	    // LLM engine
-16	    private val llmEngineInstance: LLMEngine = StubLLMEngine
-17
-18	    /**
-19	     * Initialize engines that require context
-20	     */
-21	    fun init(context: Context) {
-22	        appContext = context.applicationContext
-23
-24	        // Context-dependent engines
-25	        workModeCommandEngine = WorkModeCommandEngine(appContext)
+15	    // Stub engine MUST be an object
 >>>>> ERROR HERE
-26	        schedulerCommandEngine = SchedulerCommandEngine(appContext)
-27
-28	        engines = listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
+16	    private val stubCommandEngine: CommandEngine = StubCommandEngine
+17
+18	    private lateinit var engines: List<CommandEngine>
+19
+20	    // ---------------- LLM ENGINE ----------------
+21
+22	    private val llmEngineInstance: LLMEngine = StubLLMEngine
+23
+24	    /**
+25	     * Must be called once from Application.onCreate()
+26	     */
+27	    fun init(context: Context) {
+28	        appContext = context.applicationContext
 29
-30	        // Initialize LLM engine if needed
-31	        llmEngineInstance.init(appContext)
-32	    }
-33
-34	    /**
-35	     * Aggregated CommandEngine
-36	     */
-37	    val commandEngine: CommandEngine
-38	        get() = object : CommandEngine {
-39	            override fun canHandle(input: String): Boolean =
-40	                engines.any { it.canHandle(input) }
-41
-42	            override fun handle(input: String): EngineResult =
-43	                engines.firstOrNull { it.canHandle(input) }?.handle(input)
-44	                    ?: EngineResult.Unhandled
-45	        }
-46
-47	    /**
-48	     * LLM engine accessor
-49	     */
-50	    val llmEngine: LLMEngine
-51	        get() = llmEngineInstance
-52	}
+30	        workModeCommandEngine = WorkModeCommandEngine(appContext)
+>>>>> ERROR HERE
+31	        schedulerCommandEngine = SchedulerCommandEngine(appContext)
+32
+33	        engines = listOf(
+34	            workModeCommandEngine,
+35	            schedulerCommandEngine,
+36	            stubCommandEngine
+37	        )
+38
+39	        // Safe init (no-op if stub)
+40	        llmEngineInstance.init(appContext)
+41	    }
+42
+43	    /**
+44	     * Aggregated CommandEngine
+45	     */
+46	    val commandEngine: CommandEngine
+47	        get() {
+48	            check(::engines.isInitialized) {
+49	                "EngineProvider.init(context) was not called"
+50	            }
+51
+52	            return object : CommandEngine {
+53
+54	                override fun canHandle(input: String): Boolean =
+55	                    engines.any { it.canHandle(input) }
+56
+57	                override fun handle(input: String): EngineResult =
+58	                    engines.firstOrNull { it.canHandle(input) }?.handle(input)
+59	                        ?: EngineResult.Unhandled
+60	            }
+61	        }
+62
+63	    /**
+64	     * LLM engine accessor
+65	     */
+66	    val llmEngine: LLMEngine
+67	        get() = llmEngineInstance
+68	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
