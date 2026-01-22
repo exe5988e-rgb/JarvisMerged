@@ -21,6 +21,7 @@ object EngineProvider {
     fun init(context: Context) {
         appContext = context.applicationContext
 
+        // Context-dependent engines
         workModeCommandEngine = WorkModeCommandEngine(appContext)
         schedulerCommandEngine = SchedulerCommandEngine(appContext)
 
