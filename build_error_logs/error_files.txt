@@ -1,14 +1,14 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:20:53 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:20:60 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:40:33 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:40:40 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:18:53 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:18:60 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:38:33 Property delegate must have a 'getValue(EngineProvider, KProperty<*>)' method. None of the following functions is suitable: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:38:40 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 33s
+BUILD FAILED in 37s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -16,46 +16,44 @@ BUILD FAILED in 33s
 1	package com.jarvismini.engine
 2
 3	import android.content.Context
-4
-5	// Correct imports based on your project structure
-6	import com.jarvismini.engine.SchedulerCommandEngine
-7	import com.jarvismini.engine.WorkModeCommandEngine
-8	import com.jarvismini.engine.StubCommandEngine
-9	import com.jarvismini.engine.StubLLMEngine
+4	import com.jarvismini.engine.SchedulerCommandEngine
+5	import com.jarvismini.engine.WorkModeCommandEngine
+6	import com.jarvismini.engine.StubCommandEngine
+7	import com.jarvismini.engine.StubLLMEngine
+8
+9	object EngineProvider {
 10
-11	object EngineProvider {
+11	    private lateinit var appContext: Context
 12
-13	    private lateinit var appContext: Context
-14
-15	    fun init(context: Context) {
-16	        appContext = context.applicationContext
-17	    }
-18
-19	    // ---------------- COMMAND ENGINES ----------------
+13	    fun init(context: Context) {
+14	        appContext = context.applicationContext
+15	    }
+16
+17	    // ---------------- COMMAND ENGINES ----------------
 >>>>> ERROR HERE
-20	    private val stubCommandEngine: CommandEngine by lazy { StubCommandEngine(appContext) }
-21	    private val workModeCommandEngine: CommandEngine by lazy { WorkModeCommandEngine(appContext) }
-22	    private val schedulerCommandEngine: CommandEngine by lazy { SchedulerCommandEngine(appContext) }
-23
-24	    private val engines: List<CommandEngine> by lazy {
-25	        listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
-26	    }
-27
-28	    // ---------------- PUBLIC ACCESS ----------------
-29	    val commandEngine: CommandEngine
-30	        get() = object : CommandEngine {
-31	            override fun canHandle(input: String): Boolean =
-32	                engines.any { it.canHandle(input) }
-33
-34	            override fun handle(input: String): EngineResult =
-35	                engines.firstOrNull { it.canHandle(input) }?.handle(input)
-36	                    ?: EngineResult.Unhandled
-37	        }
-38
-39	    // ---------------- LLM ENGINE ----------------
+18	    private val stubCommandEngine: CommandEngine by lazy { StubCommandEngine(appContext) }
+19	    private val workModeCommandEngine: CommandEngine by lazy { WorkModeCommandEngine(appContext) }
+20	    private val schedulerCommandEngine: CommandEngine by lazy { SchedulerCommandEngine(appContext) }
+21
+22	    private val engines: List<CommandEngine> by lazy {
+23	        listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
+24	    }
+25
+26	    // ---------------- PUBLIC ACCESS ----------------
+27	    val commandEngine: CommandEngine
+28	        get() = object : CommandEngine {
+29	            override fun canHandle(input: String): Boolean =
+30	                engines.any { it.canHandle(input) }
+31
+32	            override fun handle(input: String): EngineResult =
+33	                engines.firstOrNull { it.canHandle(input) }?.handle(input)
+34	                    ?: EngineResult.Unhandled
+35	        }
+36
+37	    // ---------------- LLM ENGINE ----------------
 >>>>> ERROR HERE
-40	    val llmEngine: LLMEngine by lazy { StubLLMEngine(appContext) }
-41	}
+38	    val llmEngine: LLMEngine by lazy { StubLLMEngine(appContext) }
+39	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
