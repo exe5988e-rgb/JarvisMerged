@@ -1,3 +1,4 @@
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -6,28 +7,36 @@ object EngineProvider {
 
     private lateinit var appContext: Context
 
-    // Command engines
+    // ---------------- COMMAND ENGINES ----------------
+
     private lateinit var workModeCommandEngine: CommandEngine
     private lateinit var schedulerCommandEngine: CommandEngine
+
+    // Stub engine MUST be an object
     private val stubCommandEngine: CommandEngine = StubCommandEngine
+
     private lateinit var engines: List<CommandEngine>
 
-    // LLM engine
+    // ---------------- LLM ENGINE ----------------
+
     private val llmEngineInstance: LLMEngine = StubLLMEngine
 
     /**
-     * Initialize engines that require context
+     * Must be called once from Application.onCreate()
      */
     fun init(context: Context) {
         appContext = context.applicationContext
 
-        // Context-dependent engines
         workModeCommandEngine = WorkModeCommandEngine(appContext)
         schedulerCommandEngine = SchedulerCommandEngine(appContext)
 
-        engines = listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
+        engines = listOf(
+            workModeCommandEngine,
+            schedulerCommandEngine,
+            stubCommandEngine
+        )
 
-        // Initialize LLM engine if needed
+        // Safe init (no-op if stub)
         llmEngineInstance.init(appContext)
     }
 
@@ -35,13 +44,20 @@ object EngineProvider {
      * Aggregated CommandEngine
      */
     val commandEngine: CommandEngine
-        get() = object : CommandEngine {
-            override fun canHandle(input: String): Boolean =
-                engines.any { it.canHandle(input) }
+        get() {
+            check(::engines.isInitialized) {
+                "EngineProvider.init(context) was not called"
+            }
 
-            override fun handle(input: String): EngineResult =
-                engines.firstOrNull { it.canHandle(input) }?.handle(input)
-                    ?: EngineResult.Unhandled
+            return object : CommandEngine {
+
+                override fun canHandle(input: String): Boolean =
+                    engines.any { it.canHandle(input) }
+
+                override fun handle(input: String): EngineResult =
+                    engines.firstOrNull { it.canHandle(input) }?.handle(input)
+                        ?: EngineResult.Unhandled
+            }
         }
 
     /**
