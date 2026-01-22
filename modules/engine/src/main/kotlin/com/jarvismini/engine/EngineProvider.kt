@@ -1,6 +1,7 @@
 package com.jarvismini.engine
 
 import android.content.Context
+// Correct imports based on your repo tree
 import com.jarvismini.engine.SchedulerCommandEngine
 import com.jarvismini.engine.WorkModeCommandEngine
 import com.jarvismini.engine.StubCommandEngine
@@ -10,13 +11,13 @@ object EngineProvider {
 
     private lateinit var appContext: Context
 
-    // Command engines
+    // ---------------- COMMAND ENGINES ----------------
     private lateinit var stubCommandEngine: CommandEngine
     private lateinit var workModeCommandEngine: CommandEngine
     private lateinit var schedulerCommandEngine: CommandEngine
     private lateinit var engines: List<CommandEngine>
 
-    // LLM engine
+    // ---------------- LLM ENGINE ----------------
     private lateinit var llmEngineInstance: LLMEngine
 
     fun init(context: Context) {
@@ -33,6 +34,7 @@ object EngineProvider {
         llmEngineInstance = StubLLMEngine(appContext)
     }
 
+    // ---------------- PUBLIC ACCESS ----------------
     val commandEngine: CommandEngine
         get() = object : CommandEngine {
             override fun canHandle(input: String): Boolean =
