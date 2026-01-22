@@ -1,53 +1,152 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineResult.kt =====
 package com.jarvismini.engine
 
-import android.content.Context
+import android.content.Intent
 
-object EngineProvider {
+sealed class EngineResult {
 
-    private lateinit var appContext: Context
+    data class Success(
+        val reply: String
+    ) : EngineResult()
 
-    // Command engines
-    private lateinit var workModeCommandEngine: CommandEngine
-    private lateinit var schedulerCommandEngine: CommandEngine
-    private val stubCommandEngine: CommandEngine = StubCommandEngine
-    private lateinit var engines: List<CommandEngine>
+    data class LaunchIntent(
+        val intent: Intent,
+        val reply: String
+    ) : EngineResult()
 
-    // LLM engine
-    private val llmEngineInstance: LLMEngine = StubLLMEngine
+    object Unhandled : EngineResult()
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/CommandEngine.kt =====
+package com.jarvismini.engine
 
-    /**
-     * Initialize engines that require context
-     */
-    fun init(context: Context) {
-        appContext = context.applicationContext
+interface CommandEngine {
+    fun canHandle(input: String): Boolean
+    fun handle(input: String): EngineResult
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/SchedulerCommandEngine.kt =====
+package com.jarvismini.engine
 
-        // Context-dependent engines
-        workModeCommandEngine = WorkModeCommandEngine(appContext)
-        schedulerCommandEngine = SchedulerCommandEngine(appContext)
+import android.content.Intent
+import android.provider.AlarmClock
+import android.provider.CalendarContract
+import java.util.Calendar
+import java.util.Locale
 
-        engines = listOf(workModeCommandEngine, schedulerCommandEngine, stubCommandEngine)
+class SchedulerCommandEngine : CommandEngine {
 
-        // Initialize LLM engine if needed
-        llmEngineInstance.init(appContext)
+    override fun canHandle(input: String): Boolean {
+        val text = input.lowercase(Locale.getDefault())
+        return listOf(
+            "alarm",
+            "wake",
+            "timer",
+            "remind",
+            "schedule",
+            "meeting"
+        ).any { text.contains(it) }
     }
 
-    /**
-     * Aggregated CommandEngine
-     */
-    val commandEngine: CommandEngine
-        get() = object : CommandEngine {
-            override fun canHandle(input: String): Boolean =
-                engines.any { it.canHandle(input) }
+    override fun handle(input: String): EngineResult {
+        if (!canHandle(input)) return EngineResult.Unhandled
 
-            override fun handle(input: String): EngineResult =
-                engines.firstOrNull { it.canHandle(input) }?.handle(input)
-                    ?: EngineResult.Unhandled
+        val text = input.lowercase(Locale.getDefault())
+
+        return when {
+            text.contains("alarm") || text.contains("wake") ->
+                handleAlarm(text)
+
+            text.contains("timer") ->
+                handleTimer(text)
+
+            text.contains("remind") || text.contains("schedule") || text.contains("meeting") ->
+                handleCalendar(text)
+
+            else -> EngineResult.Unhandled
+        }
+    }
+
+    private fun handleAlarm(text: String): EngineResult {
+        val time = extractTime(text)
+            ?: return EngineResult.Success("Please tell me a time for the alarm.")
+
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(AlarmClock.EXTRA_HOUR, time.first)
+            putExtra(AlarmClock.EXTRA_MINUTES, time.second)
+            putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Alarm")
         }
 
-    /**
-     * LLM engine accessor
-     */
-    val llmEngine: LLMEngine
-        get() = llmEngineInstance
+        return EngineResult.LaunchIntent(
+            intent,
+            "Setting alarm for ${time.first}:${time.second}"
+        )
+    }
+
+    private fun handleTimer(text: String): EngineResult {
+        val minutes = extractMinutes(text)
+            ?: return EngineResult.Success("Please specify timer duration.")
+
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, minutes * 60)
+            putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis Timer")
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+        }
+
+        return EngineResult.LaunchIntent(
+            intent,
+            "Setting timer for $minutes minutes"
+        )
+    }
+
+    private fun handleCalendar(text: String): EngineResult {
+        val start = Calendar.getInstance().apply {
+            add(Calendar.MINUTE, 5)
+        }
+
+        val end = Calendar.getInstance().apply {
+            timeInMillis = start.timeInMillis
+            add(Calendar.HOUR, 1)
+        }
+
+        val intent = Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.timeInMillis)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end.timeInMillis)
+            putExtra(CalendarContract.Events.TITLE, "Jarvis Reminder")
+            putExtra(CalendarContract.Events.DESCRIPTION, text)
+        }
+
+        return EngineResult.LaunchIntent(
+            intent,
+            "Adding this to your calendar"
+        )
+    }
+
+    private fun extractTime(text: String): Pair<Int, Int>? {
+        val regex = Regex("(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?")
+        val match = regex.find(text) ?: return null
+
+        var hour = match.groupValues[1].toInt()
+        val minute = match.groupValues[2].ifEmpty { "0" }.toInt()
+        val meridian = match.groupValues[3]
+
+        if (meridian == "pm" && hour < 12) hour += 12
+        if (meridian == "am" && hour == 12) hour = 0
+
+        return hour to minute
+    }
+
+    private fun extractMinutes(text: String): Int? {
+        val regex = Regex("(\\d+)\\s*(minute|min)")
+        return regex.find(text)?.groupValues?.get(1)?.toInt()
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
+package com.jarvismini.engine
+
+class StubCommandEngine : CommandEngine {
+
+    override fun canHandle(input: String): Boolean = false
+
+    override fun handle(input: String): EngineResult =
+        EngineResult.Unhandled
 }
