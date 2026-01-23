@@ -1,82 +1,74 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt:30:47 Too many arguments for public constructor StubCommandEngine() defined in com.jarvismini.engine.StubCommandEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/automation/src/main/kotlin/com/jarvismini/automation/JarvisNotificationService.kt:40:55 Unresolved reference: getRootNode
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/automation/src/main/kotlin/com/jarvismini/automation/JarvisNotificationService.kt:51:47 Unresolved reference: getRootNode
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 36s
+BUILD FAILED in 44s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
-1	package com.jarvismini.engine
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/JarvisNotificationService.kt =====
+1	package com.jarvismini.automation
 2
-3	import android.content.Context
-4
-5	object EngineProvider {
-6
-7	    private lateinit var appContext: Context
-8
-9	    // ---------------- COMMAND ENGINES ----------------
-10
-11	    private lateinit var workModeCommandEngine: CommandEngine
-12	    private lateinit var schedulerCommandEngine: CommandEngine
-13	    private lateinit var stubCommandEngine: CommandEngine
-14
-15	    private lateinit var engines: List<CommandEngine>
-16
-17	    // ---------------- LLM ENGINE ----------------
-18
-19	    private val llmEngineInstance: LLMEngine = StubLLMEngine
-20
-21	    /**
-22	     * Must be called once from Application.onCreate()
-23	     */
-24	    fun init(context: Context) {
-25	        appContext = context.applicationContext
+3	import android.app.Notification
+4	import android.service.notification.NotificationListenerService
+5	import android.service.notification.StatusBarNotification
+6	import android.util.Log
+7	import android.view.accessibility.AccessibilityNodeInfo
+8	import com.jarvismini.automation.decision.ReplyDecision
+9	import com.jarvismini.automation.input.AutoReplyInput
+10	import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+11
+12	class JarvisNotificationService : NotificationListenerService() {
+13
+14	    private val TAG = "JarvisNotifService"
+15
+16	    override fun onNotificationPosted(sbn: StatusBarNotification) {
+17	        val packageName = sbn.packageName
+18	        if (packageName != "com.whatsapp") return
+19
+20	        val notification = sbn.notification
+21	        val extras = notification.extras
+22	        val messageText = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()
+23	        val sender = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()
+24
+25	        if (messageText.isNullOrEmpty() || sender.isNullOrEmpty()) return
 26
-27	        // Correct constructors based on actual classes
-28	        workModeCommandEngine = WorkModeCommandEngine(appContext)
-29	        schedulerCommandEngine = SchedulerCommandEngine()
+27	        Log.i(TAG, "Notification from $sender: $messageText")
+28
+29	        val input = AutoReplyInput(
+30	            messageText = messageText,
+31	            isFromOwner = false
+32	        )
+33
+34	        val decision = AutoReplyOrchestrator.handle(input)
+35
+36	        when (decision) {
+37	            is ReplyDecision.AutoReply -> {
+38	                Log.i(TAG, "Jarvis AutoReply: ${decision.message}")
+39	                // Open chat and send message
 >>>>> ERROR HERE
-30	        stubCommandEngine = StubCommandEngine(appContext)
-31
-32	        engines = listOf(
-33	            workModeCommandEngine,
-34	            schedulerCommandEngine,
-35	            stubCommandEngine
-36	        )
-37
-38	        llmEngineInstance.init(appContext)
-39	    }
-40
-41	    /**
-42	     * Aggregated CommandEngine
-43	     */
-44	    val commandEngine: CommandEngine
-45	        get() {
-46	            check(::engines.isInitialized) {
-47	                "EngineProvider.init(context) was not called"
-48	            }
+40	                val root = AccessibilityServiceHelper.getRootNode() // helper to get root node
+41	                ChatOpener.openChat(AccessibilityServiceHelper.service, root)
+42	                MessageSender.sendMessage(root, decision.message)
+43	            }
+44
+45	            ReplyDecision.NoReply -> {
+46	                Log.i(TAG, "Jarvis will not reply")
+47	            }
+48	        }
 49
-50	            return object : CommandEngine {
-51
-52	                override fun canHandle(input: String): Boolean =
-53	                    engines.any { it.canHandle(input) }
+50	        // Auto-close chat
+>>>>> ERROR HERE
+51	        val root = AccessibilityServiceHelper.getRootNode()
+52	        AutoCloser.closeChat(root)
+53	    }
 54
-55	                override fun handle(input: String): EngineResult =
-56	                    engines.firstOrNull { it.canHandle(input) }?.handle(input)
-57	                        ?: EngineResult.Unhandled
-58	            }
-59	        }
-60
-61	    /**
-62	     * LLM engine accessor
-63	     */
-64	    val llmEngine: LLMEngine
-65	        get() = llmEngineInstance
-66	}
+55	    override fun onNotificationRemoved(sbn: StatusBarNotification?) {}
+56	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
