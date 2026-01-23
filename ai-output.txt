@@ -1,56 +1,3 @@
-// ===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/WorkModeManager.kt =====
-package com.jarvismini.core
-
-import android.app.NotificationManager
-import android.content.Context
-import android.content.Intent
-import android.os.Build
-
-object WorkModeManager {
-
-    fun toggle(context: Context) {
-        if (JarvisState.currentMode == JarvisMode.WORK) {
-            deactivate(context)
-        } else {
-            activate(context)
-        }
-    }
-
-    fun activate(context: Context) {
-        JarvisState.setMode(context, JarvisMode.WORK)
-
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && nm.isNotificationPolicyAccessGranted) {
-            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
-        }
-
-        launchApp(context, "xyz.penpencil.physicswala")
-        launchApp(context, "com.pittvandewitt.wavelet")
-        launchApp(context, "com.google.android.apps.youtube.music")
-        launchApp(context, "com.apple.android.music")
-
-        // ⏱ Open OnePlus Clock (user navigates to Stopwatch tab)
-        launchApp(context, "com.oneplus.deskclock")
-    }
-
-    fun deactivate(context: Context) {
-        JarvisState.setMode(context, JarvisMode.NORMAL)
-
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && nm.isNotificationPolicyAccessGranted) {
-            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
-        }
-
-        // ⏹ Open Clock so Accessibility can click Pause if needed
-        launchApp(context, "com.oneplus.deskclock")
-    }
-
-    private fun launchApp(context: Context, pkg: String) {
-        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        intent?.let { context.startActivity(it) }
-    }
-}
 // ===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AccessibilityServiceHelper.kt =====
 package com.jarvismini.automation
 
@@ -60,25 +7,37 @@ import java.util.ArrayDeque
 
 object AccessibilityServiceHelper {
 
+    // The active AccessibilityService instance
     lateinit var service: AccessibilityService
 
+    /**
+     * Initialize with the running AccessibilityService
+     */
     fun init(s: AccessibilityService) {
         service = s
     }
 
     /**
-     * Handles OnePlus Clock automation:
+     * Returns the root node of the active window
+     * Useful for notification/chat automation
+     */
+    fun getRootNode(): AccessibilityNodeInfo? {
+        return service.rootInActiveWindow
+    }
+
+    /**
+     * Handles OnePlus Clock automation for WorkMode:
      * - Navigates to Stopwatch tab
-     * - Clicks Start if found
-     * - Clicks Pause if found
+     * - Clicks Start if not running
+     * - Clicks Pause/Stop if already running
      */
     fun handleOnePlusClock() {
         val root = service.rootInActiveWindow ?: return
 
-        // Navigate to Stopwatch tab first
+        // Navigate to Stopwatch tab
         clickByText(root, "Stopwatch")
 
-        // Try clicking Pause first (if running)
+        // Click Pause or Stop if running
         if (clickByText(root, "Pause") || clickByText(root, "Stop")) return
 
         // Otherwise click Start
@@ -86,7 +45,10 @@ object AccessibilityServiceHelper {
     }
 
     /**
-     * Recursive clickable search by text
+     * Recursive search for clickable node by visible text
+     * @param root Root node to search
+     * @param target Text to match
+     * @return true if click performed
      */
     private fun clickByText(root: AccessibilityNodeInfo, target: String): Boolean {
         val stack = ArrayDeque<AccessibilityNodeInfo>()
@@ -101,67 +63,11 @@ object AccessibilityServiceHelper {
                 return true
             }
 
+            // Add children to stack
             for (i in 0 until node.childCount) {
                 node.getChild(i)?.let { stack.add(it) }
             }
         }
         return false
-    }
-}
-// ===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt =====
-package com.jarvismini.automation
-
-import android.accessibilityservice.AccessibilityService
-import android.app.Notification
-import android.content.Intent
-import android.util.Log
-import android.view.accessibility.AccessibilityEvent
-import android.widget.Toast
-
-class AppAutomationService : AccessibilityService() {
-
-    private val TAG = "JARVIS"
-    private val WHATSAPP = "com.whatsapp"
-    private val ONEPLUS_CLOCK = "com.oneplus.deskclock"
-
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        AccessibilityServiceHelper.init(this)
-        Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
-        Log.e(TAG, "SERVICE CONNECTED")
-    }
-
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
-
-        // ⏱ OnePlus Clock automation
-        if (
-            event.packageName?.toString() == ONEPLUS_CLOCK &&
-            (
-                event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-            )
-        ) {
-            AccessibilityServiceHelper.handleOnePlusClock()
-            return
-        }
-
-        // 💬 WhatsApp notifications (unchanged)
-        if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
-        if (event.packageName?.toString() != WHATSAPP) return
-
-        val data = event.parcelableData
-        if (data !is Notification) return
-
-        val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP) ?: return
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(launchIntent)
-
-        Toast.makeText(this, "WhatsApp opened from notification", Toast.LENGTH_SHORT).show()
-        Log.e(TAG, "WHATSAPP LAUNCHED")
-    }
-
-    override fun onInterrupt() {
-        Log.e(TAG, "SERVICE INTERRUPTED")
     }
 }
