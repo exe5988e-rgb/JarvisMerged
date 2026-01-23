@@ -32,8 +32,8 @@ object WorkModeManager {
         launchApp(context, "com.google.android.apps.youtube.music")
         launchApp(context, "com.apple.android.music")
 
-        // Oneplus clock (safe)
-        launchApp(context, "com.oneplus.deskclock")
+        // ▶️ Start stopwatch
+        launchOnePlusStopwatch(context)
     }
 
     fun deactivate(context: Context) {
@@ -47,11 +47,27 @@ object WorkModeManager {
         ) {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
         }
+
+        // ⏹ Open stopwatch so accessibility can STOP it
+        launchOnePlusStopwatch(context)
     }
 
     private fun launchApp(context: Context, pkg: String) {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
         intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         intent?.let { context.startActivity(it) }
+    }
+
+    private fun launchOnePlusStopwatch(context: Context) {
+        val intent = Intent("com.android.deskclock.action.STOPWATCH").apply {
+            setPackage("com.oneplus.deskclock")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            launchApp(context, "com.oneplus.deskclock")
+        }
     }
 }
