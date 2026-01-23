@@ -304,6 +304,7 @@ dependencies {
         <package android:name="com.pittvandewitt.wavelet" />
         <package android:name="com.google.android.apps.youtube.music" />
         <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.apple.android.music" />
     </queries>
 
     <!-- ================= APPLICATION ================= -->
@@ -866,8 +867,12 @@ package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityNodeInfo
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import java.util.ArrayDeque
 
 object AccessibilityServiceHelper {
+
     lateinit var service: AccessibilityService
 
     fun init(s: AccessibilityService) {
@@ -877,11 +882,54 @@ object AccessibilityServiceHelper {
     fun getRootNode(): AccessibilityNodeInfo? {
         return service.rootInActiveWindow
     }
+
+    fun handleOnePlusClock() {
+        val root = getRootNode() ?: return
+
+        if (JarvisState.currentMode == JarvisMode.WORK) {
+            clickStart(root)
+        } else {
+            clickStop(root)
+        }
+    }
+
+    // ▶️ START
+    private fun clickStart(root: AccessibilityNodeInfo) {
+        val nodes = root.findAccessibilityNodeInfosByText("Start")
+        for (n in nodes) {
+            if (n.isClickable) {
+                n.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                return
+            }
+        }
+    }
+
+    // ⏹ STOP (Pause)
+    private fun clickStop(root: AccessibilityNodeInfo) {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(root)
+
+        while (stack.isNotEmpty()) {
+            val node = stack.removeFirst()
+
+            val text = node.text?.toString()?.lowercase()
+            if (
+                node.isClickable &&
+                (text == "pause" || text == "stop")
+            ) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                return
+            }
+
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { stack.add(it) }
+            }
+        }
+    }
 }
 
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AppAutomationService.kt =====
-// ===== FILE: app/src/main/java/com/jarvismini/automation/AppAutomationService.kt =====
 package com.jarvismini.automation
 
 import android.accessibilityservice.AccessibilityService
@@ -895,9 +943,11 @@ class AppAutomationService : AccessibilityService() {
 
     private val TAG = "JARVIS"
     private val WHATSAPP = "com.whatsapp"
+    private val ONEPLUS_CLOCK = "com.oneplus.deskclock"
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        AccessibilityServiceHelper.init(this)
         Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
         Log.e(TAG, "SERVICE CONNECTED")
     }
@@ -905,27 +955,32 @@ class AppAutomationService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // 🔒 Notification only
+        // ⏱ OnePlus Clock automation
+        if (
+            event.packageName?.toString() == ONEPLUS_CLOCK &&
+            (
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            )
+        ) {
+            AccessibilityServiceHelper.handleOnePlusClock()
+            return
+        }
+
+        // 💬 WhatsApp notification logic (unchanged)
         if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
         if (event.packageName?.toString() != WHATSAPP) return
 
         val data = event.parcelableData
         if (data !is Notification) return
 
-        // 🚀 HARD OPEN WhatsApp (reliable)
         val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP)
             ?: return
 
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
         startActivity(launchIntent)
 
-        Toast.makeText(
-            this,
-            "WhatsApp opened from notification",
-            Toast.LENGTH_SHORT
-        ).show()
-
+        Toast.makeText(this, "WhatsApp opened from notification", Toast.LENGTH_SHORT).show()
         Log.e(TAG, "WHATSAPP LAUNCHED")
     }
 
@@ -1617,7 +1672,7 @@ import android.util.Log
 object SmsAutoReplyService {
 
     private const val AUTO_REPLY =
-        "Hello Aamir sir, Jarvis here. I’ll get back to you shortly."
+        "Hello from Aamir sir, Jarvis here. He’ll get back to you shortly."
 
     fun reply(context: Context, number: String, incomingText: String) {
         SmsSender.send(context, number, AUTO_REPLY)
@@ -2049,9 +2104,10 @@ object WorkModeManager {
         launchApp(context, "xyz.penpencil.physicswala")
         launchApp(context, "com.pittvandewitt.wavelet")
         launchApp(context, "com.google.android.apps.youtube.music")
+        launchApp(context, "com.apple.android.music")
 
-        // OnePlus clock (safe)
-        launchApp(context, "com.oneplus.deskclock")
+        // ▶️ Start stopwatch
+        launchOnePlusStopwatch(context)
     }
 
     fun deactivate(context: Context) {
@@ -2065,12 +2121,28 @@ object WorkModeManager {
         ) {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
         }
+
+        // ⏹ Open stopwatch so accessibility can STOP it
+        launchOnePlusStopwatch(context)
     }
 
     private fun launchApp(context: Context, pkg: String) {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
         intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         intent?.let { context.startActivity(it) }
+    }
+
+    private fun launchOnePlusStopwatch(context: Context) {
+        val intent = Intent("com.android.deskclock.action.STOPWATCH").apply {
+            setPackage("com.oneplus.deskclock")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            launchApp(context, "com.oneplus.deskclock")
+        }
     }
 }
 
@@ -2518,14 +2590,22 @@ class SchedulerCommandEngine : CommandEngine {
 
 
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
 package com.jarvismini.engine
 
+/**
+ * Fallback command engine.
+ * Must NEVER greedily handle commands.
+ */
 class StubCommandEngine : CommandEngine {
 
-    override fun canHandle(input: String): Boolean = false
+    override fun canHandle(input: String): Boolean {
+        return false
+    }
 
-    override fun handle(input: String): EngineResult =
-        EngineResult.Unhandled
+    override fun handle(input: String): EngineResult {
+        return EngineResult.Unhandled
+    }
 }
 
 
