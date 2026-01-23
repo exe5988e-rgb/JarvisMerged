@@ -32,8 +32,8 @@ object WorkModeManager {
         launchApp(context, "com.google.android.apps.youtube.music")
         launchApp(context, "com.apple.android.music")
 
-        // Samsung clock (safe)
-        launchApp(context, "com.sec.android.app.clockpackage")
+        // Oneplus clock (safe)
+        launchApp(context, "com.oneplus.deskclock")
     }
 
     fun deactivate(context: Context) {
