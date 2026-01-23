@@ -35,16 +35,14 @@ class AppAutomationService : AccessibilityService() {
             return
         }
 
-        // 💬 WhatsApp notification logic (unchanged)
+        // 💬 WhatsApp notifications (unchanged)
         if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
         if (event.packageName?.toString() != WHATSAPP) return
 
         val data = event.parcelableData
         if (data !is Notification) return
 
-        val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP)
-            ?: return
-
+        val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP) ?: return
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(launchIntent)
 

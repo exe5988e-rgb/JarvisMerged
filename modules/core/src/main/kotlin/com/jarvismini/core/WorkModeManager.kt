@@ -18,12 +18,8 @@ object WorkModeManager {
     fun activate(context: Context) {
         JarvisState.setMode(context, JarvisMode.WORK)
 
-        val nm =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            nm.isNotificationPolicyAccessGranted
-        ) {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && nm.isNotificationPolicyAccessGranted) {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
         }
 
@@ -32,42 +28,25 @@ object WorkModeManager {
         launchApp(context, "com.google.android.apps.youtube.music")
         launchApp(context, "com.apple.android.music")
 
-        // ▶️ Start stopwatch
-        launchOnePlusStopwatch(context)
+        // ⏱ Open OnePlus Clock (user navigates to Stopwatch tab)
+        launchApp(context, "com.oneplus.deskclock")
     }
 
     fun deactivate(context: Context) {
         JarvisState.setMode(context, JarvisMode.NORMAL)
 
-        val nm =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            nm.isNotificationPolicyAccessGranted
-        ) {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && nm.isNotificationPolicyAccessGranted) {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
         }
 
-        // ⏹ Open stopwatch so accessibility can STOP it
-        launchOnePlusStopwatch(context)
+        // ⏹ Open Clock so Accessibility can click Pause if needed
+        launchApp(context, "com.oneplus.deskclock")
     }
 
     private fun launchApp(context: Context, pkg: String) {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
         intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         intent?.let { context.startActivity(it) }
-    }
-
-    private fun launchOnePlusStopwatch(context: Context) {
-        val intent = Intent("com.android.deskclock.action.STOPWATCH").apply {
-            setPackage("com.oneplus.deskclock")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        try {
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            launchApp(context, "com.oneplus.deskclock")
-        }
     }
 }
