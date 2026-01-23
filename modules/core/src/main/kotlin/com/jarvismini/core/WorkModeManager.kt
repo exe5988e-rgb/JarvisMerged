@@ -30,6 +30,7 @@ object WorkModeManager {
         launchApp(context, "xyz.penpencil.physicswala")
         launchApp(context, "com.pittvandewitt.wavelet")
         launchApp(context, "com.google.android.apps.youtube.music")
+        launchApp(context, "com.apple.android.music")
 
         // OnePlus clock (safe)
         launchApp(context, "com.oneplus.deskclock")
