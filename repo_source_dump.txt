@@ -3478,6 +3478,7 @@ object ProgressRepository {
 
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         val completed = ProgressStore.getCompletedBlocks(context)
+
         return ProgressStore.getRegisteredBlocks(context).map { blockId ->
             ProgressBlock(
                 id = blockId,
@@ -3488,11 +3489,11 @@ object ProgressRepository {
     }
 
     fun markCompleted(context: Context, blockId: String) {
-        ProgressEngine.markComplete(blockId)
+        ProgressStore.markComplete(context, blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String, name: String) {
-        ProgressEngine.markIncomplete(blockId, name)
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
     }
 }
 
