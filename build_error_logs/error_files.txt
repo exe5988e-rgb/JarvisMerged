@@ -1,207 +1,214 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:8:17 Unresolved reference: navigation
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:9:17 Unresolved reference: navigation
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:17 Unresolved reference: navigation
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:27:41 Unresolved reference: rememberNavController
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:29:21 Unresolved reference: NavHost
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:33:25 Unresolved reference: composable
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:34:29 Unresolved reference: MainNav
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:4:47 Unresolved reference: Chat
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:5:47 Unresolved reference: Checklist
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:9:17 Unresolved reference: navigation
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:13:20 Unresolved reference: NavController
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:19:34 Unresolved reference: Chat
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:23:17 Unresolved reference: popUpTo
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:23:48 Unresolved reference: inclusive
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:24:17 Unresolved reference: launchSingleTop
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:30:34 Unresolved reference: Checklist
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:34:17 Unresolved reference: launchSingleTop
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:47:5 Unresolved reference: NavigationBarItem
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:50:18 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:51:19 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:6:17 Unresolved reference: navigation
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:12:25 Unresolved reference: rememberNavController
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:24:9 Unresolved reference: NavHost
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:28:13 Unresolved reference: composable
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:29:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:32:13 Unresolved reference: composable
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:33:17 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 8s
+BUILD FAILED in 54s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/service/CallAutoReplyService.kt =====
-1	package com.jarvismini.callhandler.service
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
+1	package com.jarvismini
 2
-3	import android.app.Notification
-4	import android.app.NotificationChannel
-5	import android.app.NotificationManager
-6	import android.app.Service
-7	import android.content.Intent
-8	import android.os.Build
-9	import android.os.IBinder
-10	import android.telephony.SmsManager
-11	import androidx.core.app.NotificationCompat
-12	import android.util.Log
-13	import com.jarvismini.R
+3	import android.os.Bundle
+4	import androidx.activity.ComponentActivity
+5	import androidx.activity.compose.setContent
+6	import androidx.compose.material3.MaterialTheme
+7	import androidx.compose.material3.Surface
+>>>>> ERROR HERE
+8	import androidx.navigation.compose.NavHost
+>>>>> ERROR HERE
+9	import androidx.navigation.compose.composable
+>>>>> ERROR HERE
+10	import androidx.navigation.compose.rememberNavController
+11	import com.jarvismini.core.JarvisState
+12	import com.jarvismini.engine.EngineProvider
+13	import com.jarvismini.ui.JarvisChatScreen
 14
-15	class CallAutoReplyService : Service() {
+15	class MainActivity : ComponentActivity() {
 16
-17	    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-18	        Log.e(TAG, "Foreground Service STARTED")
+17	    override fun onCreate(savedInstanceState: Bundle?) {
+18	        super.onCreate(savedInstanceState)
 19
-20	        startForeground(NOTIFICATION_ID, createNotification())
-21
-22	        val number = intent?.getStringExtra(EXTRA_NUMBER)
-23	        val message = intent?.getStringExtra(EXTRA_MESSAGE)
-24
-25	        if (!number.isNullOrBlank() && !message.isNullOrBlank()) {
->>>>> ERROR HERE
-26	            SmsManager.getDefault()
-27	                .sendTextMessage(number, null, message, null, null)
-28	        } else {
-29	            Log.e(TAG, "Missing number or message")
-30	        }
-31
-32	        stopSelf()
-33	        return START_NOT_STICKY
-34	    }
-35
-36	    override fun onBind(intent: Intent?): IBinder? = null
-37
-38	    private fun createNotification(): Notification {
-39	        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-40	            val channel = NotificationChannel(
-41	                CHANNEL_ID,
-42	                "Jarvis Call Auto‑Reply",
-43	                NotificationManager.IMPORTANCE_LOW
-44	            )
-45	            getSystemService(NotificationManager::class.java)
-46	                .createNotificationChannel(channel)
-47	        }
-48
-49	        return NotificationCompat.Builder(this, CHANNEL_ID)
-50	            .setContentTitle("Jarvis")
-51	            .setContentText("Auto‑replying to incoming call")
-52	            .setSmallIcon(R.mipmap.ic_launcher)
-53	            .setOngoing(true)
-54	            .build()
-55	    }
-56
-57	    companion object {
-58	        const val EXTRA_NUMBER = "extra_number"
-59	        const val EXTRA_MESSAGE = "extra_message"
-60	        const val CHANNEL_ID = "jarvis_call_reply"
-61	        const val NOTIFICATION_ID = 1002
-62	        private const val TAG = "CALL-FGS"
-63	    }
-64	}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
-1	@file:OptIn(ExperimentalMaterial3Api::class)
-2
-3	package com.jarvismini.ui
-4
-5	import android.app.Activity
-6	import android.content.pm.PackageManager
-7	import androidx.compose.foundation.layout.*
-8	import androidx.compose.foundation.lazy.LazyColumn
-9	import androidx.compose.foundation.lazy.items
-10	import androidx.compose.material3.*
-11	import androidx.compose.runtime.*
-12	import androidx.compose.ui.Modifier
-13	import androidx.compose.ui.platform.LocalContext
-14	import androidx.compose.ui.unit.dp
-15	import androidx.core.app.ActivityCompat
-16	import androidx.core.content.ContextCompat
-17	import com.jarvismini.core.JarvisMode
-18	import com.jarvismini.core.JarvisState
-19	import com.jarvismini.core.WorkModeManager
-20	import com.jarvismini.engine.EngineProvider
-21	import com.jarvismini.engine.EngineResult
-22	import kotlinx.coroutines.launch
+20	        // ✅ Core init MUST stay before UI
+21	        JarvisState.init(applicationContext)
+22	        EngineProvider.init(applicationContext)
 23
-24	@Composable
-25	fun JarvisChatScreen() {
-26	    val context = LocalContext.current
-27	    val activity = context as? Activity
-28	    val scope = rememberCoroutineScope()
-29
-30	    // ================= INIT =================
-31	    LaunchedEffect(Unit) {
-32	        JarvisState.init(context)
-33	        EngineProvider.init(context)
-34	    }
-35
-36	    // ================= PERMISSIONS =================
-37	    LaunchedEffect(Unit) {
-38	        if (activity == null) return@LaunchedEffect
-39
-40	        val perms = mutableListOf<String>()
-41	        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
-42	            perms += android.Manifest.permission.READ_CONTACTS
-43
-44	        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
-45	            perms += android.Manifest.permission.SEND_SMS
-46
-47	        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
-48	    }
-49
-50	    // ================= STATE =================
-51	    val messages = remember { mutableStateListOf<ChatMessage>() }
-52	    var input by remember { mutableStateOf("") }
-53	    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
-54	    var expanded by remember { mutableStateOf(false) }
-55	    val modes = JarvisMode.values().toList()
-56
-57	    // ================= UI =================
-58	    Column(
-59	        modifier = Modifier.fillMaxSize().padding(12.dp),
-60	        verticalArrangement = Arrangement.spacedBy(10.dp)
-61	    ) {
-62	        Text(text = "Current mode: $currentMode", style = MaterialTheme.typography.titleMedium)
-63
-64	        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-65	            TextField(
-66	                value = currentMode.name,
-67	                onValueChange = {},
-68	                readOnly = true,
-69	                label = { Text("Select Mode") },
-70	                modifier = Modifier.menuAnchor()
-71	            )
-72
-73	            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-74	                modes.forEach { mode ->
-75	                    DropdownMenuItem(
-76	                        text = { Text(mode.name) },
-77	                        onClick = {
-78	                            JarvisState.setMode(context, mode)
-79	                            currentMode = mode
-80	                            expanded = false
-81	                        }
-82	                    )
-83	                }
-84	            }
-85	        }
-86
-87	        Button(onClick = {
-88	            WorkModeManager.toggle(context)
-89	            currentMode = JarvisState.currentMode
-90	        }) { Text("Toggle Work Mode") }
-91
+24	        setContent {
+25	            MaterialTheme {
+26	                Surface {
 >>>>> ERROR HERE
-92	        Divider()
-93
-94	        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), reverseLayout = true) {
-95	            items(messages.reversed()) { msg ->
-96	                Text(text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}", modifier = Modifier.padding(6.dp))
-97	            }
-98	        }
-99
-100	        Row {
-101	            TextField(value = input, onValueChange = { input = it }, modifier = Modifier.weight(1f), placeholder = { Text("Ask Jarvis…") })
-102
-103	            Button(onClick = {
-104	                val userText = input.trim()
-105	                if (userText.isEmpty()) return@Button
-106
-107	                input = ""
-108	                messages.add(ChatMessage(userText, true))
-109	                messages.add(ChatMessage("Thinking…", false))
-110
-111	                scope.launch {
-112	                    val result = EngineProvider.commandEngine.handle(userText)
-113	                    val reply = when (result) {
-114	                        is EngineResult.Success -> result.reply
-115	                        is EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
-116	                        else -> EngineProvider.llmEngine.generateReply(userText) // exhaustive fallback
-117	                    }
-118
-119	                    messages.removeLast()
-120	                    messages.add(ChatMessage(reply, false))
-121	                }
-122	            }) { Text("Send") }
-123	        }
-124	    }
-125	}
+27	                    val navController = rememberNavController()
+28
+>>>>> ERROR HERE
+29	                    NavHost(
+30	                        navController = navController,
+31	                        startDestination = "chat"
+32	                    ) {
+>>>>> ERROR HERE
+33	                        composable("chat") {
+>>>>> ERROR HERE
+34	                            MainNav()
+35	                        }
+36
+37	                        // 🔜 Future screens plug in here
+38	                        // composable("checklist") { DailyChecklistScreen() }
+39	                        // composable("calendar") { DayCalendarScreen(...) }
+40	                    }
+41	                }
+42	            }
+43	        }
+44	    }
+45	}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt =====
+1	package com.jarvismini.ui.navigation
+2
+3	import androidx.compose.material.icons.Icons
+>>>>> ERROR HERE
+4	import androidx.compose.material.icons.filled.Chat
+>>>>> ERROR HERE
+5	import androidx.compose.material.icons.filled.Checklist
+6	import androidx.compose.material3.*
+7	import androidx.compose.runtime.Composable
+8	import androidx.compose.ui.graphics.vector.ImageVector
+>>>>> ERROR HERE
+9	import androidx.navigation.NavController
+10
+11	@Composable
+12	fun BottomBar(
+>>>>> ERROR HERE
+13	    navController: NavController,
+14	    currentRoute: String?
+15	) {
+16	    NavigationBar {
+17	        BottomBarItem(
+18	            label = "Chat",
+>>>>> ERROR HERE
+19	            icon = Icons.Default.Chat,
+20	            selected = currentRoute == NavRoute.Chat.route
+21	        ) {
+22	            navController.navigate(NavRoute.Chat.route) {
+>>>>> ERROR HERE
+23	                popUpTo(NavRoute.Chat.route) { inclusive = false }
+>>>>> ERROR HERE
+24	                launchSingleTop = true
+25	            }
+26	        }
+27
+28	        BottomBarItem(
+29	            label = "Checklist",
+>>>>> ERROR HERE
+30	            icon = Icons.Default.Checklist,
+31	            selected = currentRoute == NavRoute.Checklist.route
+32	        ) {
+33	            navController.navigate(NavRoute.Checklist.route) {
+>>>>> ERROR HERE
+34	                launchSingleTop = true
+35	            }
+36	        }
+37	    }
+38	}
+39
+40	@Composable
+41	private fun BottomBarItem(
+42	    label: String,
+43	    icon: ImageVector,
+44	    selected: Boolean,
+45	    onClick: () -> Unit
+46	) {
+>>>>> ERROR HERE
+47	    NavigationBarItem(
+48	        selected = selected,
+49	        onClick = onClick,
+>>>>> ERROR HERE
+50	        icon = { Icon(icon, contentDescription = label) },
+>>>>> ERROR HERE
+51	        label = { Text(label) }
+52	    )
+53	}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt =====
+1	package com.jarvismini.ui.navigation
+2
+3	import androidx.compose.material3.Scaffold
+4	import androidx.compose.runtime.Composable
+5	import androidx.compose.runtime.getValue
+>>>>> ERROR HERE
+6	import androidx.navigation.compose.*
+7	import com.jarvismini.ui.DailyChecklistScreen
+8	import com.jarvismini.ui.JarvisChatScreen
+9
+10	@Composable
+11	fun MainNav() {
+>>>>> ERROR HERE
+12	    val navController = rememberNavController()
+13	    val navBackStackEntry by navController.currentBackStackEntryAsState()
+14	    val currentRoute = navBackStackEntry?.destination?.route
+15
+16	    Scaffold(
+17	        bottomBar = {
+18	            BottomBar(
+19	                navController = navController,
+20	                currentRoute = currentRoute
+21	            )
+22	        }
+23	    ) { paddingValues ->
+>>>>> ERROR HERE
+24	        NavHost(
+25	            navController = navController,
+26	            startDestination = NavRoute.Chat.route
+27	        ) {
+>>>>> ERROR HERE
+28	            composable(NavRoute.Chat.route) {
+>>>>> ERROR HERE
+29	                JarvisChatScreen()
+30	            }
+31
+>>>>> ERROR HERE
+32	            composable(NavRoute.Checklist.route) {
+>>>>> ERROR HERE
+33	                DailyChecklistScreen()
+34	            }
+35	        }
+36	    }
+37	}
+38
+39	/**
+40	 * Centralized route definitions
+41	 */
+42	sealed class NavRoute(val route: String) {
+43	    object Chat : NavRoute("chat")
+44	    object Checklist : NavRoute("checklist")
+45	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
@@ -600,24 +607,3 @@ BUILD FAILED in 1m 8s
 9	        return true
 10	    }
 11	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/QuietHours.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import java.time.LocalTime
-4
-5	object QuietHours {
-6
-7	    fun isQuietNow(config: ProgressConfig): Boolean {
->>>>> ERROR HERE
-8	        val now = LocalTime.now()
-9	        val start = LocalTime.parse(config.quietStart)
-10	        val end = LocalTime.parse(config.quietEnd)
-11
-12	        return if (start.isBefore(end)) {
-13	            now.isAfter(start) && now.isBefore(end)
-14	        } else {
-15	            now.isAfter(start) || now.isBefore(end)
-16	        }
-17	    }
-18	}
