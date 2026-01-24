@@ -3,11 +3,9 @@ package com.jarvismini.core.notifications
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.jarvismini.core.R
 
 object ProgressNotifier {
 
-    // ✅ ENGINE-SAFE overload (NO icon required)
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
@@ -17,11 +15,10 @@ object ProgressNotifier {
             context = context,
             blockId = blockId,
             blockName = blockName,
-            iconRes = R.drawable.ic_launcher_foreground
+            iconRes = android.R.drawable.ic_dialog_info
         )
     }
 
-    // ✅ Full version (used internally / by app if needed)
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
@@ -47,7 +44,7 @@ object ProgressNotifier {
             id = blockId,
             title = "Reminder",
             msg = "$blockName still incomplete.",
-            iconRes = R.drawable.ic_launcher_foreground
+            iconRes = android.R.drawable.ic_dialog_info
         )
     }
 
