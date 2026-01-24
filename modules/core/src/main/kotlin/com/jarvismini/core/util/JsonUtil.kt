@@ -3,7 +3,7 @@ package com.jarvismini.core.util
 import com.google.gson.Gson
 
 object JsonUtil {
-    internal val gson = Gson()
+    val gson = Gson() // Made public to fix inline reified access error
 
     fun <T> toJson(obj: T): String = gson.toJson(obj)
 
