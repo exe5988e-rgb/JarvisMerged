@@ -12,14 +12,31 @@ import androidx.core.content.ContextCompat
 object ProgressNotifier {
 
     /**
-     * Engine-safe API
-     * App MUST provide the icon resource
+     * Engine-safe call.
+     * No icon required — engine must not know about Android resources.
+     */
+    fun showCompletionPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String
+    ) {
+        showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName,
+            iconRes = null
+        )
+    }
+
+    /**
+     * App-layer call.
+     * Icon is optional to avoid resource dependency crashes.
      */
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
         blockName: String,
-        iconRes: Int
+        iconRes: Int?
     ) {
         notify(
             context = context,
@@ -34,7 +51,7 @@ object ProgressNotifier {
         context: Context,
         blockId: String,
         blockName: String,
-        iconRes: Int
+        iconRes: Int? = null
     ) {
         notify(
             context = context,
@@ -45,31 +62,44 @@ object ProgressNotifier {
         )
     }
 
+    /**
+     * Lint-safe notification dispatcher
+     */
     @SuppressLint("MissingPermission")
     private fun notify(
         context: Context,
         id: String,
         title: String,
         msg: String,
-        iconRes: Int
+        iconRes: Int?
     ) {
-        val notification = NotificationCompat.Builder(context, "progress")
-            .setSmallIcon(iconRes)
+        val builder = NotificationCompat.Builder(context, "progress")
             .setContentTitle(title)
             .setContentText(msg)
             .setAutoCancel(true)
-            .build()
 
+        // Only set icon if provided (prevents drawable/mipmap crashes)
+        if (iconRes != null) {
+            builder.setSmallIcon(iconRes)
+        }
+
+        val notification = builder.build()
+
+        // Android 13+ runtime permission check
         if (
             ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            NotificationManagerCompat.from(context)
+            NotificationManagerCompat
+                .from(context)
                 .notify(id.hashCode(), notification)
         } else {
-            Log.w("ProgressNotifier", "Notification permission not granted")
+            Log.w(
+                "ProgressNotifier",
+                "Notification permission not granted, skipping notify()"
+            )
         }
     }
 }
