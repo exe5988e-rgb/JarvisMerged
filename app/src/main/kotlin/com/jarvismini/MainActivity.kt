@@ -1,4 +1,3 @@
-```kotlin
 package com.jarvismini
 
 import android.os.Bundle
