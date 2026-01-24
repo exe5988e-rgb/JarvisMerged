@@ -13,7 +13,6 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -40,10 +39,8 @@ jobs:
         run: |
           chmod +x ./gradlew
           mkdir -p build_error_logs
-
           ./gradlew assembleDebug lintDebug --no-daemon \
             2>&1 | tee build_error_logs/build_output.txt
-
           EXIT_CODE=${PIPESTATUS[0]}
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
@@ -64,27 +61,23 @@ jobs:
           {
             echo "==== GRADLE BUILD ERROR REPORT ===="
             echo
-
-            echo "-- COMPILE / RESOURCE / LINT ERRORS --"
-            # Capture both standard "error" lines and Kotlin/Gradle "e:" lines
-            grep -E "(\.kt|\.java|\.xml|\.gradle|\.properties):[0-9]+.*error|^e: " build_error_logs/build_output.txt || true
-
+            echo "-- COMPILE / RESOURCE ERRORS --"
+            # Only match actual errors, ignore warnings
+            grep -E "(\.kt|\.java|\.xml|\.gradle|\.properties):[0-9]+: error|^e: " build_error_logs/build_output.txt || true
             echo
             echo "-- BUILD FAILURE / EXCEPTIONS --"
             grep -E "(BUILD FAILED|FAILURE:|Exception|Caused by:)" build_error_logs/build_output.txt || true
-
             echo
             echo "==== SOURCE CODE (UNIQUE ERROR FILES) ===="
           } > build_error_logs/error_files.txt
 
-          # Extract file:line pairs (include e: style)
-          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+" build_error_logs/build_output.txt \
+          # Extract only lines with errors
+          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+: error" build_error_logs/build_output.txt \
             | sort -u > build_error_logs/error_locations.txt || true
 
           # Process each unique file
           cut -d: -f1 build_error_logs/error_locations.txt | sort -u | while read -r file; do
             if [ -f "$file" ]; then
-              # Strip absolute workspace path -> repo-relative
               REL_PATH=$(realpath --relative-to="$GITHUB_WORKSPACE" "$file")
               echo "" >> build_error_logs/error_files.txt
               echo "//===== FILE: $REL_PATH =====" >> build_error_logs/error_files.txt
@@ -94,7 +87,7 @@ jobs:
                 | cut -d: -f2 | sort -n | uniq > build_error_logs/_lines.tmp
 
               # Dump file once with highlighted error lines
-              nl -ba "$file" | sed -n '1,300p' | while read -r line; do
+              nl -ba "$file" | while read -r line; do
                 LINE_NO=$(echo "$line" | awk '{print $1}')
                 if grep -qx "$LINE_NO" build_error_logs/_lines.tmp; then
                   echo ">>>>> ERROR HERE" >> build_error_logs/error_files.txt
@@ -105,7 +98,6 @@ jobs:
           done
 
           rm -f build_error_logs/_lines.tmp build_error_logs/error_locations.txt
-
           cat build_error_logs/error_files.txt
 
       # ---------------- COMMIT ERROR REPORT (safe push) ----------------
@@ -114,18 +106,12 @@ jobs:
         run: |
           git config user.name "build-error-bot"
           git config user.email "bot@users.noreply.github.com"
-
-          # Add changes
           git add build_error_logs/error_files.txt
           git commit -m "Auto: Gradle error report with source highlighting" || echo "No changes"
-
-          # Pull latest changes to avoid push rejection
           git fetch origin main
-
           git push origin main
 
       # ---------------- FINAL FAILURE SIGNAL ----------------
       - name: Fail job if build failed
         if: steps.gradle_build.outputs.exit_code != '0'
         run: exit 1
-        
