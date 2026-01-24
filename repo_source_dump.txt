@@ -691,9 +691,11 @@ import com.jarvismini.core.progress.ProgressStatsEngine
 fun DailyChecklistScreen() {
     val context = LocalContext.current
 
-    // ✅ State for blocks and stats
+    // Load today's blocks
     var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
-    var stats by remember { mutableStateOf(ProgressStatsEngine.getTodayStats(context)) }
+
+    // ✅ Fixed: getTodayStats now returns ProgressStats with all fields
+    val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(
         modifier = Modifier
@@ -714,12 +716,9 @@ fun DailyChecklistScreen() {
                     onComplete = {
                         ProgressRepository.markCompleted(context, block.id)
                         blocks = ProgressRepository.getTodayBlocks(context)
-                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id, block.name)
-                        blocks = ProgressRepository.getTodayBlocks(context)
-                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     }
                 )
             }
@@ -3131,8 +3130,9 @@ enum class ProgressState {
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
 package com.jarvismini.core.progress
 
+// ✅ Single correct ProgressStats definition
 data class ProgressStats(
-    val date: String,
+    val date: String,              // e.g., "2026-01-24", can be set dynamically later
     val totalBlocks: Int,
     val completedBlocks: Int
 ) {
@@ -3145,7 +3145,10 @@ data class ProgressStats(
 package com.jarvismini.core.progress
 
 import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
 
+// ✅ Single source of truth for stats
 object ProgressStatsEngine {
 
     fun registerBlock(context: Context, blockId: String) {
@@ -3161,15 +3164,16 @@ object ProgressStatsEngine {
         val total = blocks.size
         val completedCount = blocks.count { it.completed }
 
-        val completionPercent = if (total > 0) (completedCount * 100) / total else 0
-        return ProgressStats(completionPercent = completionPercent)
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        // ✅ Correctly construct ProgressStats with all required parameters
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completedCount
+        )
     }
 }
-
-//===== Supporting data class =====
-data class ProgressStats(
-    val completionPercent: Int
-)
 
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
@@ -3268,7 +3272,7 @@ object RetryScheduler {
                 title = "Retry: $blockName",
                 startTimeMs = retryAt,
                 endTimeMs = retryAt + 5 * 60_000,
-                status = EventStatus.RETRY,
+                status = EventStatus.RETRY_SCHEDULED, // ✅ Fixed enum reference
                 meta = mapOf("blockId" to blockId)
             )
         )
@@ -5258,7 +5262,7 @@ jobs:
             echo "==== GRADLE BUILD ERROR REPORT ===="
             echo
             echo "-- COMPILE / RESOURCE ERRORS --"
-            # Only match actual errors, ignore warnings
+            # Capture only real errors (Kotlin e: lines or : error)
             grep -E "(\.kt|\.java|\.xml|\.gradle|\.properties):[0-9]+: error|^e: " build_error_logs/build_output.txt || true
             echo
             echo "-- BUILD FAILURE / EXCEPTIONS --"
@@ -5267,9 +5271,9 @@ jobs:
             echo "==== SOURCE CODE (UNIQUE ERROR FILES) ===="
           } > build_error_logs/error_files.txt
 
-          # Extract only lines with errors
-          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+: error" build_error_logs/build_output.txt \
-            | sort -u > build_error_logs/error_locations.txt || true
+          # Extract all file:line occurrences, then exclude warnings
+          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+" build_error_logs/build_output.txt \
+            | grep -v ":.*warning" | sort -u > build_error_logs/error_locations.txt || true
 
           # Process each unique file
           cut -d: -f1 build_error_logs/error_locations.txt | sort -u | while read -r file; do
@@ -5282,7 +5286,7 @@ jobs:
               grep "^$file:" build_error_logs/error_locations.txt \
                 | cut -d: -f2 | sort -n | uniq > build_error_logs/_lines.tmp
 
-              # Dump file once with highlighted error lines
+              # Dump file with highlighted error lines
               nl -ba "$file" | while read -r line; do
                 LINE_NO=$(echo "$line" | awk '{print $1}')
                 if grep -qx "$LINE_NO" build_error_logs/_lines.tmp; then
