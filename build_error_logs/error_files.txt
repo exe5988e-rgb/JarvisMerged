@@ -1,12 +1,12 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:26 Unresolved reference: navigation
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:25:21 Unresolved reference: MainNav
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:26 Unresolved reference: MainScreen
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:24:21 Unresolved reference: MainScreen
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 2m 1s
+BUILD FAILED in 1m 55s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -21,28 +21,27 @@ BUILD FAILED in 2m 1s
 8	import com.jarvismini.core.JarvisState
 9	import com.jarvismini.engine.EngineProvider
 >>>>> ERROR HERE
-10	import com.jarvismini.ui.navigation.MainNav
+10	import com.jarvismini.ui.MainScreen
 11
 12	class MainActivity : ComponentActivity() {
 13
 14	    override fun onCreate(savedInstanceState: Bundle?) {
 15	        super.onCreate(savedInstanceState)
 16
-17	        // 🔴 Core must be initialized BEFORE any UI or services rely on it
+17	        // ✅ Core must initialize BEFORE UI
 18	        JarvisState.init(applicationContext)
 19	        EngineProvider.init(applicationContext)
 20
 21	        setContent {
 22	            MaterialTheme {
 23	                Surface {
-24	                    // ✅ MainNav handles NavHost + BottomBar
 >>>>> ERROR HERE
-25	                    MainNav()
-26	                }
-27	            }
-28	        }
-29	    }
-30	}
+24	                    MainScreen() // ✅ Tab-based root UI
+25	                }
+26	            }
+27	        }
+28	    }
+29	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
