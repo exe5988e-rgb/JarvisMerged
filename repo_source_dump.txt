@@ -176,6 +176,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   │   ├── AssistantTTS.kt
 │   │   │   │   │   │   │   │   ├── util
 │   │   │   │   │   │   │   │   │   ├── JsonUtil.kt
+│   │   │   │   │   │   │   │   ├── utils
+│   │   │   │   │   │   │   │   │   ├── TimeUtils.kt
 │   ├── engine
 │   │   ├── build.gradle.kts
 │   │   ├── proguard-rules.pro
@@ -687,17 +689,17 @@ import com.jarvismini.core.progress.ProgressStatsEngine
 
 @Composable
 fun DailyChecklistScreen() {
-
     val context = LocalContext.current
-    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
 
-    // FIXED: Use correct method name
-    val stats = ProgressStatsEngine.getTodayStats(context)
+    // ✅ State for blocks and stats
+    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+    var stats by remember { mutableStateOf(ProgressStatsEngine.getTodayStats(context)) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
     ) {
-
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -712,9 +714,12 @@ fun DailyChecklistScreen() {
                     onComplete = {
                         ProgressRepository.markCompleted(context, block.id)
                         blocks = ProgressRepository.getTodayBlocks(context)
+                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id, block.name)
+                        blocks = ProgressRepository.getTodayBlocks(context)
+                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     }
                 )
             }
@@ -912,12 +917,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.utils.TimeUtils  // FIXED: correct package path
+import com.jarvismini.core.utils.TimeUtils  // ✅ Fixed import path
 
 @Composable
 fun DayCalendarScreen(viewModel: CalendarViewModel) {
 
-    // FIXED: use the correct TimeUtils reference
+    // ✅ Fixed usage of TimeUtils
     val now = TimeUtils.nowMs()
     val dayStart = now - (now % (24 * 60 * 60 * 1000))
     val dayEnd = dayStart + (24 * 60 * 60 * 1000)
@@ -944,11 +949,11 @@ import androidx.compose.ui.graphics.Color
 import com.jarvismini.core.calendar.model.EventStatus
 
 fun statusColor(status: EventStatus): Color = when (status) {
-    EventStatus.SCHEDULED -> Color(0xFF64B5F6)   // Blue
-    EventStatus.COMPLETED -> Color(0xFF81C784)   // Green
-    EventStatus.INCOMPLETE -> Color(0xFFE57373)  // Red
-    EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D) // Orange
-    else -> Color.Gray  // FIXED: make 'when' exhaustive
+    EventStatus.SCHEDULED -> Color(0xFF64B5F6)      // Blue
+    EventStatus.COMPLETED -> Color(0xFF81C784)      // Green
+    EventStatus.INCOMPLETE -> Color(0xFFE57373)     // Red ✅ fixed
+    EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D)// Orange ✅ fixed
+    else -> Color.Gray                               // ✅ exhaustive 'when'
 }
 
 
@@ -2872,10 +2877,12 @@ data class CalendarEvent(
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/model/EventStatus.kt =====
 package com.jarvismini.core.calendar.model
 
+// ✅ Added missing INCOMPLETE and RETRY_SCHEDULED
 enum class EventStatus {
     SCHEDULED,
     COMPLETED,
-    RETRY
+    INCOMPLETE,
+    RETRY_SCHEDULED
 }
 
 
@@ -3148,7 +3155,21 @@ object ProgressStatsEngine {
     fun markCompleted(context: Context, blockId: String) {
         ProgressStore.markComplete(context, blockId)
     }
+
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressRepository.getTodayBlocks(context)
+        val total = blocks.size
+        val completedCount = blocks.count { it.completed }
+
+        val completionPercent = if (total > 0) (completedCount * 100) / total else 0
+        return ProgressStats(completionPercent = completionPercent)
+    }
 }
+
+//===== Supporting data class =====
+data class ProgressStats(
+    val completionPercent: Int
+)
 
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
@@ -3365,6 +3386,15 @@ object JsonUtil {
 
     inline fun <reified T> fromJson(json: String): T =
         gson.fromJson(json, T::class.java)
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/utils/TimeUtils.kt =====
+package com.jarvismini.core.utils
+
+// ✅ Helper to get current system time
+object TimeUtils {
+    fun nowMs(): Long = System.currentTimeMillis()
 }
 
 
@@ -5179,7 +5209,6 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -5206,10 +5235,8 @@ jobs:
         run: |
           chmod +x ./gradlew
           mkdir -p build_error_logs
-
           ./gradlew assembleDebug lintDebug --no-daemon \
             2>&1 | tee build_error_logs/build_output.txt
-
           EXIT_CODE=${PIPESTATUS[0]}
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
@@ -5230,27 +5257,23 @@ jobs:
           {
             echo "==== GRADLE BUILD ERROR REPORT ===="
             echo
-
-            echo "-- COMPILE / RESOURCE / LINT ERRORS --"
-            # Capture both standard "error" lines and Kotlin/Gradle "e:" lines
-            grep -E "(\.kt|\.java|\.xml|\.gradle|\.properties):[0-9]+.*error|^e: " build_error_logs/build_output.txt || true
-
+            echo "-- COMPILE / RESOURCE ERRORS --"
+            # Only match actual errors, ignore warnings
+            grep -E "(\.kt|\.java|\.xml|\.gradle|\.properties):[0-9]+: error|^e: " build_error_logs/build_output.txt || true
             echo
             echo "-- BUILD FAILURE / EXCEPTIONS --"
             grep -E "(BUILD FAILED|FAILURE:|Exception|Caused by:)" build_error_logs/build_output.txt || true
-
             echo
             echo "==== SOURCE CODE (UNIQUE ERROR FILES) ===="
           } > build_error_logs/error_files.txt
 
-          # Extract file:line pairs (include e: style)
-          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+" build_error_logs/build_output.txt \
+          # Extract only lines with errors
+          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+: error" build_error_logs/build_output.txt \
             | sort -u > build_error_logs/error_locations.txt || true
 
           # Process each unique file
           cut -d: -f1 build_error_logs/error_locations.txt | sort -u | while read -r file; do
             if [ -f "$file" ]; then
-              # Strip absolute workspace path -> repo-relative
               REL_PATH=$(realpath --relative-to="$GITHUB_WORKSPACE" "$file")
               echo "" >> build_error_logs/error_files.txt
               echo "//===== FILE: $REL_PATH =====" >> build_error_logs/error_files.txt
@@ -5260,7 +5283,7 @@ jobs:
                 | cut -d: -f2 | sort -n | uniq > build_error_logs/_lines.tmp
 
               # Dump file once with highlighted error lines
-              nl -ba "$file" | sed -n '1,300p' | while read -r line; do
+              nl -ba "$file" | while read -r line; do
                 LINE_NO=$(echo "$line" | awk '{print $1}')
                 if grep -qx "$LINE_NO" build_error_logs/_lines.tmp; then
                   echo ">>>>> ERROR HERE" >> build_error_logs/error_files.txt
@@ -5271,7 +5294,6 @@ jobs:
           done
 
           rm -f build_error_logs/_lines.tmp build_error_logs/error_locations.txt
-
           cat build_error_logs/error_files.txt
 
       # ---------------- COMMIT ERROR REPORT (safe push) ----------------
@@ -5280,21 +5302,15 @@ jobs:
         run: |
           git config user.name "build-error-bot"
           git config user.email "bot@users.noreply.github.com"
-
-          # Add changes
           git add build_error_logs/error_files.txt
           git commit -m "Auto: Gradle error report with source highlighting" || echo "No changes"
-
-          # Pull latest changes to avoid push rejection
           git fetch origin main
-
           git push origin main
 
       # ---------------- FINAL FAILURE SIGNAL ----------------
       - name: Fail job if build failed
         if: steps.gradle_build.outputs.exit_code != '0'
         run: exit 1
-        
 
 
 //===== FILE: .github/workflows/main.yml =====
