@@ -2889,32 +2889,30 @@ enum class EventStatus {
 package com.jarvismini.core.notifications
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.jarvismini.core.R
 
 object ProgressNotifier {
 
-    // ✅ Engine-safe overload (no icon required)
+    // Engine-safe overload without requiring drawable from core
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
         blockName: String
     ) {
+        // ✅ Use a system default icon to avoid unresolved reference
         showCompletionPrompt(
             context = context,
             blockId = blockId,
             blockName = blockName,
-            iconRes = R.drawable.ic_launcher_foreground
+            iconRes = android.R.drawable.ic_dialog_info
         )
     }
 
-    // ✅ Full version (used internally / by app if needed)
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
@@ -2940,11 +2938,10 @@ object ProgressNotifier {
             id = blockId,
             title = "Reminder",
             msg = "$blockName still incomplete.",
-            iconRes = R.drawable.ic_launcher_foreground
+            iconRes = android.R.drawable.ic_dialog_info // ✅ system icon
         )
     }
 
-    // ✅ Lint-safe notify
     private fun notify(
         context: Context,
         id: String,
@@ -2959,7 +2956,6 @@ object ProgressNotifier {
             .setAutoCancel(true)
             .build()
 
-        // ✅ Check runtime permission for Android 13+
         if (ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
