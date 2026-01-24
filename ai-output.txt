@@ -1,11 +1,32 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+package com.jarvismini
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressStore
+import com.jarvismini.core.routine.RoutineProvider
+
+/**
+ * Auto-register all routines as checklist blocks on app start.
+ */
+object ProgressInitializer {
+    fun registerAllBlocks(context: Context) {
+        // Load all original routines from assets
+        val routines = RoutineProvider.getAllRoutines(context)
+        routines.forEach { routine ->
+            // Register each routine ID as a block
+            ProgressStore.register(context, routine.id)
+
+            // Optional: mark as incomplete initially
+            ProgressStore.markIncomplete(context, routine.id)
+        }
+    }
+}
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -14,6 +35,7 @@ import com.jarvismini.ui.checklist.ChecklistItem
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressStatsEngine
 import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.ProgressBlock
 
 enum class MainTab(val title: String) {
     Chat("Chat"),
@@ -30,7 +52,7 @@ fun MainScreen() {
     }
 
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf(listOf<com.jarvismini.core.progress.ProgressBlock>()) }
+    var blocks by remember { mutableStateOf(listOf<ProgressBlock>()) }
 
     // Refresh blocks whenever tab changes
     LaunchedEffect(selectedTab) {
@@ -62,229 +84,6 @@ fun MainScreen() {
                 MainTab.Chat -> JarvisChatScreen()
                 MainTab.Checklist -> ChecklistScreenWithStats(blocks) { updated ->
                     blocks = updated
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ChecklistScreenWithStats(
-    blocks: List<com.jarvismini.core.progress.ProgressBlock>,
-    onBlocksUpdated: (List<com.jarvismini.core.progress.ProgressBlock>) -> Unit
-) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats(context)
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        val updated = ProgressRepository.getTodayBlocks(context)
-                        onBlocksUpdated(updated)
-                    },
-                    onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
-                        val updated = ProgressRepository.getTodayBlocks(context)
-                        onBlocksUpdated(updated)
-                    }
-                )
-            }
-        }
-    }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
-package com.jarvismini.core.routine
-
-import android.content.Context
-import com.jarvismini.core.routine.model.Routine
-import org.json.JSONArray
-import org.json.JSONObject
-
-/**
- * Provides access to all routines defined in assets.
- * Loads original routines (daily, weekly, etc.) from JSON files.
- */
-object RoutineProvider {
-
-    private const val ROUTINES_DIR = "routines"
-
-    /**
-     * Load all routines from assets as a List<Routine>.
-     */
-    fun getAllRoutines(context: Context): List<Routine> {
-        val routines = mutableListOf<Routine>()
-        try {
-            val files = context.assets.list(ROUTINES_DIR) ?: arrayOf()
-            files.forEach { filename ->
-                if (filename.endsWith(".json")) {
-                    val jsonStr = context.assets.open("$ROUTINES_DIR/$filename")
-                        .bufferedReader().use { it.readText() }
-                    val root = JSONObject(jsonStr)
-                    val routinesArray = root.getJSONArray("routines")
-                    routines.addAll(parseRoutines(routinesArray))
-                }
-            }
-        } catch (_: Exception) {
-            // Ignore or log
-        }
-        return routines
-    }
-
-    private fun parseRoutines(array: JSONArray): List<Routine> {
-        val list = mutableListOf<Routine>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val id = obj.getString("id")
-            val name = obj.getString("name")
-            val enabled = obj.optBoolean("enabled", true)
-            val actionsArray = obj.optJSONArray("actions") ?: JSONArray()
-            val actions = mutableListOf<RoutineAction>()
-            for (j in 0 until actionsArray.length()) {
-                val a = actionsArray.getJSONObject(j)
-                actions.add(
-                    RoutineAction(
-                        type = a.getString("type"),
-                        params = a.toMap()
-                    )
-                )
-            }
-            list.add(Routine(id = id, name = name, enabled = enabled, actions = actions))
-        }
-        return list
-    }
-}
-
-/**
- * Simple extension to convert JSONObject to Map<String, String>
- */
-private fun JSONObject.toMap(): Map<String, String> {
-    val map = mutableMapOf<String, String>()
-    keys().forEach { key ->
-        map[key] = get(key).toString()
-    }
-    return map
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/RoutineAction.kt =====
-package com.jarvismini.core.routine.model
-
-/**
- * Represents an action inside a routine.
- */
-data class RoutineAction(
-    val type: String,
-    val params: Map<String, String> = emptyMap()
-)
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
-
-import android.content.Context
-import com.jarvismini.core.progress.ProgressStore
-import com.jarvismini.core.routine.RoutineProvider
-
-/**
- * Auto-register all routines as checklist blocks on app start.
- * Ensures no duplicate registration.
- */
-object ProgressInitializer {
-
-    fun registerAllBlocks(context: Context) {
-        val existingBlocks = ProgressStore.getRegisteredBlocks(context)
-        val routines = RoutineProvider.getAllRoutines(context)
-
-        routines.forEach { routine ->
-            // Register only if not already registered
-            if (!existingBlocks.contains(routine.id)) {
-                ProgressStore.register(context, routine.id)
-            }
-        }
-    }
-}
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-package com.jarvismini.ui.main
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.ProgressInitializer
-import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.checklist.ChecklistItem
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStatsEngine
-import com.jarvismini.core.progress.ProgressBlock
-
-enum class MainTab {
-    Chat, Checklist
-}
-
-@Composable
-fun MainScreen() {
-    val context = LocalContext.current
-
-    // ✅ Auto-register routine blocks at app start
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
-    }
-
-    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf(listOf<ProgressBlock>()) }
-    var checklistPercent by remember { mutableStateOf(0) }
-
-    // Refresh blocks whenever checklist tab is selected
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressRepository.getTodayBlocks(context)
-            checklistPercent = ProgressStatsEngine.getTodayStats(context).completionPercent
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                val stats = ProgressStatsEngine.getTodayStats(context)
-                val tabTitles = listOf(
-                    "Chat",
-                    "Checklist (${stats.completionPercent}%)"
-                )
-
-                tabTitles.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab.ordinal == index,
-                        onClick = { selectedTab = MainTab.values()[index] },
-                        text = { Text(title) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp)
-        ) {
-            when (selectedTab) {
-                MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreenWithStats(blocks) { updated ->
-                    blocks = updated
-                    // Update percentage dynamically
-                    checklistPercent = ProgressStatsEngine.getTodayStats(context).completionPercent
                 }
             }
         }
