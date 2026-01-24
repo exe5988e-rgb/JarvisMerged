@@ -1,93 +1,146 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
-package com.jarvismini.core.notifications
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
+package com.jarvismini
 
-import android.Manifest
-import android.annotation.SuppressLint
-import android.content.Context
-import android.content.pm.PackageManager
-import android.util.Log
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
-import com.jarvismini.core.R
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.jarvismini.core.JarvisState
+import com.jarvismini.engine.EngineProvider
+import com.jarvismini.ui.JarvisChatScreen
 
-object ProgressNotifier {
+class MainActivity : ComponentActivity() {
 
-    /**
-     * Engine-safe overload: no icon required, uses default launcher icon
-     */
-    fun showCompletionPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String
-    ) {
-        showCompletionPrompt(
-            context = context,
-            blockId = blockId,
-            blockName = blockName,
-            iconRes = R.mipmap.ic_launcher // Use mipmap launcher icon to avoid drawable issues
-        )
-    }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-    /**
-     * Full version: can specify icon resource
-     */
-    fun showCompletionPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String,
-        iconRes: Int
-    ) {
-        notify(
-            context = context,
-            id = blockId,
-            title = "Block Finished",
-            msg = "Mark $blockName as complete or incomplete.",
-            iconRes = iconRes
-        )
-    }
+        // ✅ Core init MUST stay before UI
+        JarvisState.init(applicationContext)
+        EngineProvider.init(applicationContext)
 
-    fun showRetryPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String
-    ) {
-        notify(
-            context = context,
-            id = blockId,
-            title = "Reminder",
-            msg = "$blockName still incomplete.",
-            iconRes = R.mipmap.ic_launcher // Use mipmap to avoid unresolved drawable
-        )
-    }
+        setContent {
+            MaterialTheme {
+                Surface {
+                    val navController = rememberNavController()
 
-    /**
-     * Lint-safe notify: checks runtime permission and suppresses Lint warning
-     */
-    @SuppressLint("MissingPermission")
-    private fun notify(
-        context: Context,
-        id: String,
-        title: String,
-        msg: String,
-        iconRes: Int
-    ) {
-        val notification = NotificationCompat.Builder(context, "progress")
-            .setSmallIcon(iconRes)
-            .setContentTitle(title)
-            .setContentText(msg)
-            .setAutoCancel(true)
-            .build()
+                    NavHost(
+                        navController = navController,
+                        startDestination = "chat"
+                    ) {
+                        composable("chat") {
+                            MainNav()
+                        }
 
-        // Runtime permission check for Android 13+
-        if (ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            NotificationManagerCompat.from(context).notify(id.hashCode(), notification)
-        } else {
-            Log.w("ProgressNotifier", "Notification permission not granted, skipping notify()")
+                        // 🔜 Future screens plug in here
+                        // composable("checklist") { DailyChecklistScreen() }
+                        // composable("calendar") { DayCalendarScreen(...) }
+                    }
+                }
+            }
         }
     }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt =====
+package com.jarvismini.ui.navigation
+
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.navigation.compose.*
+import com.jarvismini.ui.DailyChecklistScreen
+import com.jarvismini.ui.JarvisChatScreen
+
+@Composable
+fun MainNav() {
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    Scaffold(
+        bottomBar = {
+            BottomBar(
+                navController = navController,
+                currentRoute = currentRoute
+            )
+        }
+    ) { paddingValues ->
+        NavHost(
+            navController = navController,
+            startDestination = NavRoute.Chat.route
+        ) {
+            composable(NavRoute.Chat.route) {
+                JarvisChatScreen()
+            }
+
+            composable(NavRoute.Checklist.route) {
+                DailyChecklistScreen()
+            }
+        }
+    }
+}
+
+/**
+ * Centralized route definitions
+ */
+sealed class NavRoute(val route: String) {
+    object Chat : NavRoute("chat")
+    object Checklist : NavRoute("checklist")
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt =====
+package com.jarvismini.ui.navigation
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavController
+
+@Composable
+fun BottomBar(
+    navController: NavController,
+    currentRoute: String?
+) {
+    NavigationBar {
+        BottomBarItem(
+            label = "Chat",
+            icon = Icons.Default.Chat,
+            selected = currentRoute == NavRoute.Chat.route
+        ) {
+            navController.navigate(NavRoute.Chat.route) {
+                popUpTo(NavRoute.Chat.route) { inclusive = false }
+                launchSingleTop = true
+            }
+        }
+
+        BottomBarItem(
+            label = "Checklist",
+            icon = Icons.Default.Checklist,
+            selected = currentRoute == NavRoute.Checklist.route
+        ) {
+            navController.navigate(NavRoute.Checklist.route) {
+                launchSingleTop = true
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomBarItem(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = { Icon(icon, contentDescription = label) },
+        label = { Text(label) }
+    )
 }
