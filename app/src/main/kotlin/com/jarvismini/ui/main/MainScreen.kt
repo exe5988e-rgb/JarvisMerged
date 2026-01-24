@@ -1,7 +1,9 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import com.jarvismini.ui.chat.ChatScreen
 import com.jarvismini.ui.checklist.ChecklistScreen
@@ -30,9 +32,15 @@ fun MainScreen() {
             }
         }
     ) { padding ->
-        when (selectedTab) {
-            MainTab.Chat -> ChatScreen()
-            MainTab.Checklist -> ChecklistScreen()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when (selectedTab) {
+                MainTab.Chat -> ChatScreen()
+                MainTab.Checklist -> ChecklistScreen()
+            }
         }
     }
 }
