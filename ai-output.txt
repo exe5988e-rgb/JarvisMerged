@@ -1,56 +1,59 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
 
-package com.jarvismini.engine.progress
+package com.jarvismini.core.notifications
 
 import android.content.Context
-import com.jarvismini.core.notifications.ProgressNotifier
-import com.jarvismini.core.progress.ProgressEngine
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.jarvismini.core.R
 
-class ProgressOrchestrator(
-    private val context: Context,
-    private val scheduler: DelayedTaskScheduler
-) {
+object ProgressNotifier {
 
-    fun prompt(blockId: String, blockName: String) {
-        AssistantTTS.speak(
-            context,
-            "Did you complete $blockName?"
-        )
-
-        ProgressNotifier.showCompletionPrompt(
+    fun showCompletionPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        iconRes: Int = R.drawable.ic_launcher_foreground
+    ) {
+        notify(
             context = context,
-            blockId = blockId,
-            blockName = blockName
+            id = blockId,
+            title = "Block Finished",
+            msg = "Mark $blockName as complete or incomplete.",
+            iconRes = iconRes
         )
     }
 
-    fun onUserResponse(
+    fun showRetryPrompt(
+        context: Context,
         blockId: String,
         blockName: String,
-        completed: Boolean
+        iconRes: Int = R.drawable.ic_launcher_foreground
     ) {
-        if (completed) {
-            ProgressEngine.markComplete(blockId)
+        notify(
+            context = context,
+            id = blockId,
+            title = "Reminder",
+            msg = "$blockName still incomplete.",
+            iconRes = iconRes
+        )
+    }
 
-            AssistantTTS.speak(
-                context,
-                "Great. Task marked as complete."
-            )
-        } else {
-            ProgressEngine.markIncomplete(blockId, blockName)
+    private fun notify(
+        context: Context,
+        id: String,
+        title: String,
+        msg: String,
+        iconRes: Int
+    ) {
+        val notification = NotificationCompat.Builder(context, "progress")
+            .setSmallIcon(iconRes)
+            .setContentTitle(title)
+            .setContentText(msg)
+            .setAutoCancel(true)
+            .build()
 
-            AssistantTTS.speak(
-                context,
-                "Okay. I will remind you again in thirty minutes."
-            )
-
-            scheduler.schedule(
-                delayMs = 30 * 60 * 1000L
-            ) {
-                prompt(blockId, blockName)
-            }
-        }
+        NotificationManagerCompat.from(context)
+            .notify(id.hashCode(), notification)
     }
 }
