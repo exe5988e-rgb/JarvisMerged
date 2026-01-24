@@ -6,15 +6,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.JarvisState
 import com.jarvismini.core.tts.AssistantTTS
 
 @Composable
 fun ChecklistScreen() {
-    val context = JarvisState.context ?: return
+    val context = LocalContext.current
 
     // Get today's blocks
     var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
