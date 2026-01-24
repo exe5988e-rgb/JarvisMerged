@@ -1,75 +1,48 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:49:5 Unresolved reference: NavigationBarItem
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:52:18 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:53:19 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:26 Unresolved reference: navigation
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:25:21 Unresolved reference: MainNav
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 2m 5s
+BUILD FAILED in 2m 1s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt =====
-1	package com.jarvismini.ui.navigation
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
+1	package com.jarvismini
 2
-3	import androidx.compose.material.icons.Icons
-4	import androidx.compose.material.icons.filled.ChatBubble
-5	import androidx.compose.material.icons.filled.ListAlt
-6	import androidx.compose.material3.Icon
-7	import androidx.compose.material3.NavigationBar
-8	import androidx.compose.material3.NavigationBarItem
-9	import androidx.compose.material3.Text
-10	import androidx.compose.runtime.Composable
-11	import androidx.compose.ui.graphics.vector.ImageVector
-12	import androidx.navigation.NavController
+3	import android.os.Bundle
+4	import androidx.activity.ComponentActivity
+5	import androidx.activity.compose.setContent
+6	import androidx.compose.material3.MaterialTheme
+7	import androidx.compose.material3.Surface
+8	import com.jarvismini.core.JarvisState
+9	import com.jarvismini.engine.EngineProvider
+>>>>> ERROR HERE
+10	import com.jarvismini.ui.navigation.MainNav
+11
+12	class MainActivity : ComponentActivity() {
 13
-14	@Composable
-15	fun BottomBar(
-16	    navController: NavController,
-17	    currentRoute: String?
-18	) {
-19	    NavigationBar {
-20	        BottomBarItem(
-21	            label = "Chat",
-22	            icon = Icons.Filled.ChatBubble,
-23	            selected = currentRoute == NavRoute.Chat.route
-24	        ) {
-25	            navController.navigate(NavRoute.Chat.route) {
-26	                launchSingleTop = true
+14	    override fun onCreate(savedInstanceState: Bundle?) {
+15	        super.onCreate(savedInstanceState)
+16
+17	        // 🔴 Core must be initialized BEFORE any UI or services rely on it
+18	        JarvisState.init(applicationContext)
+19	        EngineProvider.init(applicationContext)
+20
+21	        setContent {
+22	            MaterialTheme {
+23	                Surface {
+24	                    // ✅ MainNav handles NavHost + BottomBar
+>>>>> ERROR HERE
+25	                    MainNav()
+26	                }
 27	            }
 28	        }
-29
-30	        BottomBarItem(
-31	            label = "Checklist",
-32	            icon = Icons.Filled.ListAlt,
-33	            selected = currentRoute == NavRoute.Checklist.route
-34	        ) {
-35	            navController.navigate(NavRoute.Checklist.route) {
-36	                launchSingleTop = true
-37	            }
-38	        }
-39	    }
-40	}
-41
-42	@Composable
-43	private fun BottomBarItem(
-44	    label: String,
-45	    icon: ImageVector,
-46	    selected: Boolean,
-47	    onClick: () -> Unit
-48	) {
->>>>> ERROR HERE
-49	    NavigationBarItem(
-50	        selected = selected,
-51	        onClick = onClick,
->>>>> ERROR HERE
-52	        icon = { Icon(icon, contentDescription = label) },
->>>>> ERROR HERE
-53	        label = { Text(label) }
-54	    )
-55	}
+29	    }
+30	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
