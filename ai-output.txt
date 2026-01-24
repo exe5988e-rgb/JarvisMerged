@@ -6,39 +6,24 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import com.jarvismini.core.JarvisState
 import com.jarvismini.engine.EngineProvider
-import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.navigation.MainNav
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Core init MUST stay before UI
+        // 🔴 Core must be initialized BEFORE any UI or services rely on it
         JarvisState.init(applicationContext)
         EngineProvider.init(applicationContext)
 
         setContent {
             MaterialTheme {
                 Surface {
-                    val navController = rememberNavController()
-
-                    NavHost(
-                        navController = navController,
-                        startDestination = "chat"
-                    ) {
-                        composable("chat") {
-                            MainNav()
-                        }
-
-                        // 🔜 Future screens plug in here
-                        // composable("checklist") { DailyChecklistScreen() }
-                        // composable("calendar") { DayCalendarScreen(...) }
-                    }
+                    // ✅ MainNav handles NavHost + BottomBar
+                    MainNav()
                 }
             }
         }
@@ -47,60 +32,60 @@ class MainActivity : ComponentActivity() {
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt =====
 package com.jarvismini.ui.navigation
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.navigation.compose.*
-import com.jarvismini.ui.DailyChecklistScreen
+import androidx.compose.ui.Modifier
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.DailyChecklistScreen
 
+/**
+ * MainNav Composable: wires BottomBar with NavHost
+ */
 @Composable
 fun MainNav() {
     val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
 
     Scaffold(
         bottomBar = {
-            BottomBar(
-                navController = navController,
-                currentRoute = currentRoute
-            )
+            val currentRoute = navController.currentDestination?.route
+            BottomBar(navController = navController, currentRoute = currentRoute)
         }
-    ) { paddingValues ->
+    ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = NavRoute.Chat.route
+            startDestination = NavRoute.Chat.route,
+            modifier = Modifier.padding(padding)
         ) {
             composable(NavRoute.Chat.route) {
                 JarvisChatScreen()
             }
-
             composable(NavRoute.Checklist.route) {
                 DailyChecklistScreen()
             }
         }
     }
 }
-
-/**
- * Centralized route definitions
- */
-sealed class NavRoute(val route: String) {
-    object Chat : NavRoute("chat")
-    object Checklist : NavRoute("checklist")
-}
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt =====
 package com.jarvismini.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 
+/**
+ * BottomBar Composable with two items: Chat and Checklist
+ */
 @Composable
 fun BottomBar(
     navController: NavController,
@@ -120,7 +105,7 @@ fun BottomBar(
 
         BottomBarItem(
             label = "Checklist",
-            icon = Icons.Default.Checklist,
+            icon = Icons.Default.List,
             selected = currentRoute == NavRoute.Checklist.route
         ) {
             navController.navigate(NavRoute.Checklist.route) {
@@ -143,4 +128,16 @@ private fun BottomBarItem(
         icon = { Icon(icon, contentDescription = label) },
         label = { Text(label) }
     )
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/NavRoute.kt =====
+package com.jarvismini.ui.navigation
+
+/**
+ * NavRoute sealed class for type-safe Compose navigation
+ */
+sealed class NavRoute(val route: String) {
+
+    object Chat : NavRoute("chat")
+
+    object Checklist : NavRoute("checklist")
 }
