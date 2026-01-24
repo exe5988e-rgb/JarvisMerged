@@ -9,11 +9,26 @@ import com.jarvismini.core.R
 
 object ProgressNotifier {
 
+    // ✅ ENGINE-SAFE overload (NO icon required)
+    fun showCompletionPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String
+    ) {
+        showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName,
+            iconRes = R.drawable.ic_launcher_foreground
+        )
+    }
+
+    // ✅ Full version (used internally / by app if needed)
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
         blockName: String,
-        iconRes: Int = R.drawable.ic_launcher_foreground
+        iconRes: Int
     ) {
         notify(
             context = context,
@@ -27,15 +42,14 @@ object ProgressNotifier {
     fun showRetryPrompt(
         context: Context,
         blockId: String,
-        blockName: String,
-        iconRes: Int = R.drawable.ic_launcher_foreground
+        blockName: String
     ) {
         notify(
             context = context,
             id = blockId,
             title = "Reminder",
             msg = "$blockName still incomplete.",
-            iconRes = iconRes
+            iconRes = R.drawable.ic_launcher_foreground
         )
     }
 
