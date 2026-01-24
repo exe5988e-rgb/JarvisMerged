@@ -989,50 +989,50 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.JarvisState
 import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.ChecklistItem
 
 @Composable
 fun ChecklistScreen() {
-    val context = LocalContext.current
-    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
+    val context = JarvisState.context ?: return
 
-    LaunchedEffect(Unit) {
-        blocks = ProgressRepository.getTodayBlocks(context)
-    }
+    // Get today's blocks
+    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        items(blocks) { block ->
-            ChecklistItem(
-                block = block,
-                onComplete = {
-                    ProgressRepository.markCompleted(context, block.id)
-                    AssistantTTS.speak(
-                        context,
-                        "${block.name} marked as complete"
-                    )
+        items(blocks, key = { it.id }) { block ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(block.name, modifier = Modifier.weight(1f))
+                    if (!block.completed) {
+                        TextButton(onClick = {
+                            ProgressRepository.markCompleted(context, block.id)
+                            AssistantTTS.speak(context, "Marked ${block.name} as complete")
+                            blocks = blocks.map {
+                                if (it.id == block.id) it.copy(completed = true) else it
+                            }
+                        }) { Text("Done") }
 
-                    blocks = blocks.map {
-                        if (it.id == block.id) it.copy(completed = true) else it
+                        TextButton(onClick = {
+                            ProgressRepository.markIncomplete(context, block.id, block.name)
+                            AssistantTTS.speak(context, "Will remind you later about ${block.name}")
+                        }) { Text("Missed") }
+                    } else {
+                        Text("✅ Completed")
                     }
-                },
-                onIncomplete = {
-                    ProgressRepository.markIncomplete(context, block.id, block.name)
-                    AssistantTTS.speak(
-                        context,
-                        "Okay, I will remind you about ${block.name} later"
-                    )
                 }
-            )
+            }
         }
     }
 }
