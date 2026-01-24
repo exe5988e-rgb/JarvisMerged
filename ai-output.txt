@@ -1,28 +1,26 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/model/EventStatus.kt =====
-package com.jarvismini.core.calendar.model
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
+package com.jarvismini.core.progress
 
-// ✅ Added missing INCOMPLETE and RETRY_SCHEDULED
-enum class EventStatus {
-    SCHEDULED,
-    COMPLETED,
-    INCOMPLETE,
-    RETRY_SCHEDULED
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/utils/TimeUtils.kt =====
-package com.jarvismini.core.utils
-
-// ✅ Helper to get current system time
-object TimeUtils {
-    fun nowMs(): Long = System.currentTimeMillis()
+// ✅ Single correct ProgressStats definition
+data class ProgressStats(
+    val date: String,              // e.g., "2026-01-24", can be set dynamically later
+    val totalBlocks: Int,
+    val completedBlocks: Int
+) {
+    val completionPercent: Int
+        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
 }
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
 
+// ✅ Single source of truth for stats
 object ProgressStatsEngine {
+
     fun registerBlock(context: Context, blockId: String) {
         ProgressStore.register(context, blockId)
     }
@@ -31,115 +29,67 @@ object ProgressStatsEngine {
         ProgressStore.markComplete(context, blockId)
     }
 
-    // ✅ Added stub for getTodayStats to fix DailyChecklistScreen
     fun getTodayStats(context: Context): ProgressStats {
-        // Replace with actual logic later
-        return ProgressStats(completionPercent = 0)
-    }
-}
+        val blocks = ProgressRepository.getTodayBlocks(context)
+        val total = blocks.size
+        val completedCount = blocks.count { it.completed }
 
-// ===== Supporting data class for stats =====
-data class ProgressStats(
-    val completionPercent: Int
-)
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt =====
-package com.jarvismini.ui
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStatsEngine
-
-@Composable
-fun DailyChecklistScreen() {
-
-    val context = LocalContext.current
-    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
-    
-    // ✅ Fixed: correct method call for stats
-    val stats = ProgressStatsEngine.getTodayStats(context)
-
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp)
-    ) {
-
-        Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
+        // ✅ Correctly construct ProgressStats with all required parameters
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completedCount
         )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        blocks = ProgressRepository.getTodayBlocks(context)
-                    },
-                    onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
-                    }
-                )
-            }
-        }
     }
 }
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt =====
-package com.jarvismini.ui.calendar
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.jarvismini.core.calendar.AppCalendarStore
 import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.utils.TimeUtils  // ✅ Fixed import path
+import com.jarvismini.core.calendar.model.EventStatus
+import com.jarvismini.core.time.NetworkTimeProvider
+import java.util.UUID
 
-@Composable
-fun DayCalendarScreen(viewModel: CalendarViewModel) {
+object RetryScheduler {
 
-    // ✅ Fixed usage of TimeUtils
-    val now = TimeUtils.nowMs()
-    val dayStart = now - (now % (24 * 60 * 60 * 1000))
-    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
-
-    val events = remember {
-        viewModel.getEventsForDay(dayStart, dayEnd)
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(12.dp)
+    fun schedule(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        config: ProgressConfig
     ) {
-        items(events) { event ->
-            CalendarEventCard(event)
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
+
+        AppCalendarStore.save(
+            context,
+            CalendarEvent(
+                id = "retry_${UUID.randomUUID()}",
+                title = "Retry: $blockName",
+                startTimeMs = retryAt,
+                endTimeMs = retryAt + 5 * 60_000,
+                status = EventStatus.RETRY_SCHEDULED, // ✅ Fixed enum reference
+                meta = mapOf("blockId" to blockId)
+            )
+        )
     }
 }
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt =====
-package com.jarvismini.ui.calendar
 
-import androidx.compose.ui.graphics.Color
-import com.jarvismini.core.calendar.model.EventStatus
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+package com.jarvismini.smart
 
-fun statusColor(status: EventStatus): Color = when (status) {
-    EventStatus.SCHEDULED -> Color(0xFF64B5F6)      // Blue
-    EventStatus.COMPLETED -> Color(0xFF81C784)      // Green
-    EventStatus.INCOMPLETE -> Color(0xFFE57373)     // Red ✅ fixed
-    EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D)// Orange ✅ fixed
-    else -> Color.Gray                               // ✅ exhaustive 'when'
+/**
+ * Minimal stub so module compiles.
+ * Real logic will be added later.
+ */
+object SmartFilters {
+    fun isAllowed(text: String): Boolean {
+        return true
+    }
 }
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt =====
 package com.jarvismini.ui
@@ -159,9 +109,11 @@ import com.jarvismini.core.progress.ProgressStatsEngine
 fun DailyChecklistScreen() {
     val context = LocalContext.current
 
-    // ✅ State for blocks and stats
+    // Load today's blocks
     var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
-    var stats by remember { mutableStateOf(ProgressStatsEngine.getTodayStats(context)) }
+
+    // ✅ Fixed: getTodayStats now returns ProgressStats with all fields
+    val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(
         modifier = Modifier
@@ -182,44 +134,12 @@ fun DailyChecklistScreen() {
                     onComplete = {
                         ProgressRepository.markCompleted(context, block.id)
                         blocks = ProgressRepository.getTodayBlocks(context)
-                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id, block.name)
-                        blocks = ProgressRepository.getTodayBlocks(context)
-                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     }
                 )
             }
         }
     }
 }
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-object ProgressStatsEngine {
-
-    fun registerBlock(context: Context, blockId: String) {
-        ProgressStore.register(context, blockId)
-    }
-
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-    }
-
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
-
-        val completionPercent = if (total > 0) (completedCount * 100) / total else 0
-        return ProgressStats(completionPercent = completionPercent)
-    }
-}
-
-//===== Supporting data class =====
-data class ProgressStats(
-    val completionPercent: Int
-)
