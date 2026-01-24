@@ -26,6 +26,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── BuildConfigBridge.kt
 │   │   │   │   │   │   ├── CoreApp.kt
 │   │   │   │   │   │   ├── MainActivity.kt
+│   │   │   │   │   │   ├── notifications
+│   │   │   │   │   │   │   ├── ProgressNotifier.kt
 │   │   │   │   │   │   ├── service
 │   │   │   │   │   │   │   ├── CallAutoReplyService.kt
 │   │   │   │   │   │   │   ├── WorkModeTileService.kt
@@ -165,13 +167,17 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   │   ├── QuietHours.kt
 │   │   │   │   │   │   │   │   │   ├── RetryScheduler.kt
 │   │   │   │   │   │   │   │   ├── routine
+│   │   │   │   │   │   │   │   │   ├── ActionDispatcher.kt
 │   │   │   │   │   │   │   │   │   ├── RoutineExecutor.kt
 │   │   │   │   │   │   │   │   │   ├── model
 │   │   │   │   │   │   │   │   │   │   ├── Routine.kt
+│   │   │   │   │   │   │   │   │   │   ├── RoutineAction.kt
 │   │   │   │   │   │   │   │   ├── time
 │   │   │   │   │   │   │   │   │   ├── NetworkTimeProvider.kt
 │   │   │   │   │   │   │   │   ├── tts
 │   │   │   │   │   │   │   │   │   ├── AssistantTTS.kt
+│   │   │   │   │   │   │   │   ├── util
+│   │   │   │   │   │   │   │   │   ├── JsonUtil.kt
 │   ├── engine
 │   │   ├── build.gradle.kts
 │   │   ├── proguard-rules.pro
@@ -521,6 +527,38 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/notifications/ProgressNotifier.kt =====
+package com.jarvismini.notifications
+
+import android.content.Context
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.jarvismini.R
+
+object ProgressNotifier {
+
+    fun showCompletionPrompt(context: Context, id: String, name: String) {
+        notify(context, id, "Block Finished", "Mark $name complete or incomplete.")
+    }
+
+    fun showRetryPrompt(context: Context, id: String, name: String) {
+        notify(context, id, "Reminder", "$name still incomplete.")
+    }
+
+    private fun notify(context: Context, id: String, title: String, msg: String) {
+        val n = NotificationCompat.Builder(context, "progress")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(msg)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(context)
+            .notify(id.hashCode(), n)
     }
 }
 
@@ -2859,7 +2897,6 @@ package com.jarvismini.core.calendar.model
 enum class EventStatus {
     SCHEDULED,
     COMPLETED,
-    INCOMPLETE,
     RETRY
 }
 
@@ -3070,44 +3107,16 @@ data class ProgressStats(
 package com.jarvismini.core.progress
 
 import android.content.Context
-import java.time.LocalDate
 
 object ProgressStatsEngine {
 
-    private const val PREF = "progress_stats"
-
     fun registerBlock(context: Context, blockId: String) {
-        val key = todayKey()
-        val prefs = prefs(context)
-
-        val total = prefs.getInt("${key}_total", 0) + 1
-        prefs.edit().putInt("${key}_total", total).apply()
+        ProgressStore.register(context, blockId)
     }
 
     fun markCompleted(context: Context, blockId: String) {
-        val key = todayKey()
-        val prefs = prefs(context)
-
-        val completed = prefs.getInt("${key}_completed", 0) + 1
-        prefs.edit().putInt("${key}_completed", completed).apply()
+        ProgressStore.markComplete(context, blockId)
     }
-
-    fun getTodayStats(context: Context): ProgressStats {
-        val key = todayKey()
-        val prefs = prefs(context)
-
-        return ProgressStats(
-            date = key,
-            totalBlocks = prefs.getInt("${key}_total", 0),
-            completedBlocks = prefs.getInt("${key}_completed", 0)
-        )
-    }
-
-    private fun todayKey(): String =
-        LocalDate.now().toString()
-
-    private fun prefs(context: Context) =
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 }
 
 
@@ -3118,26 +3127,44 @@ import android.content.Context
 
 object ProgressStore {
 
-    private const val PREF = "routine_progress"
+    private const val PREF = "progress_store"
+
+    fun register(context: Context, blockId: String) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("reg_$blockId", true)
+            .apply()
+    }
 
     fun markComplete(context: Context, blockId: String) {
-        prefs(context).edit()
-            .putBoolean(blockId, true)
-            .putLong("${blockId}_ts", System.currentTimeMillis())
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("done_$blockId", true)
             .apply()
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        prefs(context).edit()
-            .putBoolean(blockId, false)
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .remove("done_$blockId")
             .apply()
     }
 
-    fun isComplete(context: Context, blockId: String): Boolean =
-        prefs(context).getBoolean(blockId, false)
-
-    private fun prefs(context: Context) =
+    fun getCompletedBlocks(context: Context): Set<String> =
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .filterKeys { it.startsWith("done_") }
+            .keys
+            .map { it.removePrefix("done_") }
+            .toSet()
+
+    fun getRegisteredBlocks(context: Context): Set<String> =
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .filterKeys { it.startsWith("reg_") }
+            .keys
+            .map { it.removePrefix("reg_") }
+            .toSet()
 }
 
 
@@ -3182,30 +3209,31 @@ object RetryScheduler {
     ) {
         val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
 
-        val event = CalendarEvent(
-            id = "retry_${blockId}_${UUID.randomUUID()}",
-            title = "Retry: $blockName",
-            startTimeMs = retryAt,
-            endTimeMs = retryAt + 5 * 60_000,
-            status = EventStatus.RETRY,
-            meta = mapOf("blockId" to blockId)
+        AppCalendarStore.save(
+            context,
+            CalendarEvent(
+                id = "retry_${UUID.randomUUID()}",
+                title = "Retry: $blockName",
+                startTimeMs = retryAt,
+                endTimeMs = retryAt + 5 * 60_000,
+                status = EventStatus.RETRY,
+                meta = mapOf("blockId" to blockId)
+            )
         )
-
-        AppCalendarStore.save(context, event)
     }
+}
 
-    fun restorePendingRetries(context: Context) {
-        val now = NetworkTimeProvider.nowMs()
 
-        AppCalendarStore.getAll(context)
-            .filter { it.status == EventStatus.RETRY && it.startTimeMs <= now }
-            .forEach {
-                ProgressNotifier.showRetryPrompt(
-                    context,
-                    it.meta["blockId"] ?: it.id,
-                    it.title
-                )
-            }
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.routine.model.RoutineAction
+
+object ActionDispatcher {
+
+    fun dispatch(context: Context, action: RoutineAction) {
+        // Stub — logic will expand later
     }
 }
 
@@ -3246,6 +3274,15 @@ data class Routine(
 )
 
 
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/RoutineAction.kt =====
+package com.jarvismini.core.routine.model
+
+data class RoutineAction(
+    val type: String,
+    val payload: String? = null
+)
+
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/time/NetworkTimeProvider.kt =====
 package com.jarvismini.core.time
 
@@ -3282,6 +3319,21 @@ object AssistantTTS {
             tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
         }
     }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
+package com.jarvismini.core.util
+
+import com.google.gson.Gson
+
+object JsonUtil {
+    private val gson = Gson()
+
+    fun <T> toJson(obj: T): String = gson.toJson(obj)
+
+    inline fun <reified T> fromJson(json: String): T =
+        gson.fromJson(json, T::class.java)
 }
 
 
