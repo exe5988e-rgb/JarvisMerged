@@ -11,14 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 
-/**
- * BottomBar Composable with two items: Chat and Checklist
- */
 @Composable
-fun BottomBar(
-    navController: NavController,
-    currentRoute: String?
-) {
+fun BottomBar(navController: NavController, currentRoute: String?) {
     NavigationBar {
         BottomBarItem(
             label = "Chat",
@@ -43,9 +37,6 @@ fun BottomBar(
     }
 }
 
-/**
- * Single BottomBar item
- */
 @Composable
 private fun BottomBarItem(
     label: String,
