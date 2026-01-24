@@ -4,24 +4,42 @@ import android.content.Context
 
 object ProgressStore {
 
-    private const val PREF = "routine_progress"
+    private const val PREF = "progress_store"
+
+    fun register(context: Context, blockId: String) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("reg_$blockId", true)
+            .apply()
+    }
 
     fun markComplete(context: Context, blockId: String) {
-        prefs(context).edit()
-            .putBoolean(blockId, true)
-            .putLong("${blockId}_ts", System.currentTimeMillis())
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("done_$blockId", true)
             .apply()
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        prefs(context).edit()
-            .putBoolean(blockId, false)
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .remove("done_$blockId")
             .apply()
     }
 
-    fun isComplete(context: Context, blockId: String): Boolean =
-        prefs(context).getBoolean(blockId, false)
-
-    private fun prefs(context: Context) =
+    fun getCompletedBlocks(context: Context): Set<String> =
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .filterKeys { it.startsWith("done_") }
+            .keys
+            .map { it.removePrefix("done_") }
+            .toSet()
+
+    fun getRegisteredBlocks(context: Context): Set<String> =
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .filterKeys { it.startsWith("reg_") }
+            .keys
+            .map { it.removePrefix("reg_") }
+            .toSet()
 }

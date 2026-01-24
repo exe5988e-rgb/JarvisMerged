@@ -17,29 +17,16 @@ object RetryScheduler {
     ) {
         val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
 
-        val event = CalendarEvent(
-            id = "retry_${blockId}_${UUID.randomUUID()}",
-            title = "Retry: $blockName",
-            startTimeMs = retryAt,
-            endTimeMs = retryAt + 5 * 60_000,
-            status = EventStatus.RETRY,
-            meta = mapOf("blockId" to blockId)
+        AppCalendarStore.save(
+            context,
+            CalendarEvent(
+                id = "retry_${UUID.randomUUID()}",
+                title = "Retry: $blockName",
+                startTimeMs = retryAt,
+                endTimeMs = retryAt + 5 * 60_000,
+                status = EventStatus.RETRY,
+                meta = mapOf("blockId" to blockId)
+            )
         )
-
-        AppCalendarStore.save(context, event)
-    }
-
-    fun restorePendingRetries(context: Context) {
-        val now = NetworkTimeProvider.nowMs()
-
-        AppCalendarStore.getAll(context)
-            .filter { it.status == EventStatus.RETRY && it.startTimeMs <= now }
-            .forEach {
-                ProgressNotifier.showRetryPrompt(
-                    context,
-                    it.meta["blockId"] ?: it.id,
-                    it.title
-                )
-            }
     }
 }
