@@ -5,25 +5,37 @@ import com.jarvismini.core.notifications.ProgressNotifier
 import com.jarvismini.core.tts.AssistantTTS
 
 object ProgressEngine {
+
     private lateinit var context: Context
     private lateinit var config: ProgressConfig
+    private var notificationIconRes: Int = 0
 
-    fun init(ctx: Context, cfg: ProgressConfig) {
+    fun init(
+        ctx: Context,
+        cfg: ProgressConfig,
+        iconRes: Int
+    ) {
         context = ctx.applicationContext
         config = cfg
+        notificationIconRes = iconRes
     }
 
     fun onBlockCompleted(blockId: String, blockName: String) {
         if (!config.enabled) return
 
-        // 📊 Register block
         ProgressStatsEngine.registerBlock(context, blockId)
-        ProgressNotifier.showCompletionPrompt(context, blockId, blockName)
+
+        ProgressNotifier.showCompletionPrompt(
+            context,
+            blockId,
+            blockName,
+            notificationIconRes
+        )
 
         if (config.ttsEnabled) {
             AssistantTTS.speak(
                 context,
-                "Block ${blockName} finished. Please confirm completion."
+                "Block $blockName finished. Please confirm completion."
             )
         }
     }
