@@ -39,6 +39,12 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── CalendarViewModel.kt
 │   │   │   │   │   │   │   │   ├── DayCalendarScreen.kt
 │   │   │   │   │   │   │   │   ├── EventColor.kt
+│   │   │   │   │   │   │   ├── chat
+│   │   │   │   │   │   │   │   ├── ChatScreen.kt
+│   │   │   │   │   │   │   ├── checklist
+│   │   │   │   │   │   │   │   ├── ChecklistScreen.kt
+│   │   │   │   │   │   │   ├── main
+│   │   │   │   │   │   │   │   ├── MainScreen.kt
 │   │   │   │   │   │   │   ├── navigation
 │   │   │   │   │   │   │   │   ├── BottomBar.kt
 │   │   │   │   │   │   │   │   ├── MainNav.kt
@@ -305,7 +311,7 @@ dependencies {
     implementation("androidx.activity:activity-compose")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
 
@@ -315,6 +321,10 @@ dependencies {
     // Material (still OK for non-compose usage)
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
+
+    // Material icons for Compose
+    implementation("androidx.compose.material:material-icons-extended:1.5.0")
+
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
@@ -963,20 +973,85 @@ fun statusColor(status: EventStatus): Color = when (status) {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/ChatScreen.kt =====
+package com.jarvismini.ui.chat
+
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ChatScreen() {
+    Text("Chat Screen")
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistScreen.kt =====
+package com.jarvismini.ui.checklist
+
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ChecklistScreen() {
+    Text("Checklist Screen")
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import com.jarvismini.ui.chat.ChatScreen
+import com.jarvismini.ui.checklist.ChecklistScreen
+
+enum class MainTab(val title: String) {
+    Chat("Chat"),
+    Checklist("Checklist")
+}
+
+@Composable
+fun MainScreen() {
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+
+    Scaffold(
+        topBar = {
+            TabRow(
+                selectedTabIndex = selectedTab.ordinal
+            ) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.title) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        when (selectedTab) {
+            MainTab.Chat -> ChatScreen()
+            MainTab.Checklist -> ChecklistScreen()
+        }
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt =====
 package com.jarvismini.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 
-/**
- * BottomBar Composable with two items: Chat and Checklist
- */
 @Composable
 fun BottomBar(
     navController: NavController,
@@ -989,14 +1064,13 @@ fun BottomBar(
             selected = currentRoute == NavRoute.Chat.route
         ) {
             navController.navigate(NavRoute.Chat.route) {
-                popUpTo(NavRoute.Chat.route) { inclusive = false }
                 launchSingleTop = true
             }
         }
 
         BottomBarItem(
             label = "Checklist",
-            icon = Icons.Filled.List,
+            icon = Icons.Filled.ListAlt,
             selected = currentRoute == NavRoute.Checklist.route
         ) {
             navController.navigate(NavRoute.Checklist.route) {
