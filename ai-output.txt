@@ -1,117 +1,6 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
-package com.jarvismini.core.util
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
 
-import com.google.gson.Gson
-
-object JsonUtil {
-    private val gson = Gson()
-
-    fun <T> toJson(obj: T): String = gson.toJson(obj)
-
-    inline fun <reified T> fromJson(json: String): T =
-        gson.fromJson(json, T::class.java)
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/model/EventStatus.kt =====
-package com.jarvismini.core.calendar.model
-
-enum class EventStatus {
-    SCHEDULED,
-    COMPLETED,
-    RETRY
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/model/CalendarEvent.kt =====
-package com.jarvismini.core.calendar.model
-
-data class CalendarEvent(
-    val id: String,
-    val title: String,
-    val startTimeMs: Long,
-    val endTimeMs: Long,
-    val status: EventStatus,
-    val meta: Map<String, String> = emptyMap()
-)
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-object ProgressStore {
-
-    private const val PREF = "progress_store"
-
-    fun register(context: Context, blockId: String) {
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean("reg_$blockId", true)
-            .apply()
-    }
-
-    fun markComplete(context: Context, blockId: String) {
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean("done_$blockId", true)
-            .apply()
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .edit()
-            .remove("done_$blockId")
-            .apply()
-    }
-
-    fun getCompletedBlocks(context: Context): Set<String> =
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .all
-            .filterKeys { it.startsWith("done_") }
-            .keys
-            .map { it.removePrefix("done_") }
-            .toSet()
-
-    fun getRegisteredBlocks(context: Context): Set<String> =
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .all
-            .filterKeys { it.startsWith("reg_") }
-            .keys
-            .map { it.removePrefix("reg_") }
-            .toSet()
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-object ProgressStatsEngine {
-
-    fun registerBlock(context: Context, blockId: String) {
-        ProgressStore.register(context, blockId)
-    }
-
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-    }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/RoutineAction.kt =====
-package com.jarvismini.core.routine.model
-
-data class RoutineAction(
-    val type: String,
-    val payload: String? = null
-)
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
-package com.jarvismini.core.routine
-
-import android.content.Context
-import com.jarvismini.core.routine.model.RoutineAction
-
-object ActionDispatcher {
-
-    fun dispatch(context: Context, action: RoutineAction) {
-        // Stub — logic will expand later
-    }
-}
-//===== FILE: app/src/main/kotlin/com/jarvismini/notifications/ProgressNotifier.kt =====
-package com.jarvismini.notifications
+package com.jarvismini.core.notifications
 
 import android.content.Context
 import androidx.core.app.NotificationCompat
@@ -120,12 +9,12 @@ import com.jarvismini.R
 
 object ProgressNotifier {
 
-    fun showCompletionPrompt(context: Context, id: String, name: String) {
-        notify(context, id, "Block Finished", "Mark $name complete or incomplete.")
+    fun showCompletionPrompt(context: Context, blockId: String, blockName: String) {
+        notify(context, blockId, "Block Finished", "Mark ${blockName} as complete or incomplete.")
     }
 
-    fun showRetryPrompt(context: Context, id: String, name: String) {
-        notify(context, id, "Reminder", "$name still incomplete.")
+    fun showRetryPrompt(context: Context, blockId: String, blockName: String) {
+        notify(context, blockId, "Reminder", "${blockName} still incomplete.")
     }
 
     private fun notify(context: Context, id: String, title: String, msg: String) {
@@ -140,37 +29,97 @@ object ProgressNotifier {
             .notify(id.hashCode(), n)
     }
 }
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+
 package com.jarvismini.core.progress
 
 import android.content.Context
-import com.jarvismini.core.calendar.AppCalendarStore
-import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.calendar.model.EventStatus
-import com.jarvismini.core.time.NetworkTimeProvider
-import java.util.UUID
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.tts.AssistantTTS
 
-object RetryScheduler {
+object ProgressEngine {
+    private lateinit var context: Context
+    private lateinit var config: ProgressConfig
 
-    fun schedule(
-        context: Context,
-        blockId: String,
-        blockName: String,
-        config: ProgressConfig
-    ) {
-        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
+    fun init(ctx: Context, cfg: ProgressConfig) {
+        context = ctx.applicationContext
+        config = cfg
+    }
 
-        AppCalendarStore.save(
-            context,
-            CalendarEvent(
-                id = "retry_${UUID.randomUUID()}",
-                title = "Retry: $blockName",
-                startTimeMs = retryAt,
-                endTimeMs = retryAt + 5 * 60_000,
-                status = EventStatus.RETRY,
-                meta = mapOf("blockId" to blockId)
+    fun onBlockCompleted(blockId: String, blockName: String) {
+        if (!config.enabled) return
+
+        // 📊 Register block
+        ProgressStatsEngine.registerBlock(context, blockId)
+        ProgressNotifier.showCompletionPrompt(context, blockId, blockName)
+
+        if (config.ttsEnabled) {
+            AssistantTTS.speak(
+                context,
+                "Block ${blockName} finished. Please confirm completion."
             )
-        )
+        }
+    }
+
+    fun markComplete(blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+        ProgressStatsEngine.markCompleted(context, blockId)
+    }
+
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+        scheduleRetry(blockId, blockName)
+    }
+
+    private fun scheduleRetry(blockId: String, blockName: String) {
+        if (!config.retryEnabled) return
+        RetryScheduler.schedule(context, blockId, blockName, config)
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
+
+package com.jarvismini.core.util
+
+import com.google.gson.Gson
+
+object JsonUtil {
+    internal val gson = Gson()
+
+    fun <T> toJson(obj: T): String = gson.toJson(obj)
+
+    inline fun <reified T> fromJson(json: String): T =
+        gson.fromJson(json, T::class.java)
+}
+//===== FILE: modules/core/build.gradle.kts =====
+
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jarvismini.core"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 23
+        targetSdk = 34
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
     }
 }
 
+dependencies {
+    // Core Android extensions
+    implementation("androidx.core:core-ktx:1.12.0")
+
+    // Gson for JSON serialization/deserialization
+    implementation("com.google.code.gson:gson:2.10.1")
+}
