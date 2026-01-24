@@ -1,12 +1,18 @@
 package com.jarvismini.core.notifications
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import com.jarvismini.core.R
 
 object ProgressNotifier {
 
-    // ENGINE-SAFE default (no icon passed)
+    // ✅ Engine-safe overload (no icon required)
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
@@ -16,11 +22,11 @@ object ProgressNotifier {
             context = context,
             blockId = blockId,
             blockName = blockName,
-            iconRes = android.R.drawable.ic_dialog_info
+            iconRes = R.drawable.ic_launcher_foreground
         )
     }
 
-    // FULL overload (used by ProgressEngine / app)
+    // ✅ Full version (used internally / by app if needed)
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
@@ -46,10 +52,11 @@ object ProgressNotifier {
             id = blockId,
             title = "Reminder",
             msg = "$blockName still incomplete.",
-            iconRes = android.R.drawable.ic_dialog_alert
+            iconRes = R.drawable.ic_launcher_foreground
         )
     }
 
+    // ✅ Lint-safe notify
     private fun notify(
         context: Context,
         id: String,
@@ -64,8 +71,15 @@ object ProgressNotifier {
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat
-            .from(context)
-            .notify(id.hashCode(), notification)
+        // ✅ Check runtime permission for Android 13+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            NotificationManagerCompat.from(context).notify(id.hashCode(), notification)
+        } else {
+            Log.w("ProgressNotifier", "Notification permission not granted, skipping notify()")
+        }
     }
 }
