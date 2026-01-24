@@ -2881,28 +2881,55 @@ package com.jarvismini.core.notifications
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.jarvismini.R
 
 object ProgressNotifier {
 
-    fun showCompletionPrompt(context: Context, blockId: String, blockName: String) {
-        notify(context, blockId, "Block Finished", "Mark ${blockName} as complete or incomplete.")
+    fun showCompletionPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        iconRes: Int
+    ) {
+        notify(
+            context,
+            blockId,
+            "Block Finished",
+            "Mark $blockName as complete or incomplete.",
+            iconRes
+        )
     }
 
-    fun showRetryPrompt(context: Context, blockId: String, blockName: String) {
-        notify(context, blockId, "Reminder", "${blockName} still incomplete.")
+    fun showRetryPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        iconRes: Int
+    ) {
+        notify(
+            context,
+            blockId,
+            "Reminder",
+            "$blockName still incomplete.",
+            iconRes
+        )
     }
 
-    private fun notify(context: Context, id: String, title: String, msg: String) {
-        val n = NotificationCompat.Builder(context, "progress")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+    private fun notify(
+        context: Context,
+        id: String,
+        title: String,
+        msg: String,
+        iconRes: Int
+    ) {
+        val notification = NotificationCompat.Builder(context, "progress")
+            .setSmallIcon(iconRes)
             .setContentTitle(title)
             .setContentText(msg)
             .setAutoCancel(true)
             .build()
 
         NotificationManagerCompat.from(context)
-            .notify(id.hashCode(), n)
+            .notify(id.hashCode(), notification)
     }
 }
 
@@ -2973,25 +3000,37 @@ import com.jarvismini.core.notifications.ProgressNotifier
 import com.jarvismini.core.tts.AssistantTTS
 
 object ProgressEngine {
+
     private lateinit var context: Context
     private lateinit var config: ProgressConfig
+    private var notificationIconRes: Int = 0
 
-    fun init(ctx: Context, cfg: ProgressConfig) {
+    fun init(
+        ctx: Context,
+        cfg: ProgressConfig,
+        iconRes: Int
+    ) {
         context = ctx.applicationContext
         config = cfg
+        notificationIconRes = iconRes
     }
 
     fun onBlockCompleted(blockId: String, blockName: String) {
         if (!config.enabled) return
 
-        // 📊 Register block
         ProgressStatsEngine.registerBlock(context, blockId)
-        ProgressNotifier.showCompletionPrompt(context, blockId, blockName)
+
+        ProgressNotifier.showCompletionPrompt(
+            context,
+            blockId,
+            blockName,
+            notificationIconRes
+        )
 
         if (config.ttsEnabled) {
             AssistantTTS.speak(
                 context,
-                "Block ${blockName} finished. Please confirm completion."
+                "Block $blockName finished. Please confirm completion."
             )
         }
     }
