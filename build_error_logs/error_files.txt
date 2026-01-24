@@ -11,6 +11,100 @@ e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotl
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 36s
+BUILD FAILED in 40s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
+1	package com.jarvismini.core.progress
+2
+>>>>> ERROR HERE
+3	data class ProgressStats(
+4	    val date: String,
+5	    val totalBlocks: Int,
+6	    val completedBlocks: Int
+7	) {
+8	    val completionPercent: Int
+9	        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
+10	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+1	package com.jarvismini.core.progress
+2
+3	import android.content.Context
+4
+5	object ProgressStatsEngine {
+6
+7	    fun registerBlock(context: Context, blockId: String) {
+8	        ProgressStore.register(context, blockId)
+9	    }
+10
+11	    fun markCompleted(context: Context, blockId: String) {
+12	        ProgressStore.markComplete(context, blockId)
+13	    }
+14
+15	    fun getTodayStats(context: Context): ProgressStats {
+16	        val blocks = ProgressRepository.getTodayBlocks(context)
+17	        val total = blocks.size
+18	        val completedCount = blocks.count { it.completed }
+19
+20	        val completionPercent = if (total > 0) (completedCount * 100) / total else 0
+>>>>> ERROR HERE
+21	        return ProgressStats(completionPercent = completionPercent)
+22	    }
+23	}
+24
+25	//===== Supporting data class =====
+>>>>> ERROR HERE
+26	data class ProgressStats(
+27	    val completionPercent: Int
+28	)
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
+1	package com.jarvismini.core.progress
+2
+3	import android.content.Context
+4	import com.jarvismini.core.calendar.AppCalendarStore
+5	import com.jarvismini.core.calendar.model.CalendarEvent
+6	import com.jarvismini.core.calendar.model.EventStatus
+7	import com.jarvismini.core.time.NetworkTimeProvider
+8	import java.util.UUID
+9
+10	object RetryScheduler {
+11
+12	    fun schedule(
+13	        context: Context,
+14	        blockId: String,
+15	        blockName: String,
+16	        config: ProgressConfig
+17	    ) {
+18	        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
+19
+20	        AppCalendarStore.save(
+21	            context,
+22	            CalendarEvent(
+23	                id = "retry_${UUID.randomUUID()}",
+24	                title = "Retry: $blockName",
+25	                startTimeMs = retryAt,
+26	                endTimeMs = retryAt + 5 * 60_000,
+>>>>> ERROR HERE
+27	                status = EventStatus.RETRY,
+28	                meta = mapOf("blockId" to blockId)
+29	            )
+30	        )
+31	    }
+32	}
+
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+1	package com.jarvismini.smart
+2
+3	/**
+4	 * Minimal stub so module compiles.
+5	 * Real logic will be added later.
+6	 */
+7	object SmartFilters {
+>>>>> ERROR HERE
+8	    fun isAllowed(text: String): Boolean {
+9	        return true
+10	    }
+11	}
