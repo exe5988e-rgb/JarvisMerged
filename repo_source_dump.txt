@@ -26,8 +26,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── BuildConfigBridge.kt
 │   │   │   │   │   │   ├── CoreApp.kt
 │   │   │   │   │   │   ├── MainActivity.kt
-│   │   │   │   │   │   ├── notifications
-│   │   │   │   │   │   │   ├── ProgressNotifier.kt
 │   │   │   │   │   │   ├── service
 │   │   │   │   │   │   │   ├── CallAutoReplyService.kt
 │   │   │   │   │   │   │   ├── WorkModeTileService.kt
@@ -527,38 +525,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-}
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/notifications/ProgressNotifier.kt =====
-package com.jarvismini.notifications
-
-import android.content.Context
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import com.jarvismini.R
-
-object ProgressNotifier {
-
-    fun showCompletionPrompt(context: Context, id: String, name: String) {
-        notify(context, id, "Block Finished", "Mark $name complete or incomplete.")
-    }
-
-    fun showRetryPrompt(context: Context, id: String, name: String) {
-        notify(context, id, "Reminder", "$name still incomplete.")
-    }
-
-    private fun notify(context: Context, id: String, title: String, msg: String) {
-        val n = NotificationCompat.Builder(context, "progress")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(msg)
-            .setAutoCancel(true)
-            .build()
-
-        NotificationManagerCompat.from(context)
-            .notify(id.hashCode(), n)
     }
 }
 
@@ -2208,6 +2174,14 @@ android {
     }
 }
 
+dependencies {
+    // Core Android extensions
+    implementation("androidx.core:core-ktx:1.12.0")
+
+    // Gson for JSON serialization/deserialization
+    implementation("com.google.code.gson:gson:2.10.1")
+}
+
 
 //===== FILE: modules/core/proguard-rules.pro =====
 
@@ -2995,10 +2969,10 @@ object ProgressConfigLoader {
 package com.jarvismini.core.progress
 
 import android.content.Context
+import com.jarvismini.core.notifications.ProgressNotifier
 import com.jarvismini.core.tts.AssistantTTS
 
 object ProgressEngine {
-
     private lateinit var context: Context
     private lateinit var config: ProgressConfig
 
@@ -3012,7 +2986,6 @@ object ProgressEngine {
 
         // 📊 Register block
         ProgressStatsEngine.registerBlock(context, blockId)
-
         ProgressNotifier.showCompletionPrompt(context, blockId, blockName)
 
         if (config.ttsEnabled) {
@@ -3328,7 +3301,7 @@ package com.jarvismini.core.util
 import com.google.gson.Gson
 
 object JsonUtil {
-    private val gson = Gson()
+    internal val gson = Gson()
 
     fun <T> toJson(obj: T): String = gson.toJson(obj)
 
