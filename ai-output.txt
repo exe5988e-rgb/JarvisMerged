@@ -7,18 +7,33 @@ import androidx.core.app.NotificationManagerCompat
 
 object ProgressNotifier {
 
-    // ENGINE-SAFE: no app resources, no core R
+    // ENGINE-SAFE default (no icon passed)
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
         blockName: String
+    ) {
+        showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName,
+            iconRes = android.R.drawable.ic_dialog_info
+        )
+    }
+
+    // FULL overload (used by ProgressEngine / app)
+    fun showCompletionPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        iconRes: Int
     ) {
         notify(
             context = context,
             id = blockId,
             title = "Block Finished",
             msg = "Mark $blockName as complete or incomplete.",
-            iconRes = android.R.drawable.ic_dialog_info
+            iconRes = iconRes
         )
     }
 
