@@ -1,12 +1,12 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:14:26 Unresolved reference: drawable
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:29:26 Unresolved reference: drawable
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:20:25 Unresolved reference: drawable
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:50:25 Unresolved reference: drawable
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 39s
+BUILD FAILED in 40s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -20,56 +20,70 @@ BUILD FAILED in 39s
 7
 8	object ProgressNotifier {
 9
-10	    fun showCompletionPrompt(
-11	        context: Context,
-12	        blockId: String,
-13	        blockName: String,
->>>>> ERROR HERE
-14	        iconRes: Int = R.drawable.ic_launcher_foreground
+10	    // ✅ ENGINE-SAFE overload (NO icon required)
+11	    fun showCompletionPrompt(
+12	        context: Context,
+13	        blockId: String,
+14	        blockName: String
 15	    ) {
-16	        notify(
+16	        showCompletionPrompt(
 17	            context = context,
-18	            id = blockId,
-19	            title = "Block Finished",
-20	            msg = "Mark $blockName as complete or incomplete.",
-21	            iconRes = iconRes
-22	        )
-23	    }
-24
-25	    fun showRetryPrompt(
+18	            blockId = blockId,
+19	            blockName = blockName,
+>>>>> ERROR HERE
+20	            iconRes = R.drawable.ic_launcher_foreground
+21	        )
+22	    }
+23
+24	    // ✅ Full version (used internally / by app if needed)
+25	    fun showCompletionPrompt(
 26	        context: Context,
 27	        blockId: String,
 28	        blockName: String,
->>>>> ERROR HERE
-29	        iconRes: Int = R.drawable.ic_launcher_foreground
+29	        iconRes: Int
 30	    ) {
 31	        notify(
 32	            context = context,
 33	            id = blockId,
-34	            title = "Reminder",
-35	            msg = "$blockName still incomplete.",
+34	            title = "Block Finished",
+35	            msg = "Mark $blockName as complete or incomplete.",
 36	            iconRes = iconRes
 37	        )
 38	    }
 39
-40	    private fun notify(
+40	    fun showRetryPrompt(
 41	        context: Context,
-42	        id: String,
-43	        title: String,
-44	        msg: String,
-45	        iconRes: Int
-46	    ) {
-47	        val notification = NotificationCompat.Builder(context, "progress")
-48	            .setSmallIcon(iconRes)
-49	            .setContentTitle(title)
-50	            .setContentText(msg)
-51	            .setAutoCancel(true)
-52	            .build()
+42	        blockId: String,
+43	        blockName: String
+44	    ) {
+45	        notify(
+46	            context = context,
+47	            id = blockId,
+48	            title = "Reminder",
+49	            msg = "$blockName still incomplete.",
+>>>>> ERROR HERE
+50	            iconRes = R.drawable.ic_launcher_foreground
+51	        )
+52	    }
 53
-54	        NotificationManagerCompat.from(context)
-55	            .notify(id.hashCode(), notification)
-56	    }
-57	}
+54	    private fun notify(
+55	        context: Context,
+56	        id: String,
+57	        title: String,
+58	        msg: String,
+59	        iconRes: Int
+60	    ) {
+61	        val notification = NotificationCompat.Builder(context, "progress")
+62	            .setSmallIcon(iconRes)
+63	            .setContentTitle(title)
+64	            .setContentText(msg)
+65	            .setAutoCancel(true)
+66	            .build()
+67
+68	        NotificationManagerCompat.from(context)
+69	            .notify(id.hashCode(), notification)
+70	    }
+71	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
