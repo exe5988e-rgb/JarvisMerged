@@ -1,59 +1,50 @@
 package com.jarvismini.ui.main
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.jarvismini.ProgressInitializer
 import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.checklist.ChecklistItem
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressStatsEngine
+import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.ProgressBlock
 
-enum class MainTab {
-    Chat, Checklist
+enum class MainTab(val title: String) {
+    Chat("Chat"),
+    Checklist("Checklist")
 }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
 
-    // ✅ Auto-register routine blocks at app start
+    // ✅ Ensure all routine blocks are registered at app start
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
 
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf(listOf<ProgressBlock>()) }
-    var checklistPercent by remember { mutableStateOf(0) }
 
-    // Refresh blocks whenever checklist tab is selected
+    // Refresh blocks whenever tab changes
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
-            checklistPercent = ProgressStatsEngine.getTodayStats(context).completionPercent
         }
     }
 
     Scaffold(
         topBar = {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
-                val stats = ProgressStatsEngine.getTodayStats(context)
-                val tabTitles = listOf(
-                    "Chat",
-                    "Checklist (${stats.completionPercent}%)"
-                )
-
-                tabTitles.forEachIndexed { index, title ->
+                MainTab.values().forEach { tab ->
                     Tab(
-                        selected = selectedTab.ordinal == index,
-                        onClick = { selectedTab = MainTab.values()[index] },
-                        text = { Text(title) }
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.title) }
                     )
                 }
             }
@@ -69,8 +60,6 @@ fun MainScreen() {
                 MainTab.Chat -> JarvisChatScreen()
                 MainTab.Checklist -> ChecklistScreenWithStats(blocks) { updated ->
                     blocks = updated
-                    // Update percentage dynamically
-                    checklistPercent = ProgressStatsEngine.getTodayStats(context).completionPercent
                 }
             }
         }
