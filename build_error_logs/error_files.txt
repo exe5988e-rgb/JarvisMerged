@@ -1,14 +1,16 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt:21:37 Unresolved reference: getTodayStats
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt:13:28 Unresolved reference: utils
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt:19:15 Unresolved reference: TimeUtils
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt:9:17 Unresolved reference: INCOMPLETE
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt:10:17 Unresolved reference: RETRY_SCHEDULED
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt:3:12 Redeclaration: ProgressStats
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:21:30 Cannot find a parameter with this name: completionPercent
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:21:30 No value passed for parameter 'date'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:21:30 No value passed for parameter 'totalBlocks'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:21:30 No value passed for parameter 'completedBlocks'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:26:12 Redeclaration: ProgressStats
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt:27:38 Unresolved reference: RETRY
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 57s
+BUILD FAILED in 36s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
