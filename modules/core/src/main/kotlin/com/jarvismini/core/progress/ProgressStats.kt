@@ -1,7 +1,8 @@
 package com.jarvismini.core.progress
 
+// ✅ Single correct ProgressStats definition
 data class ProgressStats(
-    val date: String,
+    val date: String,              // e.g., "2026-01-24", can be set dynamically later
     val totalBlocks: Int,
     val completedBlocks: Int
 ) {

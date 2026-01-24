@@ -15,9 +15,11 @@ import com.jarvismini.core.progress.ProgressStatsEngine
 fun DailyChecklistScreen() {
     val context = LocalContext.current
 
-    // ✅ State for blocks and stats
+    // Load today's blocks
     var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
-    var stats by remember { mutableStateOf(ProgressStatsEngine.getTodayStats(context)) }
+
+    // ✅ Fixed: getTodayStats now returns ProgressStats with all fields
+    val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(
         modifier = Modifier
@@ -38,12 +40,9 @@ fun DailyChecklistScreen() {
                     onComplete = {
                         ProgressRepository.markCompleted(context, block.id)
                         blocks = ProgressRepository.getTodayBlocks(context)
-                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id, block.name)
-                        blocks = ProgressRepository.getTodayBlocks(context)
-                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     }
                 )
             }

@@ -1,7 +1,10 @@
 package com.jarvismini.core.progress
 
 import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
 
+// ✅ Single source of truth for stats
 object ProgressStatsEngine {
 
     fun registerBlock(context: Context, blockId: String) {
@@ -17,12 +20,13 @@ object ProgressStatsEngine {
         val total = blocks.size
         val completedCount = blocks.count { it.completed }
 
-        val completionPercent = if (total > 0) (completedCount * 100) / total else 0
-        return ProgressStats(completionPercent = completionPercent)
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        // ✅ Correctly construct ProgressStats with all required parameters
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completedCount
+        )
     }
 }
-
-//===== Supporting data class =====
-data class ProgressStats(
-    val completionPercent: Int
-)
