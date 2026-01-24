@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JarvisRoutineSchema",
+  "type": "object",
+  "required": ["version", "timezone", "networkSync", "routines"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone (ex: Asia/Kolkata)"
+    },
+    "networkSync": {
+      "type": "boolean",
+      "description": "Whether time is synced via network"
+    },
+    "routines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "trigger", "actions"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "trigger": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["time", "event", "mode"]
+              },
+              "time": {
+                "type": "string",
+                "description": "HH:mm format"
+              },
+              "days": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+                }
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["NORMAL", "WORK", "DRIVING", "SLEEP", "FOCUS"]
+              },
+              "event": {
+                "type": "string"
+              }
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "launch_app",
+                    "set_mode",
+                    "set_dnd",
+                    "media_control",
+                    "start_stopwatch",
+                    "start_timer",
+                    "speak",
+                    "notify",
+                    "network_time_sync"
+                  ]
+                },
+                "package": { "type": "string" },
+                "mode": { "type": "string" },
+                "dnd": { "type": "boolean" },
+                "media": {
+                  "type": "string",
+                  "enum": ["play", "pause", "next", "prev"]
+                },
+                "message": { "type": "string" },
+                "duration_min": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "version": "1.0",
+  "timezone": "Asia/Kolkata",
+  "networkSync": true,
+
+  "routines": [
+    {
+      "id": "sunday_morning_backlog",
+      "name": "Sunday Backlog Sprint",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "08:30",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        { "type": "start_stopwatch" },
+        {
+          "type": "speak",
+          "message": "Sunday backlog sprint started. Five hours to clear pending topics."
+        },
+        {
+          "type": "notify",
+          "message": "Backlog Sprint: Complete as much as possible before mock test."
+        }
+      ]
+    },
+
+    {
+      "id": "sunday_mock_test",
+      "name": "Sunday Mock Test Block",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "14:00",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "WORK" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "speak",
+          "message": "Mock test started. Three hours. Full exam conditions."
+        },
+        {
+          "type": "notify",
+          "message": "Mock Test in progress. No interruptions."
+        }
+      ]
+    },
+
+    {
+      "id": "sunday_analysis",
+      "name": "Mock Analysis + Mistake Review",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "17:15",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "FOCUS" },
+        {
+          "type": "speak",
+          "message": "Mock completed. Start mistake analysis and error logging."
+        },
+        {
+          "type": "notify",
+          "message": "Analyze mistakes. Mark weak areas."
+        }
+      ]
+    },
+
+    {
+      "id": "sunday_shutdown",
+      "name": "Sunday Wind Down",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "22:30",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "speak",
+          "message": "Sunday complete. Wind down and prepare for the week."
+        }
+      ]
+    }
+  ]
+}

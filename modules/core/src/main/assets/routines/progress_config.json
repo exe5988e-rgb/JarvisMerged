@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+
+  "progressTracking": {
+    "enabled": true,
+
+    "completionPrompt": {
+      "type": "notification",
+      "requireUserAction": true,
+      "actions": ["COMPLETE", "INCOMPLETE"]
+    },
+
+    "retryPolicy": {
+      "retryOnIncomplete": true,
+      "retryDelayMinutes": 30,
+      "maxRetries": -1
+    },
+
+    "tts": {
+      "enabled": true,
+      "voice": "assistant",
+      "repeatOnRetry": true
+    },
+
+    "quietHours": {
+      "enabled": true,
+      "start": "03:00",
+      "end": "08:00"
+    },
+
+    "persistence": {
+      "store": "shared_preferences",
+      "keyPrefix": "routine_progress_"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "version": "1.0",
+  "timezone": "Asia/Kolkata",
+  "networkSync": true,
+
+  "routines": [
+    {
+      "id": "work_mode_morning",
+      "name": "Work Mode Morning Routine",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "09:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+
+      "actions": [
+        {
+          "type": "network_time_sync"
+        },
+        {
+          "type": "set_mode",
+          "mode": "WORK"
+        },
+        {
+          "type": "set_dnd",
+          "dnd": true
+        },
+        {
+          "type": "launch_app",
+          "package": "xyz.penpencil.physicswala"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.pittvandewitt.wavelet"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.google.android.apps.youtube.music"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.apple.android.music"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.oneplus.deskclock"
+        },
+        {
+          "type": "start_stopwatch"
+        },
+        {
+          "type": "speak",
+          "message": "Work mode activated. Focus time started."
+        }
+      ]
+    },
+
+    {
+      "id": "work_mode_off",
+      "name": "Exit Work Mode",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "18:30",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+
+      "actions": [
+        {
+          "type": "network_time_sync"
+        },
+        {
+          "type": "set_mode",
+          "mode": "NORMAL"
+        },
+        {
+          "type": "set_dnd",
+          "dnd": false
+        },
+        {
+          "type": "media_control",
+          "media": "pause"
+        },
+        {
+          "type": "speak",
+          "message": "Work mode deactivated. Routine complete."
+        }
+      ]
+    }
+  ]
+}
