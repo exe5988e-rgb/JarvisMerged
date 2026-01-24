@@ -5,7 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
-import com.jarvismini.ui.chat.ChatScreen
+import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.checklist.ChecklistScreen
 
 enum class MainTab(val title: String) {
@@ -38,7 +38,7 @@ fun MainScreen() {
                 .padding(padding)
         ) {
             when (selectedTab) {
-                MainTab.Chat -> ChatScreen()
+                MainTab.Chat -> JarvisChatScreen()
                 MainTab.Checklist -> ChecklistScreen()
             }
         }
