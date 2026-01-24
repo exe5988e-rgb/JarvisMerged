@@ -1,32 +1,11 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
-
-import android.content.Context
-import com.jarvismini.core.progress.ProgressStore
-import com.jarvismini.core.routine.RoutineProvider
-
-/**
- * Auto-register all routines as checklist blocks on app start.
- */
-object ProgressInitializer {
-    fun registerAllBlocks(context: Context) {
-        // Load all original routines from assets
-        val routines = RoutineProvider.getAllRoutines(context)
-        routines.forEach { routine ->
-            // Register each routine ID as a block
-            ProgressStore.register(context, routine.id)
-
-            // Optional: mark as incomplete initially
-            ProgressStore.markIncomplete(context, routine.id)
-        }
-    }
-}
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
