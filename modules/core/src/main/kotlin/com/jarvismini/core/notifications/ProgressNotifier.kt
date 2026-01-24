@@ -6,31 +6,18 @@ import androidx.core.app.NotificationManagerCompat
 
 object ProgressNotifier {
 
+    // ENGINE-SAFE: no app resources, no core R
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
         blockName: String
-    ) {
-        showCompletionPrompt(
-            context = context,
-            blockId = blockId,
-            blockName = blockName,
-            iconRes = android.R.drawable.ic_dialog_info
-        )
-    }
-
-    fun showCompletionPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String,
-        iconRes: Int
     ) {
         notify(
             context = context,
             id = blockId,
             title = "Block Finished",
             msg = "Mark $blockName as complete or incomplete.",
-            iconRes = iconRes
+            iconRes = android.R.drawable.ic_dialog_info
         )
     }
 
@@ -44,7 +31,7 @@ object ProgressNotifier {
             id = blockId,
             title = "Reminder",
             msg = "$blockName still incomplete.",
-            iconRes = android.R.drawable.ic_dialog_info
+            iconRes = android.R.drawable.ic_dialog_alert
         )
     }
 
@@ -62,7 +49,8 @@ object ProgressNotifier {
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat.from(context)
+        NotificationManagerCompat
+            .from(context)
             .notify(id.hashCode(), notification)
     }
 }
