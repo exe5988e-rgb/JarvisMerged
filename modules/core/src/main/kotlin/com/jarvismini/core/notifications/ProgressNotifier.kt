@@ -8,28 +8,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.jarvismini.core.R
 
 object ProgressNotifier {
 
     /**
-     * Engine-safe overload: no icon required, uses default launcher icon
-     */
-    fun showCompletionPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String
-    ) {
-        showCompletionPrompt(
-            context = context,
-            blockId = blockId,
-            blockName = blockName,
-            iconRes = R.mipmap.ic_launcher // Use mipmap launcher icon to avoid drawable issues
-        )
-    }
-
-    /**
-     * Full version: can specify icon resource
+     * Engine-safe API
+     * App MUST provide the icon resource
      */
     fun showCompletionPrompt(
         context: Context,
@@ -49,20 +33,18 @@ object ProgressNotifier {
     fun showRetryPrompt(
         context: Context,
         blockId: String,
-        blockName: String
+        blockName: String,
+        iconRes: Int
     ) {
         notify(
             context = context,
             id = blockId,
             title = "Reminder",
             msg = "$blockName still incomplete.",
-            iconRes = R.mipmap.ic_launcher // Use mipmap to avoid unresolved drawable
+            iconRes = iconRes
         )
     }
 
-    /**
-     * Lint-safe notify: checks runtime permission and suppresses Lint warning
-     */
     @SuppressLint("MissingPermission")
     private fun notify(
         context: Context,
@@ -78,15 +60,16 @@ object ProgressNotifier {
             .setAutoCancel(true)
             .build()
 
-        // Runtime permission check for Android 13+
-        if (ContextCompat.checkSelfPermission(
+        if (
+            ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            NotificationManagerCompat.from(context).notify(id.hashCode(), notification)
+            NotificationManagerCompat.from(context)
+                .notify(id.hashCode(), notification)
         } else {
-            Log.w("ProgressNotifier", "Notification permission not granted, skipping notify()")
+            Log.w("ProgressNotifier", "Notification permission not granted")
         }
     }
 }
