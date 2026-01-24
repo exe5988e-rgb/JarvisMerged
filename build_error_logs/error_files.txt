@@ -1,15 +1,11 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:8:23 Unresolved reference: tts
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:9:23 Unresolved reference: notifications
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:14:22 Unresolved reference: TtsManager
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:15:27 Unresolved reference: NotificationManager
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:18:25 Unresolved reference. None of the following candidates is applicable because of receiver type mismatch: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:23:13 No value passed for parameter 'iconRes'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 43s
+BUILD FAILED in 47s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -61,55 +57,58 @@ BUILD FAILED in 43s
 1	package com.jarvismini.engine.progress
 2
 3	import android.content.Context
-4	import com.jarvismini.core.progress.ProgressState
-5	import com.jarvismini.core.progress.ProgressStore
-6	import com.jarvismini.core.TimeUtils
+4	import com.jarvismini.core.notifications.ProgressNotifier
+5	import com.jarvismini.core.progress.ProgressEngine
+6	import com.jarvismini.core.tts.AssistantTTS
 7	import com.jarvismini.engine.scheduler.DelayedTaskScheduler
->>>>> ERROR HERE
-8	import com.jarvismini.tts.TtsManager
->>>>> ERROR HERE
-9	import com.jarvismini.notifications.NotificationManager
-10
-11	class ProgressOrchestrator(
-12	    private val context: Context,
-13	    private val scheduler: DelayedTaskScheduler,
->>>>> ERROR HERE
-14	    private val tts: TtsManager,
->>>>> ERROR HERE
-15	    private val notifier: NotificationManager
-16	) {
-17
->>>>> ERROR HERE
-18	    private val store = ProgressStore(context)
+8
+9	class ProgressOrchestrator(
+10	    private val context: Context,
+11	    private val scheduler: DelayedTaskScheduler
+12	) {
+13
+14	    fun prompt(blockId: String, blockName: String) {
+15	        AssistantTTS.speak(
+16	            context,
+17	            "Did you complete $blockName?"
+18	        )
 19
-20	    fun prompt(routineId: String, blockId: String) {
-21	        tts.speak("Did you complete this task?")
-22	        notifier.showProgressPrompt(
-23	            routineId = routineId,
-24	            blockId = blockId
-25	        )
-26	    }
-27
-28	    fun onUserResponse(
-29	        routineId: String,
-30	        blockId: String,
-31	        completed: Boolean
-32	    ) {
-33	        if (completed) {
-34	            store.saveProgress(routineId, blockId, ProgressState.COMPLETED)
-35	            tts.speak("Great. Task marked as complete.")
-36	        } else {
-37	            store.saveProgress(routineId, blockId, ProgressState.INCOMPLETE)
-38	            tts.speak("Okay. I will remind you again in thirty minutes.")
-39
-40	            scheduler.schedule(
-41	                delayMs = 30 * 60 * 1000L
-42	            ) {
-43	                prompt(routineId, blockId)
-44	            }
-45	        }
-46	    }
-47	}
+20	        ProgressNotifier.showCompletionPrompt(
+21	            context = context,
+22	            blockId = blockId,
+>>>>> ERROR HERE
+23	            blockName = blockName
+24	        )
+25	    }
+26
+27	    fun onUserResponse(
+28	        blockId: String,
+29	        blockName: String,
+30	        completed: Boolean
+31	    ) {
+32	        if (completed) {
+33	            ProgressEngine.markComplete(blockId)
+34
+35	            AssistantTTS.speak(
+36	                context,
+37	                "Great. Task marked as complete."
+38	            )
+39	        } else {
+40	            ProgressEngine.markIncomplete(blockId, blockName)
+41
+42	            AssistantTTS.speak(
+43	                context,
+44	                "Okay. I will remind you again in thirty minutes."
+45	            )
+46
+47	            scheduler.schedule(
+48	                delayMs = 30 * 60 * 1000L
+49	            ) {
+50	                prompt(blockId, blockName)
+51	            }
+52	        }
+53	    }
+54	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
