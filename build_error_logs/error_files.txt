@@ -1,17 +1,13 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:4:47 Unresolved reference: ChatBubble
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:5:47 Unresolved reference: ListAlt
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:22:33 Unresolved reference: ChatBubble
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:33:33 Unresolved reference: ListAlt
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:50:5 Unresolved reference: NavigationBarItem
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:53:18 @Composable invocations can only happen from the context of a @Composable function
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:54:19 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 13s
+BUILD FAILED in 2m 1s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -19,9 +15,7 @@ BUILD FAILED in 1m 13s
 1	package com.jarvismini.ui.navigation
 2
 3	import androidx.compose.material.icons.Icons
->>>>> ERROR HERE
 4	import androidx.compose.material.icons.filled.ChatBubble
->>>>> ERROR HERE
 5	import androidx.compose.material.icons.filled.ListAlt
 6	import androidx.compose.material3.Icon
 7	import androidx.compose.material3.NavigationBar
@@ -39,7 +33,6 @@ BUILD FAILED in 1m 13s
 19	    NavigationBar {
 20	        BottomBarItem(
 21	            label = "Chat",
->>>>> ERROR HERE
 22	            icon = Icons.Filled.ChatBubble,
 23	            selected = currentRoute == NavRoute.Chat.route
 24	        ) {
@@ -51,7 +44,6 @@ BUILD FAILED in 1m 13s
 30
 31	        BottomBarItem(
 32	            label = "Checklist",
->>>>> ERROR HERE
 33	            icon = Icons.Filled.ListAlt,
 34	            selected = currentRoute == NavRoute.Checklist.route
 35	        ) {
