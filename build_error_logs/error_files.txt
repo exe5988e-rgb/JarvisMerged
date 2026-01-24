@@ -1,71 +1,155 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistScreen.kt:17:31 Unresolved reference: context
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:5:36 Unresolved reference: RoutineLoader
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:15:39 Unresolved reference: RoutineLoader
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:13:37 Unresolved reference: ProgressInitializer
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:26:9 Unresolved reference: ProgressInitializer
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:81:9 Unresolved reference: LazyColumn
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:85:13 Unresolved reference: items
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:85:29 Cannot infer a type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:86:17 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 58s
+BUILD FAILED in 55s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistScreen.kt =====
-1	package com.jarvismini.ui.checklist
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+1	package com.jarvismini
 2
-3	import androidx.compose.foundation.layout.*
-4	import androidx.compose.foundation.lazy.LazyColumn
-5	import androidx.compose.foundation.lazy.items
-6	import androidx.compose.material3.*
-7	import androidx.compose.runtime.*
-8	import androidx.compose.ui.Modifier
-9	import androidx.compose.ui.unit.dp
-10	import com.jarvismini.core.progress.ProgressBlock
-11	import com.jarvismini.core.progress.ProgressRepository
-12	import com.jarvismini.core.JarvisState
-13	import com.jarvismini.core.tts.AssistantTTS
-14
-15	@Composable
-16	fun ChecklistScreen() {
+3	import android.content.Context
+4	import com.jarvismini.core.progress.ProgressStore
 >>>>> ERROR HERE
-17	    val context = JarvisState.context ?: return
-18
-19	    // Get today's blocks
-20	    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
-21
-22	    LazyColumn(
-23	        modifier = Modifier
-24	            .fillMaxSize()
-25	            .padding(12.dp),
-26	        verticalArrangement = Arrangement.spacedBy(6.dp)
-27	    ) {
-28	        items(blocks, key = { it.id }) { block ->
-29	            Card(modifier = Modifier.fillMaxWidth()) {
-30	                Row(
-31	                    modifier = Modifier.padding(12.dp),
-32	                    horizontalArrangement = Arrangement.SpaceBetween
-33	                ) {
-34	                    Text(block.name, modifier = Modifier.weight(1f))
-35	                    if (!block.completed) {
-36	                        TextButton(onClick = {
-37	                            ProgressRepository.markCompleted(context, block.id)
-38	                            AssistantTTS.speak(context, "Marked ${block.name} as complete")
-39	                            blocks = blocks.map {
-40	                                if (it.id == block.id) it.copy(completed = true) else it
-41	                            }
-42	                        }) { Text("Done") }
-43
-44	                        TextButton(onClick = {
-45	                            ProgressRepository.markIncomplete(context, block.id, block.name)
-46	                            AssistantTTS.speak(context, "Will remind you later about ${block.name}")
-47	                        }) { Text("Missed") }
-48	                    } else {
-49	                        Text("✅ Completed")
-50	                    }
-51	                }
-52	            }
-53	        }
-54	    }
-55	}
+5	import com.jarvismini.core.routine.RoutineLoader
+6	import com.jarvismini.core.routine.model.Routine
+7
+8	/**
+9	 * Auto-register all routines as checklist blocks on app start.
+10	 */
+11	object ProgressInitializer {
+12
+13	    fun registerAllBlocks(context: Context) {
+14	        // Load all your original routines
+>>>>> ERROR HERE
+15	        val routines: List<Routine> = RoutineLoader.loadRoutines(context)
+16
+17	        routines.forEach { routine ->
+18	            // Register each routine ID as a block
+19	            ProgressStore.register(context, routine.id)
+20	        }
+21	    }
+22	}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+1	package com.jarvismini.ui.main
+2
+3	import androidx.compose.material3.*
+4	import androidx.compose.runtime.*
+5	import androidx.compose.foundation.layout.*
+6	import androidx.compose.ui.Modifier
+7	import androidx.compose.ui.platform.LocalContext
+8	import androidx.compose.ui.unit.dp
+9	import com.jarvismini.ui.JarvisChatScreen
+10	import com.jarvismini.ui.checklist.ChecklistItem
+11	import com.jarvismini.core.progress.ProgressRepository
+12	import com.jarvismini.core.progress.ProgressStatsEngine
+>>>>> ERROR HERE
+13	import com.jarvismini.core.progress.ProgressInitializer
+14
+15	enum class MainTab(val title: String) {
+16	    Chat("Chat"),
+17	    Checklist("Checklist")
+18	}
+19
+20	@Composable
+21	fun MainScreen() {
+22	    val context = LocalContext.current
+23
+24	    // ✅ Ensure all routine blocks are registered at app start
+25	    LaunchedEffect(Unit) {
+>>>>> ERROR HERE
+26	        ProgressInitializer.registerAllBlocks(context)
+27	    }
+28
+29	    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+30	    var blocks by remember { mutableStateOf(listOf<com.jarvismini.core.progress.ProgressBlock>()) }
+31
+32	    // Refresh blocks whenever tab changes
+33	    LaunchedEffect(selectedTab) {
+34	        if (selectedTab == MainTab.Checklist) {
+35	            blocks = ProgressRepository.getTodayBlocks(context)
+36	        }
+37	    }
+38
+39	    Scaffold(
+40	        topBar = {
+41	            TabRow(selectedTabIndex = selectedTab.ordinal) {
+42	                MainTab.values().forEach { tab ->
+43	                    Tab(
+44	                        selected = selectedTab == tab,
+45	                        onClick = { selectedTab = tab },
+46	                        text = { Text(tab.title) }
+47	                    )
+48	                }
+49	            }
+50	        }
+51	    ) { padding ->
+52	        Box(
+53	            modifier = Modifier
+54	                .fillMaxSize()
+55	                .padding(padding)
+56	                .padding(12.dp)
+57	        ) {
+58	            when (selectedTab) {
+59	                MainTab.Chat -> JarvisChatScreen()
+60	                MainTab.Checklist -> ChecklistScreenWithStats(blocks) { updated ->
+61	                    blocks = updated
+62	                }
+63	            }
+64	        }
+65	    }
+66	}
+67
+68	@Composable
+69	fun ChecklistScreenWithStats(
+70	    blocks: List<com.jarvismini.core.progress.ProgressBlock>,
+71	    onBlocksUpdated: (List<com.jarvismini.core.progress.ProgressBlock>) -> Unit
+72	) {
+73	    val context = LocalContext.current
+74	    val stats = ProgressStatsEngine.getTodayStats(context)
+75	    Column(modifier = Modifier.fillMaxSize()) {
+76	        Text(
+77	            text = "Today's Checklist (${stats.completionPercent}%)",
+78	            style = MaterialTheme.typography.titleLarge
+79	        )
+80	        Spacer(modifier = Modifier.height(12.dp))
+>>>>> ERROR HERE
+81	        LazyColumn(
+82	            modifier = Modifier.fillMaxSize(),
+83	            verticalArrangement = Arrangement.spacedBy(6.dp)
+84	        ) {
+>>>>> ERROR HERE
+85	            items(blocks) { block ->
+>>>>> ERROR HERE
+86	                ChecklistItem(
+87	                    block = block,
+88	                    onComplete = {
+89	                        ProgressRepository.markCompleted(context, block.id)
+90	                        val updated = ProgressRepository.getTodayBlocks(context)
+91	                        onBlocksUpdated(updated)
+92	                    },
+93	                    onIncomplete = {
+94	                        ProgressRepository.markIncomplete(context, block.id, block.name)
+95	                        val updated = ProgressRepository.getTodayBlocks(context)
+96	                        onBlocksUpdated(updated)
+97	                    }
+98	                )
+99	            }
+100	        }
+101	    }
+102	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
@@ -416,26 +500,25 @@ BUILD FAILED in 58s
 6
 7	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
 8	        val completed = ProgressStore.getCompletedBlocks(context)
-9
-10	        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
-11	            ProgressBlock(
-12	                id = blockId,
-13	                name = blockId.replace("_", " ").uppercase(),
-14	                completed = completed.contains(blockId)
-15	            )
-16	        }
-17	    }
-18
+9	        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
+10	            ProgressBlock(
+11	                id = blockId,
+12	                name = blockId.replace("_", " ").uppercase(),
+13	                completed = completed.contains(blockId)
+14	            )
+15	        }
+16	    }
+17
 >>>>> ERROR HERE
-19	    fun markCompleted(context: Context, blockId: String) {
-20	        ProgressEngine.markComplete(blockId)
-21	    }
-22
+18	    fun markCompleted(context: Context, blockId: String) {
+19	        ProgressEngine.markComplete(blockId)
+20	    }
+21
 >>>>> ERROR HERE
-23	    fun markIncomplete(context: Context, blockId: String, name: String) {
-24	        ProgressEngine.markIncomplete(blockId, name)
-25	    }
-26	}
+22	    fun markIncomplete(context: Context, blockId: String, name: String) {
+23	        ProgressEngine.markIncomplete(blockId, name)
+24	    }
+25	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
 1	package com.jarvismini.core.routine
