@@ -2,12 +2,18 @@ package com.jarvismini.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 
+/**
+ * BottomBar Composable with two items: Chat and Checklist
+ */
 @Composable
 fun BottomBar(
     navController: NavController,
@@ -27,7 +33,7 @@ fun BottomBar(
 
         BottomBarItem(
             label = "Checklist",
-            icon = Icons.Default.Checklist,
+            icon = Icons.Default.List,
             selected = currentRoute == NavRoute.Checklist.route
         ) {
             navController.navigate(NavRoute.Checklist.route) {
