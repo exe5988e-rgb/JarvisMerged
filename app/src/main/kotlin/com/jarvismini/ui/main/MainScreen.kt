@@ -1,4 +1,3 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
 import androidx.compose.material3.*
@@ -6,7 +5,7 @@ import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.checklist.ChecklistScreen
+import com.jarvismini.ui.checklist.DailyChecklistScreen
 
 enum class MainTab(val title: String) {
     Chat("Chat"),
@@ -39,7 +38,7 @@ fun MainScreen() {
         ) {
             when (selectedTab) {
                 MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen()
+                MainTab.Checklist -> DailyChecklistScreen()
             }
         }
     }

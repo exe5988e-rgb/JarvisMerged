@@ -8,18 +8,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStore
+import com.jarvismini.core.progress.ProgressStatsEngine
 
 @Composable
-fun ChecklistScreen() {
+fun DailyChecklistScreen() {
     val context = LocalContext.current
-
-    // Pull blocks from original routines
-    var blocks by remember {
-        mutableStateOf(loadRoutineBlocks(context))
-    }
+    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+    val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(
         modifier = Modifier
@@ -27,7 +23,7 @@ fun ChecklistScreen() {
             .padding(16.dp)
     ) {
         Text(
-            text = "Today's Checklist",
+            text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -37,28 +33,14 @@ fun ChecklistScreen() {
                     block = block,
                     onComplete = {
                         ProgressRepository.markCompleted(context, block.id)
-                        blocks = loadRoutineBlocks(context)
+                        blocks = ProgressRepository.getTodayBlocks(context)
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id, block.name)
-                        blocks = loadRoutineBlocks(context)
+                        blocks = ProgressRepository.getTodayBlocks(context)
                     }
                 )
             }
         }
-    }
-}
-
-// Helper to load blocks from registered routines
-private fun loadRoutineBlocks(context: android.content.Context): List<ProgressBlock> {
-    val completed = ProgressStore.getCompletedBlocks(context)
-    val registered = ProgressStore.getRegisteredBlocks(context)
-
-    return registered.map { blockId ->
-        ProgressBlock(
-            id = blockId,
-            name = blockId.replace("_", " ").uppercase(),
-            completed = completed.contains(blockId)
-        )
     }
 }

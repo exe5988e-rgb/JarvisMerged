@@ -6,7 +6,6 @@ object ProgressRepository {
 
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         val completed = ProgressStore.getCompletedBlocks(context)
-
         return ProgressStore.getRegisteredBlocks(context).map { blockId ->
             ProgressBlock(
                 id = blockId,
