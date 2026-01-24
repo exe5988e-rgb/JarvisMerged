@@ -48,6 +48,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+
 
     // Debug tools
     debugImplementation("androidx.compose.ui:ui-tooling")
