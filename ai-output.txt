@@ -1,57 +1,59 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt =====
-package com.jarvismini.ui.navigation
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.NavController
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import com.jarvismini.ui.chat.ChatScreen
+import com.jarvismini.ui.checklist.ChecklistScreen
 
-/**
- * BottomBar Composable with two items: Chat and Checklist
- */
-@Composable
-fun BottomBar(
-    navController: NavController,
-    currentRoute: String?
-) {
-    NavigationBar {
-        BottomBarItem(
-            label = "Chat",
-            icon = Icons.Filled.ChatBubble,
-            selected = currentRoute == NavRoute.Chat.route
-        ) {
-            navController.navigate(NavRoute.Chat.route) {
-                popUpTo(NavRoute.Chat.route) { inclusive = false }
-                launchSingleTop = true
-            }
-        }
-
-        BottomBarItem(
-            label = "Checklist",
-            icon = Icons.Filled.List,
-            selected = currentRoute == NavRoute.Checklist.route
-        ) {
-            navController.navigate(NavRoute.Checklist.route) {
-                launchSingleTop = true
-            }
-        }
-    }
+enum class MainTab(val title: String) {
+    Chat("Chat"),
+    Checklist("Checklist")
 }
 
 @Composable
-private fun BottomBarItem(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    NavigationBarItem(
-        selected = selected,
-        onClick = onClick,
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label) }
-    )
+fun MainScreen() {
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+
+    Scaffold(
+        topBar = {
+            TabRow(
+                selectedTabIndex = selectedTab.ordinal
+            ) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.title) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        when (selectedTab) {
+            MainTab.Chat -> ChatScreen()
+            MainTab.Checklist -> ChecklistScreen()
+        }
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/ChatScreen.kt =====
+package com.jarvismini.ui.chat
+
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ChatScreen() {
+    Text("Chat Screen")
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistScreen.kt =====
+package com.jarvismini.ui.checklist
+
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ChecklistScreen() {
+    Text("Checklist Screen")
 }
