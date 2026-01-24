@@ -1,16 +1,15 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt:19:37 Unresolved reference: getTodayStats
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt:13:33 Unresolved reference: TimeUtils
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt:18:15 Unresolved reference: TimeUtils
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt:6:47 'when' expression must be exhaustive, add necessary 'RETRY' branch or 'else' branch instead
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt:21:37 Unresolved reference: getTodayStats
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt:13:28 Unresolved reference: utils
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt:19:15 Unresolved reference: TimeUtils
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt:9:17 Unresolved reference: INCOMPLETE
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt:10:17 Unresolved reference: RETRY_SCHEDULED
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 57s
+BUILD FAILED in 58s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -33,36 +32,38 @@ BUILD FAILED in 57s
 16
 17	    val context = LocalContext.current
 18	    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+19
+20	    // FIXED: Use correct method name
 >>>>> ERROR HERE
-19	    val stats = ProgressStatsEngine.getTodayStats(context)
-20
-21	    Column(
-22	        modifier = Modifier.fillMaxSize().padding(16.dp)
-23	    ) {
-24
-25	        Text(
-26	            text = "Today's Checklist (${stats.completionPercent}%)",
-27	            style = MaterialTheme.typography.titleLarge
-28	        )
-29
-30	        Spacer(modifier = Modifier.height(12.dp))
+21	    val stats = ProgressStatsEngine.getTodayStats(context)
+22
+23	    Column(
+24	        modifier = Modifier.fillMaxSize().padding(16.dp)
+25	    ) {
+26
+27	        Text(
+28	            text = "Today's Checklist (${stats.completionPercent}%)",
+29	            style = MaterialTheme.typography.titleLarge
+30	        )
 31
-32	        LazyColumn {
-33	            items(blocks) { block ->
-34	                ChecklistItem(
-35	                    block = block,
-36	                    onComplete = {
-37	                        ProgressRepository.markCompleted(context, block.id)
-38	                        blocks = ProgressRepository.getTodayBlocks(context)
-39	                    },
-40	                    onIncomplete = {
-41	                        ProgressRepository.markIncomplete(context, block.id, block.name)
-42	                    }
-43	                )
-44	            }
-45	        }
-46	    }
-47	}
+32	        Spacer(modifier = Modifier.height(12.dp))
+33
+34	        LazyColumn {
+35	            items(blocks) { block ->
+36	                ChecklistItem(
+37	                    block = block,
+38	                    onComplete = {
+39	                        ProgressRepository.markCompleted(context, block.id)
+40	                        blocks = ProgressRepository.getTodayBlocks(context)
+41	                    },
+42	                    onIncomplete = {
+43	                        ProgressRepository.markIncomplete(context, block.id, block.name)
+44	                    }
+45	                )
+46	            }
+47	        }
+48	    }
+49	}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt =====
 1	package com.jarvismini.ui.calendar
@@ -78,29 +79,30 @@ BUILD FAILED in 57s
 11	import androidx.compose.ui.platform.LocalContext
 12	import com.jarvismini.core.calendar.model.CalendarEvent
 >>>>> ERROR HERE
-13	import com.jarvismini.core.time.TimeUtils
+13	import com.jarvismini.core.utils.TimeUtils  // FIXED: correct package path
 14
 15	@Composable
 16	fun DayCalendarScreen(viewModel: CalendarViewModel) {
 17
+18	    // FIXED: use the correct TimeUtils reference
 >>>>> ERROR HERE
-18	    val now = TimeUtils.nowMs()
-19	    val dayStart = now - (now % (24 * 60 * 60 * 1000))
-20	    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
-21
-22	    val events = remember {
-23	        viewModel.getEventsForDay(dayStart, dayEnd)
-24	    }
-25
-26	    LazyColumn(
-27	        modifier = Modifier.fillMaxSize().padding(12.dp)
-28	    ) {
-29	        items(events) { event ->
-30	            CalendarEventCard(event)
-31	            Spacer(modifier = Modifier.height(8.dp))
-32	        }
-33	    }
-34	}
+19	    val now = TimeUtils.nowMs()
+20	    val dayStart = now - (now % (24 * 60 * 60 * 1000))
+21	    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
+22
+23	    val events = remember {
+24	        viewModel.getEventsForDay(dayStart, dayEnd)
+25	    }
+26
+27	    LazyColumn(
+28	        modifier = Modifier.fillMaxSize().padding(12.dp)
+29	    ) {
+30	        items(events) { event ->
+31	            CalendarEventCard(event)
+32	            Spacer(modifier = Modifier.height(8.dp))
+33	        }
+34	    }
+35	}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt =====
 1	package com.jarvismini.ui.calendar
@@ -108,7 +110,6 @@ BUILD FAILED in 57s
 3	import androidx.compose.ui.graphics.Color
 4	import com.jarvismini.core.calendar.model.EventStatus
 5
->>>>> ERROR HERE
 6	fun statusColor(status: EventStatus): Color = when (status) {
 7	    EventStatus.SCHEDULED -> Color(0xFF64B5F6)   // Blue
 8	    EventStatus.COMPLETED -> Color(0xFF81C784)   // Green
@@ -116,7 +117,8 @@ BUILD FAILED in 57s
 9	    EventStatus.INCOMPLETE -> Color(0xFFE57373)  // Red
 >>>>> ERROR HERE
 10	    EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D) // Orange
-11	}
+11	    else -> Color.Gray  // FIXED: make 'when' exhaustive
+12	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
