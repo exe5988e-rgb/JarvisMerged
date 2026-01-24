@@ -1,18 +1,41 @@
 package com.jarvismini.core.progress
 
-import java.time.LocalTime
+import java.util.Calendar
 
+/**
+ * Quiet-hours evaluator.
+ *
+ * Replaces java.time.LocalTime (API 26+) with Calendar (API 1).
+ */
 object QuietHours {
 
     fun isQuietNow(config: ProgressConfig): Boolean {
-        val now = LocalTime.now()
-        val start = LocalTime.parse(config.quietStart)
-        val end = LocalTime.parse(config.quietEnd)
+        val nowMinutes = currentMinutes()
 
-        return if (start.isBefore(end)) {
-            now.isAfter(start) && now.isBefore(end)
+        val startMinutes = parseToMinutes(config.quietStart)
+        val endMinutes = parseToMinutes(config.quietEnd)
+
+        return if (startMinutes < endMinutes) {
+            // Same-day window (e.g. 13:00 → 18:00)
+            nowMinutes in startMinutes until endMinutes
         } else {
-            now.isAfter(start) || now.isBefore(end)
+            // Overnight window (e.g. 22:00 → 07:00)
+            nowMinutes >= startMinutes || nowMinutes < endMinutes
         }
+    }
+
+    private fun currentMinutes(): Int {
+        val cal = Calendar.getInstance()
+        return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+    }
+
+    /**
+     * Parses "HH:mm" into minutes since midnight.
+     */
+    private fun parseToMinutes(time: String): Int {
+        val parts = time.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 0
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        return hour * 60 + minute
     }
 }
