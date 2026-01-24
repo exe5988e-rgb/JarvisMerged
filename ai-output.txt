@@ -1,117 +1,56 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
 
-package com.jarvismini.core.notifications
-
-import android.content.Context
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-
-object ProgressNotifier {
-
-    fun showCompletionPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String,
-        iconRes: Int
-    ) {
-        notify(
-            context,
-            blockId,
-            "Block Finished",
-            "Mark $blockName as complete or incomplete.",
-            iconRes
-        )
-    }
-
-    fun showRetryPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String,
-        iconRes: Int
-    ) {
-        notify(
-            context,
-            blockId,
-            "Reminder",
-            "$blockName still incomplete.",
-            iconRes
-        )
-    }
-
-    private fun notify(
-        context: Context,
-        id: String,
-        title: String,
-        msg: String,
-        iconRes: Int
-    ) {
-        val notification = NotificationCompat.Builder(context, "progress")
-            .setSmallIcon(iconRes)
-            .setContentTitle(title)
-            .setContentText(msg)
-            .setAutoCancel(true)
-            .build()
-
-        NotificationManagerCompat.from(context)
-            .notify(id.hashCode(), notification)
-    }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-
-package com.jarvismini.core.progress
+package com.jarvismini.engine.progress
 
 import android.content.Context
 import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.engine.scheduler.DelayedTaskScheduler
 
-object ProgressEngine {
+class ProgressOrchestrator(
+    private val context: Context,
+    private val scheduler: DelayedTaskScheduler
+) {
 
-    private lateinit var context: Context
-    private lateinit var config: ProgressConfig
-    private var notificationIconRes: Int = 0
-
-    fun init(
-        ctx: Context,
-        cfg: ProgressConfig,
-        iconRes: Int
-    ) {
-        context = ctx.applicationContext
-        config = cfg
-        notificationIconRes = iconRes
-    }
-
-    fun onBlockCompleted(blockId: String, blockName: String) {
-        if (!config.enabled) return
-
-        ProgressStatsEngine.registerBlock(context, blockId)
-
-        ProgressNotifier.showCompletionPrompt(
+    fun prompt(blockId: String, blockName: String) {
+        AssistantTTS.speak(
             context,
-            blockId,
-            blockName,
-            notificationIconRes
+            "Did you complete $blockName?"
         )
 
-        if (config.ttsEnabled) {
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
+        )
+    }
+
+    fun onUserResponse(
+        blockId: String,
+        blockName: String,
+        completed: Boolean
+    ) {
+        if (completed) {
+            ProgressEngine.markComplete(blockId)
+
             AssistantTTS.speak(
                 context,
-                "Block $blockName finished. Please confirm completion."
+                "Great. Task marked as complete."
             )
+        } else {
+            ProgressEngine.markIncomplete(blockId, blockName)
+
+            AssistantTTS.speak(
+                context,
+                "Okay. I will remind you again in thirty minutes."
+            )
+
+            scheduler.schedule(
+                delayMs = 30 * 60 * 1000L
+            ) {
+                prompt(blockId, blockName)
+            }
         }
-    }
-
-    fun markComplete(blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-        ProgressStatsEngine.markCompleted(context, blockId)
-    }
-
-    fun markIncomplete(blockId: String, blockName: String) {
-        ProgressStore.markIncomplete(context, blockId)
-        scheduleRetry(blockId, blockName)
-    }
-
-    private fun scheduleRetry(blockId: String, blockName: String) {
-        if (!config.retryEnabled) return
-        RetryScheduler.schedule(context, blockId, blockName, config)
     }
 }
