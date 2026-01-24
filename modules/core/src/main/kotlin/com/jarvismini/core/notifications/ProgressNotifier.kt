@@ -3,6 +3,7 @@ package com.jarvismini.core.notifications
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.jarvismini.core.R
 
 object ProgressNotifier {
 
@@ -10,14 +11,14 @@ object ProgressNotifier {
         context: Context,
         blockId: String,
         blockName: String,
-        iconRes: Int
+        iconRes: Int = R.drawable.ic_launcher_foreground
     ) {
         notify(
-            context,
-            blockId,
-            "Block Finished",
-            "Mark $blockName as complete or incomplete.",
-            iconRes
+            context = context,
+            id = blockId,
+            title = "Block Finished",
+            msg = "Mark $blockName as complete or incomplete.",
+            iconRes = iconRes
         )
     }
 
@@ -25,14 +26,14 @@ object ProgressNotifier {
         context: Context,
         blockId: String,
         blockName: String,
-        iconRes: Int
+        iconRes: Int = R.drawable.ic_launcher_foreground
     ) {
         notify(
-            context,
-            blockId,
-            "Reminder",
-            "$blockName still incomplete.",
-            iconRes
+            context = context,
+            id = blockId,
+            title = "Reminder",
+            msg = "$blockName still incomplete.",
+            iconRes = iconRes
         )
     }
 
