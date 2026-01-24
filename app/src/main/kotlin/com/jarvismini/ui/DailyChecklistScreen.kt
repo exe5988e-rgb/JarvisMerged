@@ -13,17 +13,17 @@ import com.jarvismini.core.progress.ProgressStatsEngine
 
 @Composable
 fun DailyChecklistScreen() {
-
     val context = LocalContext.current
-    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
 
-    // FIXED: Use correct method name
-    val stats = ProgressStatsEngine.getTodayStats(context)
+    // ✅ State for blocks and stats
+    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+    var stats by remember { mutableStateOf(ProgressStatsEngine.getTodayStats(context)) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
     ) {
-
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -38,9 +38,12 @@ fun DailyChecklistScreen() {
                     onComplete = {
                         ProgressRepository.markCompleted(context, block.id)
                         blocks = ProgressRepository.getTodayBlocks(context)
+                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id, block.name)
+                        blocks = ProgressRepository.getTodayBlocks(context)
+                        stats = ProgressStatsEngine.getTodayStats(context) // ✅ update stats
                     }
                 )
             }
