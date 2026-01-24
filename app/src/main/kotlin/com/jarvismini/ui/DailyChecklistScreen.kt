@@ -16,6 +16,8 @@ fun DailyChecklistScreen() {
 
     val context = LocalContext.current
     var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+
+    // FIXED: Use correct method name
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(

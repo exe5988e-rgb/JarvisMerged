@@ -10,11 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.time.TimeUtils
+import com.jarvismini.core.utils.TimeUtils  // FIXED: correct package path
 
 @Composable
 fun DayCalendarScreen(viewModel: CalendarViewModel) {
 
+    // FIXED: use the correct TimeUtils reference
     val now = TimeUtils.nowMs()
     val dayStart = now - (now % (24 * 60 * 60 * 1000))
     val dayEnd = dayStart + (24 * 60 * 60 * 1000)

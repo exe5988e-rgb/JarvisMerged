@@ -8,4 +8,5 @@ fun statusColor(status: EventStatus): Color = when (status) {
     EventStatus.COMPLETED -> Color(0xFF81C784)   // Green
     EventStatus.INCOMPLETE -> Color(0xFFE57373)  // Red
     EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D) // Orange
+    else -> Color.Gray  // FIXED: make 'when' exhaustive
 }
