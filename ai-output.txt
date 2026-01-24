@@ -1,0 +1,1290 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisPrefs.kt =====
+package com.jarvismini.core
+
+import android.content.Context
+import android.content.SharedPreferences
+
+object JarvisPrefs {
+
+    private const val PREFS_NAME = "jarvis_prefs"
+    private lateinit var prefs: SharedPreferences
+
+    fun init(context: Context) {
+        prefs = context.applicationContext.getSharedPreferences(
+            PREFS_NAME,
+            Context.MODE_PRIVATE
+        )
+    }
+
+    fun putLong(key: String, value: Long) =
+        prefs.edit().putLong(key, value).apply()
+
+    fun getLong(key: String, def: Long = 0L): Long =
+        prefs.getLong(key, def)
+
+    fun putString(key: String, value: String) =
+        prefs.edit().putString(key, value).apply()
+
+    fun getString(key: String, def: String? = null): String? =
+        prefs.getString(key, def)
+
+    fun remove(key: String) =
+        prefs.edit().remove(key).apply()
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/TimeAnchorManager.kt =====
+package com.jarvismini.core
+
+import android.os.SystemClock
+import java.net.HttpURLConnection
+import java.net.URL
+
+object TimeAnchorManager {
+
+    private const val KEY_OFFSET_MS = "time_offset_ms"
+    private const val KEY_LAST_UPTIME = "last_uptime_ms"
+
+    fun init() {
+        // reserved
+    }
+
+    fun syncWithNetwork() {
+        try {
+            val url = URL("https://www.google.com")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connect()
+
+            val serverTime = conn.date
+            if (serverTime > 0) {
+                val deviceTime = System.currentTimeMillis()
+                val offset = serverTime - deviceTime
+
+                JarvisPrefs.putLong(KEY_OFFSET_MS, offset)
+                JarvisPrefs.putLong(KEY_LAST_UPTIME, SystemClock.elapsedRealtime())
+            }
+
+            conn.disconnect()
+        } catch (_: Exception) {
+        }
+    }
+
+    fun nowUtcMs(): Long {
+        val offset = JarvisPrefs.getLong(KEY_OFFSET_MS, 0L)
+        return System.currentTimeMillis() + offset
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
+package com.jarvismini
+
+import android.app.Application
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.TimeAnchorManager
+
+class CoreApp : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+
+        JarvisPrefs.init(this)
+        TimeAnchorManager.init()
+
+        JarvisState.init(this)
+        AutoReplyOrchestrator.init()
+    }
+}
+//===== FILE: modules/core/src/main/assets/schema/routine.schema.json =====
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JarvisRoutineSchema",
+  "type": "object",
+  "required": ["version", "timezone", "networkSync", "routines"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone (ex: Asia/Kolkata)"
+    },
+    "networkSync": {
+      "type": "boolean",
+      "description": "Whether time is synced via network"
+    },
+    "routines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "trigger", "actions"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "trigger": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["time", "event", "mode"]
+              },
+              "time": {
+                "type": "string",
+                "description": "HH:mm format"
+              },
+              "days": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+                }
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["NORMAL", "WORK", "DRIVING", "SLEEP", "FOCUS"]
+              },
+              "event": {
+                "type": "string"
+              }
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "launch_app",
+                    "set_mode",
+                    "set_dnd",
+                    "media_control",
+                    "start_stopwatch",
+                    "start_timer",
+                    "speak",
+                    "notify",
+                    "network_time_sync"
+                  ]
+                },
+                "package": { "type": "string" },
+                "mode": { "type": "string" },
+                "dnd": { "type": "boolean" },
+                "media": {
+                  "type": "string",
+                  "enum": ["play", "pause", "next", "prev"]
+                },
+                "message": { "type": "string" },
+                "duration_min": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+//===== FILE: modules/core/src/main/assets/routines/work_routine.json =====
+{
+  "version": "1.0",
+  "timezone": "Asia/Kolkata",
+  "networkSync": true,
+
+  "routines": [
+    {
+      "id": "work_mode_morning",
+      "name": "Work Mode Morning Routine",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "09:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+
+      "actions": [
+        {
+          "type": "network_time_sync"
+        },
+        {
+          "type": "set_mode",
+          "mode": "WORK"
+        },
+        {
+          "type": "set_dnd",
+          "dnd": true
+        },
+        {
+          "type": "launch_app",
+          "package": "xyz.penpencil.physicswala"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.pittvandewitt.wavelet"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.google.android.apps.youtube.music"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.apple.android.music"
+        },
+        {
+          "type": "launch_app",
+          "package": "com.oneplus.deskclock"
+        },
+        {
+          "type": "start_stopwatch"
+        },
+        {
+          "type": "speak",
+          "message": "Work mode activated. Focus time started."
+        }
+      ]
+    },
+
+    {
+      "id": "work_mode_off",
+      "name": "Exit Work Mode",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "18:30",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+
+      "actions": [
+        {
+          "type": "network_time_sync"
+        },
+        {
+          "type": "set_mode",
+          "mode": "NORMAL"
+        },
+        {
+          "type": "set_dnd",
+          "dnd": false
+        },
+        {
+          "type": "media_control",
+          "media": "pause"
+        },
+        {
+          "type": "speak",
+          "message": "Work mode deactivated. Routine complete."
+        }
+      ]
+    }
+  ]
+}
+//===== FILE: modules/core/src/main/assets/routines/sunday_routine.json =====
+{
+  "version": "1.0",
+  "timezone": "Asia/Kolkata",
+  "networkSync": true,
+
+  "routines": [
+    {
+      "id": "sunday_morning_backlog",
+      "name": "Sunday Backlog Sprint",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "08:30",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        { "type": "start_stopwatch" },
+        {
+          "type": "speak",
+          "message": "Sunday backlog sprint started. Five hours to clear pending topics."
+        },
+        {
+          "type": "notify",
+          "message": "Backlog Sprint: Complete as much as possible before mock test."
+        }
+      ]
+    },
+
+    {
+      "id": "sunday_mock_test",
+      "name": "Sunday Mock Test Block",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "14:00",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "WORK" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "speak",
+          "message": "Mock test started. Three hours. Full exam conditions."
+        },
+        {
+          "type": "notify",
+          "message": "Mock Test in progress. No interruptions."
+        }
+      ]
+    },
+
+    {
+      "id": "sunday_analysis",
+      "name": "Mock Analysis + Mistake Review",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "17:15",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "FOCUS" },
+        {
+          "type": "speak",
+          "message": "Mock completed. Start mistake analysis and error logging."
+        },
+        {
+          "type": "notify",
+          "message": "Analyze mistakes. Mark weak areas."
+        }
+      ]
+    },
+
+    {
+      "id": "sunday_shutdown",
+      "name": "Sunday Wind Down",
+      "enabled": true,
+
+      "trigger": {
+        "type": "time",
+        "time": "22:30",
+        "days": ["SUN"]
+      },
+
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "speak",
+          "message": "Sunday complete. Wind down and prepare for the week."
+        }
+      ]
+    }
+  ]
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressState.kt =====
+package com.jarvismini.core.progress
+
+enum class ProgressState {
+    COMPLETED,
+    INCOMPLETE,
+    PENDING
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressEntry(
+    val routineId: String,
+    val blockId: String,
+    val timestamp: Long,
+    val state: ProgressState
+)
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.jarvismini.core.TimeUtils
+
+class ProgressStore(context: Context) {
+
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("jarvis_progress", Context.MODE_PRIVATE)
+
+    fun saveProgress(routineId: String, blockId: String, state: ProgressState) {
+        val key = "$routineId:$blockId"
+        prefs.edit()
+            .putString(key, state.name)
+            .putLong("${key}_time", TimeUtils.nowMs())
+            .apply()
+    }
+
+    fun getProgress(routineId: String, blockId: String): ProgressState {
+        val key = "$routineId:$blockId"
+        val value = prefs.getString(key, ProgressState.PENDING.name)
+        return ProgressState.valueOf(value!!)
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+package com.jarvismini.engine.progress
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressState
+import com.jarvismini.core.progress.ProgressStore
+import com.jarvismini.core.TimeUtils
+import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+import com.jarvismini.tts.TtsManager
+import com.jarvismini.notifications.NotificationManager
+
+class ProgressOrchestrator(
+    private val context: Context,
+    private val scheduler: DelayedTaskScheduler,
+    private val tts: TtsManager,
+    private val notifier: NotificationManager
+) {
+
+    private val store = ProgressStore(context)
+
+    fun prompt(routineId: String, blockId: String) {
+        tts.speak("Did you complete this task?")
+        notifier.showProgressPrompt(
+            routineId = routineId,
+            blockId = blockId
+        )
+    }
+
+    fun onUserResponse(
+        routineId: String,
+        blockId: String,
+        completed: Boolean
+    ) {
+        if (completed) {
+            store.saveProgress(routineId, blockId, ProgressState.COMPLETED)
+            tts.speak("Great. Task marked as complete.")
+        } else {
+            store.saveProgress(routineId, blockId, ProgressState.INCOMPLETE)
+            tts.speak("Okay. I will remind you again in thirty minutes.")
+
+            scheduler.schedule(
+                delayMs = 30 * 60 * 1000L
+            ) {
+                prompt(routineId, blockId)
+            }
+        }
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/scheduler/DelayedTaskScheduler.kt =====
+package com.jarvismini.engine.scheduler
+
+import android.os.Handler
+import android.os.Looper
+
+class DelayedTaskScheduler {
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    fun schedule(delayMs: Long, task: () -> Unit) {
+        handler.postDelayed(task, delayMs)
+    }
+}
+//===== FILE: modules/core/src/main/assets/routines/progress_config.json =====
+{
+  "version": "1.0",
+
+  "progressTracking": {
+    "enabled": true,
+
+    "completionPrompt": {
+      "type": "notification",
+      "requireUserAction": true,
+      "actions": ["COMPLETE", "INCOMPLETE"]
+    },
+
+    "retryPolicy": {
+      "retryOnIncomplete": true,
+      "retryDelayMinutes": 30,
+      "maxRetries": -1
+    },
+
+    "tts": {
+      "enabled": true,
+      "voice": "assistant",
+      "repeatOnRetry": true
+    },
+
+    "quietHours": {
+      "enabled": true,
+      "start": "03:00",
+      "end": "08:00"
+    },
+
+    "persistence": {
+      "store": "shared_preferences",
+      "keyPrefix": "routine_progress_"
+    }
+  }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import com.jarvismini.core.TimeUtils
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.core.notifications.ProgressNotifier
+
+object ProgressEngine {
+
+    private lateinit var context: Context
+    private lateinit var config: ProgressConfig
+
+    fun init(ctx: Context, cfg: ProgressConfig) {
+        context = ctx.applicationContext
+        config = cfg
+    }
+
+    fun onBlockCompleted(blockId: String, blockName: String) {
+        if (!config.enabled) return
+        if (QuietHours.isQuietNow(config)) return
+
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
+        )
+
+        if (config.ttsEnabled) {
+            AssistantTTS.speak(
+                context,
+                "Block completed. Please mark ${blockName} as complete or incomplete."
+            )
+        }
+    }
+
+    fun markComplete(blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+        scheduleRetry(blockId, blockName)
+    }
+
+    private fun scheduleRetry(blockId: String, blockName: String) {
+        if (!config.retryEnabled) return
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (QuietHours.isQuietNow(config)) return@postDelayed
+
+            ProgressNotifier.showRetryPrompt(context, blockId, blockName)
+
+            if (config.ttsRepeat) {
+                AssistantTTS.speak(
+                    context,
+                    "Reminder. ${blockName} is still incomplete. Please update progress."
+                )
+            }
+        }, config.retryDelayMs)
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressConfig.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressConfig(
+    val enabled: Boolean,
+    val retryEnabled: Boolean,
+    val retryDelayMs: Long,
+    val ttsEnabled: Boolean,
+    val ttsRepeat: Boolean,
+    val quietStart: String,
+    val quietEnd: String
+)
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressConfigLoader.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import org.json.JSONObject
+
+object ProgressConfigLoader {
+
+    fun load(context: Context): ProgressConfig {
+        val json = context.assets
+            .open("routines/progress_config.json")
+            .bufferedReader()
+            .use { it.readText() }
+
+        val root = JSONObject(json)
+        val p = root.getJSONObject("progressTracking")
+
+        val retry = p.getJSONObject("retryPolicy")
+        val tts = p.getJSONObject("tts")
+        val quiet = p.getJSONObject("quietHours")
+
+        return ProgressConfig(
+            enabled = p.getBoolean("enabled"),
+            retryEnabled = retry.getBoolean("retryOnIncomplete"),
+            retryDelayMs = retry.getLong("retryDelayMinutes") * 60_000,
+            ttsEnabled = tts.getBoolean("enabled"),
+            ttsRepeat = tts.getBoolean("repeatOnRetry"),
+            quietStart = quiet.getString("start"),
+            quietEnd = quiet.getString("end")
+        )
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressStore {
+
+    private const val PREF = "routine_progress"
+
+    fun markComplete(context: Context, blockId: String) {
+        prefs(context).edit()
+            .putBoolean(blockId, true)
+            .putLong("${blockId}_ts", System.currentTimeMillis())
+            .apply()
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        prefs(context).edit()
+            .putBoolean(blockId, false)
+            .apply()
+    }
+
+    fun isComplete(context: Context, blockId: String): Boolean =
+        prefs(context).getBoolean(blockId, false)
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/QuietHours.kt =====
+package com.jarvismini.core.progress
+
+import java.time.LocalTime
+
+object QuietHours {
+
+    fun isQuietNow(config: ProgressConfig): Boolean {
+        val now = LocalTime.now()
+        val start = LocalTime.parse(config.quietStart)
+        val end = LocalTime.parse(config.quietEnd)
+
+        return if (start.isBefore(end)) {
+            now.isAfter(start) && now.isBefore(end)
+        } else {
+            now.isAfter(start) || now.isBefore(end)
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/tts/AssistantTTS.kt =====
+package com.jarvismini.core.tts
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import java.util.Locale
+
+object AssistantTTS {
+
+    private var tts: TextToSpeech? = null
+
+    fun speak(context: Context, message: String) {
+        if (tts == null) {
+            tts = TextToSpeech(context) {
+                if (it == TextToSpeech.SUCCESS) {
+                    tts?.language = Locale.US
+                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+                }
+            }
+        } else {
+            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
+package com.jarvismini.core.notifications
+
+import android.content.Context
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.jarvismini.R
+
+object ProgressNotifier {
+
+    fun showCompletionPrompt(context: Context, blockId: String, blockName: String) {
+        notify(context, blockId, "Block Finished", "Mark ${blockName} as complete or incomplete.")
+    }
+
+    fun showRetryPrompt(context: Context, blockId: String, blockName: String) {
+        notify(context, blockId, "Reminder", "${blockName} still incomplete.")
+    }
+
+    private fun notify(context: Context, id: String, title: String, msg: String) {
+        val n = NotificationCompat.Builder(context, "progress")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(msg)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(context)
+            .notify(id.hashCode(), n)
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.routine.model.Routine
+
+class RoutineExecutor(
+    private val context: Context
+) {
+
+    fun execute(routine: Routine) {
+        routine.actions.forEach { action ->
+            ActionDispatcher.dispatch(context, action)
+        }
+
+        // ✅ BLOCK FINISHED → PROGRESS ENGINE
+        ProgressEngine.onBlockCompleted(
+            blockId = routine.id,
+            blockName = routine.name
+        )
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/Routine.kt =====
+package com.jarvismini.core.routine.model
+
+data class Routine(
+    val id: String,
+    val name: String,
+    val enabled: Boolean,
+    val actions: List<RoutineAction>
+)
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressStats(
+    val date: String,
+    val totalBlocks: Int,
+    val completedBlocks: Int
+) {
+    val completionPercent: Int
+        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import java.time.LocalDate
+
+object ProgressStatsEngine {
+
+    private const val PREF = "progress_stats"
+
+    fun registerBlock(context: Context, blockId: String) {
+        val key = todayKey()
+        val prefs = prefs(context)
+
+        val total = prefs.getInt("${key}_total", 0) + 1
+        prefs.edit().putInt("${key}_total", total).apply()
+    }
+
+    fun markCompleted(context: Context, blockId: String) {
+        val key = todayKey()
+        val prefs = prefs(context)
+
+        val completed = prefs.getInt("${key}_completed", 0) + 1
+        prefs.edit().putInt("${key}_completed", completed).apply()
+    }
+
+    fun getTodayStats(context: Context): ProgressStats {
+        val key = todayKey()
+        val prefs = prefs(context)
+
+        return ProgressStats(
+            date = key,
+            totalBlocks = prefs.getInt("${key}_total", 0),
+            completedBlocks = prefs.getInt("${key}_completed", 0)
+        )
+    }
+
+    private fun todayKey(): String =
+        LocalDate.now().toString()
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.jarvismini.core.tts.AssistantTTS
+
+object ProgressEngine {
+
+    private lateinit var context: Context
+    private lateinit var config: ProgressConfig
+
+    fun init(ctx: Context, cfg: ProgressConfig) {
+        context = ctx.applicationContext
+        config = cfg
+    }
+
+    fun onBlockCompleted(blockId: String, blockName: String) {
+        if (!config.enabled) return
+
+        // 📊 Register block
+        ProgressStatsEngine.registerBlock(context, blockId)
+
+        ProgressNotifier.showCompletionPrompt(context, blockId, blockName)
+
+        if (config.ttsEnabled) {
+            AssistantTTS.speak(
+                context,
+                "Block ${blockName} finished. Please confirm completion."
+            )
+        }
+    }
+
+    fun markComplete(blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+        ProgressStatsEngine.markCompleted(context, blockId)
+    }
+
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+        scheduleRetry(blockId, blockName)
+    }
+
+    private fun scheduleRetry(blockId: String, blockName: String) {
+        if (!config.retryEnabled) return
+        RetryScheduler.schedule(context, blockId, blockName, config)
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressBlock(
+    val id: String,
+    val name: String,
+    val completed: Boolean
+)
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressRepository {
+
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        val completed = ProgressStore.getCompletedBlocks(context)
+
+        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
+            ProgressBlock(
+                id = blockId,
+                name = blockId.replace("_", " ").uppercase(),
+                completed = completed.contains(blockId)
+            )
+        }
+    }
+
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressEngine.markComplete(blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String, name: String) {
+        ProgressEngine.markIncomplete(blockId, name)
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt =====
+package com.jarvismini.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressStatsEngine
+
+@Composable
+fun DailyChecklistScreen() {
+
+    val context = LocalContext.current
+    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+    val stats = ProgressStatsEngine.getTodayStats(context)
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp)
+    ) {
+
+        Text(
+            text = "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn {
+            items(blocks) { block ->
+                ChecklistItem(
+                    block = block,
+                    onComplete = {
+                        ProgressRepository.markCompleted(context, block.id)
+                        blocks = ProgressRepository.getTodayBlocks(context)
+                    },
+                    onIncomplete = {
+                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                    }
+                )
+            }
+        }
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
+package com.jarvismini.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.ProgressBlock
+
+@Composable
+fun ChecklistItem(
+    block: ProgressBlock,
+    onComplete: () -> Unit,
+    onIncomplete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = block.name,
+                modifier = Modifier.weight(1f)
+            )
+
+            if (!block.completed) {
+                TextButton(onClick = onComplete) { Text("Done") }
+                TextButton(onClick = onIncomplete) { Text("Missed") }
+            } else {
+                Text("✅ Completed")
+            }
+        }
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/CalendarViewModel.kt =====
+package com.jarvismini.ui.calendar
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import com.jarvismini.core.calendar.AppCalendarStore
+import com.jarvismini.core.calendar.model.CalendarEvent
+
+class CalendarViewModel(
+    private val context: Context
+) : ViewModel() {
+
+    fun getEventsForDay(dayStartMs: Long, dayEndMs: Long): List<CalendarEvent> {
+        return AppCalendarStore.getAll(context)
+            .filter { it.startTimeMs in dayStartMs..dayEndMs }
+            .sortedBy { it.startTimeMs }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt =====
+...
+fun getAll(context: Context): List<CalendarEvent> {
+    val prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+    return prefs.all.values.mapNotNull {
+        runCatching {
+            JsonUtil.fromJson<CalendarEvent>(it as String)
+        }.getOrNull()
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt =====
+package com.jarvismini.ui.calendar
+
+import androidx.compose.ui.graphics.Color
+import com.jarvismini.core.calendar.model.EventStatus
+
+fun statusColor(status: EventStatus): Color = when (status) {
+    EventStatus.SCHEDULED -> Color(0xFF64B5F6)   // Blue
+    EventStatus.COMPLETED -> Color(0xFF81C784)   // Green
+    EventStatus.INCOMPLETE -> Color(0xFFE57373)  // Red
+    EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D) // Orange
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt =====
+package com.jarvismini.ui.calendar
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.time.TimeUtils
+
+@Composable
+fun DayCalendarScreen(viewModel: CalendarViewModel) {
+
+    val now = TimeUtils.nowMs()
+    val dayStart = now - (now % (24 * 60 * 60 * 1000))
+    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
+
+    val events = remember {
+        viewModel.getEventsForDay(dayStart, dayEnd)
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(12.dp)
+    ) {
+        items(events) { event ->
+            CalendarEventCard(event)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/CalendarEventCard.kt =====
+package com.jarvismini.ui.calendar
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.calendar.model.CalendarEvent
+
+@Composable
+fun CalendarEventCard(event: CalendarEvent) {
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(statusColor(event.status))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(event.title, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Status: ${event.status}")
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import com.jarvismini.core.calendar.AppCalendarStore
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.calendar.model.EventStatus
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.time.NetworkTimeProvider
+import com.jarvismini.core.tts.AssistantTTS
+import java.util.UUID
+
+object RetryScheduler {
+
+    fun schedule(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        config: ProgressConfig
+    ) {
+        if (!config.retryEnabled) return
+
+        NetworkTimeProvider.now { networkNowMs ->
+
+            val retryAtMs = networkNowMs + config.retryDelayMs
+
+            val retryEvent = CalendarEvent(
+                id = UUID.randomUUID().toString(),
+                title = "Retry: $blockName",
+                startTimeMs = retryAtMs,
+                endTimeMs = retryAtMs + DEFAULT_BLOCK_DURATION_MS,
+                status = EventStatus.RETRY_SCHEDULED,
+                linkedBlockId = blockId
+            )
+
+            // 📅 Persist retry in app calendar
+            AppCalendarStore.save(context, retryEvent)
+
+            // ⏱️ In-memory trigger (restored on app init)
+            scheduleUiTrigger(context, retryEvent)
+
+            // 🔊 Optional TTS
+            if (config.ttsEnabled) {
+                AssistantTTS.speak(
+                    context,
+                    "Task incomplete. Retry scheduled in ${config.retryDelayMs / 60000} minutes."
+                )
+            }
+        }
+    }
+
+    private fun scheduleUiTrigger(
+        context: Context,
+        event: CalendarEvent
+    ) {
+        val delay = event.startTimeMs - System.currentTimeMillis()
+        if (delay <= 0) return
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            ProgressNotifier.showRetryPrompt(
+                context,
+                event.linkedBlockId ?: event.id,
+                event.title
+            )
+        }, delay)
+    }
+
+    private const val DEFAULT_BLOCK_DURATION_MS = 30 * 60 * 1000L
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/model/CalendarEvent.kt =====
+package com.jarvismini.core.calendar.model
+
+data class CalendarEvent(
+    val id: String,
+    val title: String,
+    val startTimeMs: Long,
+    val endTimeMs: Long,
+    val status: EventStatus,
+    val meta: Map<String, String> = emptyMap()
+)
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/model/EventStatus.kt =====
+package com.jarvismini.core.calendar.model
+
+enum class EventStatus {
+    SCHEDULED,
+    COMPLETED,
+    INCOMPLETE,
+    RETRY
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/time/NetworkTimeProvider.kt =====
+package com.jarvismini.core.time
+
+object NetworkTimeProvider {
+
+    fun nowMs(): Long {
+        // 🔒 Design locked: single authority
+        // Later swap with NTP without touching callers
+        return System.currentTimeMillis()
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt =====
+package com.jarvismini.core.calendar
+
+import android.content.Context
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.util.JsonUtil
+
+object AppCalendarStore {
+
+    private const val PREF = "app_calendar"
+
+    fun save(context: Context, event: CalendarEvent) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putString(event.id, JsonUtil.toJson(event))
+            .apply()
+    }
+
+    fun getAll(context: Context): List<CalendarEvent> {
+        val prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        return prefs.all.values.mapNotNull {
+            runCatching {
+                JsonUtil.fromJson<CalendarEvent>(it as String)
+            }.getOrNull()
+        }
+    }
+
+    fun updateStatus(context: Context, id: String, status: String) {
+        val event = getAll(context).find { it.id == id } ?: return
+        save(context, event.copy(status = enumValueOf(status)))
+    }
+
+    fun delete(context: Context, id: String) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .remove(id)
+            .apply()
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.jarvismini.core.calendar.AppCalendarStore
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.calendar.model.EventStatus
+import com.jarvismini.core.time.NetworkTimeProvider
+import java.util.UUID
+
+object RetryScheduler {
+
+    fun schedule(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        config: ProgressConfig
+    ) {
+        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
+
+        val event = CalendarEvent(
+            id = "retry_${blockId}_${UUID.randomUUID()}",
+            title = "Retry: $blockName",
+            startTimeMs = retryAt,
+            endTimeMs = retryAt + 5 * 60_000,
+            status = EventStatus.RETRY,
+            meta = mapOf("blockId" to blockId)
+        )
+
+        AppCalendarStore.save(context, event)
+    }
+
+    fun restorePendingRetries(context: Context) {
+        val now = NetworkTimeProvider.nowMs()
+
+        AppCalendarStore.getAll(context)
+            .filter { it.status == EventStatus.RETRY && it.startTimeMs <= now }
+            .forEach {
+                ProgressNotifier.showRetryPrompt(
+                    context,
+                    it.meta["blockId"] ?: it.id,
+                    it.title
+                )
+            }
+    }
+}
