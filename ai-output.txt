@@ -1,145 +1,86 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
-package com.jarvismini.core.progress
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
+package com.jarvismini.core.notifications
 
-// ✅ Single correct ProgressStats definition
-data class ProgressStats(
-    val date: String,              // e.g., "2026-01-24", can be set dynamically later
-    val totalBlocks: Int,
-    val completedBlocks: Int
-) {
-    val completionPercent: Int
-        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
+import android.content.pm.PackageManager
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import com.jarvismini.core.R
 
-// ✅ Single source of truth for stats
-object ProgressStatsEngine {
+object ProgressNotifier {
 
-    fun registerBlock(context: Context, blockId: String) {
-        ProgressStore.register(context, blockId)
-    }
-
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-    }
-
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
-
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-        // ✅ Correctly construct ProgressStats with all required parameters
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completedCount
+    // ✅ Engine-safe overload (no icon required)
+    fun showCompletionPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String
+    ) {
+        showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName,
+            iconRes = R.drawable.ic_launcher_foreground
         )
     }
-}
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import com.jarvismini.core.calendar.AppCalendarStore
-import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.calendar.model.EventStatus
-import com.jarvismini.core.time.NetworkTimeProvider
-import java.util.UUID
-
-object RetryScheduler {
-
-    fun schedule(
+    // ✅ Full version (used internally / by app if needed)
+    fun showCompletionPrompt(
         context: Context,
         blockId: String,
         blockName: String,
-        config: ProgressConfig
+        iconRes: Int
     ) {
-        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
-
-        AppCalendarStore.save(
-            context,
-            CalendarEvent(
-                id = "retry_${UUID.randomUUID()}",
-                title = "Retry: $blockName",
-                startTimeMs = retryAt,
-                endTimeMs = retryAt + 5 * 60_000,
-                status = EventStatus.RETRY_SCHEDULED, // ✅ Fixed enum reference
-                meta = mapOf("blockId" to blockId)
-            )
+        notify(
+            context = context,
+            id = blockId,
+            title = "Block Finished",
+            msg = "Mark $blockName as complete or incomplete.",
+            iconRes = iconRes
         )
     }
-}
 
-//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
-package com.jarvismini.smart
-
-/**
- * Minimal stub so module compiles.
- * Real logic will be added later.
- */
-object SmartFilters {
-    fun isAllowed(text: String): Boolean {
-        return true
-    }
-}
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt =====
-package com.jarvismini.ui
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStatsEngine
-
-@Composable
-fun DailyChecklistScreen() {
-    val context = LocalContext.current
-
-    // Load today's blocks
-    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
-
-    // ✅ Fixed: getTodayStats now returns ProgressStats with all fields
-    val stats = ProgressStatsEngine.getTodayStats(context)
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    fun showRetryPrompt(
+        context: Context,
+        blockId: String,
+        blockName: String
     ) {
-        Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
+        notify(
+            context = context,
+            id = blockId,
+            title = "Reminder",
+            msg = "$blockName still incomplete.",
+            iconRes = R.drawable.ic_launcher_foreground
         )
+    }
 
-        Spacer(modifier = Modifier.height(12.dp))
+    // ✅ Lint-safe notify
+    private fun notify(
+        context: Context,
+        id: String,
+        title: String,
+        msg: String,
+        iconRes: Int
+    ) {
+        val notification = NotificationCompat.Builder(context, "progress")
+            .setSmallIcon(iconRes)
+            .setContentTitle(title)
+            .setContentText(msg)
+            .setAutoCancel(true)
+            .build()
 
-        LazyColumn {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        blocks = ProgressRepository.getTodayBlocks(context)
-                    },
-                    onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
-                    }
-                )
-            }
+        // ✅ Check runtime permission for Android 13+
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            NotificationManagerCompat.from(context).notify(id.hashCode(), notification)
+        } else {
+            Log.w("ProgressNotifier", "Notification permission not granted, skipping notify()")
         }
     }
 }
