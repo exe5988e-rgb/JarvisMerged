@@ -1,3 +1,4 @@
+```kotlin
 package com.jarvismini
 
 import android.os.Bundle
@@ -7,7 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.jarvismini.core.JarvisState
 import com.jarvismini.engine.EngineProvider
-import com.jarvismini.ui.main
+import com.jarvismini.ui.main.MainScreen   // ✅ FIXED IMPORT
 
 class MainActivity : ComponentActivity() {
 
