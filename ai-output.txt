@@ -1,108 +1,27 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-package com.jarvismini.ui.main
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
 
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.checklist.ChecklistItem
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStatsEngine
-import com.jarvismini.ProgressInitializer
-import com.jarvismini.core.progress.ProgressBlock
+import android.content.Context
 
-enum class MainTab(val title: String) {
-    Chat("Chat"),
-    Checklist("Checklist")
-}
+object ProgressRepository {
 
-@Composable
-fun MainScreen() {
-    val context = LocalContext.current
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        val completed = ProgressStore.getCompletedBlocks(context)
 
-    // ✅ Ensure all routine blocks are registered at app start
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
-    }
-
-    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf(listOf<ProgressBlock>()) }
-
-    // Refresh blocks whenever tab changes
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressRepository.getTodayBlocks(context)
+        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
+            ProgressBlock(
+                id = blockId,
+                name = blockId.replace("_", " ").uppercase(),
+                completed = completed.contains(blockId)
+            )
         }
     }
 
-    Scaffold(
-        topBar = {
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                MainTab.values().forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.title) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp)
-        ) {
-            when (selectedTab) {
-                MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreenWithStats(blocks) { updated ->
-                    blocks = updated
-                }
-            }
-        }
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressStore.markComplete(context, blockId)
     }
-}
 
-@Composable
-fun ChecklistScreenWithStats(
-    blocks: List<ProgressBlock>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats(context)
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        val updated = ProgressRepository.getTodayBlocks(context)
-                        onBlocksUpdated(updated)
-                    },
-                    onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
-                        val updated = ProgressRepository.getTodayBlocks(context)
-                        onBlocksUpdated(updated)
-                    }
-                )
-            }
-        }
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
     }
 }
