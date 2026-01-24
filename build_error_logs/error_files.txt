@@ -3,15 +3,15 @@
 -- COMPILE / RESOURCE ERRORS --
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:4:47 Unresolved reference: ChatBubble
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:5:47 Unresolved reference: ListAlt
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:25:33 Unresolved reference: ChatBubble
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:36:33 Unresolved reference: ListAlt
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:53:5 Unresolved reference: NavigationBarItem
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:56:18 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:57:19 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:22:33 Unresolved reference: ChatBubble
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:33:33 Unresolved reference: ListAlt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:50:5 Unresolved reference: NavigationBarItem
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:53:18 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:54:19 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 57s
+BUILD FAILED in 1m 13s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -31,57 +31,54 @@ BUILD FAILED in 57s
 11	import androidx.compose.ui.graphics.vector.ImageVector
 12	import androidx.navigation.NavController
 13
-14	/**
-15	 * BottomBar Composable with two items: Chat and Checklist
-16	 */
-17	@Composable
-18	fun BottomBar(
-19	    navController: NavController,
-20	    currentRoute: String?
-21	) {
-22	    NavigationBar {
-23	        BottomBarItem(
-24	            label = "Chat",
+14	@Composable
+15	fun BottomBar(
+16	    navController: NavController,
+17	    currentRoute: String?
+18	) {
+19	    NavigationBar {
+20	        BottomBarItem(
+21	            label = "Chat",
 >>>>> ERROR HERE
-25	            icon = Icons.Filled.ChatBubble,
-26	            selected = currentRoute == NavRoute.Chat.route
-27	        ) {
-28	            navController.navigate(NavRoute.Chat.route) {
-29	                popUpTo(NavRoute.Chat.route) { inclusive = false }
-30	                launchSingleTop = true
-31	            }
-32	        }
-33
-34	        BottomBarItem(
-35	            label = "Checklist",
+22	            icon = Icons.Filled.ChatBubble,
+23	            selected = currentRoute == NavRoute.Chat.route
+24	        ) {
+25	            navController.navigate(NavRoute.Chat.route) {
+26	                popUpTo(NavRoute.Chat.route) { inclusive = false }
+27	                launchSingleTop = true
+28	            }
+29	        }
+30
+31	        BottomBarItem(
+32	            label = "Checklist",
 >>>>> ERROR HERE
-36	            icon = Icons.Filled.ListAlt,
-37	            selected = currentRoute == NavRoute.Checklist.route
-38	        ) {
-39	            navController.navigate(NavRoute.Checklist.route) {
-40	                launchSingleTop = true
-41	            }
-42	        }
-43	    }
-44	}
-45
-46	@Composable
-47	private fun BottomBarItem(
-48	    label: String,
-49	    icon: ImageVector,
-50	    selected: Boolean,
-51	    onClick: () -> Unit
-52	) {
+33	            icon = Icons.Filled.ListAlt,
+34	            selected = currentRoute == NavRoute.Checklist.route
+35	        ) {
+36	            navController.navigate(NavRoute.Checklist.route) {
+37	                launchSingleTop = true
+38	            }
+39	        }
+40	    }
+41	}
+42
+43	@Composable
+44	private fun BottomBarItem(
+45	    label: String,
+46	    icon: ImageVector,
+47	    selected: Boolean,
+48	    onClick: () -> Unit
+49	) {
 >>>>> ERROR HERE
-53	    NavigationBarItem(
-54	        selected = selected,
-55	        onClick = onClick,
+50	    NavigationBarItem(
+51	        selected = selected,
+52	        onClick = onClick,
 >>>>> ERROR HERE
-56	        icon = { Icon(icon, contentDescription = label) },
+53	        icon = { Icon(icon, contentDescription = label) },
 >>>>> ERROR HERE
-57	        label = { Text(label) }
-58	    )
-59	}
+54	        label = { Text(label) }
+55	    )
+56	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
