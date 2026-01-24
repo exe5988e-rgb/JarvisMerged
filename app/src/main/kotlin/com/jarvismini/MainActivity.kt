@@ -7,21 +7,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.jarvismini.core.JarvisState
 import com.jarvismini.engine.EngineProvider
-import com.jarvismini.ui.main.MainScreen   // ✅ FIXED IMPORT
+import com.jarvismini.ui.main.MainScreen
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Core must initialize BEFORE UI
+        // ✅ Core init
         JarvisState.init(applicationContext)
         EngineProvider.init(applicationContext)
+
+        // 🔹 Auto-register all routine blocks
+        ProgressInitializer.registerAllBlocks(this)
 
         setContent {
             MaterialTheme {
                 Surface {
-                    MainScreen() // ✅ Tab-based root UI
+                    MainScreen()
                 }
             }
         }

@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.progress.ProgressEngine
 
 @Composable
 fun ChecklistItem(
@@ -14,7 +15,9 @@ fun ChecklistItem(
     onIncomplete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -26,8 +29,17 @@ fun ChecklistItem(
             )
 
             if (!block.completed) {
-                TextButton(onClick = onComplete) { Text("Done") }
-                TextButton(onClick = onIncomplete) { Text("Missed") }
+                TextButton(onClick = {
+                    // ✅ Mark complete in ProgressEngine
+                    ProgressEngine.markComplete(block.id)
+                    onComplete()
+                }) { Text("Done") }
+
+                TextButton(onClick = {
+                    // ✅ Mark incomplete & schedule retry
+                    ProgressEngine.markIncomplete(block.id, block.name)
+                    onIncomplete()
+                }) { Text("Missed") }
             } else {
                 Text("✅ Completed")
             }
