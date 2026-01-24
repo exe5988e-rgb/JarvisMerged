@@ -1,13 +1,13 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:56:5 Unresolved reference: NavigationBarItem
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:59:18 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:60:19 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:47:5 Unresolved reference: NavigationBarItem
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:50:18 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:51:19 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 2m 3s
+BUILD FAILED in 2m 7s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -25,58 +25,49 @@ BUILD FAILED in 2m 3s
 11	import androidx.compose.ui.graphics.vector.ImageVector
 12	import androidx.navigation.NavController
 13
-14	/**
-15	 * BottomBar Composable with two items: Chat and Checklist
-16	 */
-17	@Composable
-18	fun BottomBar(
-19	    navController: NavController,
-20	    currentRoute: String?
-21	) {
-22	    NavigationBar {
-23	        BottomBarItem(
-24	            label = "Chat",
-25	            icon = Icons.Filled.ChatBubble,
-26	            selected = currentRoute == NavRoute.Chat.route
-27	        ) {
-28	            navController.navigate(NavRoute.Chat.route) {
-29	                popUpTo(NavRoute.Chat.route) { inclusive = false }
-30	                launchSingleTop = true
-31	            }
-32	        }
-33
-34	        BottomBarItem(
-35	            label = "Checklist",
-36	            icon = Icons.Filled.ListAlt,
-37	            selected = currentRoute == NavRoute.Checklist.route
-38	        ) {
-39	            navController.navigate(NavRoute.Checklist.route) {
-40	                launchSingleTop = true
-41	            }
-42	        }
-43	    }
-44	}
-45
-46	/**
-47	 * Single BottomBar item
-48	 */
-49	@Composable
-50	private fun BottomBarItem(
-51	    label: String,
-52	    icon: ImageVector,
-53	    selected: Boolean,
-54	    onClick: () -> Unit
-55	) {
+14	@Composable
+15	fun BottomBar(navController: NavController, currentRoute: String?) {
+16	    NavigationBar {
+17	        BottomBarItem(
+18	            label = "Chat",
+19	            icon = Icons.Filled.ChatBubble,
+20	            selected = currentRoute == NavRoute.Chat.route
+21	        ) {
+22	            navController.navigate(NavRoute.Chat.route) {
+23	                popUpTo(NavRoute.Chat.route) { inclusive = false }
+24	                launchSingleTop = true
+25	            }
+26	        }
+27
+28	        BottomBarItem(
+29	            label = "Checklist",
+30	            icon = Icons.Filled.ListAlt,
+31	            selected = currentRoute == NavRoute.Checklist.route
+32	        ) {
+33	            navController.navigate(NavRoute.Checklist.route) {
+34	                launchSingleTop = true
+35	            }
+36	        }
+37	    }
+38	}
+39
+40	@Composable
+41	private fun BottomBarItem(
+42	    label: String,
+43	    icon: ImageVector,
+44	    selected: Boolean,
+45	    onClick: () -> Unit
+46	) {
 >>>>> ERROR HERE
-56	    NavigationBarItem(
-57	        selected = selected,
-58	        onClick = onClick,
+47	    NavigationBarItem(
+48	        selected = selected,
+49	        onClick = onClick,
 >>>>> ERROR HERE
-59	        icon = { Icon(icon, contentDescription = label) },
+50	        icon = { Icon(icon, contentDescription = label) },
 >>>>> ERROR HERE
-60	        label = { Text(label) }
-61	    )
-62	}
+51	        label = { Text(label) }
+52	    )
+53	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
