@@ -1,68 +1,17 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:34:29 Unresolved reference: MainNav
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:4:47 Unresolved reference: Chat
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:5:47 Unresolved reference: Checklist
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:19:34 Unresolved reference: Chat
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:30:34 Unresolved reference: Checklist
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:47:5 Unresolved reference: NavigationBarItem
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:50:18 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:51:19 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:25:34 Unresolved reference: Chat
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:53:5 Unresolved reference: NavigationBarItem
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:56:18 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:57:19 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 12s
+BUILD FAILED in 1m 5s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
-1	package com.jarvismini
-2
-3	import android.os.Bundle
-4	import androidx.activity.ComponentActivity
-5	import androidx.activity.compose.setContent
-6	import androidx.compose.material3.MaterialTheme
-7	import androidx.compose.material3.Surface
-8	import androidx.navigation.compose.NavHost
-9	import androidx.navigation.compose.composable
-10	import androidx.navigation.compose.rememberNavController
-11	import com.jarvismini.core.JarvisState
-12	import com.jarvismini.engine.EngineProvider
-13	import com.jarvismini.ui.JarvisChatScreen
-14
-15	class MainActivity : ComponentActivity() {
-16
-17	    override fun onCreate(savedInstanceState: Bundle?) {
-18	        super.onCreate(savedInstanceState)
-19
-20	        // ✅ Core init MUST stay before UI
-21	        JarvisState.init(applicationContext)
-22	        EngineProvider.init(applicationContext)
-23
-24	        setContent {
-25	            MaterialTheme {
-26	                Surface {
-27	                    val navController = rememberNavController()
-28
-29	                    NavHost(
-30	                        navController = navController,
-31	                        startDestination = "chat"
-32	                    ) {
-33	                        composable("chat") {
->>>>> ERROR HERE
-34	                            MainNav()
-35	                        }
-36
-37	                        // 🔜 Future screens plug in here
-38	                        // composable("checklist") { DailyChecklistScreen() }
-39	                        // composable("calendar") { DayCalendarScreen(...) }
-40	                    }
-41	                }
-42	            }
-43	        }
-44	    }
-45	}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt =====
 1	package com.jarvismini.ui.navigation
@@ -70,61 +19,65 @@ BUILD FAILED in 1m 12s
 3	import androidx.compose.material.icons.Icons
 >>>>> ERROR HERE
 4	import androidx.compose.material.icons.filled.Chat
+5	import androidx.compose.material.icons.filled.List
+6	import androidx.compose.material3.NavigationBar
+7	import androidx.compose.material3.NavigationBarItem
+8	import androidx.compose.material3.Text
+9	import androidx.compose.material3.Icon
+10	import androidx.compose.runtime.Composable
+11	import androidx.compose.ui.graphics.vector.ImageVector
+12	import androidx.navigation.NavController
+13
+14	/**
+15	 * BottomBar Composable with two items: Chat and Checklist
+16	 */
+17	@Composable
+18	fun BottomBar(
+19	    navController: NavController,
+20	    currentRoute: String?
+21	) {
+22	    NavigationBar {
+23	        BottomBarItem(
+24	            label = "Chat",
 >>>>> ERROR HERE
-5	import androidx.compose.material.icons.filled.Checklist
-6	import androidx.compose.material3.*
-7	import androidx.compose.runtime.Composable
-8	import androidx.compose.ui.graphics.vector.ImageVector
-9	import androidx.navigation.NavController
-10
-11	@Composable
-12	fun BottomBar(
-13	    navController: NavController,
-14	    currentRoute: String?
-15	) {
-16	    NavigationBar {
-17	        BottomBarItem(
-18	            label = "Chat",
+25	            icon = Icons.Default.Chat,
+26	            selected = currentRoute == NavRoute.Chat.route
+27	        ) {
+28	            navController.navigate(NavRoute.Chat.route) {
+29	                popUpTo(NavRoute.Chat.route) { inclusive = false }
+30	                launchSingleTop = true
+31	            }
+32	        }
+33
+34	        BottomBarItem(
+35	            label = "Checklist",
+36	            icon = Icons.Default.List,
+37	            selected = currentRoute == NavRoute.Checklist.route
+38	        ) {
+39	            navController.navigate(NavRoute.Checklist.route) {
+40	                launchSingleTop = true
+41	            }
+42	        }
+43	    }
+44	}
+45
+46	@Composable
+47	private fun BottomBarItem(
+48	    label: String,
+49	    icon: ImageVector,
+50	    selected: Boolean,
+51	    onClick: () -> Unit
+52	) {
 >>>>> ERROR HERE
-19	            icon = Icons.Default.Chat,
-20	            selected = currentRoute == NavRoute.Chat.route
-21	        ) {
-22	            navController.navigate(NavRoute.Chat.route) {
-23	                popUpTo(NavRoute.Chat.route) { inclusive = false }
-24	                launchSingleTop = true
-25	            }
-26	        }
-27
-28	        BottomBarItem(
-29	            label = "Checklist",
+53	    NavigationBarItem(
+54	        selected = selected,
+55	        onClick = onClick,
 >>>>> ERROR HERE
-30	            icon = Icons.Default.Checklist,
-31	            selected = currentRoute == NavRoute.Checklist.route
-32	        ) {
-33	            navController.navigate(NavRoute.Checklist.route) {
-34	                launchSingleTop = true
-35	            }
-36	        }
-37	    }
-38	}
-39
-40	@Composable
-41	private fun BottomBarItem(
-42	    label: String,
-43	    icon: ImageVector,
-44	    selected: Boolean,
-45	    onClick: () -> Unit
-46	) {
+56	        icon = { Icon(icon, contentDescription = label) },
 >>>>> ERROR HERE
-47	    NavigationBarItem(
-48	        selected = selected,
-49	        onClick = onClick,
->>>>> ERROR HERE
-50	        icon = { Icon(icon, contentDescription = label) },
->>>>> ERROR HERE
-51	        label = { Text(label) }
-52	    )
-53	}
+57	        label = { Text(label) }
+58	    )
+59	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
