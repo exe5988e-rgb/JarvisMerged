@@ -1,114 +1,75 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:23:13 No value passed for parameter 'iconRes'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:14:26 Unresolved reference: drawable
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:29:26 Unresolved reference: drawable
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 47s
+BUILD FAILED in 39s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-1	package com.jarvismini.core.progress
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
+1	package com.jarvismini.core.notifications
 2
 3	import android.content.Context
-4
-5	object ProgressRepository {
-6
-7	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-8	        val completed = ProgressStore.getCompletedBlocks(context)
-9
-10	        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
-11	            ProgressBlock(
-12	                id = blockId,
-13	                name = blockId.replace("_", " ").uppercase(),
-14	                completed = completed.contains(blockId)
-15	            )
-16	        }
-17	    }
-18
->>>>> ERROR HERE
-19	    fun markCompleted(context: Context, blockId: String) {
-20	        ProgressEngine.markComplete(blockId)
-21	    }
-22
->>>>> ERROR HERE
-23	    fun markIncomplete(context: Context, blockId: String, name: String) {
-24	        ProgressEngine.markIncomplete(blockId, name)
-25	    }
-26	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
-1	package com.jarvismini.core.routine
-2
-3	import android.content.Context
-4	import com.jarvismini.core.routine.model.RoutineAction
-5
-6	object ActionDispatcher {
+4	import androidx.core.app.NotificationCompat
+5	import androidx.core.app.NotificationManagerCompat
+6	import com.jarvismini.core.R
 7
+8	object ProgressNotifier {
+9
+10	    fun showCompletionPrompt(
+11	        context: Context,
+12	        blockId: String,
+13	        blockName: String,
 >>>>> ERROR HERE
-8	    fun dispatch(context: Context, action: RoutineAction) {
-9	        // Stub — logic will expand later
-10	    }
-11	}
-
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
-1	package com.jarvismini.engine.progress
-2
-3	import android.content.Context
-4	import com.jarvismini.core.notifications.ProgressNotifier
-5	import com.jarvismini.core.progress.ProgressEngine
-6	import com.jarvismini.core.tts.AssistantTTS
-7	import com.jarvismini.engine.scheduler.DelayedTaskScheduler
-8
-9	class ProgressOrchestrator(
-10	    private val context: Context,
-11	    private val scheduler: DelayedTaskScheduler
-12	) {
-13
-14	    fun prompt(blockId: String, blockName: String) {
-15	        AssistantTTS.speak(
-16	            context,
-17	            "Did you complete $blockName?"
-18	        )
-19
-20	        ProgressNotifier.showCompletionPrompt(
-21	            context = context,
-22	            blockId = blockId,
+14	        iconRes: Int = R.drawable.ic_launcher_foreground
+15	    ) {
+16	        notify(
+17	            context = context,
+18	            id = blockId,
+19	            title = "Block Finished",
+20	            msg = "Mark $blockName as complete or incomplete.",
+21	            iconRes = iconRes
+22	        )
+23	    }
+24
+25	    fun showRetryPrompt(
+26	        context: Context,
+27	        blockId: String,
+28	        blockName: String,
 >>>>> ERROR HERE
-23	            blockName = blockName
-24	        )
-25	    }
-26
-27	    fun onUserResponse(
-28	        blockId: String,
-29	        blockName: String,
-30	        completed: Boolean
-31	    ) {
-32	        if (completed) {
-33	            ProgressEngine.markComplete(blockId)
-34
-35	            AssistantTTS.speak(
-36	                context,
-37	                "Great. Task marked as complete."
-38	            )
-39	        } else {
-40	            ProgressEngine.markIncomplete(blockId, blockName)
-41
-42	            AssistantTTS.speak(
-43	                context,
-44	                "Okay. I will remind you again in thirty minutes."
-45	            )
-46
-47	            scheduler.schedule(
-48	                delayMs = 30 * 60 * 1000L
-49	            ) {
-50	                prompt(blockId, blockName)
-51	            }
-52	        }
-53	    }
-54	}
+29	        iconRes: Int = R.drawable.ic_launcher_foreground
+30	    ) {
+31	        notify(
+32	            context = context,
+33	            id = blockId,
+34	            title = "Reminder",
+35	            msg = "$blockName still incomplete.",
+36	            iconRes = iconRes
+37	        )
+38	    }
+39
+40	    private fun notify(
+41	        context: Context,
+42	        id: String,
+43	        title: String,
+44	        msg: String,
+45	        iconRes: Int
+46	    ) {
+47	        val notification = NotificationCompat.Builder(context, "progress")
+48	            .setSmallIcon(iconRes)
+49	            .setContentTitle(title)
+50	            .setContentText(msg)
+51	            .setAutoCancel(true)
+52	            .build()
+53
+54	        NotificationManagerCompat.from(context)
+55	            .notify(id.hashCode(), notification)
+56	    }
+57	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
