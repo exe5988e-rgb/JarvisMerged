@@ -3,7 +3,7 @@ package com.jarvismini.core.util
 import com.google.gson.Gson
 
 object JsonUtil {
-    private val gson = Gson()
+    internal val gson = Gson()
 
     fun <T> toJson(obj: T): String = gson.toJson(obj)
 

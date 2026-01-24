@@ -1,10 +1,10 @@
 package com.jarvismini.core.progress
 
 import android.content.Context
+import com.jarvismini.core.notifications.ProgressNotifier
 import com.jarvismini.core.tts.AssistantTTS
 
 object ProgressEngine {
-
     private lateinit var context: Context
     private lateinit var config: ProgressConfig
 
@@ -18,7 +18,6 @@ object ProgressEngine {
 
         // 📊 Register block
         ProgressStatsEngine.registerBlock(context, blockId)
-
         ProgressNotifier.showCompletionPrompt(context, blockId, blockName)
 
         if (config.ttsEnabled) {
