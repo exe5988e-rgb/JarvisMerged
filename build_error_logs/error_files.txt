@@ -3,7 +3,6 @@
 -- COMPILE / RESOURCE / LINT ERRORS --
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:6:23 Unresolved reference: R
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:20:27 Unresolved reference: R
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:11:9 Public-API inline function cannot access non-public-API 'internal final val gson: Gson defined in com.jarvismini.core.util.JsonUtil'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
@@ -44,21 +43,6 @@ BUILD FAILED in 39s
 28	    }
 29	}
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
-1	package com.jarvismini.core.util
-2
-3	import com.google.gson.Gson
-4
-5	object JsonUtil {
-6	    internal val gson = Gson()
-7
-8	    fun <T> toJson(obj: T): String = gson.toJson(obj)
-9
-10	    inline fun <reified T> fromJson(json: String): T =
->>>>> ERROR HERE
-11	        gson.fromJson(json, T::class.java)
-12	}
-
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
 2
@@ -67,9 +51,8 @@ BUILD FAILED in 39s
 5	 * Real logic will be added later.
 6	 */
 7	object SmartFilters {
-8
 >>>>> ERROR HERE
-9	    fun isAllowed(text: String): Boolean {
-10	        return true
-11	    }
-12	}
+8	    fun isAllowed(text: String): Boolean {
+9	        return true
+10	    }
+11	}
