@@ -1,15 +1,17 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:4:47 Unresolved reference: Chat
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:25:34 Unresolved reference: Chat
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:4:47 Unresolved reference: ChatBubble
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:5:47 Unresolved reference: ListAlt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:25:33 Unresolved reference: ChatBubble
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:36:33 Unresolved reference: ListAlt
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:53:5 Unresolved reference: NavigationBarItem
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:56:18 @Composable invocations can only happen from the context of a @Composable function
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:57:19 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 5s
+BUILD FAILED in 1m 13s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -18,12 +20,13 @@ BUILD FAILED in 1m 5s
 2
 3	import androidx.compose.material.icons.Icons
 >>>>> ERROR HERE
-4	import androidx.compose.material.icons.filled.Chat
-5	import androidx.compose.material.icons.filled.List
-6	import androidx.compose.material3.NavigationBar
-7	import androidx.compose.material3.NavigationBarItem
-8	import androidx.compose.material3.Text
-9	import androidx.compose.material3.Icon
+4	import androidx.compose.material.icons.filled.ChatBubble
+>>>>> ERROR HERE
+5	import androidx.compose.material.icons.filled.ListAlt
+6	import androidx.compose.material3.Icon
+7	import androidx.compose.material3.NavigationBar
+8	import androidx.compose.material3.NavigationBarItem
+9	import androidx.compose.material3.Text
 10	import androidx.compose.runtime.Composable
 11	import androidx.compose.ui.graphics.vector.ImageVector
 12	import androidx.navigation.NavController
@@ -40,7 +43,7 @@ BUILD FAILED in 1m 5s
 23	        BottomBarItem(
 24	            label = "Chat",
 >>>>> ERROR HERE
-25	            icon = Icons.Default.Chat,
+25	            icon = Icons.Filled.ChatBubble,
 26	            selected = currentRoute == NavRoute.Chat.route
 27	        ) {
 28	            navController.navigate(NavRoute.Chat.route) {
@@ -51,7 +54,8 @@ BUILD FAILED in 1m 5s
 33
 34	        BottomBarItem(
 35	            label = "Checklist",
-36	            icon = Icons.Default.List,
+>>>>> ERROR HERE
+36	            icon = Icons.Filled.ListAlt,
 37	            selected = currentRoute == NavRoute.Checklist.route
 38	        ) {
 39	            navController.navigate(NavRoute.Checklist.route) {
