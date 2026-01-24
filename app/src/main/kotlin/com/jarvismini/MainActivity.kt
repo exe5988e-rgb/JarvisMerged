@@ -7,22 +7,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.jarvismini.core.JarvisState
 import com.jarvismini.engine.EngineProvider
-import com.jarvismini.ui.navigation.MainNav
+import com.jarvismini.ui.MainScreen
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 🔴 Core must be initialized BEFORE any UI or services rely on it
+        // ✅ Core must initialize BEFORE UI
         JarvisState.init(applicationContext)
         EngineProvider.init(applicationContext)
 
         setContent {
             MaterialTheme {
                 Surface {
-                    // ✅ MainNav handles NavHost + BottomBar
-                    MainNav()
+                    MainScreen() // ✅ Tab-based root UI
                 }
             }
         }
