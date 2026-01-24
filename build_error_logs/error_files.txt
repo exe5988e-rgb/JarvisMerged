@@ -1,37 +1,18 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:8:17 Unresolved reference: navigation
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:9:17 Unresolved reference: navigation
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:17 Unresolved reference: navigation
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:27:41 Unresolved reference: rememberNavController
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:29:21 Unresolved reference: NavHost
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:33:25 Unresolved reference: composable
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:34:29 Unresolved reference: MainNav
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:4:47 Unresolved reference: Chat
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:5:47 Unresolved reference: Checklist
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:9:17 Unresolved reference: navigation
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:13:20 Unresolved reference: NavController
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:19:34 Unresolved reference: Chat
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:23:17 Unresolved reference: popUpTo
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:23:48 Unresolved reference: inclusive
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:24:17 Unresolved reference: launchSingleTop
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:30:34 Unresolved reference: Checklist
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:34:17 Unresolved reference: launchSingleTop
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:47:5 Unresolved reference: NavigationBarItem
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:50:18 @Composable invocations can only happen from the context of a @Composable function
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/BottomBar.kt:51:19 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:6:17 Unresolved reference: navigation
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:12:25 Unresolved reference: rememberNavController
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:24:9 Unresolved reference: NavHost
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:28:13 Unresolved reference: composable
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:29:17 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:32:13 Unresolved reference: composable
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt:33:17 @Composable invocations can only happen from the context of a @Composable function
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 54s
+BUILD FAILED in 1m 12s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -43,11 +24,8 @@ BUILD FAILED in 54s
 5	import androidx.activity.compose.setContent
 6	import androidx.compose.material3.MaterialTheme
 7	import androidx.compose.material3.Surface
->>>>> ERROR HERE
 8	import androidx.navigation.compose.NavHost
->>>>> ERROR HERE
 9	import androidx.navigation.compose.composable
->>>>> ERROR HERE
 10	import androidx.navigation.compose.rememberNavController
 11	import com.jarvismini.core.JarvisState
 12	import com.jarvismini.engine.EngineProvider
@@ -65,15 +43,12 @@ BUILD FAILED in 54s
 24	        setContent {
 25	            MaterialTheme {
 26	                Surface {
->>>>> ERROR HERE
 27	                    val navController = rememberNavController()
 28
->>>>> ERROR HERE
 29	                    NavHost(
 30	                        navController = navController,
 31	                        startDestination = "chat"
 32	                    ) {
->>>>> ERROR HERE
 33	                        composable("chat") {
 >>>>> ERROR HERE
 34	                            MainNav()
@@ -100,12 +75,10 @@ BUILD FAILED in 54s
 6	import androidx.compose.material3.*
 7	import androidx.compose.runtime.Composable
 8	import androidx.compose.ui.graphics.vector.ImageVector
->>>>> ERROR HERE
 9	import androidx.navigation.NavController
 10
 11	@Composable
 12	fun BottomBar(
->>>>> ERROR HERE
 13	    navController: NavController,
 14	    currentRoute: String?
 15	) {
@@ -117,9 +90,7 @@ BUILD FAILED in 54s
 20	            selected = currentRoute == NavRoute.Chat.route
 21	        ) {
 22	            navController.navigate(NavRoute.Chat.route) {
->>>>> ERROR HERE
 23	                popUpTo(NavRoute.Chat.route) { inclusive = false }
->>>>> ERROR HERE
 24	                launchSingleTop = true
 25	            }
 26	        }
@@ -131,7 +102,6 @@ BUILD FAILED in 54s
 31	            selected = currentRoute == NavRoute.Checklist.route
 32	        ) {
 33	            navController.navigate(NavRoute.Checklist.route) {
->>>>> ERROR HERE
 34	                launchSingleTop = true
 35	            }
 36	        }
@@ -155,60 +125,6 @@ BUILD FAILED in 54s
 51	        label = { Text(label) }
 52	    )
 53	}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/navigation/MainNav.kt =====
-1	package com.jarvismini.ui.navigation
-2
-3	import androidx.compose.material3.Scaffold
-4	import androidx.compose.runtime.Composable
-5	import androidx.compose.runtime.getValue
->>>>> ERROR HERE
-6	import androidx.navigation.compose.*
-7	import com.jarvismini.ui.DailyChecklistScreen
-8	import com.jarvismini.ui.JarvisChatScreen
-9
-10	@Composable
-11	fun MainNav() {
->>>>> ERROR HERE
-12	    val navController = rememberNavController()
-13	    val navBackStackEntry by navController.currentBackStackEntryAsState()
-14	    val currentRoute = navBackStackEntry?.destination?.route
-15
-16	    Scaffold(
-17	        bottomBar = {
-18	            BottomBar(
-19	                navController = navController,
-20	                currentRoute = currentRoute
-21	            )
-22	        }
-23	    ) { paddingValues ->
->>>>> ERROR HERE
-24	        NavHost(
-25	            navController = navController,
-26	            startDestination = NavRoute.Chat.route
-27	        ) {
->>>>> ERROR HERE
-28	            composable(NavRoute.Chat.route) {
->>>>> ERROR HERE
-29	                JarvisChatScreen()
-30	            }
-31
->>>>> ERROR HERE
-32	            composable(NavRoute.Checklist.route) {
->>>>> ERROR HERE
-33	                DailyChecklistScreen()
-34	            }
-35	        }
-36	    }
-37	}
-38
-39	/**
-40	 * Centralized route definitions
-41	 */
-42	sealed class NavRoute(val route: String) {
-43	    object Chat : NavRoute("chat")
-44	    object Checklist : NavRoute("checklist")
-45	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
