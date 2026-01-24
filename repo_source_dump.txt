@@ -690,6 +690,8 @@ fun DailyChecklistScreen() {
 
     val context = LocalContext.current
     var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+
+    // FIXED: Use correct method name
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(
@@ -910,11 +912,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.time.TimeUtils
+import com.jarvismini.core.utils.TimeUtils  // FIXED: correct package path
 
 @Composable
 fun DayCalendarScreen(viewModel: CalendarViewModel) {
 
+    // FIXED: use the correct TimeUtils reference
     val now = TimeUtils.nowMs()
     val dayStart = now - (now % (24 * 60 * 60 * 1000))
     val dayEnd = dayStart + (24 * 60 * 60 * 1000)
@@ -945,6 +948,7 @@ fun statusColor(status: EventStatus): Color = when (status) {
     EventStatus.COMPLETED -> Color(0xFF81C784)   // Green
     EventStatus.INCOMPLETE -> Color(0xFFE57373)  // Red
     EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D) // Orange
+    else -> Color.Gray  // FIXED: make 'when' exhaustive
 }
 
 
