@@ -1,72 +1,101 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
-package com.jarvismini.core.notifications
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt =====
+package com.jarvismini.ui
 
-import android.content.Context
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressStatsEngine
 
-object ProgressNotifier {
+@Composable
+fun DailyChecklistScreen() {
 
-    // ENGINE-SAFE default (no icon passed)
-    fun showCompletionPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String
+    val context = LocalContext.current
+    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
+
+    // FIXED: Use correct method name
+    val stats = ProgressStatsEngine.getTodayStats(context)
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp)
     ) {
-        showCompletionPrompt(
-            context = context,
-            blockId = blockId,
-            blockName = blockName,
-            iconRes = android.R.drawable.ic_dialog_info
+
+        Text(
+            text = "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
         )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn {
+            items(blocks) { block ->
+                ChecklistItem(
+                    block = block,
+                    onComplete = {
+                        ProgressRepository.markCompleted(context, block.id)
+                        blocks = ProgressRepository.getTodayBlocks(context)
+                    },
+                    onIncomplete = {
+                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                    }
+                )
+            }
+        }
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt =====
+package com.jarvismini.ui.calendar
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.utils.TimeUtils  // FIXED: correct package path
+
+@Composable
+fun DayCalendarScreen(viewModel: CalendarViewModel) {
+
+    // FIXED: use the correct TimeUtils reference
+    val now = TimeUtils.nowMs()
+    val dayStart = now - (now % (24 * 60 * 60 * 1000))
+    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
+
+    val events = remember {
+        viewModel.getEventsForDay(dayStart, dayEnd)
     }
 
-    // FULL overload (used by ProgressEngine / app)
-    fun showCompletionPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String,
-        iconRes: Int
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(12.dp)
     ) {
-        notify(
-            context = context,
-            id = blockId,
-            title = "Block Finished",
-            msg = "Mark $blockName as complete or incomplete.",
-            iconRes = iconRes
-        )
+        items(events) { event ->
+            CalendarEventCard(event)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
     }
+}
 
-    fun showRetryPrompt(
-        context: Context,
-        blockId: String,
-        blockName: String
-    ) {
-        notify(
-            context = context,
-            id = blockId,
-            title = "Reminder",
-            msg = "$blockName still incomplete.",
-            iconRes = android.R.drawable.ic_dialog_alert
-        )
-    }
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/EventColor.kt =====
+package com.jarvismini.ui.calendar
 
-    private fun notify(
-        context: Context,
-        id: String,
-        title: String,
-        msg: String,
-        iconRes: Int
-    ) {
-        val notification = NotificationCompat.Builder(context, "progress")
-            .setSmallIcon(iconRes)
-            .setContentTitle(title)
-            .setContentText(msg)
-            .setAutoCancel(true)
-            .build()
+import androidx.compose.ui.graphics.Color
+import com.jarvismini.core.calendar.model.EventStatus
 
-        NotificationManagerCompat
-            .from(context)
-            .notify(id.hashCode(), notification)
-    }
+fun statusColor(status: EventStatus): Color = when (status) {
+    EventStatus.SCHEDULED -> Color(0xFF64B5F6)   // Blue
+    EventStatus.COMPLETED -> Color(0xFF81C784)   // Green
+    EventStatus.INCOMPLETE -> Color(0xFFE57373)  // Red
+    EventStatus.RETRY_SCHEDULED -> Color(0xFFFFB74D) // Orange
+    else -> Color.Gray  // FIXED: make 'when' exhaustive
 }
