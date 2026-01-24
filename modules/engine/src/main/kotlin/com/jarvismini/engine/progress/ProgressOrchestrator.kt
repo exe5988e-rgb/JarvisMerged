@@ -1,46 +1,53 @@
 package com.jarvismini.engine.progress
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressState
-import com.jarvismini.core.progress.ProgressStore
-import com.jarvismini.core.TimeUtils
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.engine.scheduler.DelayedTaskScheduler
-import com.jarvismini.tts.TtsManager
-import com.jarvismini.notifications.NotificationManager
 
 class ProgressOrchestrator(
     private val context: Context,
-    private val scheduler: DelayedTaskScheduler,
-    private val tts: TtsManager,
-    private val notifier: NotificationManager
+    private val scheduler: DelayedTaskScheduler
 ) {
 
-    private val store = ProgressStore(context)
+    fun prompt(blockId: String, blockName: String) {
+        AssistantTTS.speak(
+            context,
+            "Did you complete $blockName?"
+        )
 
-    fun prompt(routineId: String, blockId: String) {
-        tts.speak("Did you complete this task?")
-        notifier.showProgressPrompt(
-            routineId = routineId,
-            blockId = blockId
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
         )
     }
 
     fun onUserResponse(
-        routineId: String,
         blockId: String,
+        blockName: String,
         completed: Boolean
     ) {
         if (completed) {
-            store.saveProgress(routineId, blockId, ProgressState.COMPLETED)
-            tts.speak("Great. Task marked as complete.")
+            ProgressEngine.markComplete(blockId)
+
+            AssistantTTS.speak(
+                context,
+                "Great. Task marked as complete."
+            )
         } else {
-            store.saveProgress(routineId, blockId, ProgressState.INCOMPLETE)
-            tts.speak("Okay. I will remind you again in thirty minutes.")
+            ProgressEngine.markIncomplete(blockId, blockName)
+
+            AssistantTTS.speak(
+                context,
+                "Okay. I will remind you again in thirty minutes."
+            )
 
             scheduler.schedule(
                 delayMs = 30 * 60 * 1000L
             ) {
-                prompt(routineId, blockId)
+                prompt(blockId, blockName)
             }
         }
     }
