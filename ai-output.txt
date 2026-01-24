@@ -2,30 +2,36 @@
 package com.jarvismini.core.notifications
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.jarvismini.core.R
 
 object ProgressNotifier {
 
-    // Engine-safe overload without requiring drawable from core
+    /**
+     * Engine-safe overload: no icon required, uses default launcher icon
+     */
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
         blockName: String
     ) {
-        // ✅ Use a system default icon to avoid unresolved reference
         showCompletionPrompt(
             context = context,
             blockId = blockId,
             blockName = blockName,
-            iconRes = android.R.drawable.ic_dialog_info
+            iconRes = R.mipmap.ic_launcher // Use mipmap launcher icon to avoid drawable issues
         )
     }
 
+    /**
+     * Full version: can specify icon resource
+     */
     fun showCompletionPrompt(
         context: Context,
         blockId: String,
@@ -51,10 +57,14 @@ object ProgressNotifier {
             id = blockId,
             title = "Reminder",
             msg = "$blockName still incomplete.",
-            iconRes = android.R.drawable.ic_dialog_info // ✅ system icon
+            iconRes = R.mipmap.ic_launcher // Use mipmap to avoid unresolved drawable
         )
     }
 
+    /**
+     * Lint-safe notify: checks runtime permission and suppresses Lint warning
+     */
+    @SuppressLint("MissingPermission")
     private fun notify(
         context: Context,
         id: String,
@@ -69,6 +79,7 @@ object ProgressNotifier {
             .setAutoCancel(true)
             .build()
 
+        // Runtime permission check for Android 13+
         if (ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
