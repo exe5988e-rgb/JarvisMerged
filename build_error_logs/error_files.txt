@@ -1,12 +1,12 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:26 Unresolved reference: MainScreen
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:26 Packages cannot be imported
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:24:21 Unresolved reference: MainScreen
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 2m 10s
+BUILD FAILED in 2m 15s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -21,7 +21,7 @@ BUILD FAILED in 2m 10s
 8	import com.jarvismini.core.JarvisState
 9	import com.jarvismini.engine.EngineProvider
 >>>>> ERROR HERE
-10	import com.jarvismini.ui.MainScreen
+10	import com.jarvismini.ui.main
 11
 12	class MainActivity : ComponentActivity() {
 13
