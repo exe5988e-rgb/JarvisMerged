@@ -1,12 +1,12 @@
 package com.jarvismini.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
@@ -22,7 +22,7 @@ fun BottomBar(
     NavigationBar {
         BottomBarItem(
             label = "Chat",
-            icon = Icons.Default.Chat,
+            icon = Icons.Filled.ChatBubble,
             selected = currentRoute == NavRoute.Chat.route
         ) {
             navController.navigate(NavRoute.Chat.route) {
@@ -33,7 +33,7 @@ fun BottomBar(
 
         BottomBarItem(
             label = "Checklist",
-            icon = Icons.Default.List,
+            icon = Icons.Filled.ListAlt,
             selected = currentRoute == NavRoute.Checklist.route
         ) {
             navController.navigate(NavRoute.Checklist.route) {
