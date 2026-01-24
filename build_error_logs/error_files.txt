@@ -1,20 +1,13 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:4:17 Unresolved reference: core
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:5:17 Unresolved reference: core
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:6:23 Unresolved reference: R
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:19:17 Unresolved reference: NotificationCompat
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:20:27 Unresolved reference: R
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:26:9 Unresolved reference: NotificationManagerCompat
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:22:9 Unresolved reference: ProgressNotifier
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:3:12 Unresolved reference: google
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:6:24 Unresolved reference: Gson
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:11:9 Public-API inline function cannot access non-public-API 'private final val gson: [Error type: Not found recorded type for Gson()] defined in com.jarvismini.core.util.JsonUtil'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:11:9 Public-API inline function cannot access non-public-API 'internal final val gson: Gson defined in com.jarvismini.core.util.JsonUtil'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 31s
+BUILD FAILED in 39s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -22,9 +15,7 @@ BUILD FAILED in 31s
 1	package com.jarvismini.core.notifications
 2
 3	import android.content.Context
->>>>> ERROR HERE
 4	import androidx.core.app.NotificationCompat
->>>>> ERROR HERE
 5	import androidx.core.app.NotificationManagerCompat
 >>>>> ERROR HERE
 6	import com.jarvismini.R
@@ -40,7 +31,6 @@ BUILD FAILED in 31s
 16	    }
 17
 18	    private fun notify(context: Context, id: String, title: String, msg: String) {
->>>>> ERROR HERE
 19	        val n = NotificationCompat.Builder(context, "progress")
 >>>>> ERROR HERE
 20	            .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -49,70 +39,18 @@ BUILD FAILED in 31s
 23	            .setAutoCancel(true)
 24	            .build()
 25
->>>>> ERROR HERE
 26	        NotificationManagerCompat.from(context)
 27	            .notify(id.hashCode(), n)
 28	    }
 29	}
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
-4	import com.jarvismini.core.tts.AssistantTTS
-5
-6	object ProgressEngine {
-7
-8	    private lateinit var context: Context
-9	    private lateinit var config: ProgressConfig
-10
-11	    fun init(ctx: Context, cfg: ProgressConfig) {
-12	        context = ctx.applicationContext
-13	        config = cfg
-14	    }
-15
-16	    fun onBlockCompleted(blockId: String, blockName: String) {
-17	        if (!config.enabled) return
-18
-19	        // 📊 Register block
-20	        ProgressStatsEngine.registerBlock(context, blockId)
-21
->>>>> ERROR HERE
-22	        ProgressNotifier.showCompletionPrompt(context, blockId, blockName)
-23
-24	        if (config.ttsEnabled) {
-25	            AssistantTTS.speak(
-26	                context,
-27	                "Block ${blockName} finished. Please confirm completion."
-28	            )
-29	        }
-30	    }
-31
-32	    fun markComplete(blockId: String) {
-33	        ProgressStore.markComplete(context, blockId)
-34	        ProgressStatsEngine.markCompleted(context, blockId)
-35	    }
-36
-37	    fun markIncomplete(blockId: String, blockName: String) {
-38	        ProgressStore.markIncomplete(context, blockId)
-39	        scheduleRetry(blockId, blockName)
-40	    }
-41
-42	    private fun scheduleRetry(blockId: String, blockName: String) {
-43	        if (!config.retryEnabled) return
-44	        RetryScheduler.schedule(context, blockId, blockName, config)
-45	    }
-46	}
-
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
 1	package com.jarvismini.core.util
 2
->>>>> ERROR HERE
 3	import com.google.gson.Gson
 4
 5	object JsonUtil {
->>>>> ERROR HERE
-6	    private val gson = Gson()
+6	    internal val gson = Gson()
 7
 8	    fun <T> toJson(obj: T): String = gson.toJson(obj)
 9
