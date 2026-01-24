@@ -58,6 +58,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
 
+    // Material icons for Compose
+    implementation("androidx.compose.material:material-icons-extended:1.5.0")
+
+
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
