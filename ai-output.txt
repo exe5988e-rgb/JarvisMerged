@@ -1,31 +1,56 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
-```kotlin
-package com.jarvismini
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistScreen.kt =====
+package com.jarvismini.ui.checklist
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import com.jarvismini.core.JarvisState
-import com.jarvismini.engine.EngineProvider
-import com.jarvismini.ui.main.MainScreen   // ✅ FIXED IMPORT
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.ChecklistItem
 
-class MainActivity : ComponentActivity() {
+@Composable
+fun ChecklistScreen() {
+    val context = LocalContext.current
+    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    LaunchedEffect(Unit) {
+        blocks = ProgressRepository.getTodayBlocks(context)
+    }
 
-        // ✅ Core must initialize BEFORE UI
-        JarvisState.init(applicationContext)
-        EngineProvider.init(applicationContext)
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(blocks) { block ->
+            ChecklistItem(
+                block = block,
+                onComplete = {
+                    ProgressRepository.markCompleted(context, block.id)
+                    AssistantTTS.speak(
+                        context,
+                        "${block.name} marked as complete"
+                    )
 
-        setContent {
-            MaterialTheme {
-                Surface {
-                    MainScreen() // ✅ Tab-based root UI
+                    blocks = blocks.map {
+                        if (it.id == block.id) it.copy(completed = true) else it
+                    }
+                },
+                onIncomplete = {
+                    ProgressRepository.markIncomplete(context, block.id, block.name)
+                    AssistantTTS.speak(
+                        context,
+                        "Okay, I will remind you about ${block.name} later"
+                    )
                 }
-            }
+            )
         }
     }
 }
