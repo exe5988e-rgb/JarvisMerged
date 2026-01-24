@@ -1,9 +1,6 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE / LINT ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt:5:28 Unresolved reference: util
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt:14:34 Unresolved reference: JsonUtil
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt:22:17 Unresolved reference: JsonUtil
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:4:17 Unresolved reference: core
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:5:17 Unresolved reference: core
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:6:23 Unresolved reference: R
@@ -11,62 +8,15 @@ e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotl
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:20:27 Unresolved reference: R
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt:26:9 Unresolved reference: NotificationManagerCompat
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:22:9 Unresolved reference: ProgressNotifier
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:8:39 Unresolved reference: getCompletedBlocks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:10:30 Unresolved reference: getRegisteredBlocks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:10:65 Cannot infer a type for this parameter. Please specify it explicitly.
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt:38:17 Unresolved reference: ProgressNotifier
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:12:35 Cannot infer a type for this parameter. Please specify it explicitly.
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:13:13 Unresolved reference: ActionDispatcher
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/model/Routine.kt:7:23 Unresolved reference: RoutineAction
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:3:12 Unresolved reference: google
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:6:24 Unresolved reference: Gson
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt:11:9 Public-API inline function cannot access non-public-API 'private final val gson: [Error type: Not found recorded type for Gson()] defined in com.jarvismini.core.util.JsonUtil'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 32s
+BUILD FAILED in 31s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt =====
-1	package com.jarvismini.core.calendar
-2
-3	import android.content.Context
-4	import com.jarvismini.core.calendar.model.CalendarEvent
->>>>> ERROR HERE
-5	import com.jarvismini.core.util.JsonUtil
-6
-7	object AppCalendarStore {
-8
-9	    private const val PREF = "app_calendar"
-10
-11	    fun save(context: Context, event: CalendarEvent) {
-12	        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-13	            .edit()
->>>>> ERROR HERE
-14	            .putString(event.id, JsonUtil.toJson(event))
-15	            .apply()
-16	    }
-17
-18	    fun getAll(context: Context): List<CalendarEvent> {
-19	        val prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-20	        return prefs.all.values.mapNotNull {
-21	            runCatching {
->>>>> ERROR HERE
-22	                JsonUtil.fromJson<CalendarEvent>(it as String)
-23	            }.getOrNull()
-24	        }
-25	    }
-26
-27	    fun updateStatus(context: Context, id: String, status: String) {
-28	        val event = getAll(context).find { it.id == id } ?: return
-29	        save(context, event.copy(status = enumValueOf(status)))
-30	    }
-31
-32	    fun delete(context: Context, id: String) {
-33	        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-34	            .edit()
-35	            .remove(id)
-36	            .apply()
-37	    }
-38	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
 1	package com.jarvismini.core.notifications
@@ -154,120 +104,22 @@ BUILD FAILED in 32s
 45	    }
 46	}
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-1	package com.jarvismini.core.progress
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
+1	package com.jarvismini.core.util
 2
-3	import android.content.Context
+>>>>> ERROR HERE
+3	import com.google.gson.Gson
 4
-5	object ProgressRepository {
-6
-7	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+5	object JsonUtil {
 >>>>> ERROR HERE
-8	        val completed = ProgressStore.getCompletedBlocks(context)
+6	    private val gson = Gson()
+7
+8	    fun <T> toJson(obj: T): String = gson.toJson(obj)
 9
+10	    inline fun <reified T> fromJson(json: String): T =
 >>>>> ERROR HERE
-10	        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
-11	            ProgressBlock(
-12	                id = blockId,
-13	                name = blockId.replace("_", " ").uppercase(),
-14	                completed = completed.contains(blockId)
-15	            )
-16	        }
-17	    }
-18
-19	    fun markCompleted(context: Context, blockId: String) {
-20	        ProgressEngine.markComplete(blockId)
-21	    }
-22
-23	    fun markIncomplete(context: Context, blockId: String, name: String) {
-24	        ProgressEngine.markIncomplete(blockId, name)
-25	    }
-26	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
-4	import com.jarvismini.core.calendar.AppCalendarStore
-5	import com.jarvismini.core.calendar.model.CalendarEvent
-6	import com.jarvismini.core.calendar.model.EventStatus
-7	import com.jarvismini.core.time.NetworkTimeProvider
-8	import java.util.UUID
-9
-10	object RetryScheduler {
-11
-12	    fun schedule(
-13	        context: Context,
-14	        blockId: String,
-15	        blockName: String,
-16	        config: ProgressConfig
-17	    ) {
-18	        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
-19
-20	        val event = CalendarEvent(
-21	            id = "retry_${blockId}_${UUID.randomUUID()}",
-22	            title = "Retry: $blockName",
-23	            startTimeMs = retryAt,
-24	            endTimeMs = retryAt + 5 * 60_000,
-25	            status = EventStatus.RETRY,
-26	            meta = mapOf("blockId" to blockId)
-27	        )
-28
-29	        AppCalendarStore.save(context, event)
-30	    }
-31
-32	    fun restorePendingRetries(context: Context) {
-33	        val now = NetworkTimeProvider.nowMs()
-34
-35	        AppCalendarStore.getAll(context)
-36	            .filter { it.status == EventStatus.RETRY && it.startTimeMs <= now }
-37	            .forEach {
->>>>> ERROR HERE
-38	                ProgressNotifier.showRetryPrompt(
-39	                    context,
-40	                    it.meta["blockId"] ?: it.id,
-41	                    it.title
-42	                )
-43	            }
-44	    }
-45	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
-1	package com.jarvismini.core.routine
-2
-3	import android.content.Context
-4	import com.jarvismini.core.progress.ProgressEngine
-5	import com.jarvismini.core.routine.model.Routine
-6
-7	class RoutineExecutor(
-8	    private val context: Context
-9	) {
-10
-11	    fun execute(routine: Routine) {
->>>>> ERROR HERE
-12	        routine.actions.forEach { action ->
->>>>> ERROR HERE
-13	            ActionDispatcher.dispatch(context, action)
-14	        }
-15
-16	        // ✅ BLOCK FINISHED → PROGRESS ENGINE
-17	        ProgressEngine.onBlockCompleted(
-18	            blockId = routine.id,
-19	            blockName = routine.name
-20	        )
-21	    }
-22	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/Routine.kt =====
-1	package com.jarvismini.core.routine.model
-2
-3	data class Routine(
-4	    val id: String,
-5	    val name: String,
-6	    val enabled: Boolean,
->>>>> ERROR HERE
-7	    val actions: List<RoutineAction>
-8	)
+11	        gson.fromJson(json, T::class.java)
+12	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
