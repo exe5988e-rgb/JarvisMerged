@@ -24,7 +24,7 @@ enum class MainTab(val title: String) {
 fun MainScreen() {
     val context = LocalContext.current
 
-    // ✅ Register all routine blocks once
+    // Register all blocks once
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
@@ -32,7 +32,7 @@ fun MainScreen() {
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
-    // ✅ Load checklist blocks when checklist tab opens
+    // ✅ FIX #1: pass context
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
@@ -62,8 +62,7 @@ fun MainScreen() {
                 MainTab.Chat -> JarvisChatScreen()
                 MainTab.Checklist -> ChecklistScreenWithStats(
                     blocks = blocks,
-                    onBlocksUpdated = { blocks = it },
-                    context = context
+                    onBlocksUpdated = { blocks = it }
                 )
             }
         }
@@ -73,9 +72,9 @@ fun MainScreen() {
 @Composable
 private fun ChecklistScreenWithStats(
     blocks: List<ProgressBlock>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
-    context: android.content.Context
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
+    val context = LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -95,14 +94,20 @@ private fun ChecklistScreenWithStats(
                     block = block,
                     onComplete = {
                         ProgressRepository.markCompleted(block.id)
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        // ✅ FIX #2
+                        onBlocksUpdated(
+                            ProgressRepository.getTodayBlocks(context)
+                        )
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(
                             blockId = block.id,
                             blockName = block.name
                         )
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        // ✅ FIX #3
+                        onBlocksUpdated(
+                            ProgressRepository.getTodayBlocks(context)
+                        )
                     }
                 )
             }
