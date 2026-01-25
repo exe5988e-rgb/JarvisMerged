@@ -42,7 +42,7 @@ fun DailyChecklistScreen() {
                         blocks = ProgressRepository.getTodayBlocks(context)
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                        ProgressRepository.markIncomplete(context, block.id)
                     }
                 )
             }
