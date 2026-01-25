@@ -11,31 +11,34 @@ import com.jarvismini.core.progress.ProgressBlock
 fun ChecklistItem(
     block: ProgressBlock,
     onComplete: () -> Unit,
-    onIncomplete: () -> Unit
+    onIncomplete: () -> Unit,
+    scheduledTime: String,
+    actualTime: String
 ) {
-    val displayName = block.id
-        .replace("_", " ")
-        .replaceFirstChar { it.uppercase() }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = displayName,
-                modifier = Modifier.weight(1f)
+                text = block.id.replace("_", " ").replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.titleMedium
             )
-
-            if (!block.completed) {
-                TextButton(onClick = onComplete) { Text("Done") }
-                TextButton(onClick = onIncomplete) { Text("Missed") }
-            } else {
-                Text("✅ Completed")
+            Text(
+                text = "Scheduled: $scheduledTime | Completed/Missed: $actualTime",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (block.status == Status.PENDING) {
+                    TextButton(onClick = onComplete) { Text("Done") }
+                    TextButton(onClick = onIncomplete) { Text("Missed") }
+                } else {
+                    Text(
+                        text = if (block.status == Status.COMPLETED) "✅ Completed" else "⚠ Missed"
+                    )
+                }
             }
         }
     }
