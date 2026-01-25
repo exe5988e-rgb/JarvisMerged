@@ -1,59 +1,3 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import com.jarvismini.core.notifications.ProgressNotifier
-import com.jarvismini.core.tts.AssistantTTS
-
-object ProgressEngine {
-
-    private lateinit var context: Context
-    private lateinit var config: ProgressConfig
-    private var notificationIconRes: Int = 0
-
-    fun init(
-        ctx: Context,
-        cfg: ProgressConfig,
-        iconRes: Int
-    ) {
-        context = ctx.applicationContext
-        config = cfg
-        notificationIconRes = iconRes
-    }
-
-    fun onBlockCompleted(blockId: String, blockName: String) {
-        if (!config.enabled) return
-
-        ProgressStatsEngine.registerBlock(context, blockId)
-
-        ProgressNotifier.showCompletionPrompt(
-            context,
-            blockId,
-            blockName,
-            notificationIconRes
-        )
-
-        if (config.ttsEnabled) {
-            AssistantTTS.speak(
-                context,
-                "Block $blockName finished. Please confirm completion."
-            )
-        }
-    }
-
-    fun markComplete(blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-        ProgressStatsEngine.markCompleted(context, blockId)
-    }
-
-    fun markIncomplete(blockId: String, blockName: String) {
-        ProgressStore.markIncomplete(context, blockId)
-        if (config.retryEnabled) {
-            RetryScheduler.schedule(context, blockId, blockName, config)
-        
-}
-    }
-}
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
@@ -62,9 +6,9 @@ object ProgressRepository {
     fun getTodayBlocks(): List<ProgressBlock> {
         return ProgressState.entries.map { entry ->
             ProgressBlock(
-                id = entry.blockId,
+                id = entry.name,
                 name = entry.name,
-                completed = entry.completed
+                completed = ProgressStore.isCompleted(entry.name)
             )
         }
     }
@@ -75,40 +19,6 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
-    }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
-
-object ProgressStatsEngine {
-
-    fun registerBlock(context: Context, blockId: String) {
-        ProgressStore.register(context, blockId)
-    }
-
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-    }
-
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks()
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
-
-        val today = SimpleDateFormat(
-            "yyyy-MM-dd",
-            Locale.getDefault()
-        ).format(Date())
-
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completedCount
-        )
-
+    
 }
 }
