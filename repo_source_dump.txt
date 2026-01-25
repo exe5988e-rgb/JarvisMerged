@@ -33,7 +33,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── ui
 │   │   │   │   │   │   │   ├── ChatMessage.kt
 │   │   │   │   │   │   │   ├── ChecklistItem.kt
-│   │   │   │   │   │   │   ├── DailyChecklistScreen.kt
 │   │   │   │   │   │   │   ├── JarvisChatScreen.kt
 │   │   │   │   │   │   │   ├── calendar
 │   │   │   │   │   │   │   │   ├── CalendarEventCard.kt
@@ -44,7 +43,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── ChatScreen.kt
 │   │   │   │   │   │   │   ├── checklist
 │   │   │   │   │   │   │   │   ├── ChecklistItem.kt
-│   │   │   │   │   │   │   │   ├── ChecklistScreen.kt
 │   │   │   │   │   │   │   ├── main
 │   │   │   │   │   │   │   │   ├── MainScreen.kt
 │   │   │   ├── res
@@ -727,62 +725,6 @@ fun ChecklistItem(
 }
 
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/DailyChecklistScreen.kt =====
-package com.jarvismini.ui
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStatsEngine
-
-@Composable
-fun DailyChecklistScreen() {
-    val context = LocalContext.current
-
-    // Load today's blocks
-    var blocks by remember { mutableStateOf(ProgressRepository.getTodayBlocks(context)) }
-
-    // Get today's progress stats
-    val stats = ProgressStatsEngine.getTodayStats(context)
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        blocks = ProgressRepository.getTodayBlocks(context)
-                    },
-                    onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id)
-                        blocks = ProgressRepository.getTodayBlocks(context)
-                    }
-                )
-            }
-        }
-    }
-}
-
-
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
 @file:OptIn(ExperimentalMaterial3Api::class)
 
@@ -1074,73 +1016,6 @@ fun ChecklistItem(
                 Text("✅ Completed")
             }
         }
-    }
-}
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistScreen.kt =====
-package com.jarvismini.ui.checklist
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStore
-
-@Composable
-fun ChecklistScreen() {
-    val context = LocalContext.current
-
-    // Pull blocks from registered routines
-    var blocks by remember { mutableStateOf(loadRoutineBlocks(context)) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Today's Checklist",
-            style = MaterialTheme.typography.titleLarge
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        blocks = loadRoutineBlocks(context)
-                    },
-                    onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id)
-                        blocks = loadRoutineBlocks(context)
-                    }
-                )
-            }
-        }
-    }
-}
-
-// Helper to load blocks from registered routines
-private fun loadRoutineBlocks(context: android.content.Context): List<ProgressBlock> {
-    val completed = ProgressStore.getCompletedBlocks(context)
-    val registered = ProgressStore.getRegisteredBlocks(context)
-
-    return registered.map { blockId ->
-        ProgressBlock(
-            id = blockId,
-            name = blockId.replace("_", " ").uppercase(),
-            completed = completed.contains(blockId)
-        )
     }
 }
 
@@ -3423,14 +3298,10 @@ data class ProgressEntry(
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
-import android.content.Context
-
 object ProgressRepository {
 
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        // Ensure engine state is loaded
-        ProgressEngine.ensureLoaded(context)
-
+    fun getTodayBlocks(): List<ProgressBlock> {
+        // ProgressEngine is already initialized, no need to pass context
         return ProgressState.entries.map { entry ->
             ProgressBlock(
                 id = entry.blockId,
@@ -3440,12 +3311,12 @@ object ProgressRepository {
         }
     }
 
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressEngine.markComplete(context, blockId)
+    fun markCompleted(blockId: String) {
+        ProgressEngine.markComplete(blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressEngine.markIncomplete(context, blockId)
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(blockId, blockName)
     }
 }
 
@@ -3685,15 +3556,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object RoutineProvider {
-
     private const val ROUTINES_DIR = "routines"
 
-    /**
-     * Loads all ENABLED routines from assets/routines/*.json
-     */
+    /** Loads all ENABLED routines from assets/routines/*.json */
     fun getAllRoutines(context: Context): List<Routine> {
         val routines = mutableListOf<Routine>()
-
         val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
 
         files
@@ -3707,34 +3574,28 @@ object RoutineProvider {
 
                     val root = JSONObject(json)
 
-                    // ✅ Skip non-routine files (e.g. progress_config.json)
+                    // Skip non-routine files (e.g., progress_config.json)
                     if (!root.has("routines")) return@forEach
 
                     val array = root.getJSONArray("routines")
                     routines += parseRoutines(array)
-
                 } catch (_: Exception) {
-                    // Intentionally ignored: bad routine file should not crash app
+                    // Bad routine file should not crash app
                 }
             }
 
-        // ✅ Only enabled routines are returned
         return routines.filter { it.enabled }
     }
 
     private fun parseRoutines(array: JSONArray): List<Routine> {
         val list = mutableListOf<Routine>()
-
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
-
             val id = obj.getString("id")
             val name = obj.getString("name")
             val enabled = obj.optBoolean("enabled", true)
-
             val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
             val actions = mutableListOf<RoutineAction>()
-
             for (j in 0 until actionsJson.length()) {
                 val actionObj = actionsJson.getJSONObject(j)
                 actions += RoutineAction(
@@ -3742,7 +3603,6 @@ object RoutineProvider {
                     params = actionObj.toMap()
                 )
             }
-
             list += Routine(
                 id = id,
                 name = name,
@@ -3750,14 +3610,11 @@ object RoutineProvider {
                 actions = actions
             )
         }
-
         return list
     }
 }
 
-/**
- * Converts JSONObject → Map<String, String>
- */
+/** Converts JSONObject → Map<String, String> */
 private fun JSONObject.toMap(): Map<String, String> {
     val map = mutableMapOf<String, String>()
     keys().forEach { key ->
