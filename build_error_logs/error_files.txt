@@ -1,11 +1,14 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:112:25 Unresolved reference: DelayedTaskScheduler
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:120:2 Expecting ')'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:123:17 Expecting an element
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:127:1 Expecting a top level declaration
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:114:5 Unresolved reference: AlarmManagerRetry
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 56s
+BUILD FAILED in 57s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -114,26 +117,33 @@ BUILD FAILED in 56s
 102	                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
 103	                    },
 104	                    onIncomplete = {
-105	                        ProgressRepository.markIncomplete(context, block.id, block.name)
-106	                        AssistantTTS.speak(
-107	                            context,
-108	                            "You missed task ${block.name}. I will remind you in 30 minutes."
-109	                        )
-110	                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
-111	                        // Schedule retry using your scheduler
+105	    ProgressRepository.markIncomplete(context, block.id, block.name)
+106
+107	    AssistantTTS.speak(
+108	        context,
+109	        "You missed task ${block.name}. I will remind you in 30 minutes."
+110	    )
+111
+112	    onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+113
 >>>>> ERROR HERE
-112	                        DelayedTaskScheduler.schedule(30 * 60 * 1000L) {
-113	                            AssistantTTS.speak(
-114	                                context,
-115	                                "Reminder: Please complete task ${block.name}."
-116	                            )
-117	                        }
-118	                    }
-119	                )
-120	            }
-121	        }
-122	    }
-123	}
+114	    AlarmManagerRetry.schedule(
+115	        context = context,
+116	        blockId = block.id,
+117	        blockName = block.name,
+118	        delayMinutes = 30
+119	    )
+>>>>> ERROR HERE
+120	}
+121
+122	                    }
+>>>>> ERROR HERE
+123	                )
+124	            }
+125	        }
+126	    }
+>>>>> ERROR HERE
+127	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
