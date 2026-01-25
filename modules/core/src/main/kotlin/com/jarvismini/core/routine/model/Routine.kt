@@ -4,5 +4,5 @@ data class Routine(
     val id: String,
     val name: String,
     val enabled: Boolean,
-    val actions: List<RoutineAction>
+    val trigger: Trigger
 )
