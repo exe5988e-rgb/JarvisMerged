@@ -1,3 +1,41 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressStore {
+
+    private val completedBlocks = mutableSetOf<String>()
+
+    fun markComplete(context: Context, blockId: String) {
+        completedBlocks.add(blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        completedBlocks.remove(blockId)
+    }
+
+    /**
+     * Returns all blocks scheduled for today.
+     * Minimal in-memory stub so stats + reminders compile.
+     */
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        return completedBlocks.map {
+            ProgressBlock(
+                id = it,
+                completed = true
+            )
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressBlock(
+    val id: String,
+    val completed: Boolean
+
+)
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 package com.jarvismini.core.progress
 
@@ -8,7 +46,7 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
+        val blocks = ProgressStore.getTodayBlocks(context)
         val total = blocks.size
         val completedCount = blocks.count { block -> block.completed }
 
@@ -22,6 +60,6 @@ object ProgressStatsEngine {
             totalBlocks = total,
             completedBlocks = completedCount
         )
-   
+  
 }
 }
