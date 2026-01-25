@@ -1,39 +1,40 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:10:43 Unresolved reference: isCompleted
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:11:43 Unresolved reference: isCompleted
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 34s
+BUILD FAILED in 37s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-1	package com.jarvismini.core.progress
-2
-3	object ProgressRepository {
-4
-5	    fun getTodayBlocks(): List<ProgressBlock> {
-6	        return ProgressState.entries.map { entry ->
-7	            ProgressBlock(
-8	                id = entry.name,
-9	                name = entry.name,
+1	//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+2	package com.jarvismini.core.progress
+3
+4	object ProgressRepository {
+5
+6	    fun getTodayBlocks(): List<ProgressBlock> {
+7	        return ProgressState.entries.map { entry ->
+8	            ProgressBlock(
+9	                id = entry.name,
+10	                name = entry.name,
 >>>>> ERROR HERE
-10	                completed = ProgressStore.isCompleted(entry.name)
-11	            )
-12	        }
-13	    }
-14
-15	    fun markCompleted(blockId: String) {
-16	        ProgressEngine.markComplete(blockId)
-17	    }
-18
-19	    fun markIncomplete(blockId: String, blockName: String) {
-20	        ProgressEngine.markIncomplete(blockId, blockName)
-21
-22	}
-23	}
+11	                completed = ProgressStore.isCompleted(entry.name)
+12	            )
+13	        }
+14	    }
+15
+16	    fun markCompleted(blockId: String) {
+17	        ProgressEngine.markComplete(blockId)
+18	    }
+19
+20	    fun markIncomplete(blockId: String, blockName: String) {
+21	        ProgressEngine.markIncomplete(blockId, blockName)
+22
+23	    }
+24	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
