@@ -40,7 +40,7 @@ fun ChecklistScreen() {
                         blocks = loadRoutineBlocks(context)
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                        ProgressRepository.markIncomplete(context, block.id)
                         blocks = loadRoutineBlocks(context)
                     }
                 )
