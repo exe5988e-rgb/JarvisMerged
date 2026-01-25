@@ -4,12 +4,13 @@ import android.content.Context
 
 /**
  * Repository for managing daily progress blocks.
- * Provides context-aware and context-free methods for UI and engine.
+ * Provides context-aware methods for UI and engine.
  */
 object ProgressRepository {
 
-    fun getTodayBlocks(context: Context? = null): List<ProgressBlock> {
-        // ✅ Get all registered blocks for today
+    // ✅ Require non-null Context
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        // Get all registered blocks for today
         val registered = ProgressStore.getRegisteredBlocks(context)
         val completed = ProgressStore.getCompletedBlocks(context)
 
@@ -28,5 +29,6 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
-    }
+  
+}
 }
