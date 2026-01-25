@@ -1,3 +1,19 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+/**
+ * Repository facade for progress-related queries.
+ * Keeps callers stable while storage evolves.
+ */
+object ProgressRepository {
+
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        return ProgressStore.getTodayBlocks(context)
+    }
+
+}
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 package com.jarvismini.core.progress
 
@@ -15,18 +31,16 @@ object ProgressStore {
         completedBlocks.remove(blockId)
     }
 
-    /**
-     * Returns all blocks scheduled for today.
-     * Minimal in-memory stub so stats + reminders compile.
-     */
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        return completedBlocks.map {
+        return completedBlocks.map { id ->
             ProgressBlock(
-                id = it,
+                id = id,
                 completed = true
             )
         }
-    }
+ 
+}
+
 }
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
 package com.jarvismini.core.progress
@@ -46,7 +60,7 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks(context)
+        val blocks = ProgressRepository.getTodayBlocks(context)
         val total = blocks.size
         val completedCount = blocks.count { block -> block.completed }
 
