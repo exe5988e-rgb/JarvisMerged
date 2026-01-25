@@ -3241,38 +3241,22 @@ object ProgressEngine {
     private lateinit var config: ProgressConfig
     private var notificationIconRes: Int = 0
 
-    fun init(
-        ctx: Context,
-        cfg: ProgressConfig,
-        iconRes: Int
-    ) {
+    fun init(ctx: Context, cfg: ProgressConfig, iconRes: Int) {
         context = ctx.applicationContext
         config = cfg
         notificationIconRes = iconRes
     }
 
-    /**
-     * Called whenever a routine block is finished.
-     * Auto-registers the block to ensure stats are not empty.
-     */
     fun onBlockCompleted(blockId: String, blockName: String) {
         if (!config.enabled) return
 
-        // ✅ Auto-register block to ProgressStore
-        ProgressStore.register(context, blockId)
-
-        // Update progress stats
         ProgressStatsEngine.registerBlock(context, blockId)
-
-        // Show notification to user
         ProgressNotifier.showCompletionPrompt(
             context,
             blockId,
             blockName,
             notificationIconRes
         )
-
-        // Optional TTS
         if (config.ttsEnabled) {
             AssistantTTS.speak(
                 context,
@@ -3281,12 +3265,12 @@ object ProgressEngine {
         }
     }
 
-    fun markComplete(blockId: String) {
+    fun markComplete(context: Context, blockId: String) {
         ProgressStore.markComplete(context, blockId)
         ProgressStatsEngine.markCompleted(context, blockId)
     }
 
-    fun markIncomplete(blockId: String, blockName: String) {
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
         ProgressStore.markIncomplete(context, blockId)
         if (config.retryEnabled) {
             RetryScheduler.schedule(context, blockId, blockName, config)
@@ -3309,29 +3293,31 @@ data class ProgressEntry(
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
+import android.content.Context
+
 object ProgressRepository {
 
-    fun getTodayBlocks(): List<ProgressBlock> {
-        // ✅ Get all registered blocks for today
-        val registered = ProgressStore.getRegisteredBlocks(JarvisApp.context)
-        val completed = ProgressStore.getCompletedBlocks(JarvisApp.context)
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
 
         return registered.map { blockId ->
             ProgressBlock(
                 id = blockId,
-                name = blockId, // Optionally map to a proper display name
+                name = blockId, // Optionally map to display name
                 completed = completed.contains(blockId)
             )
         }
     }
 
-    fun markCompleted(blockId: String) {
-        ProgressEngine.markComplete(blockId)
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressEngine.markComplete(context, blockId)
     }
 
-    fun markIncomplete(blockId: String, blockName: String) {
-        ProgressEngine.markIncomplete(blockId, blockName)
-    }
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(context, blockId, blockName)
+  
+}
 }
 
 
@@ -3376,32 +3362,23 @@ object ProgressStatsEngine {
         ProgressStore.markComplete(context, blockId)
     }
 
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
+    }
+
     fun getTodayStats(context: Context): ProgressStats {
-        // ✅ Fetch all registered blocks
-        val registered = ProgressStore.getRegisteredBlocks(context)
-        val completed = ProgressStore.getCompletedBlocks(context)
+        val blocks = ProgressRepository.getTodayBlocks(context)
+        val total = blocks.size
+        val completedCount = blocks.count { it.completed }
 
-        // Auto-register any block that appears in ProgressEngine but not in store
-        val todayBlocks = ProgressRepository.getTodayBlocks()
-        todayBlocks.forEach { block ->
-            if (!registered.contains(block.id)) {
-                registerBlock(context, block.id)
-            }
-        }
-
-        val total = todayBlocks.size
-        val completedCount = todayBlocks.count { it.completed }
-
-        val today = SimpleDateFormat(
-            "yyyy-MM-dd",
-            Locale.getDefault()
-        ).format(Date())
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
         return ProgressStats(
             date = today,
             totalBlocks = total,
             completedBlocks = completedCount
         )
+
     }
 }
 
@@ -3525,11 +3502,12 @@ object RetryScheduler {
                 title = "Retry: $blockName",
                 startTimeMs = retryAt,
                 endTimeMs = retryAt + 5 * 60_000,
-                status = EventStatus.RETRY_SCHEDULED, // ✅ Fixed enum reference
+                status = EventStatus.RETRY_SCHEDULED,
                 meta = mapOf("blockId" to blockId)
             )
         )
-    }
+
+}
 }
 
 
