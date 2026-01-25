@@ -7,6 +7,7 @@ data class ProgressBlock(
     val scheduledTime: String,
     val completedTime: String? = null
 )
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 package com.jarvismini.core.progress
 
@@ -23,7 +24,7 @@ object ProgressStore {
             .edit()
             .putBoolean("reg_$blockId", true)
             .putString("time_$blockId", scheduledTime)
-            .remove("doneTime_$blockId") // reset any previous completed time
+            .remove("doneTime_$blockId")
             .apply()
     }
 
@@ -92,6 +93,7 @@ object ProgressStore {
         return formatter.format(Date())
     }
 }
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
@@ -115,6 +117,7 @@ object ProgressRepository {
         return ProgressStore.getTodayBlocks(context)
     }
 }
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
 package com.jarvismini.core.progress
 
@@ -130,6 +133,7 @@ object ProgressEngine {
         ProgressStore.markIncomplete(context, blockId)
     }
 }
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
 package com.jarvismini
 
@@ -145,6 +149,7 @@ object ProgressInitializer {
         }
     }
 }
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
 package com.jarvismini.ui.checklist
 
@@ -199,6 +204,7 @@ fun ChecklistItem(
         }
     }
 }
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
@@ -309,6 +315,62 @@ private fun ChecklistScreenWithStats(
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     }
                 )
+            }
+        }
+    }
+}
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+package com.jarvismini.engine.progress
+
+import android.content.Context
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+
+class ProgressOrchestrator(
+    private val context: Context,
+    private val scheduler: DelayedTaskScheduler
+) {
+
+    fun prompt(blockId: String, blockName: String) {
+        AssistantTTS.speak(
+            context,
+            "Did you complete $blockName?"
+        )
+
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
+        )
+    }
+
+    fun onUserResponse(
+        blockId: String,
+        blockName: String,
+        completed: Boolean
+    ) {
+        if (completed) {
+            ProgressEngine.markComplete(context, blockId)
+
+            AssistantTTS.speak(
+                context,
+                "Great. Task marked as complete."
+            )
+        } else {
+            ProgressEngine.markIncomplete(context, blockId)
+
+            AssistantTTS.speak(
+                context,
+                "Okay. I will remind you again in thirty minutes."
+            )
+
+            scheduler.schedule(
+                delayMs = 30 * 60 * 1000L
+            ) {
+                prompt(blockId, blockName)
             }
         }
     }
