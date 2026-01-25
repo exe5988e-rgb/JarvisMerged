@@ -12,4 +12,11 @@ object ProgressRepository {
         return ProgressStore.getTodayBlocks(context)
     }
 
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+    }
 }
