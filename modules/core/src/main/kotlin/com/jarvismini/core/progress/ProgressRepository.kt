@@ -5,9 +5,9 @@ object ProgressRepository {
     fun getTodayBlocks(): List<ProgressBlock> {
         return ProgressState.entries.map { entry ->
             ProgressBlock(
-                id = entry.blockId,
+                id = entry.name,
                 name = entry.name,
-                completed = entry.completed
+                completed = ProgressStore.isCompleted(entry.name)
             )
         }
     }
@@ -18,5 +18,6 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
-    }
+    
+}
 }
