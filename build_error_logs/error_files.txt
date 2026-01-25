@@ -1,130 +1,207 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:38:55 No value passed for parameter 'context'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:97:74 No value passed for parameter 'context'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:104:74 No value passed for parameter 'context'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m
+BUILD FAILED in 1m 32s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-1	package com.jarvismini.ui.main
+//===== FILE: app/src/main/kotlin/com/jarvismini/service/CallAutoReplyService.kt =====
+1	package com.jarvismini.callhandler.service
 2
-3	import androidx.compose.foundation.layout.*
-4	import androidx.compose.foundation.lazy.LazyColumn
-5	import androidx.compose.foundation.lazy.items
-6	import androidx.compose.material3.*
-7	import androidx.compose.runtime.*
-8	import androidx.compose.ui.Modifier
-9	import androidx.compose.ui.platform.LocalContext
-10	import androidx.compose.ui.unit.dp
-11	import com.jarvismini.ProgressInitializer
-12	import com.jarvismini.core.progress.ProgressBlock
-13	import com.jarvismini.core.progress.ProgressRepository
-14	import com.jarvismini.core.progress.ProgressStatsEngine
-15	import com.jarvismini.ui.JarvisChatScreen
-16	import com.jarvismini.ui.ChecklistItem
-17
-18	enum class MainTab(val title: String) {
-19	    Chat("Chat"),
-20	    Checklist("Checklist")
-21	}
-22
-23	@Composable
-24	fun MainScreen() {
-25	    val context = LocalContext.current
-26
-27	    // ✅ Register all routine blocks once
-28	    LaunchedEffect(Unit) {
-29	        ProgressInitializer.registerAllBlocks(context)
-30	    }
+3	import android.app.Notification
+4	import android.app.NotificationChannel
+5	import android.app.NotificationManager
+6	import android.app.Service
+7	import android.content.Intent
+8	import android.os.Build
+9	import android.os.IBinder
+10	import android.telephony.SmsManager
+11	import androidx.core.app.NotificationCompat
+12	import android.util.Log
+13	import com.jarvismini.R
+14
+15	class CallAutoReplyService : Service() {
+16
+17	    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+18	        Log.e(TAG, "Foreground Service STARTED")
+19
+20	        startForeground(NOTIFICATION_ID, createNotification())
+21
+22	        val number = intent?.getStringExtra(EXTRA_NUMBER)
+23	        val message = intent?.getStringExtra(EXTRA_MESSAGE)
+24
+25	        if (!number.isNullOrBlank() && !message.isNullOrBlank()) {
+>>>>> ERROR HERE
+26	            SmsManager.getDefault()
+27	                .sendTextMessage(number, null, message, null, null)
+28	        } else {
+29	            Log.e(TAG, "Missing number or message")
+30	        }
 31
-32	    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
-33	    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
-34
-35	    // ✅ Load checklist blocks when checklist tab opens
-36	    LaunchedEffect(selectedTab) {
-37	        if (selectedTab == MainTab.Checklist) {
+32	        stopSelf()
+33	        return START_NOT_STICKY
+34	    }
+35
+36	    override fun onBind(intent: Intent?): IBinder? = null
+37
+38	    private fun createNotification(): Notification {
+39	        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+40	            val channel = NotificationChannel(
+41	                CHANNEL_ID,
+42	                "Jarvis Call Auto‑Reply",
+43	                NotificationManager.IMPORTANCE_LOW
+44	            )
+45	            getSystemService(NotificationManager::class.java)
+46	                .createNotificationChannel(channel)
+47	        }
+48
+49	        return NotificationCompat.Builder(this, CHANNEL_ID)
+50	            .setContentTitle("Jarvis")
+51	            .setContentText("Auto‑replying to incoming call")
+52	            .setSmallIcon(R.mipmap.ic_launcher)
+53	            .setOngoing(true)
+54	            .build()
+55	    }
+56
+57	    companion object {
+58	        const val EXTRA_NUMBER = "extra_number"
+59	        const val EXTRA_MESSAGE = "extra_message"
+60	        const val CHANNEL_ID = "jarvis_call_reply"
+61	        const val NOTIFICATION_ID = 1002
+62	        private const val TAG = "CALL-FGS"
+63	    }
+64	}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
+1	@file:OptIn(ExperimentalMaterial3Api::class)
+2
+3	package com.jarvismini.ui
+4
+5	import android.app.Activity
+6	import android.content.pm.PackageManager
+7	import androidx.compose.foundation.layout.*
+8	import androidx.compose.foundation.lazy.LazyColumn
+9	import androidx.compose.foundation.lazy.items
+10	import androidx.compose.material3.*
+11	import androidx.compose.runtime.*
+12	import androidx.compose.ui.Modifier
+13	import androidx.compose.ui.platform.LocalContext
+14	import androidx.compose.ui.unit.dp
+15	import androidx.core.app.ActivityCompat
+16	import androidx.core.content.ContextCompat
+17	import com.jarvismini.core.JarvisMode
+18	import com.jarvismini.core.JarvisState
+19	import com.jarvismini.core.WorkModeManager
+20	import com.jarvismini.engine.EngineProvider
+21	import com.jarvismini.engine.EngineResult
+22	import kotlinx.coroutines.launch
+23
+24	@Composable
+25	fun JarvisChatScreen() {
+26	    val context = LocalContext.current
+27	    val activity = context as? Activity
+28	    val scope = rememberCoroutineScope()
+29
+30	    // ================= INIT =================
+31	    LaunchedEffect(Unit) {
+32	        JarvisState.init(context)
+33	        EngineProvider.init(context)
+34	    }
+35
+36	    // ================= PERMISSIONS =================
+37	    LaunchedEffect(Unit) {
+38	        if (activity == null) return@LaunchedEffect
+39
+40	        val perms = mutableListOf<String>()
+41	        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+42	            perms += android.Manifest.permission.READ_CONTACTS
+43
+44	        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+45	            perms += android.Manifest.permission.SEND_SMS
+46
+47	        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+48	    }
+49
+50	    // ================= STATE =================
+51	    val messages = remember { mutableStateListOf<ChatMessage>() }
+52	    var input by remember { mutableStateOf("") }
+53	    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+54	    var expanded by remember { mutableStateOf(false) }
+55	    val modes = JarvisMode.values().toList()
+56
+57	    // ================= UI =================
+58	    Column(
+59	        modifier = Modifier.fillMaxSize().padding(12.dp),
+60	        verticalArrangement = Arrangement.spacedBy(10.dp)
+61	    ) {
+62	        Text(text = "Current mode: $currentMode", style = MaterialTheme.typography.titleMedium)
+63
+64	        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+65	            TextField(
+66	                value = currentMode.name,
+67	                onValueChange = {},
+68	                readOnly = true,
+69	                label = { Text("Select Mode") },
+70	                modifier = Modifier.menuAnchor()
+71	            )
+72
+73	            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+74	                modes.forEach { mode ->
+75	                    DropdownMenuItem(
+76	                        text = { Text(mode.name) },
+77	                        onClick = {
+78	                            JarvisState.setMode(context, mode)
+79	                            currentMode = mode
+80	                            expanded = false
+81	                        }
+82	                    )
+83	                }
+84	            }
+85	        }
+86
+87	        Button(onClick = {
+88	            WorkModeManager.toggle(context)
+89	            currentMode = JarvisState.currentMode
+90	        }) { Text("Toggle Work Mode") }
+91
 >>>>> ERROR HERE
-38	            blocks = ProgressRepository.getTodayBlocks()
-39	        }
-40	    }
-41
-42	    Scaffold(
-43	        topBar = {
-44	            TabRow(selectedTabIndex = selectedTab.ordinal) {
-45	                MainTab.values().forEach { tab ->
-46	                    Tab(
-47	                        selected = selectedTab == tab,
-48	                        onClick = { selectedTab = tab },
-49	                        text = { Text(tab.title) }
-50	                    )
-51	                }
-52	            }
-53	        }
-54	    ) { padding ->
-55	        Box(
-56	            modifier = Modifier
-57	                .fillMaxSize()
-58	                .padding(padding)
-59	                .padding(12.dp)
-60	        ) {
-61	            when (selectedTab) {
-62	                MainTab.Chat -> JarvisChatScreen()
-63	                MainTab.Checklist -> ChecklistScreenWithStats(
-64	                    blocks = blocks,
-65	                    onBlocksUpdated = { blocks = it }
-66	                )
-67	            }
-68	        }
-69	    }
-70	}
-71
-72	@Composable
-73	private fun ChecklistScreenWithStats(
-74	    blocks: List<ProgressBlock>,
-75	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-76	) {
-77	    val context = LocalContext.current
-78	    val stats = ProgressStatsEngine.getTodayStats(context)
-79
-80	    Column(modifier = Modifier.fillMaxSize()) {
-81	        Text(
-82	            text = "Today's Checklist (${stats.completionPercent}%)",
-83	            style = MaterialTheme.typography.titleLarge
-84	        )
-85
-86	        Spacer(modifier = Modifier.height(12.dp))
-87
-88	        LazyColumn(
-89	            modifier = Modifier.fillMaxSize(),
-90	            verticalArrangement = Arrangement.spacedBy(6.dp)
-91	        ) {
-92	            items(blocks) { block ->
-93	                ChecklistItem(
-94	                    block = block,
-95	                    onComplete = {
-96	                        ProgressRepository.markCompleted(block.id)
->>>>> ERROR HERE
-97	                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-98	                    },
-99	                    onIncomplete = {
-100	                        ProgressRepository.markIncomplete(
-101	                            blockId = block.id,
-102	                            blockName = block.name
-103	                        )
->>>>> ERROR HERE
-104	                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-105	                    }
-106	                )
-107	            }
-108	        }
-109	    }
-110	}
+92	        Divider()
+93
+94	        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), reverseLayout = true) {
+95	            items(messages.reversed()) { msg ->
+96	                Text(text = if (msg.isUser) "You: ${msg.text}" else "Jarvis: ${msg.text}", modifier = Modifier.padding(6.dp))
+97	            }
+98	        }
+99
+100	        Row {
+101	            TextField(value = input, onValueChange = { input = it }, modifier = Modifier.weight(1f), placeholder = { Text("Ask Jarvis…") })
+102
+103	            Button(onClick = {
+104	                val userText = input.trim()
+105	                if (userText.isEmpty()) return@Button
+106
+107	                input = ""
+108	                messages.add(ChatMessage(userText, true))
+109	                messages.add(ChatMessage("Thinking…", false))
+110
+111	                scope.launch {
+112	                    val result = EngineProvider.commandEngine.handle(userText)
+113	                    val reply = when (result) {
+114	                        is EngineResult.Success -> result.reply
+115	                        is EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
+116	                        else -> EngineProvider.llmEngine.generateReply(userText) // exhaustive fallback
+117	                    }
+118
+119	                    messages.removeLast()
+120	                    messages.add(ChatMessage(reply, false))
+121	                }
+122	            }) { Text("Send") }
+123	        }
+124	    }
+125	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
@@ -516,13 +593,15 @@ BUILD FAILED in 1m
 3	import android.content.Context
 4	import com.jarvismini.core.routine.model.RoutineAction
 5
-6	object ActionDispatcher {
-7
+6	/**
+7	 * Stub dispatcher for routine actions.
+8	 */
+9	object ActionDispatcher {
 >>>>> ERROR HERE
-8	    fun dispatch(context: Context, action: RoutineAction) {
-9	        // Stub — logic will expand later
-10	    }
-11	}
+10	    fun dispatch(context: Context, action: RoutineAction) {
+11	        // Stub — logic will expand later
+12	    }
+13	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
@@ -537,3 +616,144 @@ BUILD FAILED in 1m
 9	        return true
 10	    }
 11	}
+
+//===== FILE: app/src/main/AndroidManifest.xml =====
+1	<?xml version="1.0" encoding="utf-8"?>
+2	<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3	    package="com.jarvismini">
+4
+5	    <!-- ================= PERMISSIONS ================= -->
+6
+7	    <uses-permission android:name="android.permission.INTERNET" />
+8	    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+9	    <uses-permission android:name="android.permission.SEND_SMS" />
+10	    <uses-permission android:name="android.permission.READ_CONTACTS" />
+11	    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+12	    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+13	    <uses-permission android:name="android.permission.CALL_SCREENING" />
+14	    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+15
+16	    <uses-feature
+17	        android:name="android.hardware.telephony"
+18	        android:required="false" />
+19
+20	    <!-- ================= PACKAGE VISIBILITY ================= -->
+21
+22	    <queries>
+23	        <package android:name="xyz.penpencil.physicswala" />
+24	        <package android:name="com.pittvandewitt.wavelet" />
+25	        <package android:name="com.google.android.apps.youtube.music" />
+26	        <package android:name="com.oneplus.deskclock" />
+27	        <package android:name="com.apple.android.music" />
+28	    </queries>
+29
+30	    <!-- ================= APPLICATION ================= -->
+31
+32	    <application
+33	        android:name="com.jarvismini.CoreApp"
+34	        android:allowBackup="true"
+35	        android:label="@string/app_name"
+36	        android:icon="@mipmap/ic_launcher"
+37	        android:supportsRtl="true"
+38	        android:theme="@style/Theme.JarvisMerged"
+39	        android:usesCleartextTraffic="true"
+40	        android:networkSecurityConfig="@xml/network_security_config">
+41
+42	        <!-- ================= MAIN ACTIVITY ================= -->
+43
+44	        <activity
+45	            android:name="com.jarvismini.MainActivity"
+46	            android:exported="true">
+47	            <intent-filter>
+48	                <action android:name="android.intent.action.MAIN" />
+49	                <category android:name="android.intent.category.LAUNCHER" />
+50	            </intent-filter>
+51	        </activity>
+52
+53	        <!-- ================= NOTIFICATION LISTENER ================= -->
+54
+55	        <service
+56	            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+57	            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+58	            android:exported="false">
+59	            <intent-filter>
+60	                <action android:name="android.service.notification.NotificationListenerService" />
+61	            </intent-filter>
+62	        </service>
+63
+64	        <!-- ================= SMS RECEIVER ================= -->
+65
+66	        <receiver
+67	            android:name="com.jarvismini.callhandler.SmsReceiver"
+68	            android:permission="android.permission.BROADCAST_SMS"
+69	            android:exported="true">
+70	            <intent-filter>
+71	                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+72	            </intent-filter>
+73	        </receiver>
+74
+75	        <!-- ================= CALL STATE RECEIVER ================= -->
+76
+77	        <receiver
+78	            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+79	            android:exported="true">
+80	            <intent-filter>
+81	                <action android:name="android.intent.action.PHONE_STATE" />
+82	            </intent-filter>
+83	        </receiver>
+84
+85	        <!-- ================= CALL SCREENING SERVICE ================= -->
+86
+87	        <service
+88	            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+89	            android:permission="android.permission.BIND_SCREENING_SERVICE"
+90	            android:exported="true">
+91	            <intent-filter>
+92	                <action android:name="android.telecom.CallScreeningService" />
+93	            </intent-filter>
+94	        </service>
+95
+96	        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
+97
+98	        <service
+99	            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+100	            android:exported="false"
+101	            android:foregroundServiceType="phoneCall">
+102	            <intent-filter>
+103	                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
+104	            </intent-filter>
+105	        </service>
+106
+107	        <!-- ================= ACCESSIBILITY SERVICE ================= -->
+108
+109	        <service
+110	            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+111	            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+112	            android:exported="false">
+113	            <intent-filter>
+114	                <action android:name="android.accessibilityservice.AccessibilityService" />
+115	            </intent-filter>
+116	            <meta-data
+117	                android:name="android.accessibilityservice"
+118	                android:resource="@xml/call_accessibility_config" />
+119	        </service>
+120
+121	        <!-- ================= QUICK SETTINGS TILE ================= -->
+122
+123	        <service
+124	            android:name="com.jarvismini.service.WorkModeTileService"
+125	            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+126	            android:exported="true">
+127	            <intent-filter>
+128	                <action android:name="android.service.quicksettings.action.QS_TILE" />
+129	            </intent-filter>
+130	        </service>
+131	        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
+132	<receiver
+>>>>> ERROR HERE
+133	    android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
+134	    android:exported="false" />
+135
+136	    </application>
+137
+138	</manifest>
