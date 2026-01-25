@@ -11,9 +11,7 @@ import com.jarvismini.core.progress.ProgressBlock
 fun ChecklistItem(
     block: ProgressBlock,
     onComplete: () -> Unit,
-    onIncomplete: () -> Unit,
-    scheduledTime: String,
-    actualTime: String
+    onIncomplete: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -25,19 +23,29 @@ fun ChecklistItem(
                 text = block.id.replace("_", " ").replaceFirstChar { it.uppercase() },
                 style = MaterialTheme.typography.titleMedium
             )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
             Text(
-                text = "Scheduled: $scheduledTime | Completed/Missed: $actualTime",
-                style = MaterialTheme.typography.bodyMedium
+                text = "Scheduled: ${block.scheduledTime}",
+                style = MaterialTheme.typography.bodySmall
             )
+
+            block.completedTime?.let {
+                Text(
+                    text = "Completed/Missed: $it",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (block.status == Status.PENDING) {
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!block.completed) {
                     TextButton(onClick = onComplete) { Text("Done") }
                     TextButton(onClick = onIncomplete) { Text("Missed") }
                 } else {
-                    Text(
-                        text = if (block.status == Status.COMPLETED) "✅ Completed" else "⚠ Missed"
-                    )
+                    Text("✅ Completed")
                 }
             }
         }

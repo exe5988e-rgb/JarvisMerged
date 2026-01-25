@@ -14,13 +14,18 @@ import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.checklist.ChecklistItem
 import com.jarvismini.ui.JarvisChatScreen
 
-enum class MainTab(val title: String) { Chat("Chat"), Checklist("Checklist") }
+enum class MainTab(val title: String) {
+    Chat("Chat"),
+    Checklist("Checklist")
+}
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) { ProgressInitializer.registerAllBlocks(context) }
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+    }
 
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
@@ -28,6 +33,7 @@ fun MainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
+
             val stats = ProgressStatsEngine.getTodayStats(context)
             AssistantTTS.speak(
                 context,
@@ -88,10 +94,6 @@ private fun ChecklistScreenWithStats(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(blocks) { block ->
-
-                val displayName = block.id.replace("_", " ").replaceFirstChar { it.uppercase() }
-                val actualText = block.actualTime ?: "Not done yet"
-
                 ChecklistItem(
                     block = block,
                     onComplete = {
@@ -99,15 +101,13 @@ private fun ChecklistScreenWithStats(
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
-                        ProgressRepository.markMissed(context, block.id)
+                        ProgressRepository.markIncomplete(context, block.id)
                         AssistantTTS.speak(
                             context,
-                            "You missed task $displayName. I will remind you in 30 minutes."
+                            "You missed task ${block.id.replace("_", " ").replaceFirstChar { it.uppercase() }}. I will remind you in 30 minutes."
                         )
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
-                    },
-                    scheduledTime = block.scheduledTime,
-                    actualTime = actualText
+                    }
                 )
             }
         }

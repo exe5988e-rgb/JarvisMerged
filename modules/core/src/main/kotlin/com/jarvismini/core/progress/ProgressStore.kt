@@ -7,76 +7,72 @@ import java.util.*
 object ProgressStore {
 
     private const val PREF = "progress_store"
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
-    // register routine with scheduled time
     fun register(context: Context, blockId: String, scheduledTime: String) {
-        val prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-        if (!prefs.contains("reg_$blockId")) {
-            prefs.edit()
-                .putBoolean("reg_$blockId", true)
-                .putString("sched_$blockId", scheduledTime)
-                .putString("status_$blockId", Status.PENDING.name)
-                .apply()
-        }
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putString("sched_$blockId", scheduledTime)
+            .putBoolean("reg_$blockId", true)
+            .apply()
     }
 
-    // mark completed and store actual time
     fun markComplete(context: Context, blockId: String) {
-        val actualTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-            .format(Date())
-
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+        val now = dateFormat.format(Date())
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
             .putBoolean("done_$blockId", true)
-            .putString("status_$blockId", Status.COMPLETED.name)
-            .putString("actual_$blockId", actualTime)
+            .putString("time_$blockId", now)
             .apply()
     }
 
-    // mark missed and store actual time
-    fun markMissed(context: Context, blockId: String) {
-        val actualTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-            .format(Date())
-
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
-            .putString("status_$blockId", Status.MISSED.name)
-            .putString("actual_$blockId", actualTime)
+    fun markIncomplete(context: Context, blockId: String) {
+        val now = dateFormat.format(Date())
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .remove("done_$blockId")
+            .putString("time_$blockId", now)
             .apply()
     }
 
-    // get all registered routine IDs
     fun getRegisteredBlocks(context: Context): Set<String> {
         return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .all.keys
+            .all
+            .keys
             .filter { it.startsWith("reg_") }
             .map { it.removePrefix("reg_") }
             .toSet()
     }
 
-    // get all completed routine IDs
     fun getCompletedBlocks(context: Context): Set<String> {
         return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .all.keys
+            .all
+            .keys
             .filter { it.startsWith("done_") }
             .map { it.removePrefix("done_") }
             .toSet()
     }
 
-    // get today blocks with status and times
+    fun getScheduledTime(context: Context, blockId: String): String {
+        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .getString("sched_$blockId", "N/A") ?: "N/A"
+    }
+
+    fun getCompletedTime(context: Context, blockId: String): String? {
+        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .getString("time_$blockId", null)
+    }
+
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        val prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         val registered = getRegisteredBlocks(context)
+        val completed = getCompletedBlocks(context)
 
         return registered.map { id ->
-            val sched = prefs.getString("sched_$id", "") ?: ""
-            val actual = prefs.getString("actual_$id", null)
-            val status = prefs.getString("status_$id", Status.PENDING.name)
-                ?.let { Status.valueOf(it) } ?: Status.PENDING
-
             ProgressBlock(
                 id = id,
-                scheduledTime = sched,
-                actualTime = actual,
-                status = status
+                completed = completed.contains(id),
+                scheduledTime = getScheduledTime(context, id),
+                completedTime = getCompletedTime(context, id)
             )
         }
     }

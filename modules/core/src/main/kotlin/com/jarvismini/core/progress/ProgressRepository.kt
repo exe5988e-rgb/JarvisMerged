@@ -12,8 +12,8 @@ object ProgressRepository {
         ProgressStore.markComplete(context, blockId)
     }
 
-    fun markMissed(context: Context, blockId: String) {
-        ProgressStore.markMissed(context, blockId)
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
     }
 
     fun getTodayBlocks(context: Context): List<ProgressBlock> {

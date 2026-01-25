@@ -3,17 +3,16 @@ package com.jarvismini
 import android.content.Context
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.routine.RoutineProvider
-import java.text.SimpleDateFormat
-import java.util.*
 
+/**
+ * Auto-register all routines as checklist blocks on app start.
+ */
 object ProgressInitializer {
     fun registerAllBlocks(context: Context) {
         val routines = RoutineProvider.getAllRoutines(context)
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-
         routines.forEach { routine ->
-            val sched = dateFormat.format(routine.time) // routine.time assumed Date
-            ProgressRepository.register(context, routine.id, sched)
+            // register with scheduled time
+            ProgressRepository.register(context, routine.id, routine.time)
         }
     }
 }
