@@ -45,7 +45,7 @@ object ProgressStore {
             .toSet()
     }
 
-    // ✅ THIS WAS MISSING — NOW FIXED
+    // ✅ FIXED: matches actual ProgressBlock signature
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         val registered = getRegisteredBlocks(context)
         val completed = getCompletedBlocks(context)
@@ -53,7 +53,6 @@ object ProgressStore {
         return registered.map { id ->
             ProgressBlock(
                 id = id,
-                name = id.replace("_", " ").replaceFirstChar { it.uppercase() },
                 completed = completed.contains(id)
             )
         }
