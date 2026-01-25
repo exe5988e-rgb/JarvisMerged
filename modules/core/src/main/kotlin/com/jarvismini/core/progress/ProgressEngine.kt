@@ -1,34 +1,21 @@
 package com.jarvismini.core.progress
 
 import android.content.Context
+import com.jarvismini.engine.progress.AlarmManagerRetry
 
 object ProgressEngine {
 
-    fun markComplete(blockId: String) {
-        markCompleteInternal(null, blockId)
+    fun markComplete(context: Context, blockId: String) {
+        // 1️⃣ Persist completion
+        ProgressStore.markComplete(context, blockId)
+
+        // 2️⃣ 🛑 CANCEL any scheduled reminder
+        AlarmManagerRetry.cancel(context, blockId)
     }
 
-    fun markIncomplete(blockId: String, blockName: String) {
-        markIncompleteInternal(null, blockId, blockName)
-    }
-
-    fun markComplete(context: Context?, blockId: String) {
-        markCompleteInternal(context, blockId)
-    }
-
-    fun markIncomplete(context: Context?, blockId: String, blockName: String) {
-        markIncompleteInternal(context, blockId, blockName)
-    }
-
-    private fun markCompleteInternal(context: Context?, blockId: String) {
-        context?.let { ProgressStore.markComplete(it, blockId) }
-    }
-
-    private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
-        context?.let { ProgressStore.markIncomplete(it, blockId) }
-    }
-
-    fun onBlockCompleted(blockId: String, blockName: String) {
-        markComplete(blockId)
-    }
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+        // scheduling handled elsewhere
+  
+}
 }
