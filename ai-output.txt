@@ -5,12 +5,13 @@ import android.content.Context
 
 /**
  * Repository for managing daily progress blocks.
- * Provides context-aware and context-free methods for UI and engine.
+ * Provides context-aware methods for UI and engine.
  */
 object ProgressRepository {
 
-    fun getTodayBlocks(context: Context? = null): List<ProgressBlock> {
-        // ✅ Get all registered blocks for today
+    // ✅ Require non-null Context
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        // Get all registered blocks for today
         val registered = ProgressStore.getRegisteredBlocks(context)
         val completed = ProgressStore.getCompletedBlocks(context)
 
@@ -29,123 +30,6 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
-    }
+  
 }
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
-
-/**
- * Engine for generating progress stats.
- */
-object ProgressStatsEngine {
-
-    fun registerBlock(context: Context, blockId: String) {
-        ProgressStore.register(context, blockId)
-    }
-
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressStore.markIncomplete(context, blockId)
-    }
-
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completedCount
-        )
-    }
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-/**
- * Engine for marking progress blocks complete/incomplete.
- */
-object ProgressEngine {
-
-    fun markComplete(blockId: String) {
-        markCompleteInternal(null, blockId)
-    }
-
-    fun markIncomplete(blockId: String, blockName: String) {
-        markIncompleteInternal(null, blockId, blockName)
-    }
-
-    fun markComplete(context: Context?, blockId: String) {
-        markCompleteInternal(context, blockId)
-    }
-
-    fun markIncomplete(context: Context?, blockId: String, blockName: String) {
-        markIncompleteInternal(context, blockId, blockName)
-    }
-
-    private fun markCompleteInternal(context: Context?, blockId: String) {
-        // TODO: persist completion, notify if context available
-    }
-
-    private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
-        // TODO: persist incompletion, notify if context available
-    }
-
-    // ✅ New method for RoutineExecutor
-    fun onBlockCompleted(blockId: String, blockName: String) {
-        markComplete(blockId)
-        // Could also schedule reminders or trigger events here
-    }
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
-package com.jarvismini.core.routine
-
-import android.content.Context
-import com.jarvismini.core.progress.ProgressEngine
-import com.jarvismini.core.routine.model.Routine
-
-/**
- * Executes a routine and updates progress when done.
- */
-class RoutineExecutor(
-    private val context: Context
-) {
-    fun execute(routine: Routine) {
-        routine.actions.forEach { action ->
-            ActionDispatcher.dispatch(context, action)
-        }
-
-        // ✅ BLOCK FINISHED → PROGRESS ENGINE
-        ProgressEngine.onBlockCompleted(
-            blockId = routine.id,
-            blockName = routine.name
-        )
-    }
-}
-
-//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
-package com.jarvismini.smart
-
-/**
- * Minimal stub so module compiles.
- * Real logic will be added later.
- */
-object SmartFilters {
-    fun isAllowed(text: String): Boolean {
-        return true
-    }
 }
