@@ -1,74 +1,16 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:27:30 Unresolved reference: name
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:34:49 Type mismatch: inferred type is String but Context was expected
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:34:49 No value passed for parameter 'blockId'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:40:51 Type mismatch: inferred type is String but Context was expected
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:40:61 No value passed for parameter 'blockName'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:40:67 Unresolved reference: name
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:26:30 Unresolved reference: name
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:108:78 Too many arguments for public final fun markIncomplete(context: Context, blockId: String): Unit defined in com.jarvismini.core.progress.ProgressRepository
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:108:84 Unresolved reference: name
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:112:54 Unresolved reference: name
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 58s
+BUILD FAILED in 1m 3s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
-1	package com.jarvismini.ui
-2
-3	import androidx.compose.foundation.layout.*
-4	import androidx.compose.material3.*
-5	import androidx.compose.runtime.Composable
-6	import androidx.compose.ui.Modifier
-7	import androidx.compose.ui.unit.dp
-8	import com.jarvismini.core.progress.ProgressBlock
-9	import com.jarvismini.core.progress.ProgressEngine
-10
-11	@Composable
-12	fun ChecklistItem(
-13	    block: ProgressBlock,
-14	    onComplete: () -> Unit,
-15	    onIncomplete: () -> Unit
-16	) {
-17	    Card(
-18	        modifier = Modifier
-19	            .fillMaxWidth()
-20	            .padding(vertical = 6.dp)
-21	    ) {
-22	        Row(
-23	            modifier = Modifier.padding(12.dp),
-24	            horizontalArrangement = Arrangement.SpaceBetween
-25	        ) {
-26	            Text(
->>>>> ERROR HERE
-27	                text = block.name,
-28	                modifier = Modifier.weight(1f)
-29	            )
-30
-31	            if (!block.completed) {
-32	                TextButton(onClick = {
-33	                    // ✅ Mark complete in ProgressEngine
->>>>> ERROR HERE
-34	                    ProgressEngine.markComplete(block.id)
-35	                    onComplete()
-36	                }) { Text("Done") }
-37
-38	                TextButton(onClick = {
-39	                    // ✅ Mark incomplete & schedule retry
->>>>> ERROR HERE
-40	                    ProgressEngine.markIncomplete(block.id, block.name)
-41	                    onIncomplete()
-42	                }) { Text("Missed") }
-43	            } else {
-44	                Text("✅ Completed")
-45	            }
-46	        }
-47	    }
-48	}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
 1	package com.jarvismini.ui.checklist
@@ -596,31 +538,6 @@ BUILD FAILED in 58s
 17
 18	}
 19	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
-4
-5	/**
-6	 * Repository facade for progress-related queries.
-7	 * Keeps callers stable while storage evolves.
-8	 */
-9	object ProgressRepository {
-10
-11	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-12	        return ProgressStore.getTodayBlocks(context)
-13	    }
-14
-15	    fun markCompleted(context: Context, blockId: String) {
-16	        ProgressStore.markComplete(context, blockId)
-17	    }
-18
->>>>> ERROR HERE
-19	    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-20	        ProgressStore.markIncomplete(context, blockId)
-21	    }
-22	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
 1	package com.jarvismini.core.routine
