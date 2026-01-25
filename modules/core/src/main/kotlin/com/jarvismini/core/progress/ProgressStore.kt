@@ -7,31 +7,31 @@ import java.util.*
 object ProgressStore {
 
     private const val PREF = "progress_store"
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
     fun register(context: Context, blockId: String, scheduledTime: String) {
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
-            .putString("sched_$blockId", scheduledTime)
             .putBoolean("reg_$blockId", true)
+            .putString("time_$blockId", scheduledTime)
+            .remove("doneTime_$blockId") // reset any previous completed time
             .apply()
     }
 
     fun markComplete(context: Context, blockId: String) {
-        val now = dateFormat.format(Date())
+        val currentTime = getCurrentTime()
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
             .putBoolean("done_$blockId", true)
-            .putString("time_$blockId", now)
+            .putString("doneTime_$blockId", currentTime)
             .apply()
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        val now = dateFormat.format(Date())
+        val currentTime = getCurrentTime()
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
             .remove("done_$blockId")
-            .putString("time_$blockId", now)
+            .putString("doneTime_$blockId", currentTime)
             .apply()
     }
 
@@ -55,12 +55,12 @@ object ProgressStore {
 
     fun getScheduledTime(context: Context, blockId: String): String {
         return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .getString("sched_$blockId", "N/A") ?: "N/A"
+            .getString("time_$blockId", "") ?: ""
     }
 
     fun getCompletedTime(context: Context, blockId: String): String? {
         return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .getString("time_$blockId", null)
+            .getString("doneTime_$blockId", null)
     }
 
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
@@ -75,5 +75,10 @@ object ProgressStore {
                 completedTime = getCompletedTime(context, id)
             )
         }
+    }
+
+    private fun getCurrentTime(): String {
+        val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+        return formatter.format(Date())
     }
 }

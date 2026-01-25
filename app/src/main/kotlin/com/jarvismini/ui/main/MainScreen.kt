@@ -33,7 +33,6 @@ fun MainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
-
             val stats = ProgressStatsEngine.getTodayStats(context)
             AssistantTTS.speak(
                 context,
@@ -81,7 +80,6 @@ private fun ChecklistScreenWithStats(
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(modifier = Modifier.fillMaxSize()) {
-
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
