@@ -7,20 +7,12 @@ e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotl
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:21:37 Type mismatch: inferred type is Context but String was expected
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:21:46 Too many arguments for public final fun markComplete(blockId: String): Unit defined in com.jarvismini.core.progress.ProgressEngine
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:25:39 Type mismatch: inferred type is Context but String was expected
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:1:29 Unresolved reference: Context
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:1:44 Unresolved reference: Routine
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:2:34 Unresolved reference: Routine
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:3:37 Unresolved reference: ROUTINES_DIR
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:5:11 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:5:21 Cannot infer a type for this parameter. Please specify it explicitly.
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:10:25 Unresolved reference: ROUTINES_DIR
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:12:24 Unresolved reference: it
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:14:24 Unresolved reference: JSONObject
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:20:29 Unresolved reference: parseRoutines
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:11:48 Missing '}
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:90:1 Unclosed comment
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 35s
+BUILD FAILED in 34s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -59,42 +51,96 @@ BUILD FAILED in 35s
 27	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+1	package com.jarvismini.core.routine
+2
+3	import android.content.Context
+4	import com.jarvismini.core.routine.model.Routine
+5	import com.jarvismini.core.routine.model.RoutineAction
+6	import org.json.JSONArray
+7	import org.json.JSONObject
+8
+9	object RoutineProvider {
+10
 >>>>> ERROR HERE
-1	fun getAllRoutines(context: Context): List<Routine> {
->>>>> ERROR HERE
-2	    val routines = mutableListOf<Routine>()
->>>>> ERROR HERE
-3	    val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
-4
->>>>> ERROR HERE
-5	    files.forEach { filename ->
-6	        if (!filename.endsWith(".json")) return@forEach
-7
-8	        try {
-9	            val jsonStr = context.assets
->>>>> ERROR HERE
-10	                .open("$ROUTINES_DIR/$filename")
-11	                .bufferedReader()
->>>>> ERROR HERE
-12	                .use { it.readText() }
-13
->>>>> ERROR HERE
-14	            val root = JSONObject(jsonStr)
-15
-16	            // ✅ Skip files that aren't routine definitions
-17	            if (!root.has("routines")) return@forEach
+11	    private const val ROUTINES_DIR = "routines"
+12
+13	    /**
+14	     * Loads all ENABLED routines from assets/routines/*.json
+15	     */
+16	    fun getAllRoutines(context: Context): List<Routine> {
+17	        val routines = mutableListOf<Routine>()
 18
-19	            val routinesArray = root.getJSONArray("routines")
->>>>> ERROR HERE
-20	            routines.addAll(parseRoutines(routinesArray))
-21
-22	        } catch (e: Exception) {
-23	            // Optional: log filename
-24	        }
-25	    }
-26
-27	    return routines
-28	}
+19	        val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
+20
+21	        files
+22	            .filter { it.endsWith(".json") }
+23	            .forEach { filename ->
+24	                try {
+25	                    val json = context.assets
+26	                        .open("$ROUTINES_DIR/$filename")
+27	                        .bufferedReader()
+28	                        .use { it.readText() }
+29
+30	                    val root = JSONObject(json)
+31
+32	                    // ✅ Skip non-routine files (e.g. progress_config.json)
+33	                    if (!root.has("routines")) return@forEach
+34
+35	                    val array = root.getJSONArray("routines")
+36	                    routines += parseRoutines(array)
+37
+38	                } catch (_: Exception) {
+39	                    // Intentionally ignored: bad routine file should not crash app
+40	                }
+41	            }
+42
+43	        // ✅ Only enabled routines are returned
+44	        return routines.filter { it.enabled }
+45	    }
+46
+47	    private fun parseRoutines(array: JSONArray): List<Routine> {
+48	        val list = mutableListOf<Routine>()
+49
+50	        for (i in 0 until array.length()) {
+51	            val obj = array.getJSONObject(i)
+52
+53	            val id = obj.getString("id")
+54	            val name = obj.getString("name")
+55	            val enabled = obj.optBoolean("enabled", true)
+56
+57	            val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
+58	            val actions = mutableListOf<RoutineAction>()
+59
+60	            for (j in 0 until actionsJson.length()) {
+61	                val actionObj = actionsJson.getJSONObject(j)
+62	                actions += RoutineAction(
+63	                    type = actionObj.getString("type"),
+64	                    params = actionObj.toMap()
+65	                )
+66	            }
+67
+68	            list += Routine(
+69	                id = id,
+70	                name = name,
+71	                enabled = enabled,
+72	                actions = actions
+73	            )
+74	        }
+75
+76	        return list
+77	    }
+78	}
+79
+80	/**
+81	 * Converts JSONObject → Map<String, String>
+82	 */
+83	private fun JSONObject.toMap(): Map<String, String> {
+84	    val map = mutableMapOf<String, String>()
+85	    keys().forEach { key ->
+86	        map[key] = get(key).toString()
+87	    }
+88	    return map
+89	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
