@@ -5,17 +5,19 @@ import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.Routine
 
 /**
- * Executes a Routine by dispatching actions and notifying ProgressEngine.
+ * Executes routines and reports completion to ProgressEngine.
  */
 class RoutineExecutor(
     private val context: Context
 ) {
+
     fun execute(routine: Routine) {
         routine.actions.forEach { action ->
             ActionDispatcher.dispatch(context, action)
         }
 
-        // ✅ BLOCK FINISHED → PROGRESS ENGINE
-        ProgressEngine.markComplete(routine.id)
-    }
+        // ✅ Correct signature
+        ProgressEngine.markComplete(context, routine.id)
+   
+}
 }
