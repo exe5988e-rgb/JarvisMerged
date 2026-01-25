@@ -4,8 +4,8 @@ import android.content.Context
 
 object ProgressRepository {
 
-    fun register(context: Context, blockId: String, scheduledTime: String) {
-        ProgressStore.register(context, blockId, scheduledTime)
+    fun register(context: Context, blockId: String) {
+        ProgressStore.register(context, blockId)
     }
 
     fun markCompleted(context: Context, blockId: String) {

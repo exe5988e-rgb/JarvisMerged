@@ -1,4 +1,3 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
 package com.jarvismini.engine
 
 /**

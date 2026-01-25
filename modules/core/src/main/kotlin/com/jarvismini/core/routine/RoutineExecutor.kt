@@ -16,6 +16,8 @@ class RoutineExecutor(
             ActionDispatcher.dispatch(context, action)
         }
 
+        // ✅ Correct signature
         ProgressEngine.markComplete(context, routine.id)
-    }
+   
+}
 }

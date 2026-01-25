@@ -1,20 +1,22 @@
 package com.jarvismini
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressStore
 import com.jarvismini.core.routine.RoutineProvider
 
 /**
- * Initializes all routines and registers them with ProgressRepository.
+ * Auto-register all routines as checklist blocks on app start.
  */
 object ProgressInitializer {
     fun registerAllBlocks(context: Context) {
-        // Load routines from assets using RoutineProvider
+        // Load all original routines from assets
         val routines = RoutineProvider.getAllRoutines(context)
         routines.forEach { routine ->
-            // Ensure trigger time exists
-            val scheduledTime = routine.trigger?.time ?: "00:00"
-            ProgressRepository.register(context, routine.id, scheduledTime)
+            // Register each routine ID as a block
+            ProgressStore.register(context, routine.id)
+
+            // Optional: mark as incomplete initially
+            ProgressStore.markIncomplete(context, routine.id)
         }
     }
 }

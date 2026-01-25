@@ -33,6 +33,7 @@ fun MainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
+
             val stats = ProgressStatsEngine.getTodayStats(context)
             AssistantTTS.speak(
                 context,
@@ -80,6 +81,7 @@ private fun ChecklistScreenWithStats(
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(modifier = Modifier.fillMaxSize()) {
+
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -92,6 +94,11 @@ private fun ChecklistScreenWithStats(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(blocks) { block ->
+
+                val displayName = block.id
+                    .replace("_", " ")
+                    .replaceFirstChar { it.uppercase() }
+
                 ChecklistItem(
                     block = block,
                     onComplete = {
@@ -100,10 +107,12 @@ private fun ChecklistScreenWithStats(
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id)
+
                         AssistantTTS.speak(
                             context,
-                            "You missed task ${block.id.replace("_", " ").replaceFirstChar { it.uppercase() }}. I will remind you in 30 minutes."
+                            "You missed task $displayName. I will remind you in 30 minutes."
                         )
+
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     }
                 )

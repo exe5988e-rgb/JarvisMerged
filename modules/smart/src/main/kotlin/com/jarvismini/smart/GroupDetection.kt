@@ -18,6 +18,3 @@ object GroupDetection {
         return groupNameIndicators.any { s.contains(it) }
     }
 }
-
-
-

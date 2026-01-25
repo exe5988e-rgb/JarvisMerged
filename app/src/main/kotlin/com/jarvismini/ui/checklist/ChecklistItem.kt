@@ -13,40 +13,29 @@ fun ChecklistItem(
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
+    val displayName = block.id
+        .replace("_", " ")
+        .replaceFirstChar { it.uppercase() }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Text(
-                text = block.id.replace("_", " ").replaceFirstChar { it.uppercase() },
-                style = MaterialTheme.typography.titleMedium
+                text = displayName,
+                modifier = Modifier.weight(1f)
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Scheduled: ${block.scheduledTime}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            block.completedTime?.let {
-                Text(
-                    text = "Completed/Missed: $it",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (!block.completed) {
-                    TextButton(onClick = onComplete) { Text("Done") }
-                    TextButton(onClick = onIncomplete) { Text("Missed") }
-                } else {
-                    Text("✅ Completed")
-                }
+            if (!block.completed) {
+                TextButton(onClick = onComplete) { Text("Done") }
+                TextButton(onClick = onIncomplete) { Text("Missed") }
+            } else {
+                Text("✅ Completed")
             }
         }
     }

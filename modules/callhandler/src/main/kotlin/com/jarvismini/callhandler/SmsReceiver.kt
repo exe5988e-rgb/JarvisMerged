@@ -1,4 +1,3 @@
-// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
 package com.jarvismini.callhandler
 
 import android.content.BroadcastReceiver
