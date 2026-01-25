@@ -3355,16 +3355,16 @@ package com.jarvismini.core.progress
 
 import android.content.Context
 
+/**
+ * Repository facade for progress-related queries.
+ * Keeps callers stable while storage evolves.
+ */
 object ProgressRepository {
 
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressEngine.markComplete(context, blockId)
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        return ProgressStore.getTodayBlocks(context)
     }
 
-    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-        ProgressEngine.markIncomplete(context, blockId, blockName)
-   
-}
 }
 
 
@@ -3402,7 +3402,7 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks(context)
+        val blocks = ProgressRepository.getTodayBlocks(context)
         val total = blocks.size
         val completedCount = blocks.count { block -> block.completed }
 
@@ -3438,18 +3438,16 @@ object ProgressStore {
         completedBlocks.remove(blockId)
     }
 
-    /**
-     * Returns all blocks scheduled for today.
-     * Minimal in-memory stub so stats + reminders compile.
-     */
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        return completedBlocks.map {
+        return completedBlocks.map { id ->
             ProgressBlock(
-                id = it,
+                id = id,
                 completed = true
             )
         }
-    }
+ 
+}
+
 }
 
 
