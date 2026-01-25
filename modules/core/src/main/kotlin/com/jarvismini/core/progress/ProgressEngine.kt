@@ -20,11 +20,20 @@ object ProgressEngine {
         notificationIconRes = iconRes
     }
 
+    /**
+     * Called whenever a routine block is finished.
+     * Auto-registers the block to ensure stats are not empty.
+     */
     fun onBlockCompleted(blockId: String, blockName: String) {
         if (!config.enabled) return
 
+        // ✅ Auto-register block to ProgressStore
+        ProgressStore.register(context, blockId)
+
+        // Update progress stats
         ProgressStatsEngine.registerBlock(context, blockId)
 
+        // Show notification to user
         ProgressNotifier.showCompletionPrompt(
             context,
             blockId,
@@ -32,6 +41,7 @@ object ProgressEngine {
             notificationIconRes
         )
 
+        // Optional TTS
         if (config.ttsEnabled) {
             AssistantTTS.speak(
                 context,
@@ -49,7 +59,6 @@ object ProgressEngine {
         ProgressStore.markIncomplete(context, blockId)
         if (config.retryEnabled) {
             RetryScheduler.schedule(context, blockId, blockName, config)
-        
-}
+        }
     }
 }

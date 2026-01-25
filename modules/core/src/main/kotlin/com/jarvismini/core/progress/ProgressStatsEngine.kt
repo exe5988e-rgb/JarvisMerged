@@ -15,9 +15,20 @@ object ProgressStatsEngine {
     }
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks()
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
+        // ✅ Fetch all registered blocks
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
+
+        // Auto-register any block that appears in ProgressEngine but not in store
+        val todayBlocks = ProgressRepository.getTodayBlocks()
+        todayBlocks.forEach { block ->
+            if (!registered.contains(block.id)) {
+                registerBlock(context, block.id)
+            }
+        }
+
+        val total = todayBlocks.size
+        val completedCount = todayBlocks.count { it.completed }
 
         val today = SimpleDateFormat(
             "yyyy-MM-dd",
@@ -29,6 +40,5 @@ object ProgressStatsEngine {
             totalBlocks = total,
             completedBlocks = completedCount
         )
-
-}
+    }
 }
