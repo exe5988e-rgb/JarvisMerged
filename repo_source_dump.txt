@@ -565,21 +565,17 @@ import android.content.Context
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.routine.RoutineProvider
 
+/**
+ * Initializes all routines and registers them with ProgressRepository.
+ */
 object ProgressInitializer {
-
     fun registerAllBlocks(context: Context) {
+        // Load routines from assets using RoutineProvider
         val routines = RoutineProvider.getAllRoutines(context)
-
         routines.forEach { routine ->
-            try {
-                // Only register enabled routines with a trigger
-                if (routine.enabled && routine.trigger.time.isNotBlank()) {
-                    ProgressRepository.register(context, routine.id, routine.trigger.time)
-                }
-            } catch (e: Exception) {
-                // Log and skip routines with missing or malformed triggers
-                android.util.Log.w("ProgressInitializer", "Skipping routine ${routine.id}: ${e.message}")
-            }
+            // Ensure trigger time exists
+            val scheduledTime = routine.trigger?.time ?: "00:00"
+            ProgressRepository.register(context, routine.id, scheduledTime)
         }
     }
 }
@@ -3616,17 +3612,18 @@ import com.jarvismini.core.routine.model.Routine
 
 /**
  * Executes routines and reports completion to ProgressEngine.
- * Currently stubbed: routine actions are ignored until defined.
  */
 class RoutineExecutor(
     private val context: Context
 ) {
 
     fun execute(routine: Routine) {
-        // TODO: Implement action execution when Routine.actions exists
-        // Currently skipping actions for compilation purposes
+        // Execute all actions in the routine
+        routine.actions.forEach { action ->
+            ActionDispatcher.dispatch(context, action)
+        }
 
-        // ✅ Mark routine as complete in ProgressEngine
+        // Mark the routine complete
         ProgressEngine.markComplete(context, routine.id)
     }
 }
@@ -3637,45 +3634,28 @@ package com.jarvismini.core.routine
 
 import android.content.Context
 import com.jarvismini.core.routine.model.Routine
-import com.jarvismini.core.routine.model.Trigger
-import org.json.JSONObject
+import com.jarvismini.core.util.JsonUtil
 
+/**
+ * Loads all routines from assets/routines/*.json
+ */
 object RoutineProvider {
 
     fun getAllRoutines(context: Context): List<Routine> {
+        val routineFiles = listOf(
+            "progress_config.json",
+            "sunday_routine.json",
+            "work_routine.json"
+        )
+
         val routines = mutableListOf<Routine>()
-
-        // list all JSON files in assets/routines/
-        val files = context.assets.list("routines") ?: return emptyList()
-
-        for (file in files) {
-            val jsonStr = context.assets.open("routines/$file")
-                .bufferedReader()
-                .use { it.readText() }
-
-            val r = JSONObject(jsonStr)
-
-            // Parse trigger object
-            val triggerObj = r.getJSONObject("trigger")
-            val trigger = Trigger(
-                type = triggerObj.getString("type"),
-                time = triggerObj.getString("time"),
-                days = triggerObj.getJSONArray("days").let { array ->
-                    List(array.length()) { idx -> array.getString(idx) }
-                }
-            )
-
-            // Add routine to list
-            routines.add(
-                Routine(
-                    id = r.getString("id"),
-                    name = r.getString("name"),
-                    enabled = r.getBoolean("enabled"),
-                    trigger = trigger
-                )
-            )
+        routineFiles.forEach { fileName ->
+            val jsonText = JsonUtil.loadJsonFromAssets(context, "routines/$fileName")
+            jsonText?.let {
+                val parsed = JsonUtil.fromJsonArray<Routine>(it)
+                routines.addAll(parsed)
+            }
         }
-
         return routines
     }
 }
@@ -3756,15 +3736,27 @@ object AssistantTTS {
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
 package com.jarvismini.core.util
 
+import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
+/**
+ * Utility for loading JSON and parsing to objects.
+ */
 object JsonUtil {
-    val gson = Gson() // Made public to fix inline reified access error
 
-    fun <T> toJson(obj: T): String = gson.toJson(obj)
+    fun loadJsonFromAssets(context: Context, assetPath: String): String? {
+        return try {
+            context.assets.open(assetPath).bufferedReader().use { it.readText() }
+        } catch (e: Exception) {
+            null
+        }
+    }
 
-    inline fun <reified T> fromJson(json: String): T =
-        gson.fromJson(json, T::class.java)
+    inline fun <reified T> fromJsonArray(json: String): List<T> {
+        val type = object : TypeToken<List<T>>() {}.type
+        return Gson().fromJson(json, type)
+    }
 }
 
 
@@ -4425,18 +4417,10 @@ class ProgressOrchestrator(
     ) {
         if (completed) {
             ProgressEngine.markComplete(context, blockId)
-
-            AssistantTTS.speak(
-                context,
-                "Great. Task marked as complete."
-            )
+            AssistantTTS.speak(context, "Great. Task marked as complete.")
         } else {
             ProgressEngine.markIncomplete(context, blockId)
-
-            AssistantTTS.speak(
-                context,
-                "Okay. I will remind you again in thirty minutes."
-            )
+            AssistantTTS.speak(context, "Okay. I will remind you again in thirty minutes.")
 
             scheduler.schedule(
                 delayMs = 30 * 60 * 1000L
