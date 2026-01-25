@@ -1,3 +1,10 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressBlock(
+    val id: String,
+    val completed: Boolean
+)
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 package com.jarvismini.core.progress
 
@@ -46,7 +53,6 @@ object ProgressStore {
             .toSet()
     }
 
-    // ✅ FIXED: matches actual ProgressBlock signature
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         val registered = getRegisteredBlocks(context)
         val completed = getCompletedBlocks(context)
@@ -56,6 +62,156 @@ object ProgressStore {
                 id = id,
                 completed = completed.contains(id)
             )
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressRepository {
+
+    fun register(context: Context, blockId: String) {
+        ProgressStore.register(context, blockId)
+    }
+
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
+    }
+
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        return ProgressStore.getTodayBlocks(context)
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressStats(
+    val date: String,
+    val totalBlocks: Int,
+    val completedBlocks: Int
+) {
+    val completionPercent: Int
+        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
+
+object ProgressStatsEngine {
+
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks(context)
+        val total = blocks.size
+        val completed = blocks.count { it.completed }
+
+        val today = SimpleDateFormat(
+            "yyyy-MM-dd",
+            Locale.getDefault()
+        ).format(Date())
+
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completed
+        )
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.jarvismini.core.tts.AssistantTTS
+
+class MissedTaskChecker(private val context: Context) {
+
+    fun checkAndRemind() {
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
+
+        val missed = registered - completed
+
+        missed.forEach { blockId ->
+            AssistantTTS.speak(
+                context.applicationContext,
+                "You missed task ${blockId.replace('_', ' ')}."
+            )
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/tts/AssistantTTS.kt =====
+package com.jarvismini.core.tts
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import java.util.Locale
+
+object AssistantTTS {
+
+    private var tts: TextToSpeech? = null
+
+    fun speak(context: Context, message: String) {
+        if (tts == null) {
+            tts = TextToSpeech(context.applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    tts?.language = Locale.US
+                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis_tts")
+                }
+            }
+        } else {
+            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis_tts")
+        }
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
+package com.jarvismini.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.ProgressBlock
+
+@Composable
+fun ChecklistItem(
+    block: ProgressBlock,
+    onComplete: () -> Unit,
+    onIncomplete: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+
+            Text(
+                text = block.id.replace("_", " "),
+                modifier = Modifier.weight(1f)
+            )
+
+            if (!block.completed) {
+                TextButton(onClick = onComplete) {
+                    Text("Done")
+                }
+                TextButton(onClick = onIncomplete) {
+                    Text("Missed")
+                }
+            } else {
+                Text("✅ Completed")
+            }
         }
     }
 }
