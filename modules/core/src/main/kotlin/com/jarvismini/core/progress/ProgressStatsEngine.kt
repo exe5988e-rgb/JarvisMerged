@@ -7,9 +7,9 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
+        val blocks = ProgressStore.getTodayBlocks(context)
         val total = blocks.size
-        val completedCount = blocks.count { block -> block.completed }
+        val completed = blocks.count { it.completed }
 
         val today = SimpleDateFormat(
             "yyyy-MM-dd",
@@ -19,8 +19,7 @@ object ProgressStatsEngine {
         return ProgressStats(
             date = today,
             totalBlocks = total,
-            completedBlocks = completedCount
+            completedBlocks = completed
         )
-  
-}
+    }
 }

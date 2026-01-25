@@ -10,14 +10,14 @@ object AssistantTTS {
 
     fun speak(context: Context, message: String) {
         if (tts == null) {
-            tts = TextToSpeech(context.applicationContext) {
-                if (it == TextToSpeech.SUCCESS) {
+            tts = TextToSpeech(context.applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
                     tts?.language = Locale.US
-                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis_tts")
                 }
             }
         } else {
-            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis_tts")
         }
     }
 }

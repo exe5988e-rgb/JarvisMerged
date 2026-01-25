@@ -45,7 +45,6 @@ object ProgressStore {
             .toSet()
     }
 
-    // ✅ FIXED: matches actual ProgressBlock signature
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         val registered = getRegisteredBlocks(context)
         val completed = getCompletedBlocks(context)
