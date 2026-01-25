@@ -5,22 +5,23 @@ import android.content.Context
 object ProgressRepository {
 
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        val completed = ProgressStore.getCompletedBlocks(context)
+        // Ensure engine state is loaded
+        ProgressEngine.ensureLoaded(context)
 
-        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
+        return ProgressState.entries.map { entry ->
             ProgressBlock(
-                id = blockId,
-                name = blockId.replace("_", " ").uppercase(),
-                completed = completed.contains(blockId)
+                id = entry.blockId,
+                name = entry.name,
+                completed = entry.completed
             )
         }
     }
 
     fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
+        ProgressEngine.markComplete(context, blockId)
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        ProgressStore.markIncomplete(context, blockId)
+        ProgressEngine.markIncomplete(context, blockId)
     }
 }
