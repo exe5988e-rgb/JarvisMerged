@@ -1,3 +1,4 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
 object ProgressRepository {
@@ -19,5 +20,5 @@ object ProgressRepository {
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
     
-}
+    }
 }
