@@ -1,15 +1,374 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:16:23 Unresolved reference: markIncomplete
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:12:38 Type mismatch: inferred type is Unit but Boolean was expected
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:12:43 Unresolved reference: completed
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:15:70 Unresolved reference: time
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 38s
+BUILD FAILED in 1m 2s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+1	package com.jarvismini
+2
+3	import android.content.Context
+4	import com.jarvismini.core.progress.ProgressRepository
+5	import com.jarvismini.core.routine.RoutineProvider
+6
+7	/**
+8	 * Auto-register all routines as checklist blocks on app start.
+9	 */
+10	object ProgressInitializer {
+11	    fun registerAllBlocks(context: Context) {
+12	        val routines = RoutineProvider.getAllRoutines(context)
+13	        routines.forEach { routine ->
+14	            // register with scheduled time
+>>>>> ERROR HERE
+15	            ProgressRepository.register(context, routine.id, routine.time)
+16	        }
+17	    }
+18	}
+
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
+1	package com.jarvismini.automation
+2
+3	class AutomationEngine {
+4
+>>>>> ERROR HERE
+5	    fun generateReply(input: String): String {
+6	        // STUB: real logic will come later
+7	        return ""
+8	    }
+9
+10	}
+
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationStubs.kt =====
+1	package com.jarvismini.automation
+2
+3	fun ChatAllowed(): Boolean = false
+>>>>> ERROR HERE
+4	fun generateReply(text: String): String = ""
+
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ChatOpener.kt =====
+1	package com.jarvismini.automation
+2
+3	import android.accessibilityservice.AccessibilityService
+4	import android.util.Log
+5	import android.view.accessibility.AccessibilityNodeInfo
+6
+7	object ChatOpener {
+8
+9	    private const val TAG = "JarvisMini-ChatOpener"
+10
+11	    private val unreadBadgeIds = listOf(
+12	        "com.whatsapp:id/unread_indicator",
+13	        "com.whatsapp:id/unread_count",
+14	        "com.whatsapp:id/message_count"
+15	    )
+16
+>>>>> ERROR HERE
+17	    fun openChat(service: AccessibilityService, root: AccessibilityNodeInfo?) {
+18	        root ?: return
+19
+20	        // Try “new message”
+21	        val nodes = root.findAccessibilityNodeInfosByText("new message")
+22	        if (!nodes.isNullOrEmpty()) {
+23	            nodes.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
+24	            Log.i(TAG, "Opened chat via 'new message'")
+25	            return
+26	        }
+27
+28	        // Try unread badge
+29	        for (id in unreadBadgeIds) {
+30	            try {
+31	                val badges = root.findAccessibilityNodeInfosByViewId(id)
+32	                if (!badges.isNullOrEmpty()) {
+33	                    badges.first().performAction(AccessibilityNodeInfo.ACTION_CLICK)
+34	                    Log.i(TAG, "Opened chat via unread badge: $id")
+35	                    return
+36	                }
+37	            } catch (_: Exception) {}
+38	        }
+39	    }
+40	}
+
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/SmartAutoReply.kt =====
+1	package com.jarvismini.automation
+2
+3	/**
+4	 * STUB implementation.
+5	 * Engine / LLM will be wired later.
+6	 */
+7	object SmartAutoReply {
+8
+>>>>> ERROR HERE
+9	    suspend fun generate(message: String): String {
+10	        // TODO: connect to engine later
+11	        return ""
+12	    }
+13	}
+
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/orchestrator/AutoReplyOrchestrator.kt =====
+1	package com.jarvismini.automation.orchestrator
+2
+3	import com.jarvismini.automation.decision.ReplyDecision
+4	import com.jarvismini.automation.input.AutoReplyInput
+5	import com.jarvismini.core.AssistantVoice
+6	import com.jarvismini.core.JarvisMode
+7	import com.jarvismini.core.JarvisState
+8
+9	/**
+10	 * Orchestrates automation decisions for incoming messages.
+11	 * Pure decision layer — no hardcoded user-facing text.
+12	 */
+13	object AutoReplyOrchestrator {
+14
+>>>>> ERROR HERE
+15	    fun handle(input: AutoReplyInput): ReplyDecision {
+16	        return when (JarvisState.currentMode) {
+17
+18	            JarvisMode.DRIVING ->
+19	                ReplyDecision.AutoReply(
+20	                    message = AssistantVoice.driving()
+21	                )
+22
+23	            JarvisMode.WORK ->
+24	                ReplyDecision.AutoReply(
+25	                    message = AssistantVoice.working()
+26	                )
+27
+28	            JarvisMode.SLEEP ->
+29	                ReplyDecision.AutoReply(
+30	                    message = AssistantVoice.unavailable("sleeping")
+31	                )
+32
+33	            JarvisMode.FOCUS ->
+34	                ReplyDecision.AutoReply(
+35	                    message = AssistantVoice.unavailable("focus mode")
+36	                )
+37
+38	            JarvisMode.NORMAL ->
+39	                ReplyDecision.NoReply
+40	        }
+41	    }
+42
+43	    fun init() {
+44	        // reserved for future signal wiring
+45	    }
+46	}
+
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/JarvisCallScreeningService.kt =====
+1	package com.jarvismini.callhandler
+2
+3	import android.net.Uri
+4	import android.provider.ContactsContract
+5	import android.telecom.Call
+6	import android.telecom.CallScreeningService
+7	import android.telephony.SmsManager
+8	import android.util.Log
+9	import com.jarvismini.automation.decision.ReplyDecision
+10	import com.jarvismini.automation.input.AutoReplyInput
+11	import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+12	import com.jarvismini.core.JarvisMode
+13	import com.jarvismini.core.JarvisState
+14
+15	class JarvisCallScreeningService : CallScreeningService() {
+16
+17	    override fun onScreenCall(details: Call.Details) {
+18	        val number = details.handle?.schemeSpecificPart ?: return
+19
+20	        Log.d("JarvisCall", "Incoming call from $number")
+21
+22	        // Jarvis NORMAL → allow call
+23	        if (JarvisState.currentMode == JarvisMode.NORMAL) {
+24	            allow(details)
+25	            return
+26	        }
+27
+28	        // Contacts only
+29	        if (!isContact(number)) {
+30	            allow(details)
+31	            return
+32	        }
+33
+34	        // Use SAME AutoReplyInput contract as rest of repo
+35	        val decision = AutoReplyOrchestrator.handle(
+36	            AutoReplyInput(
+37	                messageText = "Incoming call",
+38	                isFromOwner = false
+39	            )
+40	        )
+41
+42	        if (decision is ReplyDecision.AutoReply) {
+>>>>> ERROR HERE
+43	            SmsManager.getDefault()
+44	                .sendTextMessage(number, null, decision.message, null, null)
+45
+46	            reject(details)
+47	        } else {
+48	            allow(details)
+49	        }
+50	    }
+51
+52	    private fun allow(details: Call.Details) {
+53	        respondToCall(
+54	            details,
+55	            CallResponse.Builder().build()
+56	        )
+57	    }
+58
+59	    private fun reject(details: Call.Details) {
+60	        respondToCall(
+61	            details,
+62	            CallResponse.Builder()
+63	                .setDisallowCall(true)
+64	                .setRejectCall(true)
+65	                .setSkipNotification(true)
+66	                .setSkipCallLog(true)
+67	                .build()
+68	        )
+69	    }
+70
+71	    private fun isContact(number: String): Boolean {
+72	        val uri = Uri.withAppendedPath(
+73	            ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+74	            Uri.encode(number)
+75	        )
+76
+77	        contentResolver.query(uri, null, null, null, null).use { cursor ->
+78	            return cursor?.moveToFirst() == true
+79	        }
+80	    }
+81	}
+
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsAutoReplyService.kt =====
+1	package com.jarvismini.callhandler
+2
+3	import android.content.Context
+4	import android.util.Log
+5
+6	object SmsAutoReplyService {
+7
+8	    private const val AUTO_REPLY =
+9	        "Hello from Aamir sir, Jarvis here. He’ll get back to you shortly."
+10
+>>>>> ERROR HERE
+11	    fun reply(context: Context, number: String, incomingText: String) {
+12	        SmsSender.send(context, number, AUTO_REPLY)
+13	        Log.d("CALL-HANDLER", "Auto-reply sent to $number")
+14	    }
+15	}
+
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsSender.kt =====
+1	package com.jarvismini.callhandler
+2
+3	import android.telephony.SmsManager
+4
+5	object SmsSender {
+6
+>>>>> ERROR HERE
+7	    fun send(context: android.content.Context, number: String, text: String) {
+>>>>> ERROR HERE
+8	        val manager = SmsManager.getDefault()
+9	        manager.sendTextMessage(number, null, text, null, null)
+10	    }
+11	}
+
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/accessibility/CallAccessibilityService.kt =====
+1	package com.jarvismini.callhandler.accessibility
+2
+3	import android.accessibilityservice.AccessibilityService
+4	import android.view.accessibility.AccessibilityEvent
+5	import android.content.Intent
+6	import android.os.Build
+7	import android.util.Log
+8	import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+9	import com.jarvismini.automation.input.AutoReplyInput
+10	import com.jarvismini.automation.decision.ReplyDecision
+11	import com.jarvismini.core.JarvisMode
+12	import com.jarvismini.core.JarvisState
+13
+14	class CallAccessibilityService : AccessibilityService() {
+15
+16	    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+17	        if (event == null) return
+18
+19	        if (
+20	            event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+21	            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+22	        ) return
+23
+>>>>> ERROR HERE
+24	        val text = event.text?.joinToString(" ") ?: return
+25
+26	        if (
+27	            !text.contains("incoming", ignoreCase = true) &&
+28	            !text.contains("calling", ignoreCase = true)
+29	        ) return
+30
+31	        Log.d("CALL-A11Y", "Call UI detected: $text")
+32
+33	        if (JarvisState.currentMode == JarvisMode.NORMAL) return
+34
+35	        val number = extractPhoneNumber(text) ?: return
+36
+37	        val decision = AutoReplyOrchestrator.handle(
+38	            AutoReplyInput(
+39	                messageText = "Incoming call",
+40	                isFromOwner = false
+41	            )
+42	        )
+43
+44	        if (decision !is ReplyDecision.AutoReply) return
+45
+46	        val intent = Intent().apply {
+47	            setClassName(
+48	                applicationContext.packageName,
+49	                "com.jarvismini.service.CallAutoReplyService"
+50	            )
+51	            putExtra("extra_number", number)
+52	            putExtra("extra_message", decision.message)
+53	        }
+54
+55	        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+56	            applicationContext.startForegroundService(intent)
+57	        } else {
+58	            applicationContext.startService(intent)
+59	        }
+60	    }
+61
+62	    override fun onInterrupt() {}
+63
+64	    private fun extractPhoneNumber(text: String): String? {
+65	        val regex = Regex("(\\+?\\d{10,13})")
+66	        return regex.find(text)?.value
+67	    }
+68	}
+
+//===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/receiver/CallReceiver.kt =====
+1	package com.jarvismini.callhandler.receiver
+2
+3	import android.content.BroadcastReceiver
+4	import android.content.Context
+5	import android.content.Intent
+6	import android.telephony.TelephonyManager
+7	import com.jarvismini.callhandler.logic.CallHandlerEngine
+8
+9	class CallReceiver : BroadcastReceiver() {
+10
+11	    override fun onReceive(context: Context, intent: Intent) {
+12	        if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
+13
+14	        val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+>>>>> ERROR HERE
+15	        val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+16
+17	        if (state == TelephonyManager.EXTRA_STATE_RINGING && !number.isNullOrBlank()) {
+18	            CallHandlerEngine.handleIncomingCall(context, number)
+19	        }
+20	    }
+21	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
 1	package com.jarvismini.core.progress
@@ -26,40 +385,28 @@ BUILD FAILED in 38s
 12	        ProgressStore.markComplete(context, blockId)
 13	    }
 14
-15	    fun markIncomplete(context: Context, blockId: String, blockName: String) {
 >>>>> ERROR HERE
+15	    fun markIncomplete(context: Context, blockId: String, blockName: String) {
 16	        ProgressStore.markIncomplete(context, blockId)
 17
 18	}
 19	}
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-1	package com.jarvismini.core.progress
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+1	package com.jarvismini.core.routine
 2
 3	import android.content.Context
-4	import java.text.SimpleDateFormat
-5	import java.util.*
-6
-7	object ProgressStatsEngine {
-8
-9	    fun getTodayStats(context: Context): ProgressStats {
-10	        val blocks = ProgressStore.getTodayBlocks(context)
-11	        val total = blocks.size
+4	import com.jarvismini.core.routine.model.RoutineAction
+5
+6	/**
+7	 * Stub dispatcher for routine actions.
+8	 */
+9	object ActionDispatcher {
 >>>>> ERROR HERE
-12	        val completed = blocks.count { it.completed }
-13
-14	        val today = SimpleDateFormat(
-15	            "yyyy-MM-dd",
-16	            Locale.getDefault()
-17	        ).format(Date())
-18
-19	        return ProgressStats(
-20	            date = today,
-21	            totalBlocks = total,
-22	            completedBlocks = completed
-23	        )
-24	    }
-25	}
+10	    fun dispatch(context: Context, action: RoutineAction) {
+11	        // Stub — logic will expand later
+12	    }
+13	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
