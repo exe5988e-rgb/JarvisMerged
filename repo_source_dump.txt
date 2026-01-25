@@ -1044,9 +1044,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
-import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.ChecklistItem
 import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.ChecklistItem
+import com.jarvismini.ui.JarvisChatScreen
 
 enum class MainTab(val title: String) {
     Chat("Chat"),
@@ -1057,7 +1057,7 @@ enum class MainTab(val title: String) {
 fun MainScreen() {
     val context = LocalContext.current
 
-    // Register all routine blocks once
+    // Register routine blocks once
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
@@ -1065,11 +1065,11 @@ fun MainScreen() {
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
-    // Load checklist blocks when checklist tab opens
+    // Load checklist + voice summary
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
-            // Voice summary
+
             val stats = ProgressStatsEngine.getTodayStats(context)
             AssistantTTS.speak(
                 context,
@@ -1117,6 +1117,7 @@ private fun ChecklistScreenWithStats(
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(modifier = Modifier.fillMaxSize()) {
+
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -1132,23 +1133,20 @@ private fun ChecklistScreenWithStats(
                 ChecklistItem(
                     block = block,
                     onComplete = {
+                        // ✅ Cancels reminder internally
                         ProgressRepository.markCompleted(context, block.id)
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
+                        // ✅ Schedules reminder internally
                         ProgressRepository.markIncomplete(context, block.id, block.name)
+
                         AssistantTTS.speak(
                             context,
                             "You missed task ${block.name}. I will remind you in 30 minutes."
                         )
+
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
-                        // Schedule retry using your scheduler
-                        DelayedTaskScheduler.schedule(30 * 60 * 1000L) {
-                            AssistantTTS.speak(
-                                context,
-                                "Reminder: Please complete task ${block.name}."
-                            )
-                        }
                     }
                 )
             }
@@ -3326,36 +3324,23 @@ object ProgressConfigLoader {
 package com.jarvismini.core.progress
 
 import android.content.Context
+import com.jarvismini.engine.progress.AlarmManagerRetry
 
 object ProgressEngine {
 
-    fun markComplete(blockId: String) {
-        markCompleteInternal(null, blockId)
+    fun markComplete(context: Context, blockId: String) {
+        // 1️⃣ Persist completion
+        ProgressStore.markComplete(context, blockId)
+
+        // 2️⃣ 🛑 CANCEL any scheduled reminder
+        AlarmManagerRetry.cancel(context, blockId)
     }
 
-    fun markIncomplete(blockId: String, blockName: String) {
-        markIncompleteInternal(null, blockId, blockName)
-    }
-
-    fun markComplete(context: Context?, blockId: String) {
-        markCompleteInternal(context, blockId)
-    }
-
-    fun markIncomplete(context: Context?, blockId: String, blockName: String) {
-        markIncompleteInternal(context, blockId, blockName)
-    }
-
-    private fun markCompleteInternal(context: Context?, blockId: String) {
-        context?.let { ProgressStore.markComplete(it, blockId) }
-    }
-
-    private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
-        context?.let { ProgressStore.markIncomplete(it, blockId) }
-    }
-
-    fun onBlockCompleted(blockId: String, blockName: String) {
-        markComplete(blockId)
-    }
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+        // scheduling handled elsewhere
+  
+}
 }
 
 
@@ -3375,40 +3360,16 @@ package com.jarvismini.core.progress
 
 import android.content.Context
 
-/**
- * Repository for managing daily progress blocks.
- * Provides context-aware and context-free methods for UI and engine.
- */
 object ProgressRepository {
-
-    fun getTodayBlocks(context: Context? = null): List<ProgressBlock> {
-        val registered = ProgressStore.getRegisteredBlocks(context ?: throw IllegalStateException("Context required"))
-        val completed = ProgressStore.getCompletedBlocks(context ?: throw IllegalStateException("Context required"))
-
-        return registered.map { blockId ->
-            ProgressBlock(
-                id = blockId,
-                name = blockId,
-                completed = completed.contains(blockId)
-            )
-        }
-    }
-
-    fun markCompleted(blockId: String) {
-        ProgressEngine.markComplete(blockId)
-    }
 
     fun markCompleted(context: Context, blockId: String) {
         ProgressEngine.markComplete(context, blockId)
     }
 
-    fun markIncomplete(blockId: String, blockName: String) {
-        ProgressEngine.markIncomplete(blockId, blockName)
-    }
-
     fun markIncomplete(context: Context, blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(context, blockId, blockName)
-    }
+   
+}
 }
 
 
