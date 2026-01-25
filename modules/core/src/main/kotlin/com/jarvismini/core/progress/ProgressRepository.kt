@@ -1,15 +1,17 @@
 package com.jarvismini.core.progress
 
+import android.content.Context
+
 /**
  * Repository for managing daily progress blocks.
- * Provides context-free methods for UI layer to query and update block status.
+ * Provides context-aware and context-free methods for UI and engine.
  */
 object ProgressRepository {
 
-    fun getTodayBlocks(): List<ProgressBlock> {
+    fun getTodayBlocks(context: Context? = null): List<ProgressBlock> {
         // ✅ Get all registered blocks for today
-        val registered = ProgressStore.getRegisteredBlocks()
-        val completed = ProgressStore.getCompletedBlocks()
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
 
         return registered.map { blockId ->
             ProgressBlock(

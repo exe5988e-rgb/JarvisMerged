@@ -4,6 +4,9 @@ import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Engine for generating progress stats.
+ */
 object ProgressStatsEngine {
 
     fun registerBlock(context: Context, blockId: String) {
@@ -22,7 +25,6 @@ object ProgressStatsEngine {
         val blocks = ProgressRepository.getTodayBlocks(context)
         val total = blocks.size
         val completedCount = blocks.count { it.completed }
-
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
         return ProgressStats(
@@ -30,6 +32,5 @@ object ProgressStatsEngine {
             totalBlocks = total,
             completedBlocks = completedCount
         )
-
     }
 }

@@ -3,14 +3,11 @@ package com.jarvismini.core.progress
 import android.content.Context
 
 /**
- * Engine responsible for marking progress blocks as complete/incomplete.
- * Context-dependent methods for scheduling, notifications, and persistence.
+ * Engine for marking progress blocks complete/incomplete.
  */
 object ProgressEngine {
 
-    // Context-free calls for UI (via ProgressRepository)
     fun markComplete(blockId: String) {
-        // Call internal method with null context or default context if needed
         markCompleteInternal(null, blockId)
     }
 
@@ -18,7 +15,6 @@ object ProgressEngine {
         markIncompleteInternal(null, blockId, blockName)
     }
 
-    // Context-aware internal methods for engine/scheduler usage
     fun markComplete(context: Context?, blockId: String) {
         markCompleteInternal(context, blockId)
     }
@@ -27,12 +23,17 @@ object ProgressEngine {
         markIncompleteInternal(context, blockId, blockName)
     }
 
-    // Private internal implementation
     private fun markCompleteInternal(context: Context?, blockId: String) {
         // TODO: persist completion, notify if context available
     }
 
     private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
         // TODO: persist incompletion, notify if context available
+    }
+
+    // ✅ New method for RoutineExecutor
+    fun onBlockCompleted(blockId: String, blockName: String) {
+        markComplete(blockId)
+        // Could also schedule reminders or trigger events here
     }
 }
