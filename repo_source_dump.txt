@@ -3237,14 +3237,11 @@ package com.jarvismini.core.progress
 import android.content.Context
 
 /**
- * Engine responsible for marking progress blocks as complete/incomplete.
- * Context-dependent methods for scheduling, notifications, and persistence.
+ * Engine for marking progress blocks complete/incomplete.
  */
 object ProgressEngine {
 
-    // Context-free calls for UI (via ProgressRepository)
     fun markComplete(blockId: String) {
-        // Call internal method with null context or default context if needed
         markCompleteInternal(null, blockId)
     }
 
@@ -3252,7 +3249,6 @@ object ProgressEngine {
         markIncompleteInternal(null, blockId, blockName)
     }
 
-    // Context-aware internal methods for engine/scheduler usage
     fun markComplete(context: Context?, blockId: String) {
         markCompleteInternal(context, blockId)
     }
@@ -3261,13 +3257,18 @@ object ProgressEngine {
         markIncompleteInternal(context, blockId, blockName)
     }
 
-    // Private internal implementation
     private fun markCompleteInternal(context: Context?, blockId: String) {
         // TODO: persist completion, notify if context available
     }
 
     private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
         // TODO: persist incompletion, notify if context available
+    }
+
+    // ✅ New method for RoutineExecutor
+    fun onBlockCompleted(blockId: String, blockName: String) {
+        markComplete(blockId)
+        // Could also schedule reminders or trigger events here
     }
 }
 
@@ -3286,16 +3287,18 @@ data class ProgressEntry(
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
+import android.content.Context
+
 /**
  * Repository for managing daily progress blocks.
- * Provides context-free methods for UI layer to query and update block status.
+ * Provides context-aware and context-free methods for UI and engine.
  */
 object ProgressRepository {
 
-    fun getTodayBlocks(): List<ProgressBlock> {
+    fun getTodayBlocks(context: Context? = null): List<ProgressBlock> {
         // ✅ Get all registered blocks for today
-        val registered = ProgressStore.getRegisteredBlocks()
-        val completed = ProgressStore.getCompletedBlocks()
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
 
         return registered.map { blockId ->
             ProgressBlock(
@@ -3347,6 +3350,9 @@ import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Engine for generating progress stats.
+ */
 object ProgressStatsEngine {
 
     fun registerBlock(context: Context, blockId: String) {
@@ -3365,7 +3371,6 @@ object ProgressStatsEngine {
         val blocks = ProgressRepository.getTodayBlocks(context)
         val total = blocks.size
         val completedCount = blocks.count { it.completed }
-
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
         return ProgressStats(
@@ -3373,7 +3378,6 @@ object ProgressStatsEngine {
             totalBlocks = total,
             completedBlocks = completedCount
         )
-
     }
 }
 
@@ -3527,10 +3531,12 @@ import android.content.Context
 import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.Routine
 
+/**
+ * Executes a routine and updates progress when done.
+ */
 class RoutineExecutor(
     private val context: Context
 ) {
-
     fun execute(routine: Routine) {
         routine.actions.forEach { action ->
             ActionDispatcher.dispatch(context, action)
