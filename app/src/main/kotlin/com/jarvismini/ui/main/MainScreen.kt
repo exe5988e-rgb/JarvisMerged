@@ -102,19 +102,23 @@ private fun ChecklistScreenWithStats(
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
-                        AssistantTTS.speak(
-                            context,
-                            "You missed task ${block.name}. I will remind you in 30 minutes."
-                        )
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
-                        // Schedule retry using your scheduler
-                        DelayedTaskScheduler.schedule(30 * 60 * 1000L) {
-                            AssistantTTS.speak(
-                                context,
-                                "Reminder: Please complete task ${block.name}."
-                            )
-                        }
+    ProgressRepository.markIncomplete(context, block.id, block.name)
+
+    AssistantTTS.speak(
+        context,
+        "You missed task ${block.name}. I will remind you in 30 minutes."
+    )
+
+    onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+
+    AlarmManagerRetry.schedule(
+        context = context,
+        blockId = block.id,
+        blockName = block.name,
+        delayMinutes = 30
+    )
+}
+
                     }
                 )
             }
