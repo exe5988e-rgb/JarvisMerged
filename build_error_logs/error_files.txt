@@ -1,44 +1,88 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:7:60 Unresolved reference: JarvisApp
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:8:58 Unresolved reference: JarvisApp
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:33:41 Type mismatch: inferred type is String but Context was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:33:41 No value passed for parameter 'blockId'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:40:43 Type mismatch: inferred type is String but Context was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:40:52 No value passed for parameter 'blockName'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 33s
+BUILD FAILED in 39s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-1	package com.jarvismini.core.progress
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+1	package com.jarvismini.core.routine
 2
-3	object ProgressRepository {
-4
-5	    fun getTodayBlocks(): List<ProgressBlock> {
-6	        // ✅ Get all registered blocks for today
+3	import android.content.Context
+4	import com.jarvismini.core.routine.model.RoutineAction
+5
+6	object ActionDispatcher {
+7
 >>>>> ERROR HERE
-7	        val registered = ProgressStore.getRegisteredBlocks(JarvisApp.context)
->>>>> ERROR HERE
-8	        val completed = ProgressStore.getCompletedBlocks(JarvisApp.context)
-9
-10	        return registered.map { blockId ->
-11	            ProgressBlock(
-12	                id = blockId,
-13	                name = blockId, // Optionally map to a proper display name
-14	                completed = completed.contains(blockId)
-15	            )
-16	        }
-17	    }
-18
-19	    fun markCompleted(blockId: String) {
-20	        ProgressEngine.markComplete(blockId)
-21	    }
-22
-23	    fun markIncomplete(blockId: String, blockName: String) {
-24	        ProgressEngine.markIncomplete(blockId, blockName)
+8	    fun dispatch(context: Context, action: RoutineAction) {
+9	        // Stub — logic will expand later
+10	    }
+11	}
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+1	package com.jarvismini.engine.progress
+2
+3	import android.content.Context
+4	import com.jarvismini.core.notifications.ProgressNotifier
+5	import com.jarvismini.core.progress.ProgressEngine
+6	import com.jarvismini.core.tts.AssistantTTS
+7	import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+8
+9	class ProgressOrchestrator(
+10	    private val context: Context,
+11	    private val scheduler: DelayedTaskScheduler
+12	) {
+13
+14	    fun prompt(blockId: String, blockName: String) {
+15	        AssistantTTS.speak(
+16	            context,
+17	            "Did you complete $blockName?"
+18	        )
+19
+20	        ProgressNotifier.showCompletionPrompt(
+21	            context = context,
+22	            blockId = blockId,
+23	            blockName = blockName
+24	        )
 25	    }
-26	}
+26
+27	    fun onUserResponse(
+28	        blockId: String,
+29	        blockName: String,
+30	        completed: Boolean
+31	    ) {
+32	        if (completed) {
+>>>>> ERROR HERE
+33	            ProgressEngine.markComplete(blockId)
+34
+35	            AssistantTTS.speak(
+36	                context,
+37	                "Great. Task marked as complete."
+38	            )
+39	        } else {
+>>>>> ERROR HERE
+40	            ProgressEngine.markIncomplete(blockId, blockName)
+41
+42	            AssistantTTS.speak(
+43	                context,
+44	                "Okay. I will remind you again in thirty minutes."
+45	            )
+46
+47	            scheduler.schedule(
+48	                delayMs = 30 * 60 * 1000L
+49	            ) {
+50	                prompt(blockId, blockName)
+51	            }
+52	        }
+53	    }
+54	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
