@@ -1,27 +1,29 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-package com.jarvismini.core.progress
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+fun getAllRoutines(context: Context): List<Routine> {
+    val routines = mutableListOf<Routine>()
+    val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
 
-import android.content.Context
+    files.forEach { filename ->
+        if (!filename.endsWith(".json")) return@forEach
 
-object ProgressRepository {
+        try {
+            val jsonStr = context.assets
+                .open("$ROUTINES_DIR/$filename")
+                .bufferedReader()
+                .use { it.readText() }
 
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        val completed = ProgressStore.getCompletedBlocks(context)
+            val root = JSONObject(jsonStr)
 
-        return ProgressStore.getRegisteredBlocks(context).map { blockId ->
-            ProgressBlock(
-                id = blockId,
-                name = blockId.replace("_", " ").uppercase(),
-                completed = completed.contains(blockId)
-            )
+            // ✅ Skip files that aren't routine definitions
+            if (!root.has("routines")) return@forEach
+
+            val routinesArray = root.getJSONArray("routines")
+            routines.addAll(parseRoutines(routinesArray))
+
+        } catch (e: Exception) {
+            // Optional: log filename
         }
     }
 
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressStore.markIncomplete(context, blockId)
-    }
+    return routines
 }
