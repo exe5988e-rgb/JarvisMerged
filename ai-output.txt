@@ -1,3 +1,367 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
+package com.jarvismini
+
+import android.app.Application
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.TimeAnchorManager
+import com.jarvismini.core.progress.AppContextProvider
+
+class CoreApp : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+
+        // ✅ Global application context for background engines
+        AppContextProvider.appContext = applicationContext
+
+        JarvisPrefs.init(this)
+        TimeAnchorManager.init()
+        JarvisState.init(this)
+        AutoReplyOrchestrator.init()
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/AppContextProvider.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+/**
+ * Holds application context for background / engine access.
+ * Must be initialized in Application.onCreate().
+ */
+object AppContextProvider {
+    lateinit var appContext: Context
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/AlarmManagerRetry.kt =====
+package com.jarvismini.engine.progress
+
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import com.jarvismini.core.notifications.ProgressReminderReceiver
+
+/**
+ * Schedules retry reminders for missed tasks.
+ */
+object AlarmManagerRetry {
+
+    fun schedule(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        delayMinutes: Int
+    ) {
+        val alarmManager =
+            context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        val intent = Intent(context, ProgressReminderReceiver::class.java).apply {
+            putExtra("blockId", blockId)
+            putExtra("blockName", blockName)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            blockId.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val triggerAt =
+            System.currentTimeMillis() + delayMinutes * 60 * 1000L
+
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            triggerAt,
+            pendingIntent
+        )
+    }
+
+    fun cancel(context: Context, blockId: String) {
+        val intent = Intent(context, ProgressReminderReceiver::class.java)
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            blockId.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager =
+            context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        alarmManager.cancel(pendingIntent)
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressReminderReceiver.kt =====
+package com.jarvismini.core.notifications
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import com.jarvismini.core.tts.AssistantTTS
+
+/**
+ * Triggered by AlarmManager for missed-task reminders.
+ */
+class ProgressReminderReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        val blockName =
+            intent.getStringExtra("blockName") ?: "your task"
+
+        AssistantTTS.speak(
+            context.applicationContext,
+            "Reminder. You missed $blockName."
+        )
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/tts/AssistantTTS.kt =====
+package com.jarvismini.core.tts
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import java.util.Locale
+
+/**
+ * Singleton TTS engine.
+ * Safe for background + receiver usage.
+ */
+object AssistantTTS {
+
+    private var tts: TextToSpeech? = null
+    private var initialized = false
+
+    fun speak(context: Context, message: String) {
+        val appContext = context.applicationContext
+
+        if (tts == null) {
+            tts = TextToSpeech(appContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    tts?.language = Locale.US
+                    initialized = true
+                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+                }
+            }
+        } else if (initialized) {
+            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.jarvismini.core.tts.AssistantTTS
+
+/**
+ * Checks for missed tasks and announces them via TTS.
+ * Safe to call from background services or alarms.
+ */
+class MissedTaskChecker(private val context: Context) {
+
+    fun checkAndRemind() {
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
+
+        val missed = registered - completed
+
+        missed.forEach { blockId ->
+            AssistantTTS.speak(
+                context.applicationContext,
+                "You missed task $blockId. Please complete it."
+            )
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+/**
+ * Repository for managing daily progress blocks.
+ * Provides context-aware and context-free methods for UI and engine.
+ */
+object ProgressRepository {
+
+    fun getTodayBlocks(context: Context? = null): List<ProgressBlock> {
+        val registered = ProgressStore.getRegisteredBlocks(context ?: throw IllegalStateException("Context required"))
+        val completed = ProgressStore.getCompletedBlocks(context ?: throw IllegalStateException("Context required"))
+
+        return registered.map { blockId ->
+            ProgressBlock(
+                id = blockId,
+                name = blockId,
+                completed = completed.contains(blockId)
+            )
+        }
+    }
+
+    fun markCompleted(blockId: String) {
+        ProgressEngine.markComplete(blockId)
+    }
+
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressEngine.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(blockId, blockName)
+    }
+
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(context, blockId, blockName)
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
+
+object ProgressStatsEngine {
+
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressRepository.getTodayBlocks(context)
+        val total = blocks.size
+        val completedCount = blocks.count { it.completed }
+        val percent = if (total > 0) completedCount * 100 / total else 0
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completedCount,
+            completionPercent = percent
+        )
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressEngine {
+
+    fun markComplete(blockId: String) {
+        markCompleteInternal(null, blockId)
+    }
+
+    fun markIncomplete(blockId: String, blockName: String) {
+        markIncompleteInternal(null, blockId, blockName)
+    }
+
+    fun markComplete(context: Context?, blockId: String) {
+        markCompleteInternal(context, blockId)
+    }
+
+    fun markIncomplete(context: Context?, blockId: String, blockName: String) {
+        markIncompleteInternal(context, blockId, blockName)
+    }
+
+    private fun markCompleteInternal(context: Context?, blockId: String) {
+        context?.let { ProgressStore.markComplete(it, blockId) }
+    }
+
+    private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
+        context?.let { ProgressStore.markIncomplete(it, blockId) }
+    }
+
+    fun onBlockCompleted(blockId: String, blockName: String) {
+        markComplete(blockId)
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressStore {
+    private const val PREF = "progress_store"
+
+    fun register(context: Context, blockId: String) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("reg_$blockId", true)
+            .apply()
+    }
+
+    fun markComplete(context: Context, blockId: String) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("done_$blockId", true)
+            .apply()
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .remove("done_$blockId")
+            .apply()
+    }
+
+    fun getCompletedBlocks(context: Context): Set<String> =
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .filterKeys { it.startsWith("done_") }
+            .keys
+            .map { it.removePrefix("done_") }
+            .toSet()
+
+    fun getRegisteredBlocks(context: Context): Set<String> =
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .filterKeys { it.startsWith("reg_") }
+            .keys
+            .map { it.removePrefix("reg_") }
+            .toSet()
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/tts/AssistantTTS.kt =====
+package com.jarvismini.core.tts
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import java.util.Locale
+
+object AssistantTTS {
+
+    private var tts: TextToSpeech? = null
+
+    fun speak(context: Context, message: String) {
+        if (tts == null) {
+            tts = TextToSpeech(context.applicationContext) {
+                if (it == TextToSpeech.SUCCESS) {
+                    tts?.language = Locale.US
+                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+                }
+            }
+        } else {
+            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+        }
+    }
+}
+
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+package com.jarvismini.smart
+
+/**
+ * Minimal stub so module compiles.
+ * Real logic will be added later.
+ */
+object SmartFilters {
+    fun isAllowed(text: String): Boolean {
+        return true
+    }
+}
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
@@ -10,11 +374,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
-import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStatsEngine
+import com.jarvismini.core.progress.*
 import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.ChecklistItem
+import com.jarvismini.core.tts.AssistantTTS
 
 enum class MainTab(val title: String) {
     Chat("Chat"),
@@ -25,7 +388,7 @@ enum class MainTab(val title: String) {
 fun MainScreen() {
     val context = LocalContext.current
 
-    // Register all blocks once
+    // Register all routine blocks once
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
@@ -33,10 +396,16 @@ fun MainScreen() {
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
-    // ✅ FIX #1: pass context
+    // Load checklist blocks when checklist tab opens
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
+            // Voice summary
+            val stats = ProgressStatsEngine.getTodayStats(context)
+            AssistantTTS.speak(
+                context,
+                "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
+            )
         }
     }
 
@@ -94,21 +463,23 @@ private fun ChecklistScreenWithStats(
                 ChecklistItem(
                     block = block,
                     onComplete = {
-                        ProgressRepository.markCompleted(block.id)
-                        // ✅ FIX #2
-                        onBlocksUpdated(
-                            ProgressRepository.getTodayBlocks(context)
-                        )
+                        ProgressRepository.markCompleted(context, block.id)
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(
-                            blockId = block.id,
-                            blockName = block.name
+                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                        AssistantTTS.speak(
+                            context,
+                            "You missed task ${block.name}. I will remind you in 30 minutes."
                         )
-                        // ✅ FIX #3
-                        onBlocksUpdated(
-                            ProgressRepository.getTodayBlocks(context)
-                        )
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        // Schedule retry using your scheduler
+                        DelayedTaskScheduler.schedule(30 * 60 * 1000L) {
+                            AssistantTTS.speak(
+                                context,
+                                "Reminder: Please complete task ${block.name}."
+                            )
+                        }
                     }
                 )
             }
