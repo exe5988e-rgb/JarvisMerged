@@ -694,7 +694,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.progress.ProgressEngine
 
 @Composable
 fun ChecklistItem(
@@ -711,23 +710,19 @@ fun ChecklistItem(
             modifier = Modifier.padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+
             Text(
-                text = block.name,
+                text = block.id.replace("_", " "),
                 modifier = Modifier.weight(1f)
             )
 
             if (!block.completed) {
-                TextButton(onClick = {
-                    // ✅ Mark complete in ProgressEngine
-                    ProgressEngine.markComplete(block.id)
-                    onComplete()
-                }) { Text("Done") }
-
-                TextButton(onClick = {
-                    // ✅ Mark incomplete & schedule retry
-                    ProgressEngine.markIncomplete(block.id, block.name)
-                    onIncomplete()
-                }) { Text("Missed") }
+                TextButton(onClick = onComplete) {
+                    Text("Done")
+                }
+                TextButton(onClick = onIncomplete) {
+                    Text("Missed")
+                }
             } else {
                 Text("✅ Completed")
             }
@@ -3237,23 +3232,18 @@ package com.jarvismini.core.progress
 import android.content.Context
 import com.jarvismini.core.tts.AssistantTTS
 
-class MissedTaskChecker(
-    private val context: Context
-) {
+class MissedTaskChecker(private val context: Context) {
 
     fun checkAndRemind() {
-        val registered: Set<String> =
-            ProgressStore.getRegisteredBlocks(context)
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
 
-        val completed: Set<String> =
-            ProgressStore.getCompletedBlocks(context)
+        val missed = registered - completed
 
-        val missed: Set<String> = registered - completed
-
-        for (blockId in missed) {
+        missed.forEach { blockId ->
             AssistantTTS.speak(
                 context.applicationContext,
-                "You missed task $blockId. Please complete it."
+                "You missed task ${blockId.replace('_', ' ')}."
             )
         }
     }
@@ -3266,7 +3256,6 @@ package com.jarvismini.core.progress
 data class ProgressBlock(
     val id: String,
     val completed: Boolean
-
 )
 
 
@@ -3356,22 +3345,22 @@ package com.jarvismini.core.progress
 
 import android.content.Context
 
-/**
- * Repository facade for progress-related queries.
- * Keeps callers stable while storage evolves.
- */
 object ProgressRepository {
 
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        return ProgressStore.getTodayBlocks(context)
+    fun register(context: Context, blockId: String) {
+        ProgressStore.register(context, blockId)
     }
 
     fun markCompleted(context: Context, blockId: String) {
         ProgressStore.markComplete(context, blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+    fun markIncomplete(context: Context, blockId: String) {
         ProgressStore.markIncomplete(context, blockId)
+    }
+
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        return ProgressStore.getTodayBlocks(context)
     }
 }
 
@@ -3389,9 +3378,8 @@ enum class ProgressState {
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
 package com.jarvismini.core.progress
 
-// ✅ Single correct ProgressStats definition
 data class ProgressStats(
-    val date: String,              // e.g., "2026-01-24", can be set dynamically later
+    val date: String,
     val totalBlocks: Int,
     val completedBlocks: Int
 ) {
@@ -3410,9 +3398,9 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
+        val blocks = ProgressStore.getTodayBlocks(context)
         val total = blocks.size
-        val completedCount = blocks.count { block -> block.completed }
+        val completed = blocks.count { it.completed }
 
         val today = SimpleDateFormat(
             "yyyy-MM-dd",
@@ -3422,10 +3410,9 @@ object ProgressStatsEngine {
         return ProgressStats(
             date = today,
             totalBlocks = total,
-            completedBlocks = completedCount
+            completedBlocks = completed
         )
-  
-}
+    }
 }
 
 
@@ -3477,7 +3464,6 @@ object ProgressStore {
             .toSet()
     }
 
-    // ✅ FIXED: matches actual ProgressBlock signature
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         val registered = getRegisteredBlocks(context)
         val completed = getCompletedBlocks(context)
@@ -3745,14 +3731,14 @@ object AssistantTTS {
 
     fun speak(context: Context, message: String) {
         if (tts == null) {
-            tts = TextToSpeech(context.applicationContext) {
-                if (it == TextToSpeech.SUCCESS) {
+            tts = TextToSpeech(context.applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
                     tts?.language = Locale.US
-                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+                    tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis_tts")
                 }
             }
         } else {
-            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")
+            tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis_tts")
         }
     }
 }
