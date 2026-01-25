@@ -30,14 +30,14 @@ class ProgressOrchestrator(
         completed: Boolean
     ) {
         if (completed) {
-            ProgressEngine.markComplete(blockId)
+            ProgressEngine.markComplete(context, blockId)
 
             AssistantTTS.speak(
                 context,
                 "Great. Task marked as complete."
             )
         } else {
-            ProgressEngine.markIncomplete(blockId, blockName)
+            ProgressEngine.markIncomplete(context, blockId, blockName)
 
             AssistantTTS.speak(
                 context,
@@ -45,10 +45,11 @@ class ProgressOrchestrator(
             )
 
             scheduler.schedule(
-                delayMs = 30 * 60 * 1000L
+                delayMs = 30 * 60_000L
             ) {
                 prompt(blockId, blockName)
             }
         }
-    }
+
+}
 }
