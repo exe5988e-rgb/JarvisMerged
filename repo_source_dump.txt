@@ -20,6 +20,11 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── DebugBuildConfig.kt
 │   │   ├── main
 │   │   │   ├── AndroidManifest.xml
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── automation
+│   │   │   │   │   │   │   ├── WhatsAppNotificationListener.kt
 │   │   │   ├── kotlin
 │   │   │   │   ├── com
 │   │   │   │   │   ├── jarvismini
@@ -490,6 +495,128 @@ dependencies {
 </manifest>
 
 
+//===== FILE: app/src/main/java/com/jarvismini/automation/WhatsAppNotificationListener.kt =====
+package com.jarvismini.automation
+
+import android.app.Notification
+import android.app.PendingIntent
+import android.app.RemoteInput
+import android.content.Intent
+import android.os.Bundle
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import android.util.Log
+import com.jarvismini.automation.input.AutoReplyInput
+import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.automation.decision.ReplyDecision
+import java.util.concurrent.ConcurrentHashMap
+
+class WhatsAppNotificationListener : NotificationListenerService() {
+
+    companion object {
+        private const val TAG = "JARVIS-NOTIF"
+        private const val WHATSAPP = "com.whatsapp"
+
+        private const val NORMAL_COOLDOWN_MS = 30_000L
+        private const val URGENT_COOLDOWN_MS = 5 * 60 * 1000L
+
+        private val URGENT_REGEX = Regex(
+            "\\b(urgent|emergency|asap|important|immediately|call\\s*me|call\\s*now)\\b",
+            RegexOption.IGNORE_CASE
+        )
+    }
+
+    private val handledKeys = ConcurrentHashMap<String, Boolean>()
+    private val lastReplyTime = ConcurrentHashMap<String, Long>()
+    private val lastUrgentReplyTime = ConcurrentHashMap<String, Long>()
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (sbn == null) return
+        if (sbn.packageName != WHATSAPP) return
+
+        val notification = sbn.notification
+        val extras = notification.extras
+
+        if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+
+        val title = extras.getString(Notification.EXTRA_TITLE)
+        val convo = extras.getString(Notification.EXTRA_CONVERSATION_TITLE)
+
+        val isGroup =
+            extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false) ||
+            (!title.isNullOrEmpty() && !convo.isNullOrEmpty() && title != convo)
+
+        if (isGroup) return
+
+        val replyAction = notification.actions
+            ?.firstOrNull { it.remoteInputs != null }
+            ?: return
+
+        if (handledKeys.putIfAbsent(sbn.key, true) != null) return
+
+        val chatId = convo ?: title ?: return
+        val now = System.currentTimeMillis()
+
+        val messageText =
+            extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+                ?: ""
+
+        val isUrgent = URGENT_REGEX.containsMatchIn(messageText)
+
+        if (isUrgent) {
+            val last = lastUrgentReplyTime[chatId] ?: 0L
+            if (now - last < URGENT_COOLDOWN_MS) return
+            lastUrgentReplyTime[chatId] = now
+        } else {
+            val last = lastReplyTime[chatId] ?: 0L
+            if (now - last < NORMAL_COOLDOWN_MS) return
+            lastReplyTime[chatId] = now
+        }
+
+        val decision = AutoReplyOrchestrator.handle(
+            AutoReplyInput(
+                messageText = messageText,
+                isFromOwner = false
+            )
+        )
+
+        if (decision !is ReplyDecision.AutoReply) {
+            Log.d(TAG, "Jarvis mode blocks auto-reply")
+            return
+        }
+
+        sendReply(replyAction, decision.message)
+    }
+
+    private fun sendReply(action: Notification.Action, replyText: String) {
+        val fillInIntent = Intent()
+        val results = Bundle()
+
+        for (input in action.remoteInputs) {
+            results.putCharSequence(input.resultKey, replyText)
+        }
+
+        RemoteInput.addResultsToIntent(
+            action.remoteInputs,
+            fillInIntent,
+            results
+        )
+
+        try {
+            action.actionIntent.send(
+                this,
+                0,
+                fillInIntent
+            )
+            Log.d(TAG, "Jarvis auto-reply sent (stable)")
+        } catch (e: PendingIntent.CanceledException) {
+            Log.e(TAG, "Failed to send reply", e)
+        }
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/BuildConfigBridge.kt =====
 package com.jarvismini
 
@@ -562,20 +689,22 @@ class MainActivity : ComponentActivity() {
 package com.jarvismini
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressStore
 import com.jarvismini.core.routine.RoutineProvider
 
 /**
- * Initializes all routines and registers them with ProgressRepository.
+ * Auto-register all routines as checklist blocks on app start.
  */
 object ProgressInitializer {
     fun registerAllBlocks(context: Context) {
-        // Load routines from assets using RoutineProvider
+        // Load all original routines from assets
         val routines = RoutineProvider.getAllRoutines(context)
         routines.forEach { routine ->
-            // Ensure trigger time exists
-            val scheduledTime = routine.trigger?.time ?: "00:00"
-            ProgressRepository.register(context, routine.id, scheduledTime)
+            // Register each routine ID as a block
+            ProgressStore.register(context, routine.id)
+
+            // Optional: mark as incomplete initially
+            ProgressStore.markIncomplete(context, routine.id)
         }
     }
 }
@@ -1001,40 +1130,29 @@ fun ChecklistItem(
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
+    val displayName = block.id
+        .replace("_", " ")
+        .replaceFirstChar { it.uppercase() }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Text(
-                text = block.id.replace("_", " ").replaceFirstChar { it.uppercase() },
-                style = MaterialTheme.typography.titleMedium
+                text = displayName,
+                modifier = Modifier.weight(1f)
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Scheduled: ${block.scheduledTime}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            block.completedTime?.let {
-                Text(
-                    text = "Completed/Missed: $it",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (!block.completed) {
-                    TextButton(onClick = onComplete) { Text("Done") }
-                    TextButton(onClick = onIncomplete) { Text("Missed") }
-                } else {
-                    Text("✅ Completed")
-                }
+            if (!block.completed) {
+                TextButton(onClick = onComplete) { Text("Done") }
+                TextButton(onClick = onIncomplete) { Text("Missed") }
+            } else {
+                Text("✅ Completed")
             }
         }
     }
@@ -1077,6 +1195,7 @@ fun MainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
+
             val stats = ProgressStatsEngine.getTodayStats(context)
             AssistantTTS.speak(
                 context,
@@ -1124,6 +1243,7 @@ private fun ChecklistScreenWithStats(
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(modifier = Modifier.fillMaxSize()) {
+
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -1136,6 +1256,11 @@ private fun ChecklistScreenWithStats(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(blocks) { block ->
+
+                val displayName = block.id
+                    .replace("_", " ")
+                    .replaceFirstChar { it.uppercase() }
+
                 ChecklistItem(
                     block = block,
                     onComplete = {
@@ -1144,10 +1269,12 @@ private fun ChecklistScreenWithStats(
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(context, block.id)
+
                         AssistantTTS.speak(
                             context,
-                            "You missed task ${block.id.replace("_", " ").replaceFirstChar { it.uppercase() }}. I will remind you in 30 minutes."
+                            "You missed task $displayName. I will remind you in 30 minutes."
                         )
+
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     }
                 )
@@ -1467,6 +1594,7 @@ object AutoCloser {
     }
 }
 
+
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutoReplyContext.kt =====
 package com.jarvismini.automation
 
@@ -1498,6 +1626,7 @@ package com.jarvismini.automation
 
 fun ChatAllowed(): Boolean = false
 fun generateReply(text: String): String = ""
+
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/ChatOpener.kt =====
 package com.jarvismini.automation
@@ -1540,6 +1669,7 @@ object ChatOpener {
         }
     }
 }
+
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/JarvisNotificationService.kt =====
 package com.jarvismini.automation
@@ -1643,6 +1773,7 @@ object MessageExtractor {
     }
 }
 
+
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/MessageSender.kt =====
 package com.jarvismini.automation
 
@@ -1682,6 +1813,7 @@ object ModeGuard {
         }
     }
 }
+
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/NodeFinder.kt =====
 package com.jarvismini.automation
@@ -1750,6 +1882,7 @@ object NodeFinder {
         return null
     }
 }
+
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/SmartAutoReply.kt =====
 package com.jarvismini.automation
@@ -2142,7 +2275,6 @@ object SmsAutoReplyService {
 
 
 //===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
-// ===== FILE: modules/callhandler/src/main/kotlin/com/jarvismini/callhandler/SmsReceiver.kt =====
 package com.jarvismini.callhandler
 
 import android.content.BroadcastReceiver
@@ -3262,9 +3394,7 @@ package com.jarvismini.core.progress
 
 data class ProgressBlock(
     val id: String,
-    val completed: Boolean,
-    val scheduledTime: String,
-    val completedTime: String? = null
+    val completed: Boolean
 )
 
 
@@ -3320,12 +3450,11 @@ object ProgressConfigLoader {
 package com.jarvismini.core.progress
 
 import android.content.Context
-import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.calendar.model.EventStatus
-import com.jarvismini.core.calendar.AppCalendarStore
-import com.jarvismini.core.time.NetworkTimeProvider
-import java.util.UUID
 
+/**
+ * Core progress logic.
+ * NO engine / alarm dependencies here.
+ */
 object ProgressEngine {
 
     fun markComplete(context: Context, blockId: String) {
@@ -3334,12 +3463,8 @@ object ProgressEngine {
 
     fun markIncomplete(context: Context, blockId: String, blockName: String) {
         ProgressStore.markIncomplete(context, blockId)
-
-        val config = ProgressConfigLoader.load(context)
-        if (config.retryEnabled) {
-            RetryScheduler.schedule(context, blockId, blockName, config)
-        }
-    }
+    
+}
 }
 
 
@@ -3361,8 +3486,8 @@ import android.content.Context
 
 object ProgressRepository {
 
-    fun register(context: Context, blockId: String, scheduledTime: String) {
-        ProgressStore.register(context, blockId, scheduledTime)
+    fun register(context: Context, blockId: String) {
+        ProgressStore.register(context, blockId)
     }
 
     fun markCompleted(context: Context, blockId: String) {
@@ -3434,37 +3559,29 @@ object ProgressStatsEngine {
 package com.jarvismini.core.progress
 
 import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
 
 object ProgressStore {
 
     private const val PREF = "progress_store"
 
-    fun register(context: Context, blockId: String, scheduledTime: String) {
+    fun register(context: Context, blockId: String) {
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
             .putBoolean("reg_$blockId", true)
-            .putString("time_$blockId", scheduledTime)
-            .remove("doneTime_$blockId")
             .apply()
     }
 
     fun markComplete(context: Context, blockId: String) {
-        val currentTime = getCurrentTime()
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
             .putBoolean("done_$blockId", true)
-            .putString("doneTime_$blockId", currentTime)
             .apply()
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        val currentTime = getCurrentTime()
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
             .remove("done_$blockId")
-            .putString("doneTime_$blockId", currentTime)
             .apply()
     }
 
@@ -3486,16 +3603,6 @@ object ProgressStore {
             .toSet()
     }
 
-    fun getScheduledTime(context: Context, blockId: String): String {
-        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .getString("time_$blockId", "") ?: ""
-    }
-
-    fun getCompletedTime(context: Context, blockId: String): String? {
-        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            .getString("doneTime_$blockId", null)
-    }
-
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         val registered = getRegisteredBlocks(context)
         val completed = getCompletedBlocks(context)
@@ -3503,16 +3610,9 @@ object ProgressStore {
         return registered.map { id ->
             ProgressBlock(
                 id = id,
-                completed = completed.contains(id),
-                scheduledTime = getScheduledTime(context, id),
-                completedTime = getCompletedTime(context, id)
+                completed = completed.contains(id)
             )
         }
-    }
-
-    private fun getCurrentTime(): String {
-        val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
-        return formatter.format(Date())
     }
 }
 
@@ -3587,12 +3687,13 @@ object RetryScheduler {
                 id = "retry_${UUID.randomUUID()}",
                 title = "Retry: $blockName",
                 startTimeMs = retryAt,
-                endTimeMs = retryAt + 5 * 60_000, // 5 min reminder
+                endTimeMs = retryAt + 5 * 60_000,
                 status = EventStatus.RETRY_SCHEDULED,
                 meta = mapOf("blockId" to blockId)
             )
         )
-    }
+
+}
 }
 
 
@@ -3600,93 +3701,14 @@ object RetryScheduler {
 package com.jarvismini.core.routine
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressConfigLoader
-import com.jarvismini.core.progress.QuietHours
-import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.RoutineAction
-import com.jarvismini.core.time.NetworkTimeProvider
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.core.notifications.ProgressNotifier
-import com.jarvismini.core.MediaController
-import com.jarvismini.core.JarvisState
-import com.jarvismini.core.JarvisMode
-import android.content.Intent
-import android.os.Build
-import android.app.NotificationManager
 
 /**
- * Dispatches routine actions.
+ * Stub dispatcher for routine actions.
  */
 object ActionDispatcher {
-
     fun dispatch(context: Context, action: RoutineAction) {
-        when (action.type) {
-            "launch_app" -> action.params["package"]?.let { pkg ->
-                launchApp(context, pkg)
-            }
-
-            "set_mode" -> action.params["mode"]?.let { modeStr ->
-                try {
-                    val mode = JarvisMode.valueOf(modeStr)
-                    JarvisState.setMode(context, mode)
-                } catch (_: Exception) { }
-            }
-
-            "set_dnd" -> action.params["dnd"]?.toBoolean()?.let { dnd ->
-                setDnd(context, dnd)
-            }
-
-            "media_control" -> action.params["media"]?.let { cmd ->
-                when(cmd) {
-                    "play", "pause" -> MediaController.playPause(context)
-                    "next" -> MediaController.next(context)
-                    "prev" -> MediaController.previous(context)
-                }
-            }
-
-            "start_stopwatch" -> startStopwatch(context)
-            "start_timer" -> startTimer(context, action.params["duration_min"]?.toIntOrNull() ?: 0)
-
-            "speak" -> action.params["message"]?.let { msg ->
-                val config = ProgressConfigLoader.load(context)
-                if (!QuietHours.isQuietNow(config)) {
-                    AssistantTTS.speak(context, msg)
-                }
-            }
-
-            "notify" -> action.params["message"]?.let { msg ->
-                val blockId = action.params["blockId"] ?: "generic"
-                ProgressNotifier.showCompletionPrompt(context, blockId, msg)
-            }
-
-            "network_time_sync" -> NetworkTimeProvider.nowMs() // sync time
-
-            else -> android.util.Log.w("ActionDispatcher", "Unknown action type: ${action.type}")
-        }
-    }
-
-    private fun launchApp(context: Context, pkg: String) {
-        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        intent?.let { context.startActivity(it) }
-    }
-
-    private fun setDnd(context: Context, enabled: Boolean) {
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && nm?.isNotificationPolicyAccessGranted == true) {
-            nm.setInterruptionFilter(if (enabled) NotificationManager.INTERRUPTION_FILTER_NONE
-                                     else NotificationManager.INTERRUPTION_FILTER_ALL)
-        }
-    }
-
-    private fun startStopwatch(context: Context) {
-        // Launch OnePlus deskclock (stopwatch tab) as before
-        launchApp(context, "com.oneplus.deskclock")
-    }
-
-    private fun startTimer(context: Context, duration: Int) {
-        // Optionally implement timer logic here if needed
-        launchApp(context, "com.oneplus.deskclock")
+        // Stub — logic will expand later
     }
 }
 
@@ -3710,8 +3732,10 @@ class RoutineExecutor(
             ActionDispatcher.dispatch(context, action)
         }
 
+        // ✅ Correct signature
         ProgressEngine.markComplete(context, routine.id)
-    }
+   
+}
 }
 
 
@@ -3732,20 +3756,24 @@ object RoutineProvider {
         val routines = mutableListOf<Routine>()
         val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
 
-        files.filter { it.endsWith(".json") }.forEach { filename ->
-            try {
-                val json = context.assets.open("$ROUTINES_DIR/$filename")
-                    .bufferedReader().use { it.readText() }
+        files
+            .filter { it.endsWith(".json") }
+            .forEach { filename ->
+                try {
+                    val json = context.assets
+                        .open("$ROUTINES_DIR/$filename")
+                        .bufferedReader()
+                        .use { it.readText() }
 
-                val root = JSONObject(json)
-                if (!root.has("routines")) return@forEach
+                    val root = JSONObject(json)
+                    if (!root.has("routines")) return@forEach
 
-                val array = root.getJSONArray("routines")
-                routines += parseRoutines(array)
-            } catch (_: Exception) {
-                // ignore corrupted JSON files
+                    val array = root.getJSONArray("routines")
+                    routines += parseRoutines(array)
+                } catch (_: Exception) {
+                    // ignore bad files
+                }
             }
-        }
 
         return routines.filter { it.enabled }
     }
@@ -3755,6 +3783,7 @@ object RoutineProvider {
 
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+
             val id = obj.getString("id")
             val name = obj.getString("name")
             val enabled = obj.optBoolean("enabled", true)
@@ -3764,10 +3793,18 @@ object RoutineProvider {
 
             for (j in 0 until actionsJson.length()) {
                 val a = actionsJson.getJSONObject(j)
-                actions += RoutineAction(type = a.getString("type"), params = a.toMap())
+                actions += RoutineAction(
+                    type = a.getString("type"),
+                    params = a.toMap()
+                )
             }
 
-            list += Routine(id = id, name = name, enabled = enabled, actions = actions)
+            list += Routine(
+                id = id,
+                name = name,
+                enabled = enabled,
+                actions = actions
+            )
         }
 
         return list
@@ -3779,6 +3816,7 @@ private fun JSONObject.toMap(): Map<String, String> {
     keys().forEach { key ->
         map[key] = get(key).toString()
     }
+ 
     return map
 }
 
@@ -3790,7 +3828,7 @@ data class Routine(
     val id: String,
     val name: String,
     val enabled: Boolean,
-    val trigger: Trigger
+    val actions: List<RoutineAction>
 )
 
 
@@ -3858,27 +3896,15 @@ object AssistantTTS {
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
 package com.jarvismini.core.util
 
-import android.content.Context
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 
-/**
- * Utility for loading JSON and parsing to objects.
- */
 object JsonUtil {
+    val gson = Gson() // Made public to fix inline reified access error
 
-    fun loadJsonFromAssets(context: Context, assetPath: String): String? {
-        return try {
-            context.assets.open(assetPath).bufferedReader().use { it.readText() }
-        } catch (e: Exception) {
-            null
-        }
-    }
+    fun <T> toJson(obj: T): String = gson.toJson(obj)
 
-    inline fun <reified T> fromJsonArray(json: String): List<T> {
-        val type = object : TypeToken<List<T>>() {}.type
-        return Gson().fromJson(json, type)
-    }
+    inline fun <reified T> fromJson(json: String): T =
+        gson.fromJson(json, T::class.java)
 }
 
 
@@ -4334,7 +4360,6 @@ class SchedulerCommandEngine : CommandEngine {
 
 
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubCommandEngine.kt =====
 package com.jarvismini.engine
 
 /**
@@ -4539,10 +4564,18 @@ class ProgressOrchestrator(
     ) {
         if (completed) {
             ProgressEngine.markComplete(context, blockId)
-            AssistantTTS.speak(context, "Great. Task marked as complete.")
+
+            AssistantTTS.speak(
+                context,
+                "Great. Task marked as complete."
+            )
         } else {
-            ProgressEngine.markIncomplete(context, blockId)
-            AssistantTTS.speak(context, "Okay. I will remind you again in thirty minutes.")
+            ProgressEngine.markIncomplete(context, blockId, blockName)
+
+            AssistantTTS.speak(
+                context,
+                "Okay. I will remind you again in thirty minutes."
+            )
 
             scheduler.schedule(
                 delayMs = 30 * 60 * 1000L
@@ -4757,9 +4790,6 @@ object GroupDetection {
         return groupNameIndicators.any { s.contains(it) }
     }
 }
-
-
-
 
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/RateLimiter.kt =====
