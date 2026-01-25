@@ -7,9 +7,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object RoutineProvider {
+
     private const val ROUTINES_DIR = "routines"
 
-    /** Loads all ENABLED routines from assets/routines/*.json */
     fun getAllRoutines(context: Context): List<Routine> {
         val routines = mutableListOf<Routine>()
         val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
@@ -24,14 +24,12 @@ object RoutineProvider {
                         .use { it.readText() }
 
                     val root = JSONObject(json)
-
-                    // Skip non-routine files (e.g., progress_config.json)
                     if (!root.has("routines")) return@forEach
 
                     val array = root.getJSONArray("routines")
                     routines += parseRoutines(array)
                 } catch (_: Exception) {
-                    // Bad routine file should not crash app
+                    // ignore bad files
                 }
             }
 
@@ -40,20 +38,25 @@ object RoutineProvider {
 
     private fun parseRoutines(array: JSONArray): List<Routine> {
         val list = mutableListOf<Routine>()
+
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+
             val id = obj.getString("id")
             val name = obj.getString("name")
             val enabled = obj.optBoolean("enabled", true)
+
             val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
             val actions = mutableListOf<RoutineAction>()
+
             for (j in 0 until actionsJson.length()) {
-                val actionObj = actionsJson.getJSONObject(j)
+                val a = actionsJson.getJSONObject(j)
                 actions += RoutineAction(
-                    type = actionObj.getString("type"),
-                    params = actionObj.toMap()
+                    type = a.getString("type"),
+                    params = a.toMap()
                 )
             }
+
             list += Routine(
                 id = id,
                 name = name,
@@ -61,15 +64,16 @@ object RoutineProvider {
                 actions = actions
             )
         }
+
         return list
     }
 }
 
-/** Converts JSONObject → Map<String, String> */
 private fun JSONObject.toMap(): Map<String, String> {
     val map = mutableMapOf<String, String>()
     keys().forEach { key ->
         map[key] = get(key).toString()
     }
+ 
     return map
 }
