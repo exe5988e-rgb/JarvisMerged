@@ -14,16 +14,14 @@ object ProgressStore {
         completedBlocks.remove(blockId)
     }
 
-    /**
-     * Returns all blocks scheduled for today.
-     * Minimal in-memory stub so stats + reminders compile.
-     */
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        return completedBlocks.map {
+        return completedBlocks.map { id ->
             ProgressBlock(
-                id = it,
+                id = id,
                 completed = true
             )
         }
-    }
+ 
+}
+
 }

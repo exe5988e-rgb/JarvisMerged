@@ -7,7 +7,7 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks(context)
+        val blocks = ProgressRepository.getTodayBlocks(context)
         val total = blocks.size
         val completedCount = blocks.count { block -> block.completed }
 
