@@ -13,7 +13,7 @@ import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressStatsEngine
 import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.checklist.ChecklistItem
+import com.jarvismini.ui.ChecklistItem
 
 enum class MainTab(val title: String) {
     Chat("Chat"),

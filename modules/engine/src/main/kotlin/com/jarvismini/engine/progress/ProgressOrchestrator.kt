@@ -45,11 +45,10 @@ class ProgressOrchestrator(
             )
 
             scheduler.schedule(
-                delayMs = 30 * 60_000L
+                delayMs = 30 * 60 * 1000L
             ) {
                 prompt(blockId, blockName)
             }
         }
-
-}
+    }
 }

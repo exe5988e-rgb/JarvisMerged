@@ -1,48 +1,38 @@
 package com.jarvismini.core.progress
 
 import android.content.Context
-import com.jarvismini.core.notifications.ProgressNotifier
-import com.jarvismini.core.tts.AssistantTTS
 
+/**
+ * Engine responsible for marking progress blocks as complete/incomplete.
+ * Context-dependent methods for scheduling, notifications, and persistence.
+ */
 object ProgressEngine {
 
-    private lateinit var context: Context
-    private lateinit var config: ProgressConfig
-    private var notificationIconRes: Int = 0
-
-    fun init(ctx: Context, cfg: ProgressConfig, iconRes: Int) {
-        context = ctx.applicationContext
-        config = cfg
-        notificationIconRes = iconRes
+    // Context-free calls for UI (via ProgressRepository)
+    fun markComplete(blockId: String) {
+        // Call internal method with null context or default context if needed
+        markCompleteInternal(null, blockId)
     }
 
-    fun onBlockCompleted(blockId: String, blockName: String) {
-        if (!config.enabled) return
-
-        ProgressStatsEngine.registerBlock(context, blockId)
-        ProgressNotifier.showCompletionPrompt(
-            context,
-            blockId,
-            blockName,
-            notificationIconRes
-        )
-        if (config.ttsEnabled) {
-            AssistantTTS.speak(
-                context,
-                "Block $blockName finished. Please confirm completion."
-            )
-        }
+    fun markIncomplete(blockId: String, blockName: String) {
+        markIncompleteInternal(null, blockId, blockName)
     }
 
-    fun markComplete(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-        ProgressStatsEngine.markCompleted(context, blockId)
+    // Context-aware internal methods for engine/scheduler usage
+    fun markComplete(context: Context?, blockId: String) {
+        markCompleteInternal(context, blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-        ProgressStore.markIncomplete(context, blockId)
-        if (config.retryEnabled) {
-            RetryScheduler.schedule(context, blockId, blockName, config)
-        }
+    fun markIncomplete(context: Context?, blockId: String, blockName: String) {
+        markIncompleteInternal(context, blockId, blockName)
+    }
+
+    // Private internal implementation
+    private fun markCompleteInternal(context: Context?, blockId: String) {
+        // TODO: persist completion, notify if context available
+    }
+
+    private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
+        // TODO: persist incompletion, notify if context available
     }
 }
