@@ -1,89 +1,23 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/Trigger.kt =====
-package com.jarvismini.core.routine.model
-
-data class Trigger(
-    val type: String,       // e.g., "time"
-    val time: String,       // e.g., "08:00"
-    val days: List<String>  // e.g., ["MON", "TUE"]
-)
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/Routine.kt =====
-package com.jarvismini.core.routine.model
-
-data class Routine(
-    val id: String,
-    val name: String,
-    val enabled: Boolean,
-    val trigger: Trigger
-)
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
 package com.jarvismini.core.routine
 
 import android.content.Context
+import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.Routine
-import com.jarvismini.core.routine.model.Trigger
-import org.json.JSONObject
 
-object RoutineProvider {
+/**
+ * Executes routines and reports completion to ProgressEngine.
+ * Currently stubbed: routine actions are ignored until defined.
+ */
+class RoutineExecutor(
+    private val context: Context
+) {
 
-    fun getAllRoutines(context: Context): List<Routine> {
-        val routines = mutableListOf<Routine>()
+    fun execute(routine: Routine) {
+        // TODO: Implement action execution when Routine.actions exists
+        // Currently skipping actions for compilation purposes
 
-        // list all JSON files in assets/routines/
-        val files = context.assets.list("routines") ?: return emptyList()
-
-        for (file in files) {
-            val jsonStr = context.assets.open("routines/$file")
-                .bufferedReader()
-                .use { it.readText() }
-
-            val r = JSONObject(jsonStr)
-
-            // Parse trigger object
-            val triggerObj = r.getJSONObject("trigger")
-            val trigger = Trigger(
-                type = triggerObj.getString("type"),
-                time = triggerObj.getString("time"),
-                days = triggerObj.getJSONArray("days").let { array ->
-                    List(array.length()) { idx -> array.getString(idx) }
-                }
-            )
-
-            // Add routine to list
-            routines.add(
-                Routine(
-                    id = r.getString("id"),
-                    name = r.getString("name"),
-                    enabled = r.getBoolean("enabled"),
-                    trigger = trigger
-                )
-            )
-        }
-
-        return routines
-    }
-}
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
-
-import android.content.Context
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.routine.RoutineProvider
-
-object ProgressInitializer {
-
-    fun registerAllBlocks(context: Context) {
-        val routines = RoutineProvider.getAllRoutines(context)
-
-        routines.forEach { routine ->
-            try {
-                // Only register enabled routines with a trigger
-                if (routine.enabled && routine.trigger.time.isNotBlank()) {
-                    ProgressRepository.register(context, routine.id, routine.trigger.time)
-                }
-            } catch (e: Exception) {
-                // Log and skip routines with missing or malformed triggers
-                android.util.Log.w("ProgressInitializer", "Skipping routine ${routine.id}: ${e.message}")
-            }
-        }
+        // ✅ Mark routine as complete in ProgressEngine
+        ProgressEngine.markComplete(context, routine.id)
     }
 }
