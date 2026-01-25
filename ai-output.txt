@@ -1,28 +1,90 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-package com.jarvismini.core.progress
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+package com.jarvismini.core.routine
 
 import android.content.Context
+import com.jarvismini.core.routine.model.Routine
+import com.jarvismini.core.routine.model.RoutineAction
+import org.json.JSONArray
+import org.json.JSONObject
 
-object ProgressRepository {
+object RoutineProvider {
 
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        // Ensure engine state is loaded
-        ProgressEngine.ensureLoaded(context)
+    private const val ROUTINES_DIR = "routines"
 
-        return ProgressState.entries.map { entry ->
-            ProgressBlock(
-                id = entry.blockId,
-                name = entry.name,
-                completed = entry.completed
+    /**
+     * Loads all ENABLED routines from assets/routines/*.json
+     */
+    fun getAllRoutines(context: Context): List<Routine> {
+        val routines = mutableListOf<Routine>()
+
+        val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
+
+        files
+            .filter { it.endsWith(".json") }
+            .forEach { filename ->
+                try {
+                    val json = context.assets
+                        .open("$ROUTINES_DIR/$filename")
+                        .bufferedReader()
+                        .use { it.readText() }
+
+                    val root = JSONObject(json)
+
+                    // ✅ Skip non-routine files (e.g. progress_config.json)
+                    if (!root.has("routines")) return@forEach
+
+                    val array = root.getJSONArray("routines")
+                    routines += parseRoutines(array)
+
+                } catch (_: Exception) {
+                    // Intentionally ignored: bad routine file should not crash app
+                }
+            }
+
+        // ✅ Only enabled routines are returned
+        return routines.filter { it.enabled }
+    }
+
+    private fun parseRoutines(array: JSONArray): List<Routine> {
+        val list = mutableListOf<Routine>()
+
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+
+            val id = obj.getString("id")
+            val name = obj.getString("name")
+            val enabled = obj.optBoolean("enabled", true)
+
+            val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
+            val actions = mutableListOf<RoutineAction>()
+
+            for (j in 0 until actionsJson.length()) {
+                val actionObj = actionsJson.getJSONObject(j)
+                actions += RoutineAction(
+                    type = actionObj.getString("type"),
+                    params = actionObj.toMap()
+                )
+            }
+
+            list += Routine(
+                id = id,
+                name = name,
+                enabled = enabled,
+                actions = actions
             )
         }
-    }
 
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressEngine.markComplete(context, blockId)
+        return list
     }
+}
 
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressEngine.markIncomplete(context, blockId)
+/**
+ * Converts JSONObject → Map<String, String>
+ */
+private fun JSONObject.toMap(): Map<String, String> {
+    val map = mutableMapOf<String, String>()
+    keys().forEach { key ->
+        map[key] = get(key).toString()
     }
+    return map
 }
