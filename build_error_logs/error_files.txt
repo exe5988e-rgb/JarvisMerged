@@ -1,113 +1,50 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:11:59 No value passed for parameter 'context'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:12:57 No value passed for parameter 'context'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:22:56 Too many arguments for public final fun getTodayBlocks(): List<ProgressBlock> defined in com.jarvismini.core.progress.ProgressRepository
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:17:24 Unresolved reference: onBlockCompleted
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:13:60 Type mismatch: inferred type is Context? but Context was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:14:58 Type mismatch: inferred type is Context? but Context was expected
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 33s
+BUILD FAILED in 39s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 1	package com.jarvismini.core.progress
 2
-3	/**
-4	 * Repository for managing daily progress blocks.
-5	 * Provides context-free methods for UI layer to query and update block status.
-6	 */
-7	object ProgressRepository {
-8
-9	    fun getTodayBlocks(): List<ProgressBlock> {
-10	        // ✅ Get all registered blocks for today
->>>>> ERROR HERE
-11	        val registered = ProgressStore.getRegisteredBlocks()
->>>>> ERROR HERE
-12	        val completed = ProgressStore.getCompletedBlocks()
-13
-14	        return registered.map { blockId ->
-15	            ProgressBlock(
-16	                id = blockId,
-17	                name = blockId, // Optionally map to a proper display name
-18	                completed = completed.contains(blockId)
-19	            )
-20	        }
-21	    }
-22
-23	    fun markCompleted(blockId: String) {
-24	        ProgressEngine.markComplete(blockId)
-25	    }
-26
-27	    fun markIncomplete(blockId: String, blockName: String) {
-28	        ProgressEngine.markIncomplete(blockId, blockName)
-29	    }
-30	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-1	package com.jarvismini.core.progress
-2
 3	import android.content.Context
-4	import java.text.SimpleDateFormat
-5	import java.util.*
-6
-7	object ProgressStatsEngine {
-8
-9	    fun registerBlock(context: Context, blockId: String) {
-10	        ProgressStore.register(context, blockId)
-11	    }
-12
-13	    fun markCompleted(context: Context, blockId: String) {
-14	        ProgressStore.markComplete(context, blockId)
-15	    }
-16
-17	    fun markIncomplete(context: Context, blockId: String) {
-18	        ProgressStore.markIncomplete(context, blockId)
-19	    }
-20
-21	    fun getTodayStats(context: Context): ProgressStats {
->>>>> ERROR HERE
-22	        val blocks = ProgressRepository.getTodayBlocks(context)
-23	        val total = blocks.size
-24	        val completedCount = blocks.count { it.completed }
-25
-26	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-27
-28	        return ProgressStats(
-29	            date = today,
-30	            totalBlocks = total,
-31	            completedBlocks = completedCount
-32	        )
-33
-34	    }
-35	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
-1	package com.jarvismini.core.routine
-2
-3	import android.content.Context
-4	import com.jarvismini.core.progress.ProgressEngine
-5	import com.jarvismini.core.routine.model.Routine
-6
-7	class RoutineExecutor(
-8	    private val context: Context
-9	) {
+4
+5	/**
+6	 * Repository for managing daily progress blocks.
+7	 * Provides context-aware and context-free methods for UI and engine.
+8	 */
+9	object ProgressRepository {
 10
-11	    fun execute(routine: Routine) {
-12	        routine.actions.forEach { action ->
-13	            ActionDispatcher.dispatch(context, action)
-14	        }
-15
-16	        // ✅ BLOCK FINISHED → PROGRESS ENGINE
+11	    fun getTodayBlocks(context: Context? = null): List<ProgressBlock> {
+12	        // ✅ Get all registered blocks for today
 >>>>> ERROR HERE
-17	        ProgressEngine.onBlockCompleted(
-18	            blockId = routine.id,
-19	            blockName = routine.name
-20	        )
-21	    }
-22	}
+13	        val registered = ProgressStore.getRegisteredBlocks(context)
+>>>>> ERROR HERE
+14	        val completed = ProgressStore.getCompletedBlocks(context)
+15
+16	        return registered.map { blockId ->
+17	            ProgressBlock(
+18	                id = blockId,
+19	                name = blockId, // Optionally map to a proper display name
+20	                completed = completed.contains(blockId)
+21	            )
+22	        }
+23	    }
+24
+25	    fun markCompleted(blockId: String) {
+26	        ProgressEngine.markComplete(blockId)
+27	    }
+28
+29	    fun markIncomplete(blockId: String, blockName: String) {
+30	        ProgressEngine.markIncomplete(blockId, blockName)
+31	    }
+32	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
