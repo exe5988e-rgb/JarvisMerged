@@ -1,15 +1,15 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:9:28 Unresolved reference: blockId
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:11:35 Unresolved reference: completed
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:8:28 Unresolved reference: blockId
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:10:35 Unresolved reference: completed
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:19:56 Too many arguments for public final fun getTodayBlocks(): List<ProgressBlock> defined in com.jarvismini.core.progress.ProgressRepository
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:10:48 Missing '}
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:76:1 Unclosed comment
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 35s
+BUILD FAILED in 36s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -19,24 +19,24 @@ BUILD FAILED in 35s
 3	object ProgressRepository {
 4
 5	    fun getTodayBlocks(): List<ProgressBlock> {
-6	        // ProgressEngine is already initialized, no need to pass context
-7	        return ProgressState.entries.map { entry ->
-8	            ProgressBlock(
+6	        return ProgressState.entries.map { entry ->
+7	            ProgressBlock(
 >>>>> ERROR HERE
-9	                id = entry.blockId,
-10	                name = entry.name,
+8	                id = entry.blockId,
+9	                name = entry.name,
 >>>>> ERROR HERE
-11	                completed = entry.completed
-12	            )
-13	        }
-14	    }
-15
-16	    fun markCompleted(blockId: String) {
-17	        ProgressEngine.markComplete(blockId)
-18	    }
-19
-20	    fun markIncomplete(blockId: String, blockName: String) {
-21	        ProgressEngine.markIncomplete(blockId, blockName)
+10	                completed = entry.completed
+11	            )
+12	        }
+13	    }
+14
+15	    fun markCompleted(blockId: String) {
+16	        ProgressEngine.markComplete(blockId)
+17	    }
+18
+19	    fun markIncomplete(blockId: String, blockName: String) {
+20	        ProgressEngine.markIncomplete(blockId, blockName)
+21
 22	    }
 23	}
 
