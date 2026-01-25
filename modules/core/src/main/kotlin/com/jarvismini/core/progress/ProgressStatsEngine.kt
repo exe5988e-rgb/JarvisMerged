@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Engine for generating progress stats.
+ * Provides statistics for progress blocks.
  */
 object ProgressStatsEngine {
 

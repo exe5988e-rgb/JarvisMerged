@@ -5,7 +5,7 @@ import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.Routine
 
 /**
- * Executes a routine and updates progress when done.
+ * Executes a Routine by dispatching actions and notifying ProgressEngine.
  */
 class RoutineExecutor(
     private val context: Context
@@ -16,9 +16,6 @@ class RoutineExecutor(
         }
 
         // ✅ BLOCK FINISHED → PROGRESS ENGINE
-        ProgressEngine.onBlockCompleted(
-            blockId = routine.id,
-            blockName = routine.name
-        )
+        ProgressEngine.markComplete(routine.id)
     }
 }

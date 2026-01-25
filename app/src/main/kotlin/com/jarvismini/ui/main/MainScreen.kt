@@ -35,7 +35,7 @@ fun MainScreen() {
     // ✅ Load checklist blocks when checklist tab opens
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressRepository.getTodayBlocks()
+            blocks = ProgressRepository.getTodayBlocks(context)
         }
     }
 
@@ -62,7 +62,8 @@ fun MainScreen() {
                 MainTab.Chat -> JarvisChatScreen()
                 MainTab.Checklist -> ChecklistScreenWithStats(
                     blocks = blocks,
-                    onBlocksUpdated = { blocks = it }
+                    onBlocksUpdated = { blocks = it },
+                    context = context
                 )
             }
         }
@@ -72,9 +73,9 @@ fun MainScreen() {
 @Composable
 private fun ChecklistScreenWithStats(
     blocks: List<ProgressBlock>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
+    context: android.content.Context
 ) {
-    val context = LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats(context)
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -94,14 +95,14 @@ private fun ChecklistScreenWithStats(
                     block = block,
                     onComplete = {
                         ProgressRepository.markCompleted(block.id)
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
                         ProgressRepository.markIncomplete(
                             blockId = block.id,
                             blockName = block.name
                         )
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     }
                 )
             }

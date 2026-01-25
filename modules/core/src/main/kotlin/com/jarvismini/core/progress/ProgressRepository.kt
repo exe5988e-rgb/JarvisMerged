@@ -8,9 +8,8 @@ import android.content.Context
  */
 object ProgressRepository {
 
-    // ✅ Require non-null Context
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        // Get all registered blocks for today
+        // ✅ Get all registered blocks for today
         val registered = ProgressStore.getRegisteredBlocks(context)
         val completed = ProgressStore.getCompletedBlocks(context)
 
@@ -29,6 +28,5 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
-  
-}
+    }
 }
