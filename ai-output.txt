@@ -44,33 +44,42 @@ object ProgressStore {
             .filter { it.startsWith("done_") }
             .map { it.removePrefix("done_") }
             .toSet()
+    }
 
+    // ✅ THIS WAS MISSING — NOW FIXED
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        val registered = getRegisteredBlocks(context)
+        val completed = getCompletedBlocks(context)
+
+        return registered.map { id ->
+            ProgressBlock(
+                id = id,
+                name = id.replace("_", " ").replaceFirstChar { it.uppercase() },
+                completed = completed.contains(id)
+            )
+        }
+    }
 }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
-import com.jarvismini.core.tts.AssistantTTS
 
-class MissedTaskChecker(
-    private val context: Context
-) {
+/**
+ * Repository facade for progress-related queries.
+ * Keeps callers stable while storage evolves.
+ */
+object ProgressRepository {
 
-    fun checkAndRemind() {
-        val registered: Set<String> =
-            ProgressStore.getRegisteredBlocks(context)
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        return ProgressStore.getTodayBlocks(context)
+    }
 
-        val completed: Set<String> =
-            ProgressStore.getCompletedBlocks(context)
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+    }
 
-        val missed: Set<String> = registered - completed
-
-        for (blockId in missed) {
-            AssistantTTS.speak(
-                context.applicationContext,
-                "You missed task $blockId. Please complete it."
-            )
-        }
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
     }
 }
