@@ -96,7 +96,7 @@ fun ChecklistScreenWithStats(
                         onBlocksUpdated(updated)
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                        ProgressRepository.markIncomplete(context, block.id)
                         val updated = ProgressRepository.getTodayBlocks(context)
                         onBlocksUpdated(updated)
                     }
