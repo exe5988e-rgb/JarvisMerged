@@ -1,19 +1,3 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-/**
- * Repository facade for progress-related queries.
- * Keeps callers stable while storage evolves.
- */
-object ProgressRepository {
-
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        return ProgressStore.getTodayBlocks(context)
-    }
-
-}
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 package com.jarvismini.core.progress
 
@@ -21,59 +5,72 @@ import android.content.Context
 
 object ProgressStore {
 
-    private val completedBlocks = mutableSetOf<String>()
+    private const val PREF = "progress_store"
+
+    fun register(context: Context, blockId: String) {
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("reg_$blockId", true)
+            .apply()
+    }
 
     fun markComplete(context: Context, blockId: String) {
-        completedBlocks.add(blockId)
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("done_$blockId", true)
+            .apply()
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        completedBlocks.remove(blockId)
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .remove("done_$blockId")
+            .apply()
     }
 
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        return completedBlocks.map { id ->
-            ProgressBlock(
-                id = id,
-                completed = true
-            )
-        }
- 
-}
+    fun getRegisteredBlocks(context: Context): Set<String> {
+        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .keys
+            .filter { it.startsWith("reg_") }
+            .map { it.removePrefix("reg_") }
+            .toSet()
+    }
+
+    fun getCompletedBlocks(context: Context): Set<String> {
+        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .all
+            .keys
+            .filter { it.startsWith("done_") }
+            .map { it.removePrefix("done_") }
+            .toSet()
 
 }
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
-package com.jarvismini.core.progress
-
-data class ProgressBlock(
-    val id: String,
-    val completed: Boolean
-
-)
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
+import com.jarvismini.core.tts.AssistantTTS
 
-object ProgressStatsEngine {
+class MissedTaskChecker(
+    private val context: Context
+) {
 
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
-        val total = blocks.size
-        val completedCount = blocks.count { block -> block.completed }
+    fun checkAndRemind() {
+        val registered: Set<String> =
+            ProgressStore.getRegisteredBlocks(context)
 
-        val today = SimpleDateFormat(
-            "yyyy-MM-dd",
-            Locale.getDefault()
-        ).format(Date())
+        val completed: Set<String> =
+            ProgressStore.getCompletedBlocks(context)
 
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completedCount
-        )
-  
-}
+        val missed: Set<String> = registered - completed
+
+        for (blockId in missed) {
+            AssistantTTS.speak(
+                context.applicationContext,
+                "You missed task $blockId. Please complete it."
+            )
+        }
+    }
 }
