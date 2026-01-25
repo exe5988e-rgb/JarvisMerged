@@ -1,13 +1,9 @@
 package com.jarvismini.core.progress
 
-import android.content.Context
-
 object ProgressRepository {
 
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        // Ensure engine state is loaded
-        ProgressEngine.ensureLoaded(context)
-
+    fun getTodayBlocks(): List<ProgressBlock> {
+        // ProgressEngine is already initialized, no need to pass context
         return ProgressState.entries.map { entry ->
             ProgressBlock(
                 id = entry.blockId,
@@ -17,11 +13,11 @@ object ProgressRepository {
         }
     }
 
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressEngine.markComplete(context, blockId)
+    fun markCompleted(blockId: String) {
+        ProgressEngine.markComplete(blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressEngine.markIncomplete(context, blockId)
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(blockId, blockName)
     }
 }
