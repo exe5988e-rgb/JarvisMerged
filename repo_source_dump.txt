@@ -3429,7 +3429,7 @@ object ProgressStore {
             .edit()
             .putBoolean("reg_$blockId", true)
             .putString("time_$blockId", scheduledTime)
-            .remove("doneTime_$blockId") // reset any previous completed time
+            .remove("doneTime_$blockId")
             .apply()
     }
 
@@ -4444,7 +4444,7 @@ class ProgressOrchestrator(
                 "Great. Task marked as complete."
             )
         } else {
-            ProgressEngine.markIncomplete(context, blockId, blockName)
+            ProgressEngine.markIncomplete(context, blockId)
 
             AssistantTTS.speak(
                 context,
