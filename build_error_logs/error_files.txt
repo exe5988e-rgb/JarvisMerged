@@ -1,43 +1,14 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:4:23 Unresolved reference: engine
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:13:9 Unresolved reference: AlarmManagerRetry
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:10:41 Unresolved reference: getTodayBlocks
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:10:36 Unresolved reference: getTodayBlocks
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:12:45 Unresolved reference: it
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:19:37 Type mismatch: inferred type is String but Context was expected
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:19:37 No value passed for parameter 'blockId'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
 BUILD FAILED in 34s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
->>>>> ERROR HERE
-4	import com.jarvismini.engine.progress.AlarmManagerRetry
-5
-6	object ProgressEngine {
-7
-8	    fun markComplete(context: Context, blockId: String) {
-9	        // 1️⃣ Persist completion
-10	        ProgressStore.markComplete(context, blockId)
-11
-12	        // 2️⃣ 🛑 CANCEL any scheduled reminder
->>>>> ERROR HERE
-13	        AlarmManagerRetry.cancel(context, blockId)
-14	    }
-15
-16	    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-17	        ProgressStore.markIncomplete(context, blockId)
-18	        // scheduling handled elsewhere
-19
-20	}
-21	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 1	package com.jarvismini.core.progress
@@ -50,7 +21,7 @@ BUILD FAILED in 34s
 8
 9	    fun getTodayStats(context: Context): ProgressStats {
 >>>>> ERROR HERE
-10	        val blocks = ProgressRepository.getTodayBlocks(context)
+10	        val blocks = ProgressStore.getTodayBlocks(context)
 11	        val total = blocks.size
 >>>>> ERROR HERE
 12	        val completedCount = blocks.count { it.completed }
@@ -65,33 +36,8 @@ BUILD FAILED in 34s
 21	            totalBlocks = total,
 22	            completedBlocks = completedCount
 23	        )
-24
+24	  }
 25	}
-26	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
-1	package com.jarvismini.core.routine
-2
-3	import android.content.Context
-4	import com.jarvismini.core.progress.ProgressEngine
-5	import com.jarvismini.core.routine.model.Routine
-6
-7	/**
-8	 * Executes a Routine by dispatching actions and notifying ProgressEngine.
-9	 */
-10	class RoutineExecutor(
-11	    private val context: Context
-12	) {
-13	    fun execute(routine: Routine) {
-14	        routine.actions.forEach { action ->
-15	            ActionDispatcher.dispatch(context, action)
-16	        }
-17
-18	        // ✅ BLOCK FINISHED → PROGRESS ENGINE
->>>>> ERROR HERE
-19	        ProgressEngine.markComplete(routine.id)
-20	    }
-21	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
