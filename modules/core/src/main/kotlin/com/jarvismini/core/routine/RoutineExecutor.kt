@@ -12,12 +12,10 @@ class RoutineExecutor(
 ) {
 
     fun execute(routine: Routine) {
-        // Execute all actions in the routine
         routine.actions.forEach { action ->
             ActionDispatcher.dispatch(context, action)
         }
 
-        // Mark the routine complete
         ProgressEngine.markComplete(context, routine.id)
     }
 }

@@ -23,11 +23,10 @@ object RetryScheduler {
                 id = "retry_${UUID.randomUUID()}",
                 title = "Retry: $blockName",
                 startTimeMs = retryAt,
-                endTimeMs = retryAt + 5 * 60_000,
+                endTimeMs = retryAt + 5 * 60_000, // 5 min reminder
                 status = EventStatus.RETRY_SCHEDULED,
                 meta = mapOf("blockId" to blockId)
             )
         )
-
-}
+    }
 }
