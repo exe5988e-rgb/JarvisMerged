@@ -1,46 +1,31 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:13:40 Unresolved reference: getRegisteredBlocks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:14:39 Unresolved reference: getCompletedBlocks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:18:16 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:18:26 Cannot infer a type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:12:30 Unresolved reference: getTodayBlocks
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 34s
+BUILD FAILED in 35s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
-4	import com.jarvismini.core.tts.AssistantTTS
-5
-6	/**
-7	 * Checks for missed tasks and announces them via TTS.
-8	 * Safe to call from background services or alarms.
-9	 */
-10	class MissedTaskChecker(private val context: Context) {
-11
-12	    fun checkAndRemind() {
+4
+5	/**
+6	 * Repository facade for progress-related queries.
+7	 * Keeps callers stable while storage evolves.
+8	 */
+9	object ProgressRepository {
+10
+11	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
 >>>>> ERROR HERE
-13	        val registered = ProgressStore.getRegisteredBlocks(context)
->>>>> ERROR HERE
-14	        val completed = ProgressStore.getCompletedBlocks(context)
-15
-16	        val missed = registered - completed
-17
->>>>> ERROR HERE
-18	        missed.forEach { blockId ->
-19	            AssistantTTS.speak(
-20	                context.applicationContext,
-21	                "You missed task $blockId. Please complete it."
-22	            )
-23	        }
-24	    }
-25	}
+12	        return ProgressStore.getTodayBlocks(context)
+13	    }
+14
+15	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
