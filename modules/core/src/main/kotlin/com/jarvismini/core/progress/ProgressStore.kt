@@ -13,7 +13,7 @@ object ProgressStore {
             .edit()
             .putBoolean("reg_$blockId", true)
             .putString("time_$blockId", scheduledTime)
-            .remove("doneTime_$blockId") // reset any previous completed time
+            .remove("doneTime_$blockId")
             .apply()
     }
 
