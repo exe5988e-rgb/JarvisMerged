@@ -1,3 +1,54 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+package com.jarvismini
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.routine.RoutineProvider
+
+/**
+ * Initializes all routines and registers them with ProgressRepository.
+ */
+object ProgressInitializer {
+    fun registerAllBlocks(context: Context) {
+        // Load routines from assets using RoutineProvider
+        val routines = RoutineProvider.getAllRoutines(context)
+        routines.forEach { routine ->
+            // Ensure trigger time exists
+            val scheduledTime = routine.trigger?.time ?: "00:00"
+            ProgressRepository.register(context, routine.id, scheduledTime)
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.routine.model.Routine
+import com.jarvismini.core.util.JsonUtil
+
+/**
+ * Loads all routines from assets/routines/*.json
+ */
+object RoutineProvider {
+
+    fun getAllRoutines(context: Context): List<Routine> {
+        val routineFiles = listOf(
+            "progress_config.json",
+            "sunday_routine.json",
+            "work_routine.json"
+        )
+
+        val routines = mutableListOf<Routine>()
+        routineFiles.forEach { fileName ->
+            val jsonText = JsonUtil.loadJsonFromAssets(context, "routines/$fileName")
+            jsonText?.let {
+                val parsed = JsonUtil.fromJsonArray<Routine>(it)
+                routines.addAll(parsed)
+            }
+        }
+        return routines
+    }
+}
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
 package com.jarvismini.core.routine
 
@@ -7,17 +58,91 @@ import com.jarvismini.core.routine.model.Routine
 
 /**
  * Executes routines and reports completion to ProgressEngine.
- * Currently stubbed: routine actions are ignored until defined.
  */
 class RoutineExecutor(
     private val context: Context
 ) {
 
     fun execute(routine: Routine) {
-        // TODO: Implement action execution when Routine.actions exists
-        // Currently skipping actions for compilation purposes
+        // Execute all actions in the routine
+        routine.actions.forEach { action ->
+            ActionDispatcher.dispatch(context, action)
+        }
 
-        // ✅ Mark routine as complete in ProgressEngine
+        // Mark the routine complete
         ProgressEngine.markComplete(context, routine.id)
     }
 }
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
+package com.jarvismini.core.util
+
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
+/**
+ * Utility for loading JSON and parsing to objects.
+ */
+object JsonUtil {
+
+    fun loadJsonFromAssets(context: Context, assetPath: String): String? {
+        return try {
+            context.assets.open(assetPath).bufferedReader().use { it.readText() }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    inline fun <reified T> fromJsonArray(json: String): List<T> {
+        val type = object : TypeToken<List<T>>() {}.type
+        return Gson().fromJson(json, type)
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+package com.jarvismini.engine.progress
+
+import android.content.Context
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+
+class ProgressOrchestrator(
+    private val context: Context,
+    private val scheduler: DelayedTaskScheduler
+) {
+
+    fun prompt(blockId: String, blockName: String) {
+        AssistantTTS.speak(
+            context,
+            "Did you complete $blockName?"
+        )
+
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
+        )
+    }
+
+    fun onUserResponse(
+        blockId: String,
+        blockName: String,
+        completed: Boolean
+    ) {
+        if (completed) {
+            ProgressEngine.markComplete(context, blockId)
+            AssistantTTS.speak(context, "Great. Task marked as complete.")
+        } else {
+            ProgressEngine.markIncomplete(context, blockId)
+            AssistantTTS.speak(context, "Okay. I will remind you again in thirty minutes.")
+
+            scheduler.schedule(
+                delayMs = 30 * 60 * 1000L
+            ) {
+                prompt(blockId, blockName)
+            }
+        }
+    }
+}
+
