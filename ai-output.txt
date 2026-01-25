@@ -9,7 +9,6 @@ import android.content.Context
  */
 object ProgressRepository {
 
-    // ✅ Require non-null Context
     fun getTodayBlocks(context: Context): List<ProgressBlock> {
         // Get all registered blocks for today
         val registered = ProgressStore.getRegisteredBlocks(context)
@@ -30,6 +29,404 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
-  
+    }
 }
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
+
+/**
+ * Provides statistics for progress blocks.
+ */
+object ProgressStatsEngine {
+
+    fun registerBlock(context: Context, blockId: String) {
+        ProgressStore.register(context, blockId)
+    }
+
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
+    }
+
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressRepository.getTodayBlocks(context)
+        val total = blocks.size
+        val completedCount = blocks.count { it.completed }
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completedCount
+        )
+    }
+}
+
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+package com.jarvismini.smart
+
+/**
+ * Minimal stub so module compiles.
+ * Real logic will be added later.
+ */
+object SmartFilters {
+    fun isAllowed(text: String): Boolean {
+        return true
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressStatsEngine
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.ChecklistItem
+
+enum class MainTab(val title: String) {
+    Chat("Chat"),
+    Checklist("Checklist")
+}
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+
+    // ✅ Register all routine blocks once
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+    }
+
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
+
+    // ✅ Load checklist blocks when checklist tab opens
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            blocks = ProgressRepository.getTodayBlocks(context)
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.title) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
+            when (selectedTab) {
+                MainTab.Chat -> JarvisChatScreen()
+                MainTab.Checklist -> ChecklistScreenWithStats(
+                    blocks = blocks,
+                    onBlocksUpdated = { blocks = it },
+                    context = context
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistScreenWithStats(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
+    context: android.content.Context
+) {
+    val stats = ProgressStatsEngine.getTodayStats(context)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(blocks) { block ->
+                ChecklistItem(
+                    block = block,
+                    onComplete = {
+                        ProgressRepository.markCompleted(block.id)
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                    },
+                    onIncomplete = {
+                        ProgressRepository.markIncomplete(
+                            blockId = block.id,
+                            blockName = block.name
+                        )
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                    }
+                )
+            }
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+/**
+ * Repository for managing daily progress blocks.
+ * Provides context-aware methods for UI and engine.
+ */
+object ProgressRepository {
+
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        // ✅ Get all registered blocks for today
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
+
+        return registered.map { blockId ->
+            ProgressBlock(
+                id = blockId,
+                name = blockId, // Optionally map to a proper display name
+                completed = completed.contains(blockId)
+            )
+        }
+    }
+
+    fun markCompleted(blockId: String) {
+        ProgressEngine.markComplete(blockId)
+    }
+
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(blockId, blockName)
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
+
+/**
+ * Provides statistics for progress blocks.
+ */
+object ProgressStatsEngine {
+
+    fun registerBlock(context: Context, blockId: String) {
+        ProgressStore.register(context, blockId)
+    }
+
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
+    }
+
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressRepository.getTodayBlocks(context)
+        val total = blocks.size
+        val completedCount = blocks.count { it.completed }
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completedCount
+        )
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.routine.model.RoutineAction
+
+/**
+ * Stub dispatcher for routine actions.
+ */
+object ActionDispatcher {
+    fun dispatch(context: Context, action: RoutineAction) {
+        // Stub — logic will expand later
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.routine.model.Routine
+
+/**
+ * Executes a Routine by dispatching actions and notifying ProgressEngine.
+ */
+class RoutineExecutor(
+    private val context: Context
+) {
+    fun execute(routine: Routine) {
+        routine.actions.forEach { action ->
+            ActionDispatcher.dispatch(context, action)
+        }
+
+        // ✅ BLOCK FINISHED → PROGRESS ENGINE
+        ProgressEngine.markComplete(routine.id)
+    }
+}
+
+//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
+package com.jarvismini.smart
+
+/**
+ * Minimal stub so module compiles.
+ * Real logic will be added later.
+ */
+object SmartFilters {
+    fun isAllowed(text: String): Boolean {
+        return true
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressStatsEngine
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.ChecklistItem
+
+enum class MainTab(val title: String) {
+    Chat("Chat"),
+    Checklist("Checklist")
+}
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+
+    // ✅ Register all routine blocks once
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+    }
+
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
+
+    // ✅ Load checklist blocks when checklist tab opens
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            blocks = ProgressRepository.getTodayBlocks(context)
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.title) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
+            when (selectedTab) {
+                MainTab.Chat -> JarvisChatScreen()
+                MainTab.Checklist -> ChecklistScreenWithStats(
+                    blocks = blocks,
+                    onBlocksUpdated = { blocks = it },
+                    context = context
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistScreenWithStats(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
+    context: android.content.Context
+) {
+    val stats = ProgressStatsEngine.getTodayStats(context)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(blocks) { block ->
+                ChecklistItem(
+                    block = block,
+                    onComplete = {
+                        ProgressRepository.markCompleted(block.id)
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                    },
+                    onIncomplete = {
+                        ProgressRepository.markIncomplete(
+                            blockId = block.id,
+                            blockName = block.name
+                        )
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                    }
+                )
+            }
+        }
+    }
 }
