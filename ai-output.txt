@@ -8,7 +8,7 @@ object ProgressRepository {
             ProgressBlock(
                 id = entry.name,
                 name = entry.name,
-                completed = ProgressStore.isCompleted(entry.name)
+                completed = false // 🔴 no read API exists yet
             )
         }
     }
