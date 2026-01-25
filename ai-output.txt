@@ -1,27 +1,160 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.ChecklistItem
+import com.jarvismini.ui.JarvisChatScreen
+
+enum class MainTab(val title: String) {
+    Chat("Chat"),
+    Checklist("Checklist")
+}
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+
+    // Register routine blocks once
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+    }
+
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
+
+    // Load checklist + voice summary
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            blocks = ProgressRepository.getTodayBlocks(context)
+
+            val stats = ProgressStatsEngine.getTodayStats(context)
+            AssistantTTS.speak(
+                context,
+                "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
+            )
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.title) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
+            when (selectedTab) {
+                MainTab.Chat -> JarvisChatScreen()
+                MainTab.Checklist -> ChecklistScreenWithStats(
+                    blocks = blocks,
+                    onBlocksUpdated = { blocks = it }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistScreenWithStats(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = LocalContext.current
+    val stats = ProgressStatsEngine.getTodayStats(context)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        Text(
+            text = "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(blocks) { block ->
+                ChecklistItem(
+                    block = block,
+                    onComplete = {
+                        // ✅ Cancels reminder internally
+                        ProgressRepository.markCompleted(context, block.id)
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                    },
+                    onIncomplete = {
+                        // ✅ Schedules reminder internally
+                        ProgressRepository.markIncomplete(context, block.id, block.name)
+
+                        AssistantTTS.speak(
+                            context,
+                            "You missed task ${block.name}. I will remind you in 30 minutes."
+                        )
+
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                    }
+                )
+            }
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
+import com.jarvismini.engine.progress.AlarmManagerRetry
 
-object ProgressStatsEngine {
+object ProgressEngine {
 
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
+    fun markComplete(context: Context, blockId: String) {
+        // 1️⃣ Persist completion
+        ProgressStore.markComplete(context, blockId)
 
-        val today = SimpleDateFormat(
-            "yyyy-MM-dd",
-            Locale.getDefault()
-        ).format(Date())
+        // 2️⃣ 🛑 CANCEL any scheduled reminder
+        AlarmManagerRetry.cancel(context, blockId)
+    }
 
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completedCount
-        )
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+        // scheduling handled elsewhere
+  
+}
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressRepository {
+
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressEngine.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(context, blockId, blockName)
    
 }
 }
