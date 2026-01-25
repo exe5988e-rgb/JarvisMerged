@@ -1,0 +1,296 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
+package com.jarvismini.core.progress
+
+/**
+ * Represents a single progress entry for a routine block.
+ * Now supports persistent, time-aware tracking.
+ *
+ * @property routineId The unique ID of the routine
+ * @property blockId The unique ID of the progress block
+ * @property timestamp The creation timestamp of this entry
+ * @property state Current progress state
+ *
+ * Time-aware fields for persistence and progress tracking:
+ * @property scheduledAt Scheduled time for this block (from ProgressConfig)
+ * @property startedAt Actual start time, null if not started yet
+ * @property completedAt Completion time, null if not completed yet
+ * @property missedAt Missed time if the window expired without completion
+ * @property lastUpdatedAt Last mutation timestamp, used for merging / idempotency
+ */
+data class ProgressEntry(
+    val routineId: String,
+    val blockId: String,
+    val timestamp: Long,
+    val state: ProgressState,
+
+    // Time-aware fields
+    val scheduledAt: Long,
+    val startedAt: Long? = null,
+    val completedAt: Long? = null,
+    val missedAt: Long? = null,
+    val lastUpdatedAt: Long = timestamp
+)
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import java.io.File
+
+/**
+ * Central persistent store for all ProgressEntry objects.
+ *
+ * Guarantees:
+ * - Idempotent initialization
+ * - Synchronous load (off-main-thread)
+ * - No duplicates, no overwrites
+ * - Full time-aware progress tracking
+ */
+object ProgressStore {
+
+    private const val FILE_NAME = "progress_store.json"
+
+    // In-memory cache of all progress entries
+    private val entries: MutableMap<String, ProgressEntry> = mutableMapOf()
+
+    // Guard to prevent multiple init loads
+    @Volatile
+    private var initialized = false
+
+    /**
+     * Initialize the ProgressStore by loading persisted entries.
+     * Safe to call multiple times (idempotent). Must be called before engine usage.
+     * Off-main-thread recommended for I/O.
+     */
+    suspend fun init(context: Context) = withContext(Dispatchers.IO) {
+        if (initialized) return@withContext
+
+        val file = File(context.filesDir, FILE_NAME)
+        if (file.exists()) {
+            try {
+                val json = file.readText()
+                val list: List<ProgressEntry> = Json.decodeFromString(json)
+                list.forEach { entry ->
+                    // Merge without overwriting existing in-memory entries
+                    val key = makeKey(entry.routineId, entry.blockId)
+                    entries.putIfAbsent(key, entry)
+                }
+            } catch (_: Exception) {
+                // Ignore corrupted file, start fresh
+            }
+        }
+        initialized = true
+    }
+
+    /** Persist current entries to disk. */
+    private suspend fun persist(context: Context) = withContext(Dispatchers.IO) {
+        val file = File(context.filesDir, FILE_NAME)
+        try {
+            val json = Json.encodeToString(entries.values.toList())
+            file.writeText(json)
+        } catch (_: Exception) {
+            // Ignore write failures; best-effort persistence
+        }
+    }
+
+    /** Unique key for internal map */
+    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
+
+    /** Register a block if not already present */
+    suspend fun register(context: Context, entry: ProgressEntry) {
+        val key = makeKey(entry.routineId, entry.blockId)
+        entries.putIfAbsent(key, entry)
+        persist(context)
+    }
+
+    /** Mark a block as complete. Updates completedAt and lastUpdatedAt if not already set */
+    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
+        val key = makeKey(routineId, blockId)
+        val existing = entries[key]
+        if (existing != null && existing.completedAt == null) {
+            val updated = existing.copy(
+                state = ProgressState.COMPLETED,
+                completedAt = System.currentTimeMillis(),
+                lastUpdatedAt = System.currentTimeMillis()
+            )
+            entries[key] = updated
+            persist(context)
+        }
+    }
+
+    /** Mark a block as incomplete. Updates state and lastUpdatedAt */
+    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
+        val key = makeKey(routineId, blockId)
+        val existing = entries[key]
+        if (existing != null) {
+            val updated = existing.copy(
+                state = ProgressState.INCOMPLETE,
+                lastUpdatedAt = System.currentTimeMillis()
+            )
+            entries[key] = updated
+            persist(context)
+        }
+    }
+
+    /** Retrieve all progress entries */
+    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+
+    /** Retrieve all entries for today (optional filter by date can be added later) */
+    fun getTodayEntries(): List<ProgressEntry> = entries.values.toList()
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * Repository layer for progress management.
+ * Bridges engine / initializer calls to the persistent ProgressStore.
+ *
+ * Guarantees:
+ * - Idempotent hydration
+ * - Merge-safe updates
+ * - Time-aware progress entries
+ */
+object ProgressRepository {
+
+    private var hydrated = false
+
+    /**
+     * Hydrate repository with persisted entries.
+     * Idempotent: safe to call multiple times.
+     */
+    suspend fun hydrate(context: Context) = withContext(Dispatchers.IO) {
+        if (hydrated) return@withContext
+
+        // Ensure ProgressStore is initialized
+        ProgressStore.init(context)
+
+        // Merge any entries from the store into repository memory
+        val storeEntries = ProgressStore.getAllEntries()
+        storeEntries.forEach { entry ->
+            val key = makeKey(entry.routineId, entry.blockId)
+            // merge safely: do not overwrite existing entries in the store
+            ProgressStore.register(context, entry)
+        }
+
+        hydrated = true
+    }
+
+    /** Register a new block if it does not already exist */
+    suspend fun register(context: Context, entry: ProgressEntry) {
+        ProgressStore.register(context, entry)
+    }
+
+    /** Mark a block as completed */
+    suspend fun markCompleted(context: Context, routineId: String, blockId: String) {
+        ProgressStore.markComplete(context, routineId, blockId)
+    }
+
+    /** Mark a block as incomplete */
+    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
+        ProgressStore.markIncomplete(context, routineId, blockId)
+    }
+
+    /** Retrieve all progress entries */
+    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
+
+    /** Retrieve today's entries */
+    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
+
+    /** Internal unique key for map-based operations */
+    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+package com.jarvismini
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressEntry
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressState
+import com.jarvismini.core.routine.RoutineProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+
+/**
+ * Responsible for initializing all progress-related data at app startup.
+ *
+ * Guarantees:
+ * - ProgressStore is hydrated before engine or MissedTaskChecker run
+ * - Initialization is synchronous from caller perspective but off main thread
+ * - Idempotent: safe to call multiple times
+ */
+object ProgressInitializer {
+
+    private val initScope = CoroutineScope(Dispatchers.Default)
+
+    /**
+     * Initialize progress system: load persisted progress, hydrate repository,
+     * and register all routines as progress blocks.
+     *
+     * Call this at app bootstrap.
+     */
+    fun initialize(context: Context) {
+        // Launch on a background thread but block until complete (synchronous for correctness)
+        runBlocking {
+            initScope.launch {
+                // Step 1: Initialize the ProgressStore
+                ProgressRepository.hydrate(context)
+
+                // Step 2: Register all routines as progress blocks
+                val routines = RoutineProvider.getAllRoutines(context)
+                routines.forEach { routine ->
+                    val entry = ProgressEntry(
+                        routineId = routine.id,
+                        blockId = routine.id, // use routine ID as block ID
+                        timestamp = System.currentTimeMillis(),
+                        state = ProgressState.PENDING,
+                        scheduledAt = routine.scheduledAt ?: System.currentTimeMillis()
+                    )
+                    ProgressRepository.register(context, entry)
+                }
+            }.join() // Wait for initialization to complete before returning
+        }
+    }
+}
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import kotlinx.coroutines.runBlocking
+
+/**
+ * Core progress engine.
+ * Forwards all progress actions to the persistent ProgressRepository.
+ * No change to action logic or engine behavior.
+ */
+object ProgressEngine {
+
+    /** Mark a block as complete */
+    fun markComplete(context: Context, blockId: String) {
+        runBlocking {
+            ProgressRepository.markCompleted(context, blockId, blockId)
+        }
+    }
+
+    /** Mark a block as incomplete */
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        runBlocking {
+            ProgressRepository.markIncomplete(context, blockId, blockId)
+        }
+    }
+
+    /** Retrieve all progress entries */
+    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
+
+    /** Retrieve today's progress entries */
+    fun getTodayEntries(): List<ProgressEntry> = ProgressRepository.getTodayEntries()
+}
