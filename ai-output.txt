@@ -1,148 +1,56 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-object ProgressRepository {
-
-    fun getTodayBlocks(context: Context): List<ProgressBlock> {
-        val registered = ProgressStore.getRegisteredBlocks(context)
-        val completed = ProgressStore.getCompletedBlocks(context)
-
-        return registered.map { blockId ->
-            ProgressBlock(
-                id = blockId,
-                name = blockId, // Optionally map to display name
-                completed = completed.contains(blockId)
-            )
-        }
-    }
-
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressEngine.markComplete(context, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-        ProgressEngine.markIncomplete(context, blockId, blockName)
-  
-}
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
-
-object ProgressStatsEngine {
-
-    fun registerBlock(context: Context, blockId: String) {
-        ProgressStore.register(context, blockId)
-    }
-
-    fun markCompleted(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressStore.markIncomplete(context, blockId)
-    }
-
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
-
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completedCount
-        )
-
-    }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-package com.jarvismini.core.progress
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+package com.jarvismini.engine.progress
 
 import android.content.Context
 import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.engine.scheduler.DelayedTaskScheduler
 
-object ProgressEngine {
+class ProgressOrchestrator(
+    private val context: Context,
+    private val scheduler: DelayedTaskScheduler
+) {
 
-    private lateinit var context: Context
-    private lateinit var config: ProgressConfig
-    private var notificationIconRes: Int = 0
-
-    fun init(ctx: Context, cfg: ProgressConfig, iconRes: Int) {
-        context = ctx.applicationContext
-        config = cfg
-        notificationIconRes = iconRes
-    }
-
-    fun onBlockCompleted(blockId: String, blockName: String) {
-        if (!config.enabled) return
-
-        ProgressStatsEngine.registerBlock(context, blockId)
-        ProgressNotifier.showCompletionPrompt(
+    fun prompt(blockId: String, blockName: String) {
+        AssistantTTS.speak(
             context,
-            blockId,
-            blockName,
-            notificationIconRes
+            "Did you complete $blockName?"
         )
-        if (config.ttsEnabled) {
-            AssistantTTS.speak(
-                context,
-                "Block $blockName finished. Please confirm completion."
-            )
-        }
+
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
+        )
     }
 
-    fun markComplete(context: Context, blockId: String) {
-        ProgressStore.markComplete(context, blockId)
-        ProgressStatsEngine.markCompleted(context, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-        ProgressStore.markIncomplete(context, blockId)
-        if (config.retryEnabled) {
-            RetryScheduler.schedule(context, blockId, blockName, config)
-        }
-    }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import com.jarvismini.core.calendar.AppCalendarStore
-import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.calendar.model.EventStatus
-import com.jarvismini.core.time.NetworkTimeProvider
-import java.util.UUID
-
-object RetryScheduler {
-
-    fun schedule(
-        context: Context,
+    fun onUserResponse(
         blockId: String,
         blockName: String,
-        config: ProgressConfig
+        completed: Boolean
     ) {
-        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
+        if (completed) {
+            ProgressEngine.markComplete(context, blockId)
 
-        AppCalendarStore.save(
-            context,
-            CalendarEvent(
-                id = "retry_${UUID.randomUUID()}",
-                title = "Retry: $blockName",
-                startTimeMs = retryAt,
-                endTimeMs = retryAt + 5 * 60_000,
-                status = EventStatus.RETRY_SCHEDULED,
-                meta = mapOf("blockId" to blockId)
+            AssistantTTS.speak(
+                context,
+                "Great. Task marked as complete."
             )
-        )
+        } else {
+            ProgressEngine.markIncomplete(context, blockId, blockName)
+
+            AssistantTTS.speak(
+                context,
+                "Okay. I will remind you again in thirty minutes."
+            )
+
+            scheduler.schedule(
+                delayMs = 30 * 60_000L
+            ) {
+                prompt(blockId, blockName)
+            }
+        }
 
 }
 }
