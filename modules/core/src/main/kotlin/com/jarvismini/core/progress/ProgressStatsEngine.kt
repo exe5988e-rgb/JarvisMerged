@@ -14,31 +14,22 @@ object ProgressStatsEngine {
         ProgressStore.markComplete(context, blockId)
     }
 
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressStore.markIncomplete(context, blockId)
+    }
+
     fun getTodayStats(context: Context): ProgressStats {
-        // ✅ Fetch all registered blocks
-        val registered = ProgressStore.getRegisteredBlocks(context)
-        val completed = ProgressStore.getCompletedBlocks(context)
+        val blocks = ProgressRepository.getTodayBlocks(context)
+        val total = blocks.size
+        val completedCount = blocks.count { it.completed }
 
-        // Auto-register any block that appears in ProgressEngine but not in store
-        val todayBlocks = ProgressRepository.getTodayBlocks()
-        todayBlocks.forEach { block ->
-            if (!registered.contains(block.id)) {
-                registerBlock(context, block.id)
-            }
-        }
-
-        val total = todayBlocks.size
-        val completedCount = todayBlocks.count { it.completed }
-
-        val today = SimpleDateFormat(
-            "yyyy-MM-dd",
-            Locale.getDefault()
-        ).format(Date())
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
         return ProgressStats(
             date = today,
             totalBlocks = total,
             completedBlocks = completedCount
         )
+
     }
 }

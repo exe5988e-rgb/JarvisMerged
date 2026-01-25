@@ -1,26 +1,28 @@
 package com.jarvismini.core.progress
 
+import android.content.Context
+
 object ProgressRepository {
 
-    fun getTodayBlocks(): List<ProgressBlock> {
-        // ✅ Get all registered blocks for today
-        val registered = ProgressStore.getRegisteredBlocks(JarvisApp.context)
-        val completed = ProgressStore.getCompletedBlocks(JarvisApp.context)
+    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+        val registered = ProgressStore.getRegisteredBlocks(context)
+        val completed = ProgressStore.getCompletedBlocks(context)
 
         return registered.map { blockId ->
             ProgressBlock(
                 id = blockId,
-                name = blockId, // Optionally map to a proper display name
+                name = blockId, // Optionally map to display name
                 completed = completed.contains(blockId)
             )
         }
     }
 
-    fun markCompleted(blockId: String) {
-        ProgressEngine.markComplete(blockId)
+    fun markCompleted(context: Context, blockId: String) {
+        ProgressEngine.markComplete(context, blockId)
     }
 
-    fun markIncomplete(blockId: String, blockName: String) {
-        ProgressEngine.markIncomplete(blockId, blockName)
-    }
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressEngine.markIncomplete(context, blockId, blockName)
+  
+}
 }

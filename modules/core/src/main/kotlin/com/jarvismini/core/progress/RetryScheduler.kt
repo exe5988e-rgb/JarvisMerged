@@ -24,9 +24,10 @@ object RetryScheduler {
                 title = "Retry: $blockName",
                 startTimeMs = retryAt,
                 endTimeMs = retryAt + 5 * 60_000,
-                status = EventStatus.RETRY_SCHEDULED, // ✅ Fixed enum reference
+                status = EventStatus.RETRY_SCHEDULED,
                 meta = mapOf("blockId" to blockId)
             )
         )
-    }
+
+}
 }
