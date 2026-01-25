@@ -1,54 +1,3 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
-
-import android.content.Context
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.routine.RoutineProvider
-
-/**
- * Initializes all routines and registers them with ProgressRepository.
- */
-object ProgressInitializer {
-    fun registerAllBlocks(context: Context) {
-        // Load routines from assets using RoutineProvider
-        val routines = RoutineProvider.getAllRoutines(context)
-        routines.forEach { routine ->
-            // Ensure trigger time exists
-            val scheduledTime = routine.trigger?.time ?: "00:00"
-            ProgressRepository.register(context, routine.id, scheduledTime)
-        }
-    }
-}
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
-package com.jarvismini.core.routine
-
-import android.content.Context
-import com.jarvismini.core.routine.model.Routine
-import com.jarvismini.core.util.JsonUtil
-
-/**
- * Loads all routines from assets/routines/*.json
- */
-object RoutineProvider {
-
-    fun getAllRoutines(context: Context): List<Routine> {
-        val routineFiles = listOf(
-            "progress_config.json",
-            "sunday_routine.json",
-            "work_routine.json"
-        )
-
-        val routines = mutableListOf<Routine>()
-        routineFiles.forEach { fileName ->
-            val jsonText = JsonUtil.loadJsonFromAssets(context, "routines/$fileName")
-            jsonText?.let {
-                val parsed = JsonUtil.fromJsonArray<Routine>(it)
-                routines.addAll(parsed)
-            }
-        }
-        return routines
-    }
-}
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
 package com.jarvismini.core.routine
 
@@ -64,85 +13,233 @@ class RoutineExecutor(
 ) {
 
     fun execute(routine: Routine) {
-        // Execute all actions in the routine
         routine.actions.forEach { action ->
             ActionDispatcher.dispatch(context, action)
         }
 
-        // Mark the routine complete
         ProgressEngine.markComplete(context, routine.id)
     }
 }
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/util/JsonUtil.kt =====
-package com.jarvismini.core.util
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+package com.jarvismini.core.routine
 
 import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.jarvismini.core.progress.ProgressConfigLoader
+import com.jarvismini.core.progress.QuietHours
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.routine.model.RoutineAction
+import com.jarvismini.core.time.NetworkTimeProvider
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.MediaController
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.JarvisMode
+import android.content.Intent
+import android.os.Build
+import android.app.NotificationManager
 
 /**
- * Utility for loading JSON and parsing to objects.
+ * Dispatches routine actions.
  */
-object JsonUtil {
+object ActionDispatcher {
 
-    fun loadJsonFromAssets(context: Context, assetPath: String): String? {
-        return try {
-            context.assets.open(assetPath).bufferedReader().use { it.readText() }
-        } catch (e: Exception) {
-            null
+    fun dispatch(context: Context, action: RoutineAction) {
+        when (action.type) {
+            "launch_app" -> action.params["package"]?.let { pkg ->
+                launchApp(context, pkg)
+            }
+
+            "set_mode" -> action.params["mode"]?.let { modeStr ->
+                try {
+                    val mode = JarvisMode.valueOf(modeStr)
+                    JarvisState.setMode(context, mode)
+                } catch (_: Exception) { }
+            }
+
+            "set_dnd" -> action.params["dnd"]?.toBoolean()?.let { dnd ->
+                setDnd(context, dnd)
+            }
+
+            "media_control" -> action.params["media"]?.let { cmd ->
+                when(cmd) {
+                    "play", "pause" -> MediaController.playPause(context)
+                    "next" -> MediaController.next(context)
+                    "prev" -> MediaController.previous(context)
+                }
+            }
+
+            "start_stopwatch" -> startStopwatch(context)
+            "start_timer" -> startTimer(context, action.params["duration_min"]?.toIntOrNull() ?: 0)
+
+            "speak" -> action.params["message"]?.let { msg ->
+                val config = ProgressConfigLoader.load(context)
+                if (!QuietHours.isQuietNow(config)) {
+                    AssistantTTS.speak(context, msg)
+                }
+            }
+
+            "notify" -> action.params["message"]?.let { msg ->
+                val blockId = action.params["blockId"] ?: "generic"
+                ProgressNotifier.showCompletionPrompt(context, blockId, msg)
+            }
+
+            "network_time_sync" -> NetworkTimeProvider.nowMs() // sync time
+
+            else -> android.util.Log.w("ActionDispatcher", "Unknown action type: ${action.type}")
         }
     }
 
-    inline fun <reified T> fromJsonArray(json: String): List<T> {
-        val type = object : TypeToken<List<T>>() {}.type
-        return Gson().fromJson(json, type)
+    private fun launchApp(context: Context, pkg: String) {
+        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent?.let { context.startActivity(it) }
+    }
+
+    private fun setDnd(context: Context, enabled: Boolean) {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && nm?.isNotificationPolicyAccessGranted == true) {
+            nm.setInterruptionFilter(if (enabled) NotificationManager.INTERRUPTION_FILTER_NONE
+                                     else NotificationManager.INTERRUPTION_FILTER_ALL)
+        }
+    }
+
+    private fun startStopwatch(context: Context) {
+        // Launch OnePlus deskclock (stopwatch tab) as before
+        launchApp(context, "com.oneplus.deskclock")
+    }
+
+    private fun startTimer(context: Context, duration: Int) {
+        // Optionally implement timer logic here if needed
+        launchApp(context, "com.oneplus.deskclock")
     }
 }
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
-package com.jarvismini.engine.progress
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
 
 import android.content.Context
-import com.jarvismini.core.notifications.ProgressNotifier
-import com.jarvismini.core.progress.ProgressEngine
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.calendar.model.EventStatus
+import com.jarvismini.core.calendar.AppCalendarStore
+import com.jarvismini.core.time.NetworkTimeProvider
+import java.util.UUID
 
-class ProgressOrchestrator(
-    private val context: Context,
-    private val scheduler: DelayedTaskScheduler
-) {
+object ProgressEngine {
 
-    fun prompt(blockId: String, blockName: String) {
-        AssistantTTS.speak(
-            context,
-            "Did you complete $blockName?"
-        )
-
-        ProgressNotifier.showCompletionPrompt(
-            context = context,
-            blockId = blockId,
-            blockName = blockName
-        )
+    fun markComplete(context: Context, blockId: String) {
+        ProgressStore.markComplete(context, blockId)
     }
 
-    fun onUserResponse(
-        blockId: String,
-        blockName: String,
-        completed: Boolean
-    ) {
-        if (completed) {
-            ProgressEngine.markComplete(context, blockId)
-            AssistantTTS.speak(context, "Great. Task marked as complete.")
-        } else {
-            ProgressEngine.markIncomplete(context, blockId)
-            AssistantTTS.speak(context, "Okay. I will remind you again in thirty minutes.")
+    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
 
-            scheduler.schedule(
-                delayMs = 30 * 60 * 1000L
-            ) {
-                prompt(blockId, blockName)
-            }
+        val config = ProgressConfigLoader.load(context)
+        if (config.retryEnabled) {
+            RetryScheduler.schedule(context, blockId, blockName, config)
         }
     }
 }
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+package com.jarvismini.core.routine
 
+import android.content.Context
+import com.jarvismini.core.routine.model.Routine
+import com.jarvismini.core.routine.model.RoutineAction
+import org.json.JSONArray
+import org.json.JSONObject
+
+object RoutineProvider {
+
+    private const val ROUTINES_DIR = "routines"
+
+    fun getAllRoutines(context: Context): List<Routine> {
+        val routines = mutableListOf<Routine>()
+        val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
+
+        files.filter { it.endsWith(".json") }.forEach { filename ->
+            try {
+                val json = context.assets.open("$ROUTINES_DIR/$filename")
+                    .bufferedReader().use { it.readText() }
+
+                val root = JSONObject(json)
+                if (!root.has("routines")) return@forEach
+
+                val array = root.getJSONArray("routines")
+                routines += parseRoutines(array)
+            } catch (_: Exception) {
+                // ignore corrupted JSON files
+            }
+        }
+
+        return routines.filter { it.enabled }
+    }
+
+    private fun parseRoutines(array: JSONArray): List<Routine> {
+        val list = mutableListOf<Routine>()
+
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            val id = obj.getString("id")
+            val name = obj.getString("name")
+            val enabled = obj.optBoolean("enabled", true)
+
+            val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
+            val actions = mutableListOf<RoutineAction>()
+
+            for (j in 0 until actionsJson.length()) {
+                val a = actionsJson.getJSONObject(j)
+                actions += RoutineAction(type = a.getString("type"), params = a.toMap())
+            }
+
+            list += Routine(id = id, name = name, enabled = enabled, actions = actions)
+        }
+
+        return list
+    }
+}
+
+private fun JSONObject.toMap(): Map<String, String> {
+    val map = mutableMapOf<String, String>()
+    keys().forEach { key ->
+        map[key] = get(key).toString()
+    }
+    return map
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/RetryScheduler.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.jarvismini.core.calendar.AppCalendarStore
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.calendar.model.EventStatus
+import com.jarvismini.core.time.NetworkTimeProvider
+import java.util.UUID
+
+object RetryScheduler {
+
+    fun schedule(
+        context: Context,
+        blockId: String,
+        blockName: String,
+        config: ProgressConfig
+    ) {
+        val retryAt = NetworkTimeProvider.nowMs() + config.retryDelayMs
+
+        AppCalendarStore.save(
+            context,
+            CalendarEvent(
+                id = "retry_${UUID.randomUUID()}",
+                title = "Retry: $blockName",
+                startTimeMs = retryAt,
+                endTimeMs = retryAt + 5 * 60_000, // 5 min reminder
+                status = EventStatus.RETRY_SCHEDULED,
+                meta = mapOf("blockId" to blockId)
+            )
+        )
+    }
+}
