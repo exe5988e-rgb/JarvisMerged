@@ -1,15 +1,64 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:15:17 Unresolved reference: actions
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:15:25 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:15:35 Cannot infer a type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt:14:43 Unresolved reference: toJson
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt:20:16 Type mismatch: inferred type is List<Unit> but List<CalendarEvent> was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt:21:13 Type mismatch: inferred type is Unit but CalendarEvent was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt:22:26 Unresolved reference: fromJson
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:16:17 Unresolved reference: actions
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:16:25 Overload resolution ambiguity: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:16:35 Cannot infer a type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:30:1 Unclosed comment
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 33s
+BUILD FAILED in 36s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt =====
+1	package com.jarvismini.core.calendar
+2
+3	import android.content.Context
+4	import com.jarvismini.core.calendar.model.CalendarEvent
+5	import com.jarvismini.core.util.JsonUtil
+6
+7	object AppCalendarStore {
+8
+9	    private const val PREF = "app_calendar"
+10
+11	    fun save(context: Context, event: CalendarEvent) {
+12	        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+13	            .edit()
+>>>>> ERROR HERE
+14	            .putString(event.id, JsonUtil.toJson(event))
+15	            .apply()
+16	    }
+17
+18	    fun getAll(context: Context): List<CalendarEvent> {
+19	        val prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+>>>>> ERROR HERE
+20	        return prefs.all.values.mapNotNull {
+>>>>> ERROR HERE
+21	            runCatching {
+>>>>> ERROR HERE
+22	                JsonUtil.fromJson<CalendarEvent>(it as String)
+23	            }.getOrNull()
+24	        }
+25	    }
+26
+27	    fun updateStatus(context: Context, id: String, status: String) {
+28	        val event = getAll(context).find { it.id == id } ?: return
+29	        save(context, event.copy(status = enumValueOf(status)))
+30	    }
+31
+32	    fun delete(context: Context, id: String) {
+33	        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+34	            .edit()
+35	            .remove(id)
+36	            .apply()
+37	    }
+38	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
 1	package com.jarvismini.core.routine
@@ -26,16 +75,47 @@ BUILD FAILED in 33s
 12	) {
 13
 14	    fun execute(routine: Routine) {
+15	        // Execute all actions in the routine
 >>>>> ERROR HERE
-15	        routine.actions.forEach { action ->
-16	            ActionDispatcher.dispatch(context, action)
-17	        }
-18
-19	        // ✅ Correct signature
-20	        ProgressEngine.markComplete(context, routine.id)
-21
-22	}
+16	        routine.actions.forEach { action ->
+17	            ActionDispatcher.dispatch(context, action)
+18	        }
+19
+20	        // Mark the routine complete
+21	        ProgressEngine.markComplete(context, routine.id)
+22	    }
 23	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+1	package com.jarvismini.core.routine
+2
+3	import android.content.Context
+4	import com.jarvismini.core.routine.model.Routine
+5	import com.jarvismini.core.util.JsonUtil
+6
+7	/**
+8	 * Loads all routines from assets/routines/*.json
+9	 */
+10	object RoutineProvider {
+11
+12	    fun getAllRoutines(context: Context): List<Routine> {
+13	        val routineFiles = listOf(
+14	            "progress_config.json",
+15	            "sunday_routine.json",
+16	            "work_routine.json"
+17	        )
+18
+19	        val routines = mutableListOf<Routine>()
+20	        routineFiles.forEach { fileName ->
+21	            val jsonText = JsonUtil.loadJsonFromAssets(context, "routines/$fileName")
+22	            jsonText?.let {
+23	                val parsed = JsonUtil.fromJsonArray<Routine>(it)
+24	                routines.addAll(parsed)
+25	            }
+26	        }
+27	        return routines
+28	    }
+29	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
