@@ -1,7 +1,7 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:12:30 Unresolved reference: getTodayBlocks
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:56:17 Cannot find a parameter with this name: name
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
@@ -9,23 +9,69 @@ BUILD FAILED in 35s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
 4
-5	/**
-6	 * Repository facade for progress-related queries.
-7	 * Keeps callers stable while storage evolves.
-8	 */
-9	object ProgressRepository {
-10
-11	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+5	object ProgressStore {
+6
+7	    private const val PREF = "progress_store"
+8
+9	    fun register(context: Context, blockId: String) {
+10	        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+11	            .edit()
+12	            .putBoolean("reg_$blockId", true)
+13	            .apply()
+14	    }
+15
+16	    fun markComplete(context: Context, blockId: String) {
+17	        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+18	            .edit()
+19	            .putBoolean("done_$blockId", true)
+20	            .apply()
+21	    }
+22
+23	    fun markIncomplete(context: Context, blockId: String) {
+24	        context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+25	            .edit()
+26	            .remove("done_$blockId")
+27	            .apply()
+28	    }
+29
+30	    fun getRegisteredBlocks(context: Context): Set<String> {
+31	        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+32	            .all
+33	            .keys
+34	            .filter { it.startsWith("reg_") }
+35	            .map { it.removePrefix("reg_") }
+36	            .toSet()
+37	    }
+38
+39	    fun getCompletedBlocks(context: Context): Set<String> {
+40	        return context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+41	            .all
+42	            .keys
+43	            .filter { it.startsWith("done_") }
+44	            .map { it.removePrefix("done_") }
+45	            .toSet()
+46	    }
+47
+48	    // ✅ THIS WAS MISSING — NOW FIXED
+49	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+50	        val registered = getRegisteredBlocks(context)
+51	        val completed = getCompletedBlocks(context)
+52
+53	        return registered.map { id ->
+54	            ProgressBlock(
+55	                id = id,
 >>>>> ERROR HERE
-12	        return ProgressStore.getTodayBlocks(context)
-13	    }
-14
-15	}
+56	                name = id.replace("_", " ").replaceFirstChar { it.uppercase() },
+57	                completed = completed.contains(id)
+58	            )
+59	        }
+60	    }
+61	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
