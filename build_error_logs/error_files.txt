@@ -1,6 +1,12 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:9:24 Unresolved reference: ensureLoaded
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:13:28 Unresolved reference: blockId
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:15:35 Unresolved reference: completed
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:21:37 Type mismatch: inferred type is Context but String was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:21:46 Too many arguments for public final fun markComplete(blockId: String): Unit defined in com.jarvismini.core.progress.ProgressEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:25:39 Type mismatch: inferred type is Context but String was expected
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:1:29 Unresolved reference: Context
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:1:44 Unresolved reference: Routine
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:2:34 Unresolved reference: Routine
@@ -17,6 +23,40 @@ FAILURE: Build failed with an exception.
 BUILD FAILED in 35s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+1	package com.jarvismini.core.progress
+2
+3	import android.content.Context
+4
+5	object ProgressRepository {
+6
+7	    fun getTodayBlocks(context: Context): List<ProgressBlock> {
+8	        // Ensure engine state is loaded
+>>>>> ERROR HERE
+9	        ProgressEngine.ensureLoaded(context)
+10
+11	        return ProgressState.entries.map { entry ->
+12	            ProgressBlock(
+>>>>> ERROR HERE
+13	                id = entry.blockId,
+14	                name = entry.name,
+>>>>> ERROR HERE
+15	                completed = entry.completed
+16	            )
+17	        }
+18	    }
+19
+20	    fun markCompleted(context: Context, blockId: String) {
+>>>>> ERROR HERE
+21	        ProgressEngine.markComplete(context, blockId)
+22	    }
+23
+24	    fun markIncomplete(context: Context, blockId: String) {
+>>>>> ERROR HERE
+25	        ProgressEngine.markIncomplete(context, blockId)
+26	    }
+27	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
 >>>>> ERROR HERE
