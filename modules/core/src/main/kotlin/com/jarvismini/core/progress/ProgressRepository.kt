@@ -3,7 +3,6 @@ package com.jarvismini.core.progress
 object ProgressRepository {
 
     fun getTodayBlocks(): List<ProgressBlock> {
-        // ProgressEngine is already initialized, no need to pass context
         return ProgressState.entries.map { entry ->
             ProgressBlock(
                 id = entry.blockId,
@@ -19,5 +18,6 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
+    
     }
 }
