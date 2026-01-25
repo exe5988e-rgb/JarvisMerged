@@ -18,6 +18,5 @@ object ProgressRepository {
 
     fun markIncomplete(blockId: String, blockName: String) {
         ProgressEngine.markIncomplete(blockId, blockName)
-    
     }
 }

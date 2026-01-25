@@ -1,25 +1,55 @@
 package com.jarvismini.core.progress
 
-import java.text.SimpleDateFormat
-import java.util.*
+import android.content.Context
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.tts.AssistantTTS
 
-object ProgressStatsEngine {
+object ProgressEngine {
 
-    fun getTodayStats(): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks()
-        val total = blocks.size
-        val completedCount = blocks.count { it.completed }
+    private lateinit var context: Context
+    private lateinit var config: ProgressConfig
+    private var notificationIconRes: Int = 0
 
-        val today = SimpleDateFormat(
-            "yyyy-MM-dd",
-            Locale.getDefault()
-        ).format(Date())
+    fun init(
+        ctx: Context,
+        cfg: ProgressConfig,
+        iconRes: Int
+    ) {
+        context = ctx.applicationContext
+        config = cfg
+        notificationIconRes = iconRes
+    }
 
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completedCount
+    fun onBlockCompleted(blockId: String, blockName: String) {
+        if (!config.enabled) return
+
+        ProgressStatsEngine.registerBlock(context, blockId)
+
+        ProgressNotifier.showCompletionPrompt(
+            context,
+            blockId,
+            blockName,
+            notificationIconRes
         )
-   
+
+        if (config.ttsEnabled) {
+            AssistantTTS.speak(
+                context,
+                "Block $blockName finished. Please confirm completion."
+            )
+        }
+    }
+
+    fun markComplete(blockId: String) {
+        ProgressStore.markComplete(context, blockId)
+        ProgressStatsEngine.markCompleted(context, blockId)
+    }
+
+    fun markIncomplete(blockId: String, blockName: String) {
+        ProgressStore.markIncomplete(context, blockId)
+        if (config.retryEnabled) {
+            RetryScheduler.schedule(context, blockId, blockName, config)
+        
+}
     }
 }

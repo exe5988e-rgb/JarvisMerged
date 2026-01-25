@@ -4,7 +4,6 @@ import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ✅ Single source of truth for stats
 object ProgressStatsEngine {
 
     fun registerBlock(context: Context, blockId: String) {
@@ -16,17 +15,20 @@ object ProgressStatsEngine {
     }
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
+        val blocks = ProgressRepository.getTodayBlocks()
         val total = blocks.size
         val completedCount = blocks.count { it.completed }
 
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val today = SimpleDateFormat(
+            "yyyy-MM-dd",
+            Locale.getDefault()
+        ).format(Date())
 
-        // ✅ Correctly construct ProgressStats with all required parameters
         return ProgressStats(
             date = today,
             totalBlocks = total,
             completedBlocks = completedCount
         )
-    }
+
+}
 }
