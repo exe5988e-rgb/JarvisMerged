@@ -3324,22 +3324,20 @@ object ProgressConfigLoader {
 package com.jarvismini.core.progress
 
 import android.content.Context
-import com.jarvismini.engine.progress.AlarmManagerRetry
 
+/**
+ * Core progress logic.
+ * NO engine / alarm dependencies here.
+ */
 object ProgressEngine {
 
     fun markComplete(context: Context, blockId: String) {
-        // 1️⃣ Persist completion
         ProgressStore.markComplete(context, blockId)
-
-        // 2️⃣ 🛑 CANCEL any scheduled reminder
-        AlarmManagerRetry.cancel(context, blockId)
     }
 
     fun markIncomplete(context: Context, blockId: String, blockName: String) {
         ProgressStore.markIncomplete(context, blockId)
-        // scheduling handled elsewhere
-  
+    
 }
 }
 
@@ -3407,7 +3405,7 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressRepository.getTodayBlocks(context)
+        val blocks = ProgressStore.getTodayBlocks(context)
         val total = blocks.size
         val completedCount = blocks.count { it.completed }
 
@@ -3421,8 +3419,7 @@ object ProgressStatsEngine {
             totalBlocks = total,
             completedBlocks = completedCount
         )
-   
-}
+  }
 }
 
 
@@ -3577,19 +3574,21 @@ import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.Routine
 
 /**
- * Executes a Routine by dispatching actions and notifying ProgressEngine.
+ * Executes routines and reports completion to ProgressEngine.
  */
 class RoutineExecutor(
     private val context: Context
 ) {
+
     fun execute(routine: Routine) {
         routine.actions.forEach { action ->
             ActionDispatcher.dispatch(context, action)
         }
 
-        // ✅ BLOCK FINISHED → PROGRESS ENGINE
-        ProgressEngine.markComplete(routine.id)
-    }
+        // ✅ Correct signature
+        ProgressEngine.markComplete(context, routine.id)
+   
+}
 }
 
 
