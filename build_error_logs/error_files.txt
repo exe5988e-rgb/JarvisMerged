@@ -1,12 +1,12 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:10:36 Unresolved reference: getTodayBlocks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:12:45 Unresolved reference: it
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:10:41 Unresolved reference: getTodayBlocks
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:12:45 Cannot infer a type for this parameter. Please specify it explicitly.
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 34s
+BUILD FAILED in 32s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -21,10 +21,10 @@ BUILD FAILED in 34s
 8
 9	    fun getTodayStats(context: Context): ProgressStats {
 >>>>> ERROR HERE
-10	        val blocks = ProgressStore.getTodayBlocks(context)
+10	        val blocks = ProgressRepository.getTodayBlocks(context)
 11	        val total = blocks.size
 >>>>> ERROR HERE
-12	        val completedCount = blocks.count { it.completed }
+12	        val completedCount = blocks.count { block -> block.completed }
 13
 14	        val today = SimpleDateFormat(
 15	            "yyyy-MM-dd",
@@ -36,8 +36,9 @@ BUILD FAILED in 34s
 21	            totalBlocks = total,
 22	            completedBlocks = completedCount
 23	        )
-24	  }
+24
 25	}
+26	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
