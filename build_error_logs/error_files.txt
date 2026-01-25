@@ -1,17 +1,51 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:6:8 Redeclaration: ProgressStatsEngine
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:8:28 Unresolved reference: blockId
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:10:35 Unresolved reference: completed
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:16:9 Unresolved reference: ProgressEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:20:9 Unresolved reference: ProgressEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:8:8 Redeclaration: ProgressStatsEngine
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:19:56 Too many arguments for public final fun getTodayBlocks(): List<ProgressBlock> defined in com.jarvismini.core.progress.ProgressRepository
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:4:37 Unresolved reference: ProgressEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt:17:9 Unresolved reference: ProgressEngine
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:10:48 Missing '}
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt:76:1 Unclosed comment
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 36s
+BUILD FAILED in 34s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+1	package com.jarvismini.core.progress
+2
+3	import java.text.SimpleDateFormat
+4	import java.util.*
+5
+>>>>> ERROR HERE
+6	object ProgressStatsEngine {
+7
+8	    fun getTodayStats(): ProgressStats {
+9	        val blocks = ProgressRepository.getTodayBlocks()
+10	        val total = blocks.size
+11	        val completedCount = blocks.count { it.completed }
+12
+13	        val today = SimpleDateFormat(
+14	            "yyyy-MM-dd",
+15	            Locale.getDefault()
+16	        ).format(Date())
+17
+18	        return ProgressStats(
+19	            date = today,
+20	            totalBlocks = total,
+21	            completedBlocks = completedCount
+22	        )
+23
+24	    }
+25	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 1	package com.jarvismini.core.progress
@@ -31,10 +65,12 @@ BUILD FAILED in 36s
 13	    }
 14
 15	    fun markCompleted(blockId: String) {
+>>>>> ERROR HERE
 16	        ProgressEngine.markComplete(blockId)
 17	    }
 18
 19	    fun markIncomplete(blockId: String, blockName: String) {
+>>>>> ERROR HERE
 20	        ProgressEngine.markIncomplete(blockId, blockName)
 21
 22	    }
@@ -48,6 +84,7 @@ BUILD FAILED in 36s
 5	import java.util.*
 6
 7	// ✅ Single source of truth for stats
+>>>>> ERROR HERE
 8	object ProgressStatsEngine {
 9
 10	    fun registerBlock(context: Context, blockId: String) {
@@ -74,6 +111,32 @@ BUILD FAILED in 36s
 30	        )
 31	    }
 32	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
+1	package com.jarvismini.core.routine
+2
+3	import android.content.Context
+>>>>> ERROR HERE
+4	import com.jarvismini.core.progress.ProgressEngine
+5	import com.jarvismini.core.routine.model.Routine
+6
+7	class RoutineExecutor(
+8	    private val context: Context
+9	) {
+10
+11	    fun execute(routine: Routine) {
+12	        routine.actions.forEach { action ->
+13	            ActionDispatcher.dispatch(context, action)
+14	        }
+15
+16	        // ✅ BLOCK FINISHED → PROGRESS ENGINE
+>>>>> ERROR HERE
+17	        ProgressEngine.onBlockCompleted(
+18	            blockId = routine.id,
+19	            blockName = routine.name
+20	        )
+21	    }
+22	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
 1	package com.jarvismini.core.routine
