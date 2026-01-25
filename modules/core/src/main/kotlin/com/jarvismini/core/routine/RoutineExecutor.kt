@@ -6,17 +6,18 @@ import com.jarvismini.core.routine.model.Routine
 
 /**
  * Executes routines and reports completion to ProgressEngine.
- * Currently stubbed: routine actions are ignored until defined.
  */
 class RoutineExecutor(
     private val context: Context
 ) {
 
     fun execute(routine: Routine) {
-        // TODO: Implement action execution when Routine.actions exists
-        // Currently skipping actions for compilation purposes
+        // Execute all actions in the routine
+        routine.actions.forEach { action ->
+            ActionDispatcher.dispatch(context, action)
+        }
 
-        // ✅ Mark routine as complete in ProgressEngine
+        // Mark the routine complete
         ProgressEngine.markComplete(context, routine.id)
     }
 }

@@ -31,18 +31,10 @@ class ProgressOrchestrator(
     ) {
         if (completed) {
             ProgressEngine.markComplete(context, blockId)
-
-            AssistantTTS.speak(
-                context,
-                "Great. Task marked as complete."
-            )
+            AssistantTTS.speak(context, "Great. Task marked as complete.")
         } else {
             ProgressEngine.markIncomplete(context, blockId)
-
-            AssistantTTS.speak(
-                context,
-                "Okay. I will remind you again in thirty minutes."
-            )
+            AssistantTTS.speak(context, "Okay. I will remind you again in thirty minutes.")
 
             scheduler.schedule(
                 delayMs = 30 * 60 * 1000L

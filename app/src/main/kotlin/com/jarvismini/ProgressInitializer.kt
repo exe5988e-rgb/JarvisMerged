@@ -4,21 +4,17 @@ import android.content.Context
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.routine.RoutineProvider
 
+/**
+ * Initializes all routines and registers them with ProgressRepository.
+ */
 object ProgressInitializer {
-
     fun registerAllBlocks(context: Context) {
+        // Load routines from assets using RoutineProvider
         val routines = RoutineProvider.getAllRoutines(context)
-
         routines.forEach { routine ->
-            try {
-                // Only register enabled routines with a trigger
-                if (routine.enabled && routine.trigger.time.isNotBlank()) {
-                    ProgressRepository.register(context, routine.id, routine.trigger.time)
-                }
-            } catch (e: Exception) {
-                // Log and skip routines with missing or malformed triggers
-                android.util.Log.w("ProgressInitializer", "Skipping routine ${routine.id}: ${e.message}")
-            }
+            // Ensure trigger time exists
+            val scheduledTime = routine.trigger?.time ?: "00:00"
+            ProgressRepository.register(context, routine.id, scheduledTime)
         }
     }
 }
