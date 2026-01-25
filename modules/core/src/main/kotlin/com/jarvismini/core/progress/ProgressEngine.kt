@@ -2,9 +2,6 @@ package com.jarvismini.core.progress
 
 import android.content.Context
 
-/**
- * Engine for marking progress blocks complete/incomplete.
- */
 object ProgressEngine {
 
     fun markComplete(blockId: String) {
@@ -24,16 +21,14 @@ object ProgressEngine {
     }
 
     private fun markCompleteInternal(context: Context?, blockId: String) {
-        // TODO: persist completion, notify if context available
+        context?.let { ProgressStore.markComplete(it, blockId) }
     }
 
     private fun markIncompleteInternal(context: Context?, blockId: String, blockName: String) {
-        // TODO: persist incompletion, notify if context available
+        context?.let { ProgressStore.markIncomplete(it, blockId) }
     }
 
-    // ✅ New method for RoutineExecutor
     fun onBlockCompleted(blockId: String, blockName: String) {
         markComplete(blockId)
-        // Could also schedule reminders or trigger events here
     }
 }

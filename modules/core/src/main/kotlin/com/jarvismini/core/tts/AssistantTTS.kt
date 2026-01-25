@@ -10,7 +10,7 @@ object AssistantTTS {
 
     fun speak(context: Context, message: String) {
         if (tts == null) {
-            tts = TextToSpeech(context) {
+            tts = TextToSpeech(context.applicationContext) {
                 if (it == TextToSpeech.SUCCESS) {
                     tts?.language = Locale.US
                     tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "progress_tts")

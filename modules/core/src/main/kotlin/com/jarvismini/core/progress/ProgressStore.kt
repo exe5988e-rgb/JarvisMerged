@@ -3,7 +3,6 @@ package com.jarvismini.core.progress
 import android.content.Context
 
 object ProgressStore {
-
     private const val PREF = "progress_store"
 
     fun register(context: Context, blockId: String) {

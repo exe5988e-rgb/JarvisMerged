@@ -9,11 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
-import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressStatsEngine
+import com.jarvismini.core.progress.*
 import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.ChecklistItem
+import com.jarvismini.core.tts.AssistantTTS
 
 enum class MainTab(val title: String) {
     Chat("Chat"),
@@ -24,7 +23,7 @@ enum class MainTab(val title: String) {
 fun MainScreen() {
     val context = LocalContext.current
 
-    // Register all blocks once
+    // Register all routine blocks once
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
@@ -32,10 +31,16 @@ fun MainScreen() {
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
-    // ✅ FIX #1: pass context
+    // Load checklist blocks when checklist tab opens
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
+            // Voice summary
+            val stats = ProgressStatsEngine.getTodayStats(context)
+            AssistantTTS.speak(
+                context,
+                "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
+            )
         }
     }
 
@@ -93,21 +98,23 @@ private fun ChecklistScreenWithStats(
                 ChecklistItem(
                     block = block,
                     onComplete = {
-                        ProgressRepository.markCompleted(block.id)
-                        // ✅ FIX #2
-                        onBlocksUpdated(
-                            ProgressRepository.getTodayBlocks(context)
-                        )
+                        ProgressRepository.markCompleted(context, block.id)
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(
-                            blockId = block.id,
-                            blockName = block.name
+                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                        AssistantTTS.speak(
+                            context,
+                            "You missed task ${block.name}. I will remind you in 30 minutes."
                         )
-                        // ✅ FIX #3
-                        onBlocksUpdated(
-                            ProgressRepository.getTodayBlocks(context)
-                        )
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        // Schedule retry using your scheduler
+                        DelayedTaskScheduler.schedule(30 * 60 * 1000L) {
+                            AssistantTTS.speak(
+                                context,
+                                "Reminder: Please complete task ${block.name}."
+                            )
+                        }
                     }
                 )
             }
