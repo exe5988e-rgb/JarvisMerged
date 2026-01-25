@@ -13,6 +13,10 @@ fun ChecklistItem(
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
+    val displayName = block.id
+        .replace("_", " ")
+        .replaceFirstChar { it.uppercase() }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -23,9 +27,10 @@ fun ChecklistItem(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = block.name,
+                text = displayName,
                 modifier = Modifier.weight(1f)
             )
+
             if (!block.completed) {
                 TextButton(onClick = onComplete) { Text("Done") }
                 TextButton(onClick = onIncomplete) { Text("Missed") }

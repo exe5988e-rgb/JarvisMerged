@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.ChecklistItem
+import com.jarvismini.ui.checklist.ChecklistItem
 import com.jarvismini.ui.JarvisChatScreen
 
 enum class MainTab(val title: String) {
@@ -23,7 +23,6 @@ enum class MainTab(val title: String) {
 fun MainScreen() {
     val context = LocalContext.current
 
-    // Register routine blocks once
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
@@ -31,7 +30,6 @@ fun MainScreen() {
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
-    // Load checklist + voice summary
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks(context)
@@ -96,20 +94,23 @@ private fun ChecklistScreenWithStats(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(blocks) { block ->
+
+                val displayName = block.id
+                    .replace("_", " ")
+                    .replaceFirstChar { it.uppercase() }
+
                 ChecklistItem(
                     block = block,
                     onComplete = {
-                        // ✅ Cancels reminder internally
                         ProgressRepository.markCompleted(context, block.id)
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
-                        // ✅ Schedules reminder internally
-                        ProgressRepository.markIncomplete(context, block.id, block.name)
+                        ProgressRepository.markIncomplete(context, block.id)
 
                         AssistantTTS.speak(
                             context,
-                            "You missed task ${block.name}. I will remind you in 30 minutes."
+                            "You missed task $displayName. I will remind you in 30 minutes."
                         )
 
                         onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
