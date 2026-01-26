@@ -1,11 +1,11 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:21:21 No value passed for parameter 'scheduledAt'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:21:35 Null can not be a value of a non-null type Long
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 59s
+BUILD FAILED in 56s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -31,12 +31,13 @@ BUILD FAILED in 59s
 19	                    routineId = routine.id,
 20	                    blockId = routine.id,
 >>>>> ERROR HERE
-21	                    state = ProgressState.PENDING
-22	                )
-23	            )
-24	        }
-25	    }
-26	}
+21	                    scheduledAt = null,
+22	                    state = ProgressState.PENDING
+23	                )
+24	            )
+25	        }
+26	    }
+27	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
