@@ -246,3 +246,223 @@ private fun ChecklistScreen(
         }
     }
 }
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.jarvismini.core.tts.AssistantTTS
+import java.util.Calendar
+
+class MissedTaskChecker(private val context: Context) {
+
+    fun checkAndRemind() {
+        // Get today's entries only
+        val todayEntries = ProgressRepository.getTodayEntries()
+
+        // Filter for incomplete tasks that have not been completed
+        val missedEntries = todayEntries.filter { it.state == ProgressState.INCOMPLETE }
+
+        missedEntries.forEach { entry ->
+            val blockName = entry.blockId.replace('_', ' ')
+            AssistantTTS.speak(
+                context.applicationContext,
+                "Reminder: you missed task $blockName."
+            )
+        }
+    }
+
+    /**
+     * Optional helper if you want to auto-schedule a 30-min reminder
+     */
+    fun remindLater(entry: ProgressEntry) {
+        AssistantTTS.speak(
+            context.applicationContext,
+            "Okay, I will remind you in 30 minutes."
+        )
+        // Here you can add actual scheduling logic if needed
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressReminderService.kt =====
+package com.jarvismini
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import com.jarvismini.core.progress.MissedTaskChecker
+import kotlinx.coroutines.*
+
+class ProgressReminderService : Service() {
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val CHANNEL_ID = "progress_reminder_channel"
+    private val NOTIFICATION_ID = 101
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification("Monitoring missed tasks…"))
+
+        serviceScope.launch {
+            while (isActive) {
+                checkMissedTasks()
+                delay(15 * 60 * 1000L) // 15 minutes
+            }
+        }
+    }
+
+    private suspend fun checkMissedTasks() {
+        val checker = MissedTaskChecker(this)
+        checker.checkAndRemind()
+        // Optional: You could loop through today’s entries and show UI notifications
+        // with a “Remind me in 30 minutes” button, which calls checker.remindLater(entry)
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Progress Reminders",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(content: String): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Jarvis Mini")
+            .setContentText(content)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .build()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.checklist.ChecklistItem
+import kotlinx.coroutines.*
+
+enum class MainTab { Chat, Checklist }
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            blocks = ProgressRepository.getTodayBlocks()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                MainTab.values().forEach {
+                    Tab(
+                        selected = selectedTab == it,
+                        onClick = { selectedTab = it },
+                        text = { Text(it.name) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
+            when (selectedTab) {
+                MainTab.Chat -> JarvisChatScreen()
+                MainTab.Checklist -> ChecklistScreen(blocks) {
+                    blocks = it
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistScreen(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = LocalContext.current
+    val stats = ProgressStatsEngine.getTodayStats()
+
+    Column {
+        Text(
+            "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(blocks) { block ->
+                ChecklistItem(
+                    block = block,
+                    onComplete = {
+                        ProgressEngine.markComplete(context, block.id)
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                    },
+                    onIncomplete = {
+                        // TTS feedback
+                        AssistantTTS.speak(
+                            context,
+                            "Okay, I will remind you in 30 minutes."
+                        )
+
+                        // Schedule a 30-minute reminder
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            AssistantTTS.speak(
+                                context,
+                                "Reminder: You missed task ${block.id.replace('_', ' ')}"
+                            )
+                        }, 30 * 60 * 1000L) // 30 minutes
+
+                        // Mark incomplete in store
+                        ProgressEngine.markIncomplete(context, block.id)
+
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                    }
+                )
+            }
+        }
+    }
+}
