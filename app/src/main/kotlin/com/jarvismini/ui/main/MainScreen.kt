@@ -11,8 +11,8 @@ import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.checklist.ChecklistItem
 import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.checklist.ChecklistItem
 
 enum class MainTab { Chat, Checklist }
 
@@ -20,7 +20,7 @@ enum class MainTab { Chat, Checklist }
 fun MainScreen() {
     val context = LocalContext.current
     var tab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
@@ -28,7 +28,7 @@ fun MainScreen() {
 
     LaunchedEffect(tab) {
         if (tab == MainTab.Checklist) {
-            blocks = ProgressStore.getTodayBlocks()
+            blocks = ProgressRepository.getTodayBlocks()
             val stats = ProgressStatsEngine.getTodayStats()
             AssistantTTS.speak(
                 context,
@@ -39,14 +39,23 @@ fun MainScreen() {
 
     Scaffold(
         topBar = {
-            TabRow(tab.ordinal) {
-                MainTab.values().forEach {
-                    Tab(tab == it, { tab = it }, { Text(it.name) })
+            TabRow(selectedTabIndex = tab.ordinal) {
+                MainTab.values().forEach { t ->
+                    Tab(
+                        selected = tab == t,
+                        onClick = { tab = t },
+                        text = { Text(t.name) }
+                    )
                 }
             }
         }
-    ) { pad ->
-        Box(Modifier.padding(pad).padding(12.dp)) {
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
             when (tab) {
                 MainTab.Chat -> JarvisChatScreen()
                 MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
@@ -73,11 +82,11 @@ private fun ChecklistScreen(
                     block = block,
                     onComplete = {
                         ProgressEngine.markComplete(context, block.id)
-                        update(ProgressStore.getTodayBlocks())
+                        update(ProgressRepository.getTodayBlocks())
                     },
                     onIncomplete = {
                         ProgressEngine.markIncomplete(context, block.id)
-                        update(ProgressStore.getTodayBlocks())
+                        update(ProgressRepository.getTodayBlocks())
                     }
                 )
             }

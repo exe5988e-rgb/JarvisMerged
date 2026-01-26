@@ -3,6 +3,7 @@ package com.jarvismini
 import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
 import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
@@ -16,7 +17,9 @@ object ProgressInitializer {
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = routine.timeMillis
+                    scheduledAt = routine.scheduledAt,
+                    timestamp = System.currentTimeMillis(),
+                    state = ProgressState.PENDING
                 )
             )
         }
