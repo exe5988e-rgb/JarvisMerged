@@ -1238,36 +1238,112 @@ fun ChecklistItem(
 package com.jarvismini.ui.main
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.checklist.ChecklistItem
+
+enum class MainTab {
+    Chat,
+    Checklist
+}
 
 @Composable
-fun ChecklistScreen(blocks: List<ProgressBlock>, update: () -> Unit) {
+fun MainScreen() {
     val context = LocalContext.current
 
-    LazyColumn {
-        items(blocks) { block ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(block.id)
-                Row {
-                    Button(onClick = {
-                        ProgressEngine.markComplete(context, block.id)
-                        update()
-                    }) { Text("Done") }
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
 
-                    Button(onClick = {
-                        ProgressEngine.markIncomplete(context, block.id)
-                        update()
-                    }) { Text("Missed") }
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            blocks = ProgressRepository.getTodayBlocks()
+            val stats = ProgressStatsEngine.getTodayStats(context)
+            AssistantTTS.speak(
+                context,
+                "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
+            )
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.name) }
+                    )
                 }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
+            when (selectedTab) {
+                MainTab.Chat -> JarvisChatScreen()
+                MainTab.Checklist -> ChecklistScreen(
+                    blocks = blocks,
+                    onBlocksUpdated = { blocks = it }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistScreen(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = LocalContext.current
+    val stats = ProgressStatsEngine.getTodayStats(context)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        Text(
+            text = "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(blocks) { block ->
+                ChecklistItem(
+                    block = block,
+                    onComplete = {
+                        ProgressEngine.markComplete(context, block.id)
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                    },
+                    onIncomplete = {
+                        ProgressEngine.markIncomplete(context, block.id)
+                        AssistantTTS.speak(
+                            context,
+                            "You missed task ${block.id.replace('_', ' ')}"
+                        )
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                    }
+                )
             }
         }
     }
