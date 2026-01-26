@@ -690,7 +690,6 @@ package com.jarvismini
 import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
 import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
@@ -699,7 +698,7 @@ object ProgressInitializer {
     fun registerAllBlocks(context: Context) = runBlocking {
         ProgressRepository.hydrate(context)
 
-        val now = System.currentTimeMillis()
+        val todayStart = System.currentTimeMillis()
 
         RoutineProvider.getAllRoutines(context).forEach { routine ->
             ProgressRepository.register(
@@ -707,8 +706,7 @@ object ProgressInitializer {
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = now,
-                    state = ProgressState.PENDING
+                    scheduledAt = todayStart
                 )
             )
         }
@@ -1241,94 +1239,36 @@ fun ChecklistItem(
 package com.jarvismini.ui.main
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.checklist.ChecklistItem
-
-enum class MainTab { Chat, Checklist }
 
 @Composable
-fun MainScreen() {
+fun ChecklistScreen(blocks: List<ProgressBlock>, update: () -> Unit) {
     val context = LocalContext.current
-    var tab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
-    }
-
-    LaunchedEffect(tab) {
-        if (tab == MainTab.Checklist) {
-            blocks = ProgressRepository.getTodayBlocks()
-            val stats = ProgressStatsEngine.getTodayStats()
-            AssistantTTS.speak(
-                context,
-                "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
-            )
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TabRow(selectedTabIndex = tab.ordinal) {
-                MainTab.values().forEach { t ->
-                    Tab(
-                        selected = tab == t,
-                        onClick = { tab = t },
-                        text = { Text(t.name) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp)
-        ) {
-            when (tab) {
-                MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChecklistScreen(
-    blocks: List<ProgressBlock>,
-    update: (List<ProgressBlock>) -> Unit
-) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
-
-    Column {
-        Text("Today's Checklist (${stats.completionPercent}%)")
-        Spacer(Modifier.height(8.dp))
-
-        LazyColumn {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
+    LazyColumn {
+        items(blocks) { block ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(block.id)
+                Row {
+                    Button(onClick = {
                         ProgressEngine.markComplete(context, block.id)
-                        update(ProgressRepository.getTodayBlocks())
-                    },
-                    onIncomplete = {
+                        update()
+                    }) { Text("Done") }
+
+                    Button(onClick = {
                         ProgressEngine.markIncomplete(context, block.id)
-                        update(ProgressRepository.getTodayBlocks())
-                    }
-                )
+                        update()
+                    }) { Text("Missed") }
+                }
             }
         }
     }
@@ -3506,22 +3446,17 @@ object ProgressConfigLoader {
 package com.jarvismini.core.progress
 
 import android.content.Context
+import kotlinx.coroutines.runBlocking
 
 object ProgressEngine {
 
-    fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId, blockId)
+    fun markComplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markComplete(context, blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressRepository.markIncomplete(context, blockId, blockId)
+    fun markIncomplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markMissed(context, blockId)
     }
-
-    fun getAllEntries(): List<ProgressEntry> =
-        ProgressRepository.getAllEntries()
-
-    fun getTodayEntries(): List<ProgressEntry> =
-        ProgressRepository.getTodayEntries()
 }
 
 
@@ -3534,8 +3469,7 @@ data class ProgressEntry(
     val scheduledAt: Long,
     val state: ProgressState = ProgressState.PENDING,
     val completedAt: Long? = null,
-    val missedAt: Long? = null,
-    val lastUpdatedAt: Long = System.currentTimeMillis()
+    val missedAt: Long? = null
 )
 
 
@@ -3626,85 +3560,69 @@ object ProgressStore {
 
     private const val FILE_NAME = "progress_store.json"
     private val gson = Gson()
-    private val entries = mutableMapOf<String, ProgressEntry>()
-    @Volatile private var initialized = false
-
-    private fun key(routineId: String, blockId: String) = "$routineId::$blockId"
+    private val entries = mutableListOf<ProgressEntry>()
+    private var initialized = false
 
     suspend fun init(context: Context) {
         if (initialized) return
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
             val type = object : TypeToken<List<ProgressEntry>>() {}.type
-            val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
-            list.forEach { entries[key(it.routineId, it.blockId)] = it }
+            entries.addAll(gson.fromJson(file.readText(), type))
         }
         initialized = true
     }
 
     private fun persist(context: Context) {
-        File(context.filesDir, FILE_NAME)
-            .writeText(gson.toJson(entries.values.toList()))
+        val file = File(context.filesDir, FILE_NAME)
+        file.writeText(gson.toJson(entries))
     }
 
-    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+    suspend fun register(context: Context, entry: ProgressEntry) {
+        if (entries.none { it.routineId == entry.routineId && isSameDay(it.scheduledAt, entry.scheduledAt) }) {
+            entries.add(entry)
+            persist(context)
+        }
+    }
 
-    fun getTodayEntries(): List<ProgressEntry> =
-        entries.values.filter { isToday(it.scheduledAt) }
+    fun getTodayEntries(): List<ProgressEntry> {
+        val now = System.currentTimeMillis()
+        return entries.filter { isSameDay(it.scheduledAt, now) }
+    }
 
     fun getTodayBlocks(): List<ProgressBlock> =
         getTodayEntries().map {
-            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
-        }
-
-    suspend fun register(context: Context, entry: ProgressEntry) {
-        val k = key(entry.routineId, entry.blockId)
-        if (!entries.containsKey(k)) {
-            entries[k] = entry
-            persist(context)
-        }
-    }
-
-    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
-        val k = key(routineId, blockId)
-        entries[k]?.let {
-            entries[k] = it.copy(
-                state = ProgressState.COMPLETED,
-                completedAt = System.currentTimeMillis(),
-                lastUpdatedAt = System.currentTimeMillis()
+            ProgressBlock(
+                id = it.blockId,
+                completed = it.state == ProgressState.COMPLETED
             )
-            persist(context)
         }
-    }
 
-    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
-        val k = key(routineId, blockId)
-        entries[k]?.let {
-            entries[k] = it.copy(
-                state = ProgressState.INCOMPLETE,
-                missedAt = System.currentTimeMillis(),
-                lastUpdatedAt = System.currentTimeMillis()
-            )
-            persist(context)
-        }
-    }
-
-    fun updateMissedTasks(context: Context) {
+    suspend fun markComplete(context: Context, blockId: String) {
         val now = System.currentTimeMillis()
-        entries.values.forEach {
-            if (it.state == ProgressState.PENDING && now > it.scheduledAt) {
-                entries[key(it.routineId, it.blockId)] =
-                    it.copy(state = ProgressState.INCOMPLETE, missedAt = now)
-            }
+        entries.replaceAll {
+            if (it.blockId == blockId && isSameDay(it.scheduledAt, now))
+                it.copy(state = ProgressState.COMPLETED, completedAt = now)
+            else it
         }
         persist(context)
     }
 
-    private fun isToday(time: Long): Boolean {
-        val c1 = Calendar.getInstance().apply { timeInMillis = time }
-        val c2 = Calendar.getInstance()
+    suspend fun markMissed(context: Context, blockId: String) {
+        val now = System.currentTimeMillis()
+        entries.replaceAll {
+            if (it.blockId == blockId && isSameDay(it.scheduledAt, now))
+                it.copy(state = ProgressState.INCOMPLETE, missedAt = now)
+            else it
+        }
+        persist(context)
+    }
+
+    private fun isSameDay(a: Long, b: Long): Boolean {
+        val c1 = Calendar.getInstance().apply { timeInMillis = a }
+        val c2 = Calendar.getInstance().apply { timeInMillis = b }
         return c1.get(Calendar.YEAR) == c2.get(Calendar.YEAR) &&
-                c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
+               c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
     }
 }
 
