@@ -1,16 +1,208 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressEntry(
+    val routineId: String,
+    val blockId: String,
+    val timestamp: Long,
+    val state: ProgressState = ProgressState.PENDING,
+    val scheduledAt: Long? = null,
+    val completedAt: Long? = null,
+    val lastUpdatedAt: Long = System.currentTimeMillis(),
+    val missedAt: Long? = null
+)
+
+enum class ProgressState { PENDING, COMPLETED, INCOMPLETE }
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressBlock(
+    val id: String,
+    val completed: Boolean
+)
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.io.File
+
+object ProgressStore {
+
+    private const val FILE_NAME = "progress_store.json"
+    private val gson = Gson()
+    private val entries: MutableMap<String, ProgressEntry> = mutableMapOf()
+    @Volatile private var initialized = false
+
+    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
+
+    suspend fun init(context: Context) {
+        if (initialized) return
+        val file = File(context.filesDir, FILE_NAME)
+        if (file.exists()) {
+            try {
+                val type = object : TypeToken<List<ProgressEntry>>() {}.type
+                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
+                list.forEach { entry ->
+                    if (!entries.containsKey(makeKey(entry.routineId, entry.blockId))) {
+                        entries[makeKey(entry.routineId, entry.blockId)] = entry
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        initialized = true
+    }
+
+    private suspend fun persist(context: Context) {
+        val file = File(context.filesDir, FILE_NAME)
+        try {
+            val json = gson.toJson(entries.values.toList())
+            file.writeText(json)
+        } catch (_: Exception) { }
+    }
+
+    suspend fun register(context: Context, entry: ProgressEntry) {
+        val key = makeKey(entry.routineId, entry.blockId)
+        entries.putIfAbsent(key, entry)
+        persist(context)
+    }
+
+    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
+        val key = makeKey(routineId, blockId)
+        val existing = entries[key]
+        if (existing != null && existing.completedAt == null) {
+            val updated = existing.copy(
+                state = ProgressState.COMPLETED,
+                completedAt = System.currentTimeMillis(),
+                lastUpdatedAt = System.currentTimeMillis()
+            )
+            entries[key] = updated
+            persist(context)
+        }
+    }
+
+    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
+        val key = makeKey(routineId, blockId)
+        val existing = entries[key]
+        if (existing != null) {
+            val now = System.currentTimeMillis()
+            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
+            val updated = existing.copy(
+                state = ProgressState.INCOMPLETE,
+                lastUpdatedAt = now,
+                missedAt = missedTime
+            )
+            entries[key] = updated
+            persist(context)
+        }
+    }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+    fun getTodayEntries(): List<ProgressEntry> {
+        val today = System.currentTimeMillis()
+        return entries.values.filter {
+            it.scheduledAt != null && isSameDay(it.scheduledAt, today)
+        }
+    }
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        getTodayEntries().map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
+
+    private fun isSameDay(time1: Long, time2: Long): Boolean {
+        val cal1 = java.util.Calendar.getInstance().apply { timeInMillis = time1 }
+        val cal2 = java.util.Calendar.getInstance().apply { timeInMillis = time2 }
+        return cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+                cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+
+    suspend fun updateMissedTasks() {
+        entries.values.forEach { entry ->
+            if (entry.scheduledAt != null &&
+                entry.state != ProgressState.COMPLETED &&
+                System.currentTimeMillis() > entry.scheduledAt
+            ) {
+                markIncomplete(context = null, routineId = entry.routineId, blockId = entry.blockId) // context will be provided in usage
+            }
+        }
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import kotlinx.coroutines.runBlocking
+
+object ProgressRepository {
+
+    private var hydrated = false
+
+    fun hydrate(context: Context) = runBlocking {
+        if (hydrated) return@runBlocking
+        ProgressStore.init(context)
+        hydrated = true
+    }
+
+    fun register(context: Context, entry: ProgressEntry) = runBlocking {
+        ProgressStore.register(context, entry)
+    }
+
+    fun markCompleted(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markComplete(context, blockId, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markIncomplete(context, blockId, blockId)
+    }
+
+    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
+    fun getTodayEntries(context: Context): List<ProgressEntry> = ProgressStore.getTodayEntries()
+    fun getTodayBlocks(context: Context): List<ProgressBlock> = ProgressStore.getTodayBlocks()
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressEngine {
+    fun markComplete(context: Context, blockId: String) {
+        ProgressRepository.markCompleted(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressRepository.markIncomplete(context, blockId)
+    }
+
+    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
+    fun getTodayEntries(context: Context): List<ProgressEntry> = ProgressRepository.getTodayEntries(context)
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressStats(
+    val date: String,
+    val totalBlocks: Int,
+    val completedBlocks: Int
+) {
+    val completionPercent: Int
+        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
+}
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 package com.jarvismini.core.progress
 
+import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * Provides statistics about today’s progress.
- */
 object ProgressStatsEngine {
-
-    fun getTodayStats(): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks() // no context needed
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks()
         val total = blocks.size
         val completed = blocks.count { it.completed }
 
@@ -21,4 +213,134 @@ object ProgressStatsEngine {
             completedBlocks = completed
         )
     }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+package com.jarvismini
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressEntry
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressState
+import com.jarvismini.core.routine.RoutineProvider
+import kotlinx.coroutines.runBlocking
+
+object ProgressInitializer {
+    fun registerAllBlocks(context: Context) = runBlocking {
+        ProgressRepository.hydrate(context)
+        val routines = RoutineProvider.getAllRoutines(context)
+        routines.forEach { routine ->
+            val entry = ProgressEntry(
+                routineId = routine.id,
+                blockId = routine.id,
+                timestamp = System.currentTimeMillis(),
+                state = ProgressState.PENDING,
+                scheduledAt = routine.scheduledAt
+            )
+            ProgressRepository.register(context, entry)
+        }
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
+package com.jarvismini
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import com.jarvismini.core.JarvisState
+import com.jarvismini.engine.EngineProvider
+import com.jarvismini.ui.main.MainScreen
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        JarvisState.init(applicationContext)
+        EngineProvider.init(applicationContext)
+
+        ProgressInitializer.registerAllBlocks(this)
+
+        setContent {
+            MaterialTheme {
+                Surface {
+                    MainScreen()
+                }
+            }
+        }
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressReminderService.kt =====
+package com.jarvismini
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.progress.ProgressState
+import com.jarvismini.core.tts.AssistantTTS
+import kotlinx.coroutines.*
+
+class ProgressReminderService : Service() {
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val CHANNEL_ID = "progress_reminder_channel"
+    private val NOTIFICATION_ID = 101
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification("Monitoring missed tasks…"))
+
+        serviceScope.launch {
+            while (isActive) {
+                checkMissedTasks()
+                delay(15 * 60 * 1000L)
+            }
+        }
+    }
+
+    private suspend fun checkMissedTasks() {
+        ProgressRepository.hydrate(this)
+        val todayBlocks = ProgressRepository.getTodayBlocks(this)
+        val missedBlocks = todayBlocks.filter { !it.completed && it.blockId.isNotEmpty() }
+
+        missedBlocks.forEach { block ->
+            AssistantTTS.speak(this, "Reminder: you missed task ${block.id}. Please complete it.")
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Progress Reminders",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(content: String): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Jarvis Mini")
+            .setContentText(content)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .build()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onDestroy() { super.onDestroy(); serviceScope.cancel() }
 }
