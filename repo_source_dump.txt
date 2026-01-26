@@ -3546,7 +3546,6 @@ object ProgressRepository {
 
     fun hydrate(context: Context) = runBlocking {
         ProgressStore.init(context)
-        ProgressStore.updateMissedTasks(context)
     }
 
     fun register(context: Context, entry: ProgressEntry) =
@@ -3558,14 +3557,11 @@ object ProgressRepository {
     fun markIncomplete(context: Context, blockId: String) =
         runBlocking { ProgressStore.markIncomplete(context, blockId) }
 
-    fun getAllEntries(): List<ProgressEntry> =
-        ProgressStore.getAllEntries()
+    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
 
-    fun getTodayEntries(): List<ProgressEntry> =
-        ProgressStore.getTodayEntries()
+    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
 
-    fun getTodayBlocks(): List<ProgressBlock> =
-        ProgressStore.getTodayBlocks()
+    fun getTodayBlocks(): List<ProgressBlock> = ProgressStore.getTodayBlocks()
 }
 
 
@@ -3620,7 +3616,7 @@ object ProgressStore {
     private val entries = mutableListOf<ProgressEntry>()
 
     fun init(context: Context) {
-        // no-op for now
+        // no-op
     }
 
     fun register(context: Context, entry: ProgressEntry) {
@@ -3630,17 +3626,17 @@ object ProgressStore {
     }
 
     fun markComplete(context: Context, blockId: String) {
-        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
-            state = ProgressState.COMPLETED
-        }
+        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
+        entry.state = ProgressState.COMPLETED
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
-            state = ProgressState.INCOMPLETE
-            missedAt = System.currentTimeMillis()
-        }
+        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
+        entry.state = ProgressState.INCOMPLETE
+        entry.missedAt = System.currentTimeMillis()
     }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.toList()
 
     fun getTodayEntries(): List<ProgressEntry> =
         entries.filter { isToday(it.scheduledAt) }
