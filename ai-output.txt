@@ -9,16 +9,18 @@ import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
 object ProgressInitializer {
+
     fun registerAllBlocks(context: Context) = runBlocking {
         ProgressRepository.hydrate(context)
+
         val routines = RoutineProvider.getAllRoutines(context)
         routines.forEach { routine ->
             val entry = ProgressEntry(
                 routineId = routine.id,
                 blockId = routine.id,
                 timestamp = System.currentTimeMillis(),
-                state = ProgressState.PENDING,
-                scheduledAt = routine.scheduledAt // <-- use actual property name from Routine
+                state = ProgressState.PENDING
+                // ✅ NO scheduledAt — Routine has no schedule field
             )
             ProgressRepository.register(context, entry)
         }
