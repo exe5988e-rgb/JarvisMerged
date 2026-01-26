@@ -1,59 +1,40 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
-package com.jarvismini.core.progress
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+package com.jarvismini
 
 import android.content.Context
+import com.jarvismini.core.progress.ProgressEntry
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressState
+import com.jarvismini.core.routine.RoutineProvider
+import kotlinx.coroutines.runBlocking
 import java.util.Calendar
 
-object ProgressStore {
+object ProgressInitializer {
 
-    private val entries = mutableListOf<ProgressEntry>()
+    fun registerAllBlocks(context: Context) = runBlocking {
+        ProgressRepository.hydrate(context)
 
-    fun init(context: Context) {
-        // no-op
+        val todayMillis = System.currentTimeMillis()
+
+        RoutineProvider.getAllRoutines(context)
+            .filter { routine -> isToday(routine.scheduledAt, todayMillis) }
+            .forEach { routine ->
+                ProgressRepository.register(
+                    context,
+                    ProgressEntry(
+                        routineId = routine.id,
+                        blockId = routine.id,
+                        scheduledAt = routine.scheduledAt,
+                        state = ProgressState.PENDING
+                    )
+                )
+            }
     }
 
-    fun register(context: Context, entry: ProgressEntry) {
-        if (entries.none { it.blockId == entry.blockId && isToday(it.scheduledAt) }) {
-            entries.add(entry)
-        }
-    }
-
-    fun markComplete(context: Context, blockId: String) {
-        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
-        if (index != -1) {
-            val old = entries[index]
-            entries[index] = old.copy(state = ProgressState.COMPLETED)
-        }
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
-        if (index != -1) {
-            val old = entries[index]
-            entries[index] = old.copy(
-                state = ProgressState.INCOMPLETE,
-                missedAt = System.currentTimeMillis()
-            )
-        }
-    }
-
-    fun getAllEntries(): List<ProgressEntry> = entries.toList()
-
-    fun getTodayEntries(): List<ProgressEntry> =
-        entries.filter { isToday(it.scheduledAt) }
-
-    fun getTodayBlocks(): List<ProgressBlock> =
-        getTodayEntries().map {
-            ProgressBlock(
-                id = it.blockId,
-                completed = it.state == ProgressState.COMPLETED
-            )
-        }
-
-    private fun isToday(timestamp: Long): Boolean {
-        val now = Calendar.getInstance()
+    private fun isToday(timestamp: Long, today: Long = System.currentTimeMillis()): Boolean {
+        val calNow = Calendar.getInstance().apply { timeInMillis = today }
         val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-        return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
-                now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
+        return calNow.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
+               calNow.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
     }
 }
