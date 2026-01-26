@@ -22,11 +22,13 @@ fun MainScreen() {
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
-    // Load today's routines immediately
+    // Load today's routines and blocks immediately
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
     }
 
     // Reload checklist when tab changes
@@ -34,6 +36,7 @@ fun MainScreen() {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
             blocks = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
         }
     }
 
@@ -58,7 +61,7 @@ fun MainScreen() {
         ) {
             when (selectedTab) {
                 MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
+                MainTab.Checklist -> ChecklistScreen(blocks, routines) { blocks = it }
             }
         }
     }
@@ -67,10 +70,10 @@ fun MainScreen() {
 @Composable
 private fun ChecklistScreen(
     blocks: List<ProgressBlock>,
+    routines: List<com.jarvismini.core.routine.model.Routine>,
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val routineProvider = RoutineProvider // use the object directly
     val stats = ProgressStatsEngine.getTodayStats()
 
     Column {
@@ -90,21 +93,19 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    val routine = routineProvider.getRoutine(block.id)  // ✅ map block -> routine
+                    // map block -> routine
+                    val routine = routines.find { it.id == block.id }
                     if (routine != null) {
                         ChecklistItem(
                             block = block,
-                            routine = routine, // ✅ pass Routine
+                            routine = routine,
                             onComplete = {
                                 ProgressEngine.markComplete(context, block.id)
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
                             },
                             onIncomplete = {
                                 ProgressEngine.markIncomplete(context, block.id)
-                                AssistantTTS.speak(
-                                    context,
-                                    "Okay, I will remind you in 30 minutes."
-                                )
+                                AssistantTTS.speak(context, "Okay, I will remind you in 30 minutes.")
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
                             }
                         )
