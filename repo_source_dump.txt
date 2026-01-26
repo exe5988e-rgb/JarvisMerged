@@ -1275,13 +1275,13 @@ import java.util.*
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
-    routine: Routine,
+    routine: Routine,  // ✅ Routine added
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
-    val displayName = routine.label
+    val displayName = routine.name
         .replace("_", " ")
-        .replaceFirstChar { c: Char -> c.uppercaseChar() }
+        .replaceFirstChar { it.uppercaseChar() }
 
     Card(
         modifier = Modifier
@@ -1312,8 +1312,15 @@ fun ChecklistItem(
             // Tasks (RoutineAction list)
             Column(modifier = Modifier.padding(start = 4.dp)) {
                 routine.actions.forEach { action ->
+                    val displayText = buildString {
+                        append(action.type.replace("_", " ").replaceFirstChar { it.uppercaseChar() })
+                        if (action.params.isNotEmpty()) {
+                            append(": ")
+                            append(action.params.entries.joinToString { "${it.key}=${it.value}" })
+                        }
+                    }
                     Text(
-                        text = "• ${action.label}",
+                        text = "• $displayText",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -1454,7 +1461,7 @@ private fun ChecklistScreen(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val routineProvider = RoutineProvider.instance
+    val routineProvider = RoutineProvider // use the object directly
     val stats = ProgressStatsEngine.getTodayStats()
 
     Column {
@@ -1474,11 +1481,11 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    val routine = routineProvider.getRoutine(block.id)
+                    val routine = routineProvider.getRoutine(block.id)  // ✅ map block -> routine
                     if (routine != null) {
                         ChecklistItem(
                             block = block,
-                            routine = routine,
+                            routine = routine, // ✅ pass Routine
                             onComplete = {
                                 ProgressEngine.markComplete(context, block.id)
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
