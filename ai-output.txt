@@ -1,23 +1,93 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
 
-object ProgressEngine {
+object ProgressStatsEngine {
 
-    /** Mark a block as complete */
-    fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId)
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks(context) // pass context
+        val total = blocks.size
+        val completed = blocks.count { it.completed }
+
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completed
+        )
+    }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.routine.model.RoutineAction
+
+/**
+ * Stub dispatcher for routine actions.
+ */
+object ActionDispatcher {
+    fun dispatch(context: Context, action: RoutineAction) {
+        // Stub — logic will expand later
+    }
+}
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+package com.jarvismini.engine.progress
+
+import android.content.Context
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+
+class ProgressOrchestrator(
+    private val context: Context,
+    private val scheduler: DelayedTaskScheduler
+) {
+
+    fun prompt(blockId: String, blockName: String) {
+        AssistantTTS.speak(
+            context,
+            "Did you complete $blockName?"
+        )
+
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
+        )
     }
 
-    /** Mark a block as incomplete */
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressRepository.markIncomplete(context, blockId)
+    fun onUserResponse(
+        blockId: String,
+        blockName: String,
+        completed: Boolean
+    ) {
+        if (completed) {
+            ProgressEngine.markComplete(context, blockId)
+
+            AssistantTTS.speak(
+                context,
+                "Great. Task marked as complete."
+            )
+        } else {
+            ProgressEngine.markIncomplete(context, blockId) // only 2 args now
+
+            AssistantTTS.speak(
+                context,
+                "Okay. I will remind you again in thirty minutes."
+            )
+
+            scheduler.schedule(
+                delayMs = 30 * 60 * 1000L
+            ) {
+                prompt(blockId, blockName)
+            }
+        }
     }
-
-    /** Retrieve all progress entries */
-    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
-
-    /** Retrieve today's progress entries as ProgressBlocks */
-    fun getTodayEntries(): List<ProgressBlock> = ProgressRepository.getTodayBlocks()
 }
