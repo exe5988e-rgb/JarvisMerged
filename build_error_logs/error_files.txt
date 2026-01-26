@@ -1,57 +1,238 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:19:50 Unresolved reference: scheduledAt
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:26:47 Unresolved reference: scheduledAt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:61:57 Smart cast to 'Long' is impossible, because 'block.completedAt' is a public API property declared in different module
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:68:54 Smart cast to 'Long' is impossible, because 'block.missedAt' is a public API property declared in different module
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:61:57 Smart cast to 'Long' is impossible, because 'block.completedAt' is a public API property declared in different module
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:68:54 Smart cast to 'Long' is impossible, because 'block.missedAt' is a public API property declared in different module
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m
+BUILD FAILED in 59s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-1	package com.jarvismini
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
+1	package com.jarvismini.ui
 2
-3	import android.content.Context
-4	import com.jarvismini.core.progress.ProgressEntry
-5	import com.jarvismini.core.progress.ProgressRepository
-6	import com.jarvismini.core.progress.ProgressState
-7	import com.jarvismini.core.routine.RoutineProvider
-8	import kotlinx.coroutines.runBlocking
-9	import java.util.Calendar
-10
-11	object ProgressInitializer {
-12
-13	    fun registerAllBlocks(context: Context) = runBlocking {
-14	        ProgressRepository.hydrate(context)
-15
-16	        val todayMillis = System.currentTimeMillis()
-17
-18	        RoutineProvider.getAllRoutines(context)
+3	import androidx.compose.foundation.layout.*
+4	import androidx.compose.material3.*
+5	import androidx.compose.runtime.Composable
+6	import androidx.compose.ui.Alignment
+7	import androidx.compose.ui.Modifier
+8	import androidx.compose.ui.text.font.FontWeight
+9	import androidx.compose.ui.unit.dp
+10	import com.jarvismini.core.progress.ProgressBlock
+11	import java.text.SimpleDateFormat
+12	import java.util.*
+13
+14	@Composable
+15	fun ChecklistItem(
+16	    block: ProgressBlock,
+17	    onComplete: () -> Unit,
+18	    onIncomplete: () -> Unit
+19	) {
+20	    val displayName = block.id
+21	        .replace("_", " ")
+22	        .replaceFirstChar { it.uppercase() }
+23
+24	    Card(
+25	        modifier = Modifier
+26	            .fillMaxWidth()
+27	            .padding(vertical = 6.dp),
+28	        colors = CardDefaults.cardColors(
+29	            containerColor = when {
+30	                block.completed -> MaterialTheme.colorScheme.primaryContainer
+31	                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
+32	                else -> MaterialTheme.colorScheme.surfaceVariant
+33	            }
+34	        )
+35	    ) {
+36	        Column(
+37	            modifier = Modifier
+38	                .padding(12.dp)
+39	                .fillMaxWidth()
+40	        ) {
+41	            // Routine name
+42	            Text(
+43	                text = displayName,
+44	                style = MaterialTheme.typography.titleMedium,
+45	                fontWeight = FontWeight.Bold
+46	            )
+47
+48	            Spacer(modifier = Modifier.height(8.dp))
+49
+50	            // Scheduled time
+51	            Text(
+52	                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+53	                style = MaterialTheme.typography.bodySmall,
+54	                color = MaterialTheme.colorScheme.onSurfaceVariant
+55	            )
+56
+57	            // Completed or Missed time
+58	            when {
+59	                block.completed && block.completedAt != null -> {
+60	                    Text(
 >>>>> ERROR HERE
-19	            .filter { routine -> isToday(routine.scheduledAt, todayMillis) }
-20	            .forEach { routine ->
-21	                ProgressRepository.register(
-22	                    context,
-23	                    ProgressEntry(
-24	                        routineId = routine.id,
-25	                        blockId = routine.id,
+61	                        text = "Completed: ${formatTime(block.completedAt)}",
+62	                        style = MaterialTheme.typography.bodySmall,
+63	                        color = MaterialTheme.colorScheme.primary
+64	                    )
+65	                }
+66	                block.missedAt != null -> {
+67	                    Text(
 >>>>> ERROR HERE
-26	                        scheduledAt = routine.scheduledAt,
-27	                        state = ProgressState.PENDING
-28	                    )
-29	                )
-30	            }
-31	    }
-32
-33	    private fun isToday(timestamp: Long, today: Long = System.currentTimeMillis()): Boolean {
-34	        val calNow = Calendar.getInstance().apply { timeInMillis = today }
-35	        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-36	        return calNow.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
-37	               calNow.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
-38	    }
-39	}
+68	                        text = "Missed: ${formatTime(block.missedAt)}",
+69	                        style = MaterialTheme.typography.bodySmall,
+70	                        color = MaterialTheme.colorScheme.error
+71	                    )
+72	                }
+73	            }
+74
+75	            Spacer(modifier = Modifier.height(8.dp))
+76
+77	            // Action buttons
+78	            Row(
+79	                modifier = Modifier.fillMaxWidth(),
+80	                horizontalArrangement = Arrangement.End,
+81	                verticalAlignment = Alignment.CenterVertically
+82	            ) {
+83	                if (!block.completed) {
+84	                    TextButton(onClick = onComplete) {
+85	                        Text("Done")
+86	                    }
+87	                    Spacer(modifier = Modifier.width(8.dp))
+88	                    TextButton(onClick = onIncomplete) {
+89	                        Text("Missed")
+90	                    }
+91	                } else {
+92	                    Text(
+93	                        text = "✅ Completed",
+94	                        style = MaterialTheme.typography.bodyMedium,
+95	                        color = MaterialTheme.colorScheme.primary,
+96	                        fontWeight = FontWeight.SemiBold
+97	                    )
+98	                }
+99	            }
+100	        }
+101	    }
+102	}
+103
+104	private fun formatTime(timestampMs: Long): String {
+105	    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+106	    return formatter.format(Date(timestampMs))
+107	}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
+1	package com.jarvismini.ui.checklist
+2
+3	import androidx.compose.foundation.layout.*
+4	import androidx.compose.material3.*
+5	import androidx.compose.runtime.Composable
+6	import androidx.compose.ui.Alignment
+7	import androidx.compose.ui.Modifier
+8	import androidx.compose.ui.text.font.FontWeight
+9	import androidx.compose.ui.unit.dp
+10	import com.jarvismini.core.progress.ProgressBlock
+11	import java.text.SimpleDateFormat
+12	import java.util.*
+13
+14	@Composable
+15	fun ChecklistItem(
+16	    block: ProgressBlock,
+17	    onComplete: () -> Unit,
+18	    onIncomplete: () -> Unit
+19	) {
+20	    val displayName = block.id
+21	        .replace("_", " ")
+22	        .replaceFirstChar { it.uppercase() }
+23
+24	    Card(
+25	        modifier = Modifier
+26	            .fillMaxWidth()
+27	            .padding(vertical = 6.dp),
+28	        colors = CardDefaults.cardColors(
+29	            containerColor = when {
+30	                block.completed -> MaterialTheme.colorScheme.primaryContainer
+31	                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
+32	                else -> MaterialTheme.colorScheme.surfaceVariant
+33	            }
+34	        )
+35	    ) {
+36	        Column(
+37	            modifier = Modifier
+38	                .padding(12.dp)
+39	                .fillMaxWidth()
+40	        ) {
+41	            // Routine name
+42	            Text(
+43	                text = displayName,
+44	                style = MaterialTheme.typography.titleMedium,
+45	                fontWeight = FontWeight.Bold
+46	            )
+47
+48	            Spacer(modifier = Modifier.height(8.dp))
+49
+50	            // Scheduled time
+51	            Text(
+52	                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+53	                style = MaterialTheme.typography.bodySmall,
+54	                color = MaterialTheme.colorScheme.onSurfaceVariant
+55	            )
+56
+57	            // Completed or Missed time
+58	            when {
+59	                block.completed && block.completedAt != null -> {
+60	                    Text(
+>>>>> ERROR HERE
+61	                        text = "Completed: ${formatTime(block.completedAt)}",
+62	                        style = MaterialTheme.typography.bodySmall,
+63	                        color = MaterialTheme.colorScheme.primary
+64	                    )
+65	                }
+66	                block.missedAt != null -> {
+67	                    Text(
+>>>>> ERROR HERE
+68	                        text = "Missed: ${formatTime(block.missedAt)}",
+69	                        style = MaterialTheme.typography.bodySmall,
+70	                        color = MaterialTheme.colorScheme.error
+71	                    )
+72	                }
+73	            }
+74
+75	            Spacer(modifier = Modifier.height(8.dp))
+76
+77	            // Action buttons
+78	            Row(
+79	                modifier = Modifier.fillMaxWidth(),
+80	                horizontalArrangement = Arrangement.End,
+81	                verticalAlignment = Alignment.CenterVertically
+82	            ) {
+83	                if (!block.completed) {
+84	                    TextButton(onClick = onComplete) {
+85	                        Text("Done")
+86	                    }
+87	                    Spacer(modifier = Modifier.width(8.dp))
+88	                    TextButton(onClick = onIncomplete) {
+89	                        Text("Missed")
+90	                    }
+91	                } else {
+92	                    Text(
+93	                        text = "✅ Completed",
+94	                        style = MaterialTheme.typography.bodyMedium,
+95	                        color = MaterialTheme.colorScheme.primary,
+96	                        fontWeight = FontWeight.SemiBold
+97	                    )
+98	                }
+99	            }
+100	        }
+101	    }
+102	}
+103
+104	private fun formatTime(timestampMs: Long): String {
+105	    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+106	    return formatter.format(Date(timestampMs))
+107	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
@@ -393,69 +574,43 @@ BUILD FAILED in 1m
 20	    }
 21	}
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
 1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
-4	import java.util.Calendar
-5
-6	object ProgressStore {
-7
-8	    private val entries = mutableListOf<ProgressEntry>()
-9
+4	import com.jarvismini.core.tts.AssistantTTS
+5	import java.util.Calendar
+6
+7	class MissedTaskChecker(private val context: Context) {
+8
+9	    fun checkAndRemind() {
+10	        // Get today's entries only
+11	        val todayEntries = ProgressRepository.getTodayEntries()
+12
+13	        // Filter for incomplete tasks that have not been completed
+14	        val missedEntries = todayEntries.filter { it.state == ProgressState.INCOMPLETE }
+15
+16	        missedEntries.forEach { entry ->
+17	            val blockName = entry.blockId.replace('_', ' ')
+18	            AssistantTTS.speak(
+19	                context.applicationContext,
+20	                "Reminder: you missed task $blockName."
+21	            )
+22	        }
+23	    }
+24
+25	    /**
+26	     * Optional helper if you want to auto-schedule a 30-min reminder
+27	     */
 >>>>> ERROR HERE
-10	    fun init(context: Context) {
-11	        // no-op
-12	    }
-13
->>>>> ERROR HERE
-14	    fun register(context: Context, entry: ProgressEntry) {
-15	        if (entries.none { it.blockId == entry.blockId && isToday(it.scheduledAt) }) {
-16	            entries.add(entry)
-17	        }
-18	    }
-19
->>>>> ERROR HERE
-20	    fun markComplete(context: Context, blockId: String) {
-21	        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
-22	        if (index != -1) {
-23	            val old = entries[index]
-24	            entries[index] = old.copy(state = ProgressState.COMPLETED)
-25	        }
-26	    }
-27
->>>>> ERROR HERE
-28	    fun markIncomplete(context: Context, blockId: String) {
-29	        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
-30	        if (index != -1) {
-31	            val old = entries[index]
-32	            entries[index] = old.copy(
-33	                state = ProgressState.INCOMPLETE,
-34	                missedAt = System.currentTimeMillis()
-35	            )
-36	        }
-37	    }
-38
-39	    fun getAllEntries(): List<ProgressEntry> = entries.toList()
-40
-41	    fun getTodayEntries(): List<ProgressEntry> =
-42	        entries.filter { isToday(it.scheduledAt) }
-43
-44	    fun getTodayBlocks(): List<ProgressBlock> =
-45	        getTodayEntries().map {
-46	            ProgressBlock(
-47	                id = it.blockId,
-48	                completed = it.state == ProgressState.COMPLETED
-49	            )
-50	        }
-51
-52	    private fun isToday(timestamp: Long): Boolean {
-53	        val now = Calendar.getInstance()
-54	        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-55	        return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
-56	                now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
-57	    }
-58	}
+28	    fun remindLater(entry: ProgressEntry) {
+29	        AssistantTTS.speak(
+30	            context.applicationContext,
+31	            "Okay, I will remind you in 30 minutes."
+32	        )
+33	        // Here you can add actual scheduling logic if needed
+34	    }
+35	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
 1	package com.jarvismini.core.routine
