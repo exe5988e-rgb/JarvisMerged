@@ -1,12 +1,11 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:20:43 Unresolved reference: scheduledAt
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:21:21 Cannot find a parameter with this name: timestamp
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:21:21 No value passed for parameter 'scheduledAt'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 56s
+BUILD FAILED in 59s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -24,22 +23,20 @@ BUILD FAILED in 56s
 11
 12	    fun registerAllBlocks(context: Context) = runBlocking {
 13	        ProgressRepository.hydrate(context)
-14	        RoutineProvider.getAllRoutines(context).forEach { routine ->
-15	            ProgressRepository.register(
-16	                context,
-17	                ProgressEntry(
-18	                    routineId = routine.id,
-19	                    blockId = routine.id,
+14
+15	        RoutineProvider.getAllRoutines(context).forEach { routine ->
+16	            ProgressRepository.register(
+17	                context,
+18	                ProgressEntry(
+19	                    routineId = routine.id,
+20	                    blockId = routine.id,
 >>>>> ERROR HERE
-20	                    scheduledAt = routine.scheduledAt,
->>>>> ERROR HERE
-21	                    timestamp = System.currentTimeMillis(),
-22	                    state = ProgressState.PENDING
-23	                )
-24	            )
-25	        }
-26	    }
-27	}
+21	                    state = ProgressState.PENDING
+22	                )
+23	            )
+24	        }
+25	    }
+26	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
