@@ -1,48 +1,60 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:32:3 Expecting a top level declaration
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt:3:12 Redeclaration: ProgressStats
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:7:12 Redeclaration: ProgressStats
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 33s
+BUILD FAILED in 35s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
+1	package com.jarvismini.core.progress
+2
+>>>>> ERROR HERE
+3	data class ProgressStats(
+4	    val date: String,
+5	    val totalBlocks: Int,
+6	    val completedBlocks: Int
+7	) {
+8	    val completionPercent: Int
+9	        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
+10	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
-4	import kotlinx.coroutines.runBlocking
-5
-6	object ProgressRepository {
-7
-8	    private var hydrated = false
-9
-10	    // Idempotent hydration
-11	    fun hydrate(context: Context) = runBlocking {
-12	        if (hydrated) return@runBlocking
-13	        ProgressStore.init(context)
-14	        hydrated = true
-15	    }
-16
-17	    fun register(context: Context, entry: ProgressEntry) = runBlocking {
-18	        ProgressStore.register(context, entry)
-19	    }
-20
-21	    fun markCompleted(context: Context, blockId: String) = runBlocking {
-22	        ProgressStore.markComplete(context, blockId)
-23	    }
-24
-25	    fun markIncomplete(context: Context, blockId: String) = runBlocking {
-26	        ProgressStore.markIncomplete(context, blockId)
-27	    }
-28
-29	    // New getters to support ProgressEngine
-30	    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-31	    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries() // ✅ Added
+4	import java.text.SimpleDateFormat
+5	import java.util.*
+6
 >>>>> ERROR HERE
-32	} test
+7	data class ProgressStats(
+8	    val date: String,
+9	    val totalBlocks: Int,
+10	    val completedBlocks: Int
+11	) {
+12	    val completionPercent: Int
+13	        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
+14	}
+15
+16	object ProgressStatsEngine {
+17
+18	    fun getTodayStats(context: Context): ProgressStats {
+19	        val blocks = ProgressStore.getTodayBlocks() // pass context if needed
+20	        val total = blocks.size
+21	        val completed = blocks.count { it.completed }
+22
+23	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+24	        return ProgressStats(
+25	            date = today,
+26	            totalBlocks = total,
+27	            completedBlocks = completed
+28	        )
+29	    }
+30	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
