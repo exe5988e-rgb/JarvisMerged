@@ -74,6 +74,5 @@ private fun JSONObject.toMap(): Map<String, String> {
     keys().forEach { key ->
         map[key] = get(key).toString()
     }
- 
     return map
 }

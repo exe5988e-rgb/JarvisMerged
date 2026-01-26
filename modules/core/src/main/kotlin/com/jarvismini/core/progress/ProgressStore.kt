@@ -8,7 +8,7 @@ object ProgressStore {
     private val entries = mutableListOf<ProgressEntry>()
 
     fun init(context: Context) {
-        // no-op
+        // no-op, Room or persistence handled externally if needed
     }
 
     fun register(context: Context, entry: ProgressEntry) {
