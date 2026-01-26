@@ -2,13 +2,12 @@
 
 -- COMPILE / RESOURCE ERRORS --
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:11:47 Unresolved reference: getTodayEntries
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:14:51 Unresolved reference: it
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:16:23 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:16:33 Cannot infer a type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:18:23 Overload resolution ambiguity: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt:18:33 Cannot infer a type for this parameter. Please specify it explicitly.
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 35s
+BUILD FAILED in 34s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -22,35 +21,36 @@ BUILD FAILED in 35s
 7	class MissedTaskChecker(private val context: Context) {
 8
 9	    fun checkAndRemind() {
-10	        // Get today's entries only
+10	        // Get today's entries
 >>>>> ERROR HERE
 11	        val todayEntries = ProgressRepository.getTodayEntries()
 12
-13	        // Filter for incomplete tasks that have not been completed
+13	        // Filter for incomplete tasks (explicit type needed)
+14	        val missedEntries = todayEntries.filter { entry: ProgressEntry ->
+15	            entry.state == ProgressState.INCOMPLETE
+16	        }
+17
 >>>>> ERROR HERE
-14	        val missedEntries = todayEntries.filter { it.state == ProgressState.INCOMPLETE }
-15
->>>>> ERROR HERE
-16	        missedEntries.forEach { entry ->
-17	            val blockName = entry.blockId.replace('_', ' ')
-18	            AssistantTTS.speak(
-19	                context.applicationContext,
-20	                "Reminder: you missed task $blockName."
-21	            )
-22	        }
-23	    }
-24
-25	    /**
-26	     * Optional helper if you want to auto-schedule a 30-min reminder
-27	     */
-28	    fun remindLater(entry: ProgressEntry) {
-29	        AssistantTTS.speak(
-30	            context.applicationContext,
-31	            "Okay, I will remind you in 30 minutes."
-32	        )
-33	        // Here you can add actual scheduling logic if needed
-34	    }
-35	}
+18	        missedEntries.forEach { entry ->
+19	            val blockName = entry.blockId.replace('_', ' ')
+20	            AssistantTTS.speak(
+21	                context.applicationContext,
+22	                "Reminder: you missed task $blockName."
+23	            )
+24	        }
+25	    }
+26
+27	    /**
+28	     * Optional helper if you want to auto-schedule a 30-min reminder
+29	     */
+30	    fun remindLater(entry: ProgressEntry) {
+31	        AssistantTTS.speak(
+32	            context.applicationContext,
+33	            "Okay, I will remind you in 30 minutes."
+34	        )
+35	        // Here you can add actual scheduling logic if needed
+36	    }
+37	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
