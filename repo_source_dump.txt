@@ -688,29 +688,42 @@ class MainActivity : ComponentActivity() {
 package com.jarvismini
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressEntry
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressState
+import com.jarvismini.core.progress.*
 import kotlinx.coroutines.runBlocking
+import java.util.Calendar
 
 object ProgressInitializer {
 
     fun registerAllBlocks(context: Context) = runBlocking {
         ProgressRepository.hydrate(context)
-
-        val today = System.currentTimeMillis()
         val todayRoutines = ProgressRepository.getTodayRoutines(context)
 
         todayRoutines.forEach { routine ->
+            // Use routine trigger time for scheduledAt
+            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
             ProgressRepository.register(
                 context,
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = today,
+                    scheduledAt = scheduledTime,
                     state = ProgressState.PENDING
                 )
             )
+        }
+    }
+
+    private fun parseTimeToMs(timeStr: String): Long {
+        return try {
+            val cal = Calendar.getInstance()
+            val parts = timeStr.split(":")
+            cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
+            cal.set(Calendar.MINUTE, parts[1].toInt())
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            cal.timeInMillis
+        } catch (_: Exception) {
+            System.currentTimeMillis()
         }
     }
 }
@@ -3714,38 +3727,19 @@ object ProgressRepository {
     fun markIncomplete(context: Context, blockId: String) =
         runBlocking { ProgressStore.markIncomplete(context, blockId) }
 
-    fun getAllEntries(): List<ProgressEntry> =
-        ProgressStore.getAllEntries()
-
-    fun getTodayEntries(): List<ProgressEntry> =
-        ProgressStore.getTodayEntries()
-
     fun getTodayBlocks(): List<ProgressBlock> =
         ProgressStore.getTodayBlocks()
 
-    /**
-     * Returns routines scheduled for TODAY based on day-of-week.
-     */
     fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
         val allRoutines = RoutineProvider.getAllRoutines(context)
         val today = getCurrentDayOfWeek()
-        
-        return allRoutines.filter { routine ->
-            routine.trigger?.days?.contains(today) == true
-        }
+        return allRoutines.filter { it.trigger?.days?.contains(today) == true }
     }
 
-    /**
-     * Removes entries older than today at midnight.
-     */
     private fun cleanupOldEntries(context: Context) {
         val todayStart = getTodayStartMs()
-        val entries = ProgressStore.getAllEntries()
-        
-        entries.filter { it.scheduledAt < todayStart }
-            .forEach { old ->
-                ProgressStore.remove(context, old.blockId)
-            }
+        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
+        old.forEach { ProgressStore.remove(context, it.blockId) }
     }
 
     private fun getCurrentDayOfWeek(): String {
