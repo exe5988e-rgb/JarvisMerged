@@ -11,7 +11,6 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressEngine
-import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.tts.AssistantTTS
 import kotlinx.coroutines.*
 
@@ -37,7 +36,7 @@ class ProgressReminderService : Service() {
     private suspend fun checkMissedTasks() {
         ProgressRepository.hydrate(this)
         val todayBlocks = ProgressRepository.getTodayBlocks(this)
-        val missedBlocks = todayBlocks.filter { !it.completed && it.blockId.isNotEmpty() }
+        val missedBlocks = todayBlocks.filter { !it.completed && it.id.isNotEmpty() }
 
         missedBlocks.forEach { block ->
             AssistantTTS.speak(this, "Reminder: you missed task ${block.id}. Please complete it.")

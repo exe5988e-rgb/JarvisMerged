@@ -32,9 +32,8 @@ fun MainScreen() {
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressStore.getTodayBlocks() // zero-arg
-
-            val stats = ProgressStatsEngine.getTodayStats()
+            blocks = ProgressRepository.getTodayBlocks(context) // pass context
+            val stats = ProgressStatsEngine.getTodayStats(context)
             AssistantTTS.speak(
                 context,
                 "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
@@ -78,10 +77,9 @@ private fun ChecklistScreenWithStats(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
+    val stats = ProgressStatsEngine.getTodayStats(context) // pass context
 
     Column(modifier = Modifier.fillMaxSize()) {
-
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -94,7 +92,6 @@ private fun ChecklistScreenWithStats(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(blocks) { block ->
-
                 val displayName = block.id
                     .replace("_", " ")
                     .replaceFirstChar { it.uppercase() }
@@ -103,7 +100,7 @@ private fun ChecklistScreenWithStats(
                     block = block,
                     onComplete = {
                         ProgressEngine.markComplete(context, block.id)
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
                         ProgressEngine.markIncomplete(context, block.id)
@@ -111,7 +108,7 @@ private fun ChecklistScreenWithStats(
                             context,
                             "You missed task $displayName. I will remind you in 30 minutes."
                         )
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     }
                 )
             }

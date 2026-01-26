@@ -17,7 +17,7 @@ object ProgressInitializer {
                 blockId = routine.id,
                 timestamp = System.currentTimeMillis(),
                 state = ProgressState.PENDING,
-                scheduledAt = routine.scheduledAt
+                scheduledAt = routine.scheduledTime // fixed: use correct property name
             )
             ProgressRepository.register(context, entry)
         }
