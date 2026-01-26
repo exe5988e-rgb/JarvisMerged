@@ -1,3 +1,124 @@
+Perfect! We'll skip SmartFilters.kt and focus on making the core progress tracking fully functional, including:
+
+ProgressStore.kt (persistent storage, mark complete/incomplete, update missed tasks)
+
+ProgressRepository.kt (coroutine-safe wrapper)
+
+ProgressEngine.kt (simplified interface for UI/engine modules)
+
+ProgressStatsEngine.kt (compute stats)
+
+Optional helper MissedTaskChecker integrated with TTS (so overdue tasks get reminders)
+
+
+I’ll provide the full updated core module files in one batch.
+
+
+---
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.io.File
+
+object ProgressStore {
+
+    private const val FILE_NAME = "progress_store.json"
+    private val gson = Gson()
+
+    private val entries: MutableMap<String, ProgressEntry> = mutableMapOf()
+    @Volatile
+    private var initialized = false
+
+    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
+
+    suspend fun init(context: Context) {
+        if (initialized) return
+
+        val file = File(context.filesDir, FILE_NAME)
+        if (file.exists()) {
+            try {
+                val type = object : TypeToken<List<ProgressEntry>>() {}.type
+                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
+                list.forEach { entry ->
+                    val key = makeKey(entry.routineId, entry.blockId)
+                    if (!entries.containsKey(key)) entries[key] = entry
+                }
+            } catch (_: Exception) { }
+        }
+        initialized = true
+    }
+
+    private suspend fun persist(context: Context) {
+        val file = File(context.filesDir, FILE_NAME)
+        try {
+            val json = gson.toJson(entries.values.toList())
+            file.writeText(json)
+        } catch (_: Exception) { }
+    }
+
+    suspend fun register(context: Context, entry: ProgressEntry) {
+        val key = makeKey(entry.routineId, entry.blockId)
+        if (!entries.containsKey(key)) entries[key] = entry
+        persist(context)
+    }
+
+    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
+        val key = makeKey(routineId, blockId)
+        val existing = entries[key]
+        if (existing != null && existing.completedAt == null) {
+            val updated = existing.copy(
+                state = ProgressState.COMPLETED,
+                completedAt = System.currentTimeMillis(),
+                lastUpdatedAt = System.currentTimeMillis()
+            )
+            entries[key] = updated
+            persist(context)
+        }
+    }
+
+    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
+        val key = makeKey(routineId, blockId)
+        val existing = entries[key]
+        if (existing != null) {
+            val now = System.currentTimeMillis()
+            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
+            val updated = existing.copy(
+                state = ProgressState.INCOMPLETE,
+                lastUpdatedAt = now,
+                missedAt = missedTime
+            )
+            entries[key] = updated
+            persist(context)
+        }
+    }
+
+    suspend fun updateMissedTasks() {
+        val now = System.currentTimeMillis()
+        entries.values.forEach { entry ->
+            if (entry.scheduledAt != null && entry.state == ProgressState.PENDING && now > entry.scheduledAt) {
+                entries[makeKey(entry.routineId, entry.blockId)] =
+                    entry.copy(state = ProgressState.INCOMPLETE, missedAt = now, lastUpdatedAt = now)
+            }
+        }
+    }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+
+    fun getTodayEntries(): List<ProgressEntry> {
+        val todayStart = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
+        return entries.values.filter { it.timestamp >= todayStart }
+    }
+
+    fun getRegisteredBlocks(): Set<String> = entries.keys.map { it.split("::")[1] }.toSet()
+    fun getCompletedBlocks(): Set<String> = entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
+    fun getTodayBlocks(): List<ProgressBlock> =
+        entries.values.map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
+}
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
@@ -8,7 +129,6 @@ object ProgressRepository {
 
     private var hydrated = false
 
-    // Idempotent hydration
     fun hydrate(context: Context) = runBlocking {
         if (hydrated) return@runBlocking
         ProgressStore.init(context)
@@ -20,14 +140,130 @@ object ProgressRepository {
     }
 
     fun markCompleted(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, blockId)
+        ProgressStore.markComplete(context, blockId, blockId)
     }
 
     fun markIncomplete(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markIncomplete(context, blockId)
+        ProgressStore.markIncomplete(context, blockId, blockId)
     }
 
-    // New getters to support ProgressEngine
     fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries() // ✅ Added
-} test
+    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
+    fun getTodayBlocks(context: Context): List<ProgressBlock> = ProgressStore.getTodayBlocks()
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressEngine {
+
+    fun markComplete(context: Context, blockId: String) {
+        ProgressRepository.markCompleted(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressRepository.markIncomplete(context, blockId)
+    }
+
+    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
+    fun getTodayEntries(): List<ProgressEntry> = ProgressRepository.getTodayEntries()
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import java.text.SimpleDateFormat
+import java.util.*
+
+data class ProgressStats(
+    val date: String,
+    val totalBlocks: Int,
+    val completedBlocks: Int
+) {
+    val completionPercent: Int
+        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
+}
+
+object ProgressStatsEngine {
+
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks() // pass context if needed
+        val total = blocks.size
+        val completed = blocks.count { it.completed }
+
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        return ProgressStats(
+            date = today,
+            totalBlocks = total,
+            completedBlocks = completed
+        )
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+package com.jarvismini.engine.progress
+
+import android.content.Context
+import com.jarvismini.core.notifications.ProgressNotifier
+import com.jarvismini.core.progress.ProgressEngine
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+
+/**
+ * Orchestrates user prompts and progress tracking.
+ */
+class ProgressOrchestrator(
+    private val context: Context,
+    private val scheduler: DelayedTaskScheduler
+) {
+
+    /**
+     * Prompt the user to complete a task.
+     */
+    fun prompt(blockId: String, blockName: String) {
+        AssistantTTS.speak(
+            context,
+            "Did you complete $blockName?"
+        )
+
+        ProgressNotifier.showCompletionPrompt(
+            context = context,
+            blockId = blockId,
+            blockName = blockName
+        )
+    }
+
+    /**
+     * Handles user response from the prompt.
+     */
+    fun onUserResponse(
+        blockId: String,
+        blockName: String,
+        completed: Boolean
+    ) {
+        if (completed) {
+            ProgressEngine.markComplete(context, blockId)
+
+            AssistantTTS.speak(
+                context,
+                "Great. Task marked as complete."
+            )
+        } else {
+            // Mark incomplete and schedule reminder
+            ProgressEngine.markIncomplete(context, blockId)
+
+            AssistantTTS.speak(
+                context,
+                "Okay. I will remind you again in thirty minutes."
+            )
+
+            scheduler.schedule(
+                delayMs = 30 * 60 * 1000L
+            ) {
+                prompt(blockId, blockName)
+            }
+        }
+    }
+}
