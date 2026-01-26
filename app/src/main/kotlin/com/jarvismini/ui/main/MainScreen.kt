@@ -1,5 +1,7 @@
 package com.jarvismini.ui.main
 
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +15,7 @@ import com.jarvismini.core.progress.*
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.checklist.ChecklistItem
+import kotlinx.coroutines.*
 
 enum class MainTab { Chat, Checklist }
 
@@ -86,11 +89,23 @@ private fun ChecklistScreen(
                         onBlocksUpdated(ProgressRepository.getTodayBlocks())
                     },
                     onIncomplete = {
-                        ProgressEngine.markIncomplete(context, block.id)
+                        // TTS feedback
                         AssistantTTS.speak(
                             context,
                             "Okay, I will remind you in 30 minutes."
                         )
+
+                        // Schedule a 30-minute reminder
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            AssistantTTS.speak(
+                                context,
+                                "Reminder: You missed task ${block.id.replace('_', ' ')}"
+                            )
+                        }, 30 * 60 * 1000L) // 30 minutes
+
+                        // Mark incomplete in store
+                        ProgressEngine.markIncomplete(context, block.id)
+
                         onBlocksUpdated(ProgressRepository.getTodayBlocks())
                     }
                 )

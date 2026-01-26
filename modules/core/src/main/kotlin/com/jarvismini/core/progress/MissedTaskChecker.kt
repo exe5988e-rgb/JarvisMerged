@@ -2,18 +2,34 @@ package com.jarvismini.core.progress
 
 import android.content.Context
 import com.jarvismini.core.tts.AssistantTTS
+import java.util.Calendar
 
 class MissedTaskChecker(private val context: Context) {
 
     fun checkAndRemind() {
-        val missed = ProgressRepository.getAllEntries()
-            .filter { it.state == ProgressState.INCOMPLETE && it.missedAt != null }
+        // Get today's entries only
+        val todayEntries = ProgressRepository.getTodayEntries()
 
-        missed.forEach { entry ->
+        // Filter for incomplete tasks that have not been completed
+        val missedEntries = todayEntries.filter { it.state == ProgressState.INCOMPLETE }
+
+        missedEntries.forEach { entry ->
+            val blockName = entry.blockId.replace('_', ' ')
             AssistantTTS.speak(
                 context.applicationContext,
-                "You missed task ${entry.blockId.replace('_', ' ')}"
+                "Reminder: you missed task $blockName."
             )
         }
+    }
+
+    /**
+     * Optional helper if you want to auto-schedule a 30-min reminder
+     */
+    fun remindLater(entry: ProgressEntry) {
+        AssistantTTS.speak(
+            context.applicationContext,
+            "Okay, I will remind you in 30 minutes."
+        )
+        // Here you can add actual scheduling logic if needed
     }
 }
