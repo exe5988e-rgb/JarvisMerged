@@ -64,7 +64,10 @@ object ProgressStore {
         val existing = entries[key]
         if (existing != null) {
             val now = System.currentTimeMillis()
-            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
+            val missedTime = if (existing.scheduledAt != null &&
+                now > existing.scheduledAt &&
+                existing.state != ProgressState.COMPLETED
+            ) now else existing.missedAt
             val updated = existing.copy(
                 state = ProgressState.INCOMPLETE,
                 lastUpdatedAt = now,
@@ -76,6 +79,7 @@ object ProgressStore {
     }
 
     fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+
     fun getTodayEntries(): List<ProgressEntry> {
         val today = System.currentTimeMillis()
         return entries.values.filter {
@@ -93,13 +97,13 @@ object ProgressStore {
                 cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
     }
 
-    suspend fun updateMissedTasks() {
+    suspend fun updateMissedTasks(context: Context) {
         entries.values.forEach { entry ->
             if (entry.scheduledAt != null &&
                 entry.state != ProgressState.COMPLETED &&
                 System.currentTimeMillis() > entry.scheduledAt
             ) {
-                markIncomplete(context = null, routineId = entry.routineId, blockId = entry.blockId) // context will be provided in usage
+                markIncomplete(context, entry.routineId, entry.blockId)
             }
         }
     }

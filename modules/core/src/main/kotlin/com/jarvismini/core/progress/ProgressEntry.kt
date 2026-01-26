@@ -10,5 +10,3 @@ data class ProgressEntry(
     val lastUpdatedAt: Long = System.currentTimeMillis(),
     val missedAt: Long? = null
 )
-
-enum class ProgressState { PENDING, COMPLETED, INCOMPLETE }
