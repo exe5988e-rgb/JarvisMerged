@@ -1,11 +1,11 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:20:39 Unresolved reference: scheduledTime
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:20:39 Unresolved reference: scheduledAt
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m
+BUILD FAILED in 58s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -30,7 +30,7 @@ BUILD FAILED in 1m
 18	                timestamp = System.currentTimeMillis(),
 19	                state = ProgressState.PENDING,
 >>>>> ERROR HERE
-20	                scheduledAt = routine.scheduledTime // fixed: use correct property name
+20	                scheduledAt = routine.scheduledAt // <-- use actual property name from Routine
 21	            )
 22	            ProgressRepository.register(context, entry)
 23	        }
