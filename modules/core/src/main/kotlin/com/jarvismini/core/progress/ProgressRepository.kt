@@ -7,6 +7,7 @@ object ProgressRepository {
 
     fun hydrate(context: Context) = runBlocking {
         ProgressStore.init(context)
+        // Removed updateMissedTasks call, not implemented
     }
 
     fun register(context: Context, entry: ProgressEntry) =

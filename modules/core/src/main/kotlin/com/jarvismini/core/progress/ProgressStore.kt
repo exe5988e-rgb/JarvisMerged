@@ -47,4 +47,6 @@ object ProgressStore {
         return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
                 now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
     }
+
+    // Stub: updateMissedTasks removed since entries are updated in markIncomplete
 }
