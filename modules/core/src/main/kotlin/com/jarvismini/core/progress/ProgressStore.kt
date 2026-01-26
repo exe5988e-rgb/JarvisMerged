@@ -8,7 +8,7 @@ object ProgressStore {
     private val entries = mutableListOf<ProgressEntry>()
 
     fun init(context: Context) {
-        // no-op for now
+        // no-op
     }
 
     fun register(context: Context, entry: ProgressEntry) {
@@ -18,17 +18,17 @@ object ProgressStore {
     }
 
     fun markComplete(context: Context, blockId: String) {
-        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
-            state = ProgressState.COMPLETED
-        }
+        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
+        entry.state = ProgressState.COMPLETED
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
-            state = ProgressState.INCOMPLETE
-            missedAt = System.currentTimeMillis()
-        }
+        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
+        entry.state = ProgressState.INCOMPLETE
+        entry.missedAt = System.currentTimeMillis()
     }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.toList()
 
     fun getTodayEntries(): List<ProgressEntry> =
         entries.filter { isToday(it.scheduledAt) }

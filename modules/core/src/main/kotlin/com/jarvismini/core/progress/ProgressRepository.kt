@@ -7,7 +7,6 @@ object ProgressRepository {
 
     fun hydrate(context: Context) = runBlocking {
         ProgressStore.init(context)
-        ProgressStore.updateMissedTasks(context)
     }
 
     fun register(context: Context, entry: ProgressEntry) =
@@ -19,12 +18,9 @@ object ProgressRepository {
     fun markIncomplete(context: Context, blockId: String) =
         runBlocking { ProgressStore.markIncomplete(context, blockId) }
 
-    fun getAllEntries(): List<ProgressEntry> =
-        ProgressStore.getAllEntries()
+    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
 
-    fun getTodayEntries(): List<ProgressEntry> =
-        ProgressStore.getTodayEntries()
+    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
 
-    fun getTodayBlocks(): List<ProgressBlock> =
-        ProgressStore.getTodayBlocks()
+    fun getTodayBlocks(): List<ProgressBlock> = ProgressStore.getTodayBlocks()
 }
