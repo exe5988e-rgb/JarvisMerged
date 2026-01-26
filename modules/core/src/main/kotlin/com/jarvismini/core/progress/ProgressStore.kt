@@ -18,14 +18,22 @@ object ProgressStore {
     }
 
     fun markComplete(context: Context, blockId: String) {
-        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
-        entry.state = ProgressState.COMPLETED
+        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
+        if (index != -1) {
+            val old = entries[index]
+            entries[index] = old.copy(state = ProgressState.COMPLETED)
+        }
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
-        entry.state = ProgressState.INCOMPLETE
-        entry.missedAt = System.currentTimeMillis()
+        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
+        if (index != -1) {
+            val old = entries[index]
+            entries[index] = old.copy(
+                state = ProgressState.INCOMPLETE,
+                missedAt = System.currentTimeMillis()
+            )
+        }
     }
 
     fun getAllEntries(): List<ProgressEntry> = entries.toList()
@@ -47,6 +55,4 @@ object ProgressStore {
         return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
                 now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
     }
-
-    // Stub: updateMissedTasks removed since entries are updated in markIncomplete
 }
