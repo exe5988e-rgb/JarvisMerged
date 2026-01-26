@@ -689,12 +689,15 @@ package com.jarvismini
 
 import android.content.Context
 import com.jarvismini.core.progress.*
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
 object ProgressInitializer {
 
-    fun registerAllBlocks(context: Context) = runBlocking {
+    fun registerAllBlocks(context: Context) {
+        // Hydrate repository and cleanup old entries
         ProgressRepository.hydrate(context)
         val todayRoutines = ProgressRepository.getTodayRoutines(context)
 
@@ -711,6 +714,9 @@ object ProgressInitializer {
                 )
             )
         }
+
+        // Schedule daily reset at 03:00 AM
+        scheduleDailyReset(context)
     }
 
     private fun parseTimeToMs(timeStr: String): Long {
@@ -726,7 +732,29 @@ object ProgressInitializer {
             System.currentTimeMillis()
         }
     }
+
+    private fun scheduleDailyReset(context: Context) {
+        GlobalScope.launch {
+            while (true) {
+                val now = Calendar.getInstance()
+                val resetTime = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 3)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    if (before(now)) add(Calendar.DAY_OF_MONTH, 1)
+                }
+
+                val delayMs = resetTime.timeInMillis - now.timeInMillis
+                delay(delayMs)
+                ProgressRepository.resetTodayBlocks(context)
+            }
+        }
+    }
 }
+
+
+---
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ProgressReminderService.kt =====
@@ -1491,11 +1519,11 @@ private fun ChecklistScreen(
                             block = block,
                             routine = routine,
                             onComplete = {
-                                ProgressEngine.markComplete(context, block.id)
+                                ProgressRepository.markComplete(context, block.id)
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
                             },
                             onIncomplete = {
-                                ProgressEngine.markIncomplete(context, block.id)
+                                ProgressRepository.markIncomplete(context, block.id)
                                 AssistantTTS.speak(context, "Okay, I will remind you in 30 minutes.")
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
                             }
@@ -2917,88 +2945,215 @@ dependencies {
 
   "routines": [
     {
-      "id": "work_mode_morning",
-      "name": "Work Mode Morning Routine",
+      "id": "weekday_morning_lectures",
+      "name": "Morning Lectures Block",
       "enabled": true,
-
       "trigger": {
         "type": "time",
-        "time": "09:00",
+        "time": "08:00",
         "days": ["MON", "TUE", "WED", "THU", "FRI"]
       },
-
       "actions": [
-        {
-          "type": "network_time_sync"
-        },
-        {
-          "type": "set_mode",
-          "mode": "WORK"
-        },
-        {
-          "type": "set_dnd",
-          "dnd": true
-        },
-        {
-          "type": "launch_app",
-          "package": "xyz.penpencil.physicswala"
-        },
-        {
-          "type": "launch_app",
-          "package": "com.pittvandewitt.wavelet"
-        },
-        {
-          "type": "launch_app",
-          "package": "com.google.android.apps.youtube.music"
-        },
-        {
-          "type": "launch_app",
-          "package": "com.apple.android.music"
-        },
-        {
-          "type": "launch_app",
-          "package": "com.oneplus.deskclock"
-        },
-        {
-          "type": "start_stopwatch"
-        },
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "WORK" },
+        { "type": "set_dnd", "dnd": true },
         {
           "type": "speak",
-          "message": "Work mode activated. Focus time started."
+          "message": "Morning lectures started. Focus on current classes."
+        },
+        {
+          "type": "notify",
+          "message": "08:00–14:00: Current lectures block."
         }
       ]
     },
 
     {
-      "id": "work_mode_off",
-      "name": "Exit Work Mode",
+      "id": "weekday_lunch_reset",
+      "name": "Lunch and Reset",
       "enabled": true,
-
       "trigger": {
         "type": "time",
-        "time": "18:30",
+        "time": "14:00",
         "days": ["MON", "TUE", "WED", "THU", "FRI"]
       },
-
       "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
         {
-          "type": "network_time_sync"
-        },
-        {
-          "type": "set_mode",
-          "mode": "NORMAL"
-        },
-        {
-          "type": "set_dnd",
-          "dnd": false
-        },
-        {
-          "type": "media_control",
-          "media": "pause"
-        },
+          "type": "notify",
+          "message": "14:00–15:00: Lunch and mental reset."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_reactivation_block",
+      "name": "Reactivation Block",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "15:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
         {
           "type": "speak",
-          "message": "Work mode deactivated. Routine complete."
+          "message": "Reactivation block started. Resume syllabus sweep."
+        },
+        {
+          "type": "notify",
+          "message": "15:00–18:00: Reactivation and revision."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_oxygen_hour",
+      "name": "Oxygen Hour",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "18:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        {
+          "type": "notify",
+          "message": "18:00–19:00: Physical reset. Movement and breathing."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_backlog_block",
+      "name": "Backlog Lectures",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "19:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "WORK" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "speak",
+          "message": "Backlog lectures block started."
+        },
+        {
+          "type": "notify",
+          "message": "19:00–21:00: Backlog clearance."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_current_hw",
+      "name": "Current Homework Block",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "21:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "speak",
+          "message": "Start current homework. Two and a half hours. No backlog, no revision."
+        },
+        {
+          "type": "notify",
+          "message": "21:00–23:30: Current homework (2.5 hours)."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_skipped_hw",
+      "name": "Skipped Homework Clearance",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "23:30",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "speak",
+          "message": "Clear skipped homework. Fifty minutes only."
+        },
+        {
+          "type": "notify",
+          "message": "23:30–00:20: Skipped homework (50 minutes)."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_backlog_hw",
+      "name": "Backlog Homework Sprint",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "00:20",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "speak",
+          "message": "Backlog homework sprint. Thirty minutes."
+        },
+        {
+          "type": "notify",
+          "message": "00:20–00:50: Backlog homework (30 minutes)."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_night_buffer",
+      "name": "Night Wrap and Save Progress",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "00:50",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "notify",
+          "message": "00:50–01:00: Save work, note carryovers, prep tomorrow."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_wind_down",
+      "name": "Late Night Wind Down",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "01:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "notify",
+          "message": "01:00–03:00: Light work or planning only. Wind down."
         }
       ]
     }
@@ -3734,7 +3889,7 @@ object ProgressRepository {
     fun register(context: Context, entry: ProgressEntry) =
         runBlocking { ProgressStore.register(context, entry) }
 
-    fun markCompleted(context: Context, blockId: String) =
+    fun markComplete(context: Context, blockId: String) =
         runBlocking { ProgressStore.markComplete(context, blockId) }
 
     fun markIncomplete(context: Context, blockId: String) =
@@ -3743,10 +3898,17 @@ object ProgressRepository {
     fun getTodayBlocks(): List<ProgressBlock> =
         ProgressStore.getTodayBlocks()
 
-    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
+    fun getTodayRoutines(context: Context) : List<com.jarvismini.core.routine.model.Routine> {
         val allRoutines = RoutineProvider.getAllRoutines(context)
         val today = getCurrentDayOfWeek()
         return allRoutines.filter { it.trigger?.days?.contains(today) == true }
+    }
+
+    fun resetTodayBlocks(context: Context) = runBlocking {
+        val todayBlocks = getTodayBlocks()
+        todayBlocks.forEach { ProgressStore.resetBlock(context, it.blockId) }
+        // Re-register today's routines
+        ProgressInitializer.registerAllBlocks(context)
     }
 
     private fun cleanupOldEntries(context: Context) {
@@ -3778,6 +3940,9 @@ object ProgressRepository {
         return cal.timeInMillis
     }
 }
+
+
+---
 
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressState.kt =====
