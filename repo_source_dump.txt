@@ -1268,20 +1268,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.routine.Routine
+import com.jarvismini.core.routine.model.Routine
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
-    routine: Routine,  // ✅ Added routine param
+    routine: Routine,
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
     val displayName = routine.label
         .replace("_", " ")
-        .replaceFirstChar { it.uppercase() }
+        .replaceFirstChar { c: Char -> c.uppercaseChar() }
 
     Card(
         modifier = Modifier
@@ -1329,21 +1329,21 @@ fun ChecklistItem(
             )
 
             // Completed or Missed time
-            when {
-                block.completed && block.completedAt != null -> {
+            block.completedAt?.let {
+                if (block.completed) {
                     Text(
-                        text = "Completed: ${formatTime(block.completedAt)}",
+                        text = "Completed: ${formatTime(it)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                block.missedAt != null -> {
-                    Text(
-                        text = "Missed: ${formatTime(block.missedAt)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+            }
+            block.missedAt?.let {
+                Text(
+                    text = "Missed: ${formatTime(it)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1442,9 +1442,7 @@ fun MainScreen() {
         ) {
             when (selectedTab) {
                 MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(blocks) {
-                    blocks = it
-                }
+                MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
             }
         }
     }
@@ -1456,7 +1454,7 @@ private fun ChecklistScreen(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val routineProvider = RoutineProvider.getInstance() // ✅ Added
+    val routineProvider = RoutineProvider.instance
     val stats = ProgressStatsEngine.getTodayStats()
 
     Column {
@@ -1476,11 +1474,11 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    val routine = routineProvider.getRoutine(block.blockId) // ✅ map block → routine
+                    val routine = routineProvider.getRoutine(block.id)
                     if (routine != null) {
                         ChecklistItem(
                             block = block,
-                            routine = routine, // ✅ pass Routine
+                            routine = routine,
                             onComplete = {
                                 ProgressEngine.markComplete(context, block.id)
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
