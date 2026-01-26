@@ -6,16 +6,13 @@ import com.jarvismini.core.tts.AssistantTTS
 class MissedTaskChecker(private val context: Context) {
 
     fun checkAndRemind() {
-        val entries = ProgressStore.getAllEntries()
-        val missedEntries = entries.filter {
-            it.state == ProgressState.INCOMPLETE && it.missedAt != null
-        }
+        val missed = ProgressRepository.getAllEntries()
+            .filter { it.state == ProgressState.INCOMPLETE && it.missedAt != null }
 
-        missedEntries.forEach { entry ->
-            val blockName = entry.blockId.replace('_', ' ')
+        missed.forEach { entry ->
             AssistantTTS.speak(
                 context.applicationContext,
-                "You missed task $blockName."
+                "You missed task ${entry.blockId.replace('_', ' ')}"
             )
         }
     }

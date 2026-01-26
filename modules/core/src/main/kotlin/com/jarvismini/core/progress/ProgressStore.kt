@@ -24,16 +24,17 @@ object ProgressStore {
     }
 
     private fun persist(context: Context) {
-        val file = File(context.filesDir, FILE_NAME)
-        file.writeText(gson.toJson(entries))
+        File(context.filesDir, FILE_NAME).writeText(gson.toJson(entries))
     }
 
     suspend fun register(context: Context, entry: ProgressEntry) {
-        if (entries.none { it.routineId == entry.routineId && isSameDay(it.scheduledAt, entry.scheduledAt) }) {
+        if (entries.none { it.blockId == entry.blockId && isSameDay(it.scheduledAt, entry.scheduledAt) }) {
             entries.add(entry)
             persist(context)
         }
     }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.toList()
 
     fun getTodayEntries(): List<ProgressEntry> {
         val now = System.currentTimeMillis()
@@ -42,10 +43,7 @@ object ProgressStore {
 
     fun getTodayBlocks(): List<ProgressBlock> =
         getTodayEntries().map {
-            ProgressBlock(
-                id = it.blockId,
-                completed = it.state == ProgressState.COMPLETED
-            )
+            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
         }
 
     suspend fun markComplete(context: Context, blockId: String) {
@@ -58,10 +56,20 @@ object ProgressStore {
         persist(context)
     }
 
-    suspend fun markMissed(context: Context, blockId: String) {
+    suspend fun markIncomplete(context: Context, blockId: String) {
         val now = System.currentTimeMillis()
         entries.replaceAll {
             if (it.blockId == blockId && isSameDay(it.scheduledAt, now))
+                it.copy(state = ProgressState.INCOMPLETE, missedAt = now)
+            else it
+        }
+        persist(context)
+    }
+
+    suspend fun updateMissedTasks(context: Context) {
+        val now = System.currentTimeMillis()
+        entries.replaceAll {
+            if (it.state == ProgressState.PENDING && it.scheduledAt < now)
                 it.copy(state = ProgressState.INCOMPLETE, missedAt = now)
             else it
         }
@@ -72,6 +80,6 @@ object ProgressStore {
         val c1 = Calendar.getInstance().apply { timeInMillis = a }
         val c2 = Calendar.getInstance().apply { timeInMillis = b }
         return c1.get(Calendar.YEAR) == c2.get(Calendar.YEAR) &&
-               c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
+                c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
     }
 }

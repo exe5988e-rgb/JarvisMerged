@@ -10,8 +10,7 @@ object ProgressInitializer {
 
     fun registerAllBlocks(context: Context) = runBlocking {
         ProgressRepository.hydrate(context)
-
-        val todayStart = System.currentTimeMillis()
+        val today = System.currentTimeMillis()
 
         RoutineProvider.getAllRoutines(context).forEach { routine ->
             ProgressRepository.register(
@@ -19,7 +18,7 @@ object ProgressInitializer {
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = todayStart
+                    scheduledAt = today
                 )
             )
         }
