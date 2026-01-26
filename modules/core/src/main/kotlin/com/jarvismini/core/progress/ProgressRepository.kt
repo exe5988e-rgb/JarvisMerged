@@ -29,4 +29,4 @@ object ProgressRepository {
     // New getters to support ProgressEngine
     fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
     fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries() // ✅ Added
-}
+} test
