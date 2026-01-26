@@ -1,142 +1,13 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:22:31 Unresolved reference: label
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:44:13 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:56:44 Unresolved reference: label
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:73:43 Unresolved reference: instance
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:93:51 Unresolved reference: getRoutine
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 7s
+BUILD FAILED in 58s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
-1	package com.jarvismini.ui.checklist
-2
-3	import androidx.compose.foundation.layout.*
-4	import androidx.compose.material3.*
-5	import androidx.compose.runtime.Composable
-6	import androidx.compose.ui.Alignment
-7	import androidx.compose.ui.Modifier
-8	import androidx.compose.ui.text.font.FontWeight
-9	import androidx.compose.ui.unit.dp
-10	import com.jarvismini.core.progress.ProgressBlock
-11	import com.jarvismini.core.routine.model.Routine
-12	import java.text.SimpleDateFormat
-13	import java.util.*
-14
-15	@Composable
-16	fun ChecklistItem(
-17	    block: ProgressBlock,
-18	    routine: Routine,
-19	    onComplete: () -> Unit,
-20	    onIncomplete: () -> Unit
-21	) {
->>>>> ERROR HERE
-22	    val displayName = routine.label
-23	        .replace("_", " ")
-24	        .replaceFirstChar { c: Char -> c.uppercaseChar() }
-25
-26	    Card(
-27	        modifier = Modifier
-28	            .fillMaxWidth()
-29	            .padding(vertical = 6.dp),
-30	        colors = CardDefaults.cardColors(
-31	            containerColor = when {
-32	                block.completed -> MaterialTheme.colorScheme.primaryContainer
-33	                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
-34	                else -> MaterialTheme.colorScheme.surfaceVariant
-35	            }
-36	        )
-37	    ) {
-38	        Column(
-39	            modifier = Modifier
-40	                .padding(12.dp)
-41	                .fillMaxWidth()
-42	        ) {
-43	            // Routine name
->>>>> ERROR HERE
-44	            Text(
-45	                text = displayName,
-46	                style = MaterialTheme.typography.titleMedium,
-47	                fontWeight = FontWeight.Bold
-48	            )
-49
-50	            Spacer(modifier = Modifier.height(8.dp))
-51
-52	            // Tasks (RoutineAction list)
-53	            Column(modifier = Modifier.padding(start = 4.dp)) {
-54	                routine.actions.forEach { action ->
-55	                    Text(
->>>>> ERROR HERE
-56	                        text = "• ${action.label}",
-57	                        style = MaterialTheme.typography.bodySmall
-58	                    )
-59	                }
-60	            }
-61
-62	            Spacer(modifier = Modifier.height(8.dp))
-63
-64	            // Scheduled time
-65	            Text(
-66	                text = "Scheduled: ${formatTime(block.scheduledAt)}",
-67	                style = MaterialTheme.typography.bodySmall,
-68	                color = MaterialTheme.colorScheme.onSurfaceVariant
-69	            )
-70
-71	            // Completed or Missed time
-72	            block.completedAt?.let {
-73	                if (block.completed) {
-74	                    Text(
-75	                        text = "Completed: ${formatTime(it)}",
-76	                        style = MaterialTheme.typography.bodySmall,
-77	                        color = MaterialTheme.colorScheme.primary
-78	                    )
-79	                }
-80	            }
-81	            block.missedAt?.let {
-82	                Text(
-83	                    text = "Missed: ${formatTime(it)}",
-84	                    style = MaterialTheme.typography.bodySmall,
-85	                    color = MaterialTheme.colorScheme.error
-86	                )
-87	            }
-88
-89	            Spacer(modifier = Modifier.height(8.dp))
-90
-91	            // Action buttons
-92	            Row(
-93	                modifier = Modifier.fillMaxWidth(),
-94	                horizontalArrangement = Arrangement.End,
-95	                verticalAlignment = Alignment.CenterVertically
-96	            ) {
-97	                if (!block.completed) {
-98	                    TextButton(onClick = onComplete) {
-99	                        Text("Done")
-100	                    }
-101	                    Spacer(modifier = Modifier.width(8.dp))
-102	                    TextButton(onClick = onIncomplete) {
-103	                        Text("Missed")
-104	                    }
-105	                } else {
-106	                    Text(
-107	                        text = "✅ Completed",
-108	                        style = MaterialTheme.typography.bodyMedium,
-109	                        color = MaterialTheme.colorScheme.primary,
-110	                        fontWeight = FontWeight.SemiBold
-111	                    )
-112	                }
-113	            }
-114	        }
-115	    }
-116	}
-117
-118	private fun formatTime(timestampMs: Long): String {
-119	    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-120	    return formatter.format(Date(timestampMs))
-121	}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 1	package com.jarvismini.ui.main
@@ -211,8 +82,7 @@ BUILD FAILED in 1m 7s
 70	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
 71	) {
 72	    val context = LocalContext.current
->>>>> ERROR HERE
-73	    val routineProvider = RoutineProvider.instance
+73	    val routineProvider = RoutineProvider // use the object directly
 74	    val stats = ProgressStatsEngine.getTodayStats()
 75
 76	    Column {
@@ -232,11 +102,12 @@ BUILD FAILED in 1m 7s
 90	        } else {
 91	            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
 92	                items(blocks) { block ->
-93	                    val routine = routineProvider.getRoutine(block.id)
+>>>>> ERROR HERE
+93	                    val routine = routineProvider.getRoutine(block.id)  // ✅ map block -> routine
 94	                    if (routine != null) {
 95	                        ChecklistItem(
 96	                            block = block,
-97	                            routine = routine,
+97	                            routine = routine, // ✅ pass Routine
 98	                            onComplete = {
 99	                                ProgressEngine.markComplete(context, block.id)
 100	                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
