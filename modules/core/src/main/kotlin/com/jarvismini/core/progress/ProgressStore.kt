@@ -16,10 +16,8 @@ object ProgressStore {
 
     private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
 
-    // Idempotent init: load persisted entries
     suspend fun init(context: Context) {
         if (initialized) return
-
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
             try {
@@ -47,8 +45,8 @@ object ProgressStore {
         persist(context)
     }
 
-    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
-        val key = makeKey(routineId, blockId)
+    suspend fun markComplete(context: Context, blockId: String) {
+        val key = makeKey(blockId, blockId)
         val existing = entries[key]
         if (existing != null && existing.completedAt == null) {
             val updated = existing.copy(
@@ -61,15 +59,12 @@ object ProgressStore {
         }
     }
 
-    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
-        val key = makeKey(routineId, blockId)
+    suspend fun markIncomplete(context: Context, blockId: String) {
+        val key = makeKey(blockId, blockId)
         val existing = entries[key]
         if (existing != null) {
             val now = System.currentTimeMillis()
-            val missedTime = if (existing.scheduledAt != null
-                && now > existing.scheduledAt
-                && existing.state != ProgressState.COMPLETED
-            ) now else existing.missedAt
+            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
             val updated = existing.copy(
                 state = ProgressState.INCOMPLETE,
                 lastUpdatedAt = now,
@@ -84,24 +79,7 @@ object ProgressStore {
     fun getTodayEntries(): List<ProgressEntry> = entries.values.toList()
 
     fun getRegisteredBlocks(): Set<String> = entries.keys.map { it.split("::")[1] }.toSet()
-    fun getCompletedBlocks(): Set<String> =
-        entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
-
+    fun getCompletedBlocks(): Set<String> = entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
     fun getTodayBlocks(): List<ProgressBlock> =
         entries.values.map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
-
-    // New function: mark overdue tasks as missed
-    suspend fun updateMissedTasks() {
-        val now = System.currentTimeMillis()
-        entries.values.forEach { entry ->
-            if (entry.state != ProgressState.COMPLETED
-                && entry.scheduledAt != null
-                && entry.scheduledAt < now
-                && entry.missedAt == null
-            ) {
-                val updated = entry.copy(missedAt = now)
-                entries[makeKey(entry.routineId, entry.blockId)] = updated
-            }
-        }
-    }
 }

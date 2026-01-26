@@ -7,6 +7,6 @@ data class ProgressEntry(
     val state: ProgressState,
     val scheduledAt: Long? = null,
     val completedAt: Long? = null,
-    val missedAt: Long? = null,
-    val lastUpdatedAt: Long? = null
+    val lastUpdatedAt: Long? = null,
+    val missedAt: Long? = null
 )

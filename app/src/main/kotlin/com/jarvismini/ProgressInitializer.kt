@@ -2,7 +2,6 @@ package com.jarvismini
 
 import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
-import com.jarvismini.core.progress.ProgressStore
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.routine.RoutineProvider
@@ -13,9 +12,6 @@ object ProgressInitializer {
     fun registerAllBlocks(context: Context) = runBlocking {
         // Hydrate store first
         ProgressRepository.hydrate(context)
-
-        // Mark overdue tasks as missed
-        ProgressStore.updateMissedTasks()
 
         // Register all routines
         val routines = RoutineProvider.getAllRoutines(context)

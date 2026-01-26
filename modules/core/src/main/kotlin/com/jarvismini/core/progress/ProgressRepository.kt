@@ -18,14 +18,17 @@ object ProgressRepository {
         ProgressStore.register(context, entry)
     }
 
-    fun markCompleted(context: Context, routineId: String, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, routineId, blockId)
+    fun markCompleted(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markComplete(context, blockId)
     }
 
-    fun markIncomplete(context: Context, routineId: String, blockId: String) = runBlocking {
-        ProgressStore.markIncomplete(context, routineId, blockId)
+    fun markIncomplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markIncomplete(context, blockId)
     }
 
     fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
+
+    // Needed for MainScreen Checklist tab
+    fun getTodayBlocks(): List<ProgressBlock> =
+        ProgressStore.getTodayBlocks()
 }
