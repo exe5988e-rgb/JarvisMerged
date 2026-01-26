@@ -1,193 +1,33 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import java.text.SimpleDateFormat
-import java.util.*
-
-object ProgressStatsEngine {
-
-    fun getTodayStats(): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks() // zero-arg
-        val total = blocks.size
-        val completed = blocks.count { it.completed }
-
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completed
-        )
-    }
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
-
-object ProgressEngine {
-
-    fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId) // only 2 args
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressRepository.markIncomplete(context, blockId) // only 2 args
-    }
-
-    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressRepository.getTodayEntries()
-}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
-
-import android.content.Context
-import com.jarvismini.core.progress.ProgressEntry
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressState
-import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
-object ProgressInitializer {
+object ProgressRepository {
 
-    fun registerAllBlocks(context: Context) = runBlocking {
-        // Hydrate repository first
-        ProgressRepository.hydrate(context)
+    private var hydrated = false
 
-        // Register all routines
-        val routines = RoutineProvider.getAllRoutines(context)
-        routines.forEach { routine ->
-            val entry = ProgressEntry(
-                routineId = routine.id,
-                blockId = routine.id,
-                timestamp = System.currentTimeMillis(),
-                state = ProgressState.PENDING
-                // removed scheduledAt because ProgressEntry currently doesn't have it
-            )
-            ProgressRepository.register(context, entry)
-        }
-    }
-}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-package com.jarvismini.ui.main
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.ProgressInitializer
-import com.jarvismini.core.progress.*
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.checklist.ChecklistItem
-import com.jarvismini.ui.JarvisChatScreen
-
-enum class MainTab(val title: String) {
-    Chat("Chat"),
-    Checklist("Checklist")
-}
-
-@Composable
-fun MainScreen() {
-    val context = LocalContext.current
-
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
+    // Idempotent hydration
+    fun hydrate(context: Context) = runBlocking {
+        if (hydrated) return@runBlocking
+        ProgressStore.init(context)
+        hydrated = true
     }
 
-    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
-
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressStore.getTodayBlocks() // zero-arg
-
-            val stats = ProgressStatsEngine.getTodayStats()
-            AssistantTTS.speak(
-                context,
-                "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
-            )
-        }
+    fun register(context: Context, entry: ProgressEntry) = runBlocking {
+        ProgressStore.register(context, entry)
     }
 
-    Scaffold(
-        topBar = {
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                MainTab.values().forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.title) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp)
-        ) {
-            when (selectedTab) {
-                MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreenWithStats(
-                    blocks = blocks,
-                    onBlocksUpdated = { blocks = it }
-                )
-            }
-        }
+    fun markCompleted(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markComplete(context, blockId)
     }
-}
 
-@Composable
-private fun ChecklistScreenWithStats(
-    blocks: List<ProgressBlock>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
-
-    Column(modifier = Modifier.fillMaxSize()) {
-
-        Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(blocks) { block ->
-
-                val displayName = block.id
-                    .replace("_", " ")
-                    .replaceFirstChar { it.uppercase() }
-
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressEngine.markComplete(context, block.id)
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
-                    },
-                    onIncomplete = {
-                        ProgressEngine.markIncomplete(context, block.id)
-                        AssistantTTS.speak(
-                            context,
-                            "You missed task $displayName. I will remind you in 30 minutes."
-                        )
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
-                    }
-                )
-            }
-        }
+    fun markIncomplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markIncomplete(context, blockId)
     }
+
+    // New getters to support ProgressEngine
+    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
+    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries() // ✅ Added
 }
