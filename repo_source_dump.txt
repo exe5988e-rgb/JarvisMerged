@@ -3515,11 +3515,9 @@ object ProgressRepository {
         ProgressStore.markIncomplete(context, blockId)
     }
 
+    // New getters to support ProgressEngine
     fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-
-    // Needed for MainScreen Checklist tab
-    fun getTodayBlocks(): List<ProgressBlock> =
-        ProgressStore.getTodayBlocks()
+    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries() // ✅ Added
 }
 
 
