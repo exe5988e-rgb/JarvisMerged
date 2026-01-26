@@ -1,40 +1,151 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:13:51 Too many arguments for public final fun getTodayBlocks(): List<ProgressBlock> defined in com.jarvismini.core.progress.ProgressStore
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt:14:12 Redeclaration: ProgressState
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressState.kt:3:12 Redeclaration: ProgressState
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:102:42 Null can not be a value of a non-null type Context
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 35s
+BUILD FAILED in 34s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
+1	package com.jarvismini.core.progress
+2
+3	data class ProgressEntry(
+4	    val routineId: String,
+5	    val blockId: String,
+6	    val timestamp: Long,
+7	    val state: ProgressState = ProgressState.PENDING,
+8	    val scheduledAt: Long? = null,
+9	    val completedAt: Long? = null,
+10	    val lastUpdatedAt: Long = System.currentTimeMillis(),
+11	    val missedAt: Long? = null
+12	)
+13
+>>>>> ERROR HERE
+14	enum class ProgressState { PENDING, COMPLETED, INCOMPLETE }
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressState.kt =====
+1	package com.jarvismini.core.progress
+2
+>>>>> ERROR HERE
+3	enum class ProgressState {
+4	    COMPLETED,
+5	    INCOMPLETE,
+6	    PENDING
+7	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
-4	import java.text.SimpleDateFormat
-5	import java.util.*
-6
-7	/**
-8	 * Provides statistics about today’s progress.
-9	 */
-10	object ProgressStatsEngine {
-11
-12	    fun getTodayStats(context: Context): ProgressStats {
->>>>> ERROR HERE
-13	        val blocks = ProgressStore.getTodayBlocks(context) // pass context
-14	        val total = blocks.size
-15	        val completed = blocks.count { it.completed }
+4	import com.google.gson.Gson
+5	import com.google.gson.reflect.TypeToken
+6	import java.io.File
+7
+8	object ProgressStore {
+9
+10	    private const val FILE_NAME = "progress_store.json"
+11	    private val gson = Gson()
+12	    private val entries: MutableMap<String, ProgressEntry> = mutableMapOf()
+13	    @Volatile private var initialized = false
+14
+15	    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
 16
-17	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-18	        return ProgressStats(
-19	            date = today,
-20	            totalBlocks = total,
-21	            completedBlocks = completed
-22	        )
-23	    }
-24	}
+17	    suspend fun init(context: Context) {
+18	        if (initialized) return
+19	        val file = File(context.filesDir, FILE_NAME)
+20	        if (file.exists()) {
+21	            try {
+22	                val type = object : TypeToken<List<ProgressEntry>>() {}.type
+23	                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
+24	                list.forEach { entry ->
+25	                    if (!entries.containsKey(makeKey(entry.routineId, entry.blockId))) {
+26	                        entries[makeKey(entry.routineId, entry.blockId)] = entry
+27	                    }
+28	                }
+29	            } catch (_: Exception) { }
+30	        }
+31	        initialized = true
+32	    }
+33
+34	    private suspend fun persist(context: Context) {
+35	        val file = File(context.filesDir, FILE_NAME)
+36	        try {
+37	            val json = gson.toJson(entries.values.toList())
+38	            file.writeText(json)
+39	        } catch (_: Exception) { }
+40	    }
+41
+42	    suspend fun register(context: Context, entry: ProgressEntry) {
+43	        val key = makeKey(entry.routineId, entry.blockId)
+44	        entries.putIfAbsent(key, entry)
+45	        persist(context)
+46	    }
+47
+48	    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
+49	        val key = makeKey(routineId, blockId)
+50	        val existing = entries[key]
+51	        if (existing != null && existing.completedAt == null) {
+52	            val updated = existing.copy(
+53	                state = ProgressState.COMPLETED,
+54	                completedAt = System.currentTimeMillis(),
+55	                lastUpdatedAt = System.currentTimeMillis()
+56	            )
+57	            entries[key] = updated
+58	            persist(context)
+59	        }
+60	    }
+61
+62	    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
+63	        val key = makeKey(routineId, blockId)
+64	        val existing = entries[key]
+65	        if (existing != null) {
+66	            val now = System.currentTimeMillis()
+67	            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
+68	            val updated = existing.copy(
+69	                state = ProgressState.INCOMPLETE,
+70	                lastUpdatedAt = now,
+71	                missedAt = missedTime
+72	            )
+73	            entries[key] = updated
+74	            persist(context)
+75	        }
+76	    }
+77
+78	    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+79	    fun getTodayEntries(): List<ProgressEntry> {
+80	        val today = System.currentTimeMillis()
+81	        return entries.values.filter {
+82	            it.scheduledAt != null && isSameDay(it.scheduledAt, today)
+83	        }
+84	    }
+85
+86	    fun getTodayBlocks(): List<ProgressBlock> =
+87	        getTodayEntries().map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
+88
+89	    private fun isSameDay(time1: Long, time2: Long): Boolean {
+90	        val cal1 = java.util.Calendar.getInstance().apply { timeInMillis = time1 }
+91	        val cal2 = java.util.Calendar.getInstance().apply { timeInMillis = time2 }
+92	        return cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+93	                cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
+94	    }
+95
+96	    suspend fun updateMissedTasks() {
+97	        entries.values.forEach { entry ->
+98	            if (entry.scheduledAt != null &&
+99	                entry.state != ProgressState.COMPLETED &&
+100	                System.currentTimeMillis() > entry.scheduledAt
+101	            ) {
+>>>>> ERROR HERE
+102	                markIncomplete(context = null, routineId = entry.routineId, blockId = entry.blockId) // context will be provided in usage
+103	            }
+104	        }
+105	    }
+106	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
