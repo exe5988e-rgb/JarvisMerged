@@ -690,7 +690,6 @@ package com.jarvismini
 
 import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
-import com.jarvismini.core.progress.ProgressStore
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.routine.RoutineProvider
@@ -701,9 +700,6 @@ object ProgressInitializer {
     fun registerAllBlocks(context: Context) = runBlocking {
         // Hydrate store first
         ProgressRepository.hydrate(context)
-
-        // Mark overdue tasks as missed
-        ProgressStore.updateMissedTasks()
 
         // Register all routines
         val routines = RoutineProvider.getAllRoutines(context)
@@ -2532,35 +2528,11 @@ dependencies {
 
     // Gson for JSON serialization/deserialization
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // Kotlin coroutines for async operations
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
-
-
----
-
-✅ This batch:
-
-1. Fully persistent progress with Gson.
-
-
-2. Time-aware: scheduled vs completed vs missed.
-
-
-3. Idempotent: hydration and missed-task marking safe multiple times.
-
-
-4. Missed reminders: MissedTaskChecker only announces overdue tasks.
-
-
-5. Minimal off-main-thread I/O, safe for early bootstrap.
-
-
-
-
----
-
-If you want, the next step could be adding automatic daily re-checks for missed tasks so users are reminded even if the app wasn’t restarted.
-
-Do you want me to do that?
 
 
 //===== FILE: modules/core/proguard-rules.pro =====
@@ -3511,8 +3483,8 @@ data class ProgressEntry(
     val state: ProgressState,
     val scheduledAt: Long? = null,
     val completedAt: Long? = null,
-    val missedAt: Long? = null,
-    val lastUpdatedAt: Long? = null
+    val lastUpdatedAt: Long? = null,
+    val missedAt: Long? = null
 )
 
 
@@ -3537,16 +3509,19 @@ object ProgressRepository {
         ProgressStore.register(context, entry)
     }
 
-    fun markCompleted(context: Context, routineId: String, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, routineId, blockId)
+    fun markCompleted(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markComplete(context, blockId)
     }
 
-    fun markIncomplete(context: Context, routineId: String, blockId: String) = runBlocking {
-        ProgressStore.markIncomplete(context, routineId, blockId)
+    fun markIncomplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markIncomplete(context, blockId)
     }
 
     fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
+
+    // Needed for MainScreen Checklist tab
+    fun getTodayBlocks(): List<ProgressBlock> =
+        ProgressStore.getTodayBlocks()
 }
 
 
@@ -3616,10 +3591,8 @@ object ProgressStore {
 
     private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
 
-    // Idempotent init: load persisted entries
     suspend fun init(context: Context) {
         if (initialized) return
-
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
             try {
@@ -3647,8 +3620,8 @@ object ProgressStore {
         persist(context)
     }
 
-    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
-        val key = makeKey(routineId, blockId)
+    suspend fun markComplete(context: Context, blockId: String) {
+        val key = makeKey(blockId, blockId)
         val existing = entries[key]
         if (existing != null && existing.completedAt == null) {
             val updated = existing.copy(
@@ -3661,15 +3634,12 @@ object ProgressStore {
         }
     }
 
-    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
-        val key = makeKey(routineId, blockId)
+    suspend fun markIncomplete(context: Context, blockId: String) {
+        val key = makeKey(blockId, blockId)
         val existing = entries[key]
         if (existing != null) {
             val now = System.currentTimeMillis()
-            val missedTime = if (existing.scheduledAt != null
-                && now > existing.scheduledAt
-                && existing.state != ProgressState.COMPLETED
-            ) now else existing.missedAt
+            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
             val updated = existing.copy(
                 state = ProgressState.INCOMPLETE,
                 lastUpdatedAt = now,
@@ -3684,26 +3654,9 @@ object ProgressStore {
     fun getTodayEntries(): List<ProgressEntry> = entries.values.toList()
 
     fun getRegisteredBlocks(): Set<String> = entries.keys.map { it.split("::")[1] }.toSet()
-    fun getCompletedBlocks(): Set<String> =
-        entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
-
+    fun getCompletedBlocks(): Set<String> = entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
     fun getTodayBlocks(): List<ProgressBlock> =
         entries.values.map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
-
-    // New function: mark overdue tasks as missed
-    suspend fun updateMissedTasks() {
-        val now = System.currentTimeMillis()
-        entries.values.forEach { entry ->
-            if (entry.state != ProgressState.COMPLETED
-                && entry.scheduledAt != null
-                && entry.scheduledAt < now
-                && entry.missedAt == null
-            ) {
-                val updated = entry.copy(missedAt = now)
-                entries[makeKey(entry.routineId, entry.blockId)] = updated
-            }
-        }
-    }
 }
 
 
