@@ -10,7 +10,7 @@ import kotlinx.coroutines.runBlocking
 object ProgressInitializer {
 
     fun registerAllBlocks(context: Context) = runBlocking {
-        // Hydrate store first
+        // Hydrate repository first
         ProgressRepository.hydrate(context)
 
         // Register all routines
@@ -20,8 +20,8 @@ object ProgressInitializer {
                 routineId = routine.id,
                 blockId = routine.id,
                 timestamp = System.currentTimeMillis(),
-                state = ProgressState.PENDING,
-                scheduledAt = routine.scheduledAt
+                state = ProgressState.PENDING
+                // removed scheduledAt because ProgressEntry currently doesn't have it
             )
             ProgressRepository.register(context, entry)
         }

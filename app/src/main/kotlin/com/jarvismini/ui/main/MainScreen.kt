@@ -32,9 +32,9 @@ fun MainScreen() {
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressRepository.getTodayBlocks(context)
+            blocks = ProgressStore.getTodayBlocks() // zero-arg
 
-            val stats = ProgressStatsEngine.getTodayStats(context)
+            val stats = ProgressStatsEngine.getTodayStats()
             AssistantTTS.speak(
                 context,
                 "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
@@ -78,7 +78,7 @@ private fun ChecklistScreenWithStats(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats(context)
+    val stats = ProgressStatsEngine.getTodayStats()
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -102,18 +102,16 @@ private fun ChecklistScreenWithStats(
                 ChecklistItem(
                     block = block,
                     onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        ProgressEngine.markComplete(context, block.id)
+                        onBlocksUpdated(ProgressStore.getTodayBlocks())
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id)
-
+                        ProgressEngine.markIncomplete(context, block.id)
                         AssistantTTS.speak(
                             context,
                             "You missed task $displayName. I will remind you in 30 minutes."
                         )
-
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        onBlocksUpdated(ProgressStore.getTodayBlocks())
                     }
                 )
             }
