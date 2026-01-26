@@ -3550,19 +3550,13 @@ import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.*
 
-data class ProgressStats(
-    val date: String,
-    val totalBlocks: Int,
-    val completedBlocks: Int
-) {
-    val completionPercent: Int
-        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
-}
-
+/**
+ * Provides statistics about today’s progress.
+ */
 object ProgressStatsEngine {
 
     fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks() // pass context if needed
+        val blocks = ProgressStore.getTodayBlocks(context) // pass context
         val total = blocks.size
         val completed = blocks.count { it.completed }
 
