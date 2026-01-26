@@ -7,7 +7,6 @@ object ProgressRepository {
 
     private var hydrated = false
 
-    // Idempotent hydration
     fun hydrate(context: Context) = runBlocking {
         if (hydrated) return@runBlocking
         ProgressStore.init(context)
@@ -19,14 +18,14 @@ object ProgressRepository {
     }
 
     fun markCompleted(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, blockId)
+        ProgressStore.markComplete(context, blockId, blockId)
     }
 
     fun markIncomplete(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markIncomplete(context, blockId)
+        ProgressStore.markIncomplete(context, blockId, blockId)
     }
 
-    // New getters to support ProgressEngine
     fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries() // ✅ Added
+    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
+    fun getTodayBlocks(context: Context): List<ProgressBlock> = ProgressStore.getTodayBlocks()
 }

@@ -6,11 +6,17 @@ import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.engine.scheduler.DelayedTaskScheduler
 
+/**
+ * Orchestrates user prompts and progress tracking.
+ */
 class ProgressOrchestrator(
     private val context: Context,
     private val scheduler: DelayedTaskScheduler
 ) {
 
+    /**
+     * Prompt the user to complete a task.
+     */
     fun prompt(blockId: String, blockName: String) {
         AssistantTTS.speak(
             context,
@@ -24,6 +30,9 @@ class ProgressOrchestrator(
         )
     }
 
+    /**
+     * Handles user response from the prompt.
+     */
     fun onUserResponse(
         blockId: String,
         blockName: String,
@@ -37,7 +46,8 @@ class ProgressOrchestrator(
                 "Great. Task marked as complete."
             )
         } else {
-            ProgressEngine.markIncomplete(context, blockId) // only 2 args now
+            // Mark incomplete and schedule reminder
+            ProgressEngine.markIncomplete(context, blockId)
 
             AssistantTTS.speak(
                 context,
