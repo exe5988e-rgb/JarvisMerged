@@ -8,20 +8,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.routine.Routine
+import com.jarvismini.core.routine.model.Routine
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
-    routine: Routine,  // ✅ Added routine param
+    routine: Routine,
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
     val displayName = routine.label
         .replace("_", " ")
-        .replaceFirstChar { it.uppercase() }
+        .replaceFirstChar { c: Char -> c.uppercaseChar() }
 
     Card(
         modifier = Modifier
@@ -69,21 +69,21 @@ fun ChecklistItem(
             )
 
             // Completed or Missed time
-            when {
-                block.completed && block.completedAt != null -> {
+            block.completedAt?.let {
+                if (block.completed) {
                     Text(
-                        text = "Completed: ${formatTime(block.completedAt)}",
+                        text = "Completed: ${formatTime(it)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                block.missedAt != null -> {
-                    Text(
-                        text = "Missed: ${formatTime(block.missedAt)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+            }
+            block.missedAt?.let {
+                Text(
+                    text = "Missed: ${formatTime(it)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))

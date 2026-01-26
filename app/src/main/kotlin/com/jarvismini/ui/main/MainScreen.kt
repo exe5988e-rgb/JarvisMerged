@@ -58,9 +58,7 @@ fun MainScreen() {
         ) {
             when (selectedTab) {
                 MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(blocks) {
-                    blocks = it
-                }
+                MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
             }
         }
     }
@@ -72,7 +70,7 @@ private fun ChecklistScreen(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val routineProvider = RoutineProvider.getInstance() // ✅ Added
+    val routineProvider = RoutineProvider.instance
     val stats = ProgressStatsEngine.getTodayStats()
 
     Column {
@@ -92,11 +90,11 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    val routine = routineProvider.getRoutine(block.blockId) // ✅ map block → routine
+                    val routine = routineProvider.getRoutine(block.id)
                     if (routine != null) {
                         ChecklistItem(
                             block = block,
-                            routine = routine, // ✅ pass Routine
+                            routine = routine,
                             onComplete = {
                                 ProgressEngine.markComplete(context, block.id)
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
