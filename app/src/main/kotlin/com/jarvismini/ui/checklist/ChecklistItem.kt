@@ -34,38 +34,33 @@ fun ChecklistItem(
         )
     ) {
         Column(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth()
+            modifier = Modifier.padding(12.dp)
         ) {
-            // Routine name
+
             Text(
                 text = displayName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Scheduled time
             Text(
                 text = "Scheduled: ${formatTime(block.scheduledAt)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodySmall
             )
 
-            // Completed or Missed time
-            block.completedAt?.let { completed ->
+            block.completedAt?.let {
                 Text(
-                    text = "Completed: ${formatTime(completed)}",
+                    text = "Completed: ${formatTime(it)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            block.missedAt?.let { missed ->
+            block.missedAt?.let {
                 Text(
-                    text = "Missed: ${formatTime(missed)}",
+                    text = "Missed: ${formatTime(it)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -73,27 +68,14 @@ fun ChecklistItem(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.End
             ) {
                 if (!block.completed) {
-                    TextButton(onClick = onComplete) {
-                        Text("Done")
-                    }
+                    TextButton(onClick = onComplete) { Text("Done") }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onIncomplete) {
-                        Text("Missed")
-                    }
-                } else {
-                    Text(
-                        text = "✅ Completed",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    TextButton(onClick = onIncomplete) { Text("Missed") }
                 }
             }
         }
