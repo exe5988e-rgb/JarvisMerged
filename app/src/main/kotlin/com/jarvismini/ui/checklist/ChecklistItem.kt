@@ -15,13 +15,13 @@ import java.util.*
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
-    routine: Routine,
+    routine: Routine,  // ✅ Routine added
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
-    val displayName = routine.label
+    val displayName = routine.name
         .replace("_", " ")
-        .replaceFirstChar { c: Char -> c.uppercaseChar() }
+        .replaceFirstChar { it.uppercaseChar() }
 
     Card(
         modifier = Modifier
@@ -52,8 +52,15 @@ fun ChecklistItem(
             // Tasks (RoutineAction list)
             Column(modifier = Modifier.padding(start = 4.dp)) {
                 routine.actions.forEach { action ->
+                    val displayText = buildString {
+                        append(action.type.replace("_", " ").replaceFirstChar { it.uppercaseChar() })
+                        if (action.params.isNotEmpty()) {
+                            append(": ")
+                            append(action.params.entries.joinToString { "${it.key}=${it.value}" })
+                        }
+                    }
                     Text(
-                        text = "• ${action.label}",
+                        text = "• $displayText",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

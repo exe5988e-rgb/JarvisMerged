@@ -70,7 +70,7 @@ private fun ChecklistScreen(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val routineProvider = RoutineProvider.instance
+    val routineProvider = RoutineProvider // use the object directly
     val stats = ProgressStatsEngine.getTodayStats()
 
     Column {
@@ -90,11 +90,11 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    val routine = routineProvider.getRoutine(block.id)
+                    val routine = routineProvider.getRoutine(block.id)  // ✅ map block -> routine
                     if (routine != null) {
                         ChecklistItem(
                             block = block,
-                            routine = routine,
+                            routine = routine, // ✅ pass Routine
                             onComplete = {
                                 ProgressEngine.markComplete(context, block.id)
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
