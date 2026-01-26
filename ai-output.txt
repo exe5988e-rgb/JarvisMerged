@@ -33,21 +33,28 @@ object ProgressRepository {
 
     /**
      * Reset all blocks at 3 AM by setting state back to PENDING.
-     * Does not rely on ProgressInitializer from app module.
+     * Does not rely on any app module.
      */
     fun resetTodayBlocks(context: Context) = runBlocking {
         val todayBlocks = getTodayBlocks()
+
         todayBlocks.forEach { block ->
-            val entry = ProgressStore.getEntry(block.blockId)
-            if (entry != null) {
-                val resetEntry = entry.copy(state = ProgressState.PENDING)
-                ProgressStore.register(context, resetEntry)
-            }
+            // Re-register block with state PENDING
+            register(
+                context,
+                ProgressEntry(
+                    routineId = block.id,
+                    blockId = block.id,
+                    scheduledAt = block.scheduledAt,
+                    state = ProgressState.PENDING
+                )
+            )
         }
-        // Re-register today's routines
+
+        // Re-register today's routines in case any new routine is added
         getTodayRoutines(context).forEach { routine ->
             val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
-            ProgressStore.register(
+            register(
                 context,
                 ProgressEntry(
                     routineId = routine.id,
@@ -96,94 +103,6 @@ object ProgressRepository {
     private fun getTodayStartMs(): Long {
         val cal = Calendar.getInstance()
         cal.set(Calendar.HOUR_OF_DAY, 3) // Reset at 3 AM
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
-    }
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-object ProgressEngine {
-
-    fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markComplete(context, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressRepository.markIncomplete(context, blockId)
-    }
-}
-
-//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
-package com.jarvismini.smart
-
-object SmartFilters {
-    fun isAllowed(text: String): Boolean = true
-}
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
-
-import android.content.Context
-import com.jarvismini.core.progress.*
-import com.jarvismini.core.routine.RoutineProvider
-import kotlinx.coroutines.runBlocking
-import java.util.Calendar
-
-object ProgressInitializer {
-
-    /**
-     * Registers all today's routines as ProgressBlocks.
-     * Safe for daily use and after 3 AM reset.
-     */
-    fun registerAllBlocks(context: Context) = runBlocking {
-        // Ensure the store is initialized and old entries cleaned
-        ProgressRepository.hydrate(context)
-
-        // Reset today's blocks if current time is after 3 AM but before next reset
-        val now = System.currentTimeMillis()
-        val todayReset = getTodayStartMs()
-        if (now >= todayReset) {
-            ProgressRepository.resetTodayBlocks(context)
-        }
-
-        // Load today's routines and register them
-        val todayRoutines = ProgressRepository.getTodayRoutines(context)
-        todayRoutines.forEach { routine ->
-            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
-            ProgressRepository.register(
-                context,
-                ProgressEntry(
-                    routineId = routine.id,
-                    blockId = routine.id,
-                    scheduledAt = scheduledTime,
-                    state = ProgressState.PENDING
-                )
-            )
-        }
-    }
-
-    private fun parseTimeToMs(timeStr: String): Long {
-        return try {
-            val cal = Calendar.getInstance()
-            val parts = timeStr.split(":")
-            cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-            cal.set(Calendar.MINUTE, parts[1].toInt())
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        } catch (_: Exception) {
-            System.currentTimeMillis()
-        }
-    }
-
-    private fun getTodayStartMs(): Long {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 3) // 3 AM reset
         cal.set(Calendar.MINUTE, 0)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
