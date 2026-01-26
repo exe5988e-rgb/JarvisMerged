@@ -100,11 +100,11 @@ private fun ChecklistScreen(
                             block = block,
                             routine = routine,
                             onComplete = {
-                                ProgressEngine.markComplete(context, block.id)
+                                ProgressRepository.markComplete(context, block.id)
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
                             },
                             onIncomplete = {
-                                ProgressEngine.markIncomplete(context, block.id)
+                                ProgressRepository.markIncomplete(context, block.id)
                                 AssistantTTS.speak(context, "Okay, I will remind you in 30 minutes.")
                                 onBlocksUpdated(ProgressRepository.getTodayBlocks())
                             }

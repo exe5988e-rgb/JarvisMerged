@@ -15,7 +15,7 @@ object ProgressRepository {
     fun register(context: Context, entry: ProgressEntry) =
         runBlocking { ProgressStore.register(context, entry) }
 
-    fun markCompleted(context: Context, blockId: String) =
+    fun markComplete(context: Context, blockId: String) =
         runBlocking { ProgressStore.markComplete(context, blockId) }
 
     fun markIncomplete(context: Context, blockId: String) =
@@ -24,10 +24,17 @@ object ProgressRepository {
     fun getTodayBlocks(): List<ProgressBlock> =
         ProgressStore.getTodayBlocks()
 
-    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
+    fun getTodayRoutines(context: Context) : List<com.jarvismini.core.routine.model.Routine> {
         val allRoutines = RoutineProvider.getAllRoutines(context)
         val today = getCurrentDayOfWeek()
         return allRoutines.filter { it.trigger?.days?.contains(today) == true }
+    }
+
+    fun resetTodayBlocks(context: Context) = runBlocking {
+        val todayBlocks = getTodayBlocks()
+        todayBlocks.forEach { ProgressStore.resetBlock(context, it.blockId) }
+        // Re-register today's routines
+        ProgressInitializer.registerAllBlocks(context)
     }
 
     private fun cleanupOldEntries(context: Context) {
@@ -59,3 +66,6 @@ object ProgressRepository {
         return cal.timeInMillis
     }
 }
+
+
+---
