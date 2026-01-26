@@ -1,25 +1,3 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressState.kt =====
-package com.jarvismini.core.progress
-
-enum class ProgressState {
-    PENDING,
-    COMPLETED,
-    INCOMPLETE
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
-package com.jarvismini.core.progress
-
-data class ProgressEntry(
-    val routineId: String,
-    val blockId: String,
-    val scheduledAt: Long,
-    val state: ProgressState = ProgressState.PENDING,
-    val completedAt: Long? = null,
-    val missedAt: Long? = null,
-    val lastUpdatedAt: Long = System.currentTimeMillis()
-)
-
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 package com.jarvismini.core.progress
 
@@ -42,21 +20,27 @@ object ProgressStore {
         if (initialized) return
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
-            runCatching {
-                val type = object : TypeToken<List<ProgressEntry>>() {}.type
-                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
-                list.forEach { entries[key(it.routineId, it.blockId)] = it }
-            }
+            val type = object : TypeToken<List<ProgressEntry>>() {}.type
+            val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
+            list.forEach { entries[key(it.routineId, it.blockId)] = it }
         }
         initialized = true
     }
 
     private fun persist(context: Context) {
-        runCatching {
-            File(context.filesDir, FILE_NAME)
-                .writeText(gson.toJson(entries.values.toList()))
-        }
+        File(context.filesDir, FILE_NAME)
+            .writeText(gson.toJson(entries.values.toList()))
     }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        entries.values.filter { isToday(it.scheduledAt) }
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        getTodayEntries().map {
+            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
+        }
 
     suspend fun register(context: Context, entry: ProgressEntry) {
         val k = key(entry.routineId, entry.blockId)
@@ -101,14 +85,6 @@ object ProgressStore {
         persist(context)
     }
 
-    fun getTodayEntries(): List<ProgressEntry> =
-        entries.values.filter { isToday(it.scheduledAt) }
-
-    fun getTodayBlocks(): List<ProgressBlock> =
-        getTodayEntries().map {
-            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
-        }
-
     private fun isToday(time: Long): Boolean {
         val c1 = Calendar.getInstance().apply { timeInMillis = time }
         val c2 = Calendar.getInstance()
@@ -140,147 +116,58 @@ object ProgressRepository {
     fun markIncomplete(context: Context, routineId: String, blockId: String) =
         runBlocking { ProgressStore.markIncomplete(context, routineId, blockId) }
 
-    fun getTodayBlocks(): List<ProgressBlock> = ProgressStore.getTodayBlocks()
+    fun getAllEntries(): List<ProgressEntry> =
+        ProgressStore.getAllEntries()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        ProgressStore.getTodayEntries()
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        ProgressStore.getTodayBlocks()
 }
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
 package com.jarvismini.core.progress
-
-data class ProgressStats(
-    val date: String,
-    val totalBlocks: Int,
-    val completedBlocks: Int
-) {
-    val completionPercent: Int
-        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import java.text.SimpleDateFormat
-import java.util.*
-
-object ProgressStatsEngine {
-
-    fun getTodayStats(): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks()
-        val completed = blocks.count { it.completed }
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        return ProgressStats(today, blocks.size, completed)
-    }
-}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressEntry
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.routine.RoutineProvider
-import kotlinx.coroutines.runBlocking
 
-object ProgressInitializer {
+object ProgressEngine {
 
-    fun registerAllBlocks(context: Context) = runBlocking {
-        ProgressRepository.hydrate(context)
-        RoutineProvider.getAllRoutines(context).forEach { routine ->
-            ProgressRepository.register(
-                context,
-                ProgressEntry(
-                    routineId = routine.id,
-                    blockId = routine.id,
-                    scheduledAt = routine.timeMillis
-                )
-            )
-        }
+    fun markComplete(context: Context, blockId: String) {
+        ProgressRepository.markCompleted(context, blockId, blockId)
     }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressRepository.markIncomplete(context, blockId, blockId)
+    }
+
+    fun getAllEntries(): List<ProgressEntry> =
+        ProgressRepository.getAllEntries()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        ProgressRepository.getTodayEntries()
 }
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-package com.jarvismini.ui.main
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
+package com.jarvismini.core.progress
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.jarvismini.ProgressInitializer
-import com.jarvismini.core.progress.*
+import android.content.Context
 import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.checklist.ChecklistItem
-import com.jarvismini.ui.JarvisChatScreen
 
-enum class MainTab { Chat, Checklist }
+class MissedTaskChecker(private val context: Context) {
 
-@Composable
-fun MainScreen() {
-    val context = LocalContext.current
-    var tab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    fun checkAndRemind() {
+        val entries = ProgressStore.getAllEntries()
+        val missedEntries = entries.filter {
+            it.state == ProgressState.INCOMPLETE && it.missedAt != null
+        }
 
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
-    }
-
-    LaunchedEffect(tab) {
-        if (tab == MainTab.Checklist) {
-            blocks = ProgressStore.getTodayBlocks()
-            val stats = ProgressStatsEngine.getTodayStats()
+        missedEntries.forEach { entry ->
+            val blockName = entry.blockId.replace('_', ' ')
             AssistantTTS.speak(
-                context,
-                "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
+                context.applicationContext,
+                "You missed task $blockName."
             )
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TabRow(tab.ordinal) {
-                MainTab.values().forEach {
-                    Tab(tab == it, { tab = it }, { Text(it.name) })
-                }
-            }
-        }
-    ) { pad ->
-        Box(Modifier.padding(pad).padding(12.dp)) {
-            when (tab) {
-                MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChecklistScreen(
-    blocks: List<ProgressBlock>,
-    update: (List<ProgressBlock>) -> Unit
-) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
-
-    Column {
-        Text("Today's Checklist (${stats.completionPercent}%)")
-        Spacer(Modifier.height(8.dp))
-
-        LazyColumn {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressEngine.markComplete(context, block.id)
-                        update(ProgressStore.getTodayBlocks())
-                    },
-                    onIncomplete = {
-                        ProgressEngine.markIncomplete(context, block.id)
-                        update(ProgressStore.getTodayBlocks())
-                    }
-                )
-            }
         }
     }
 }
