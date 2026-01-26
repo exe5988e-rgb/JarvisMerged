@@ -1,5 +1,5 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
-package com.jarvismini.ui
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
+package com.jarvismini.ui.checklist
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -9,16 +9,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.routine.Routine
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
+    routine: Routine,  // ✅ Added routine param
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
-    val displayName = block.id
+    val displayName = routine.label
         .replace("_", " ")
         .replaceFirstChar { it.uppercase() }
 
@@ -39,52 +41,74 @@ fun ChecklistItem(
                 .padding(12.dp)
                 .fillMaxWidth()
         ) {
-
+            // Routine name
             Text(
                 text = displayName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "Scheduled: ${formatTime(block.scheduledAt)}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            block.completedAt?.let {
-                Text(
-                    text = "Completed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            block.missedAt?.let {
-                Text(
-                    text = "Missed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
+            // Tasks (RoutineAction list)
+            Column(modifier = Modifier.padding(start = 4.dp)) {
+                routine.actions.forEach { action ->
+                    Text(
+                        text = "• ${action.label}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Scheduled time
+            Text(
+                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Completed or Missed time
+            when {
+                block.completed && block.completedAt != null -> {
+                    Text(
+                        text = "Completed: ${formatTime(block.completedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                block.missedAt != null -> {
+                    Text(
+                        text = "Missed: ${formatTime(block.missedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!block.completed) {
-                    TextButton(onClick = onComplete) { Text("Done") }
+                    TextButton(onClick = onComplete) {
+                        Text("Done")
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onIncomplete) { Text("Missed") }
+                    TextButton(onClick = onIncomplete) {
+                        Text("Missed")
+                    }
                 } else {
                     Text(
                         text = "✅ Completed",
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -96,125 +120,122 @@ private fun formatTime(timestampMs: Long): String {
     val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
     return formatter.format(Date(timestampMs))
 }
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
-package com.jarvismini.ui.checklist
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressBlock
-import java.text.SimpleDateFormat
-import java.util.*
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.checklist.ChecklistItem
+
+enum class MainTab { Chat, Checklist }
 
 @Composable
-fun ChecklistItem(
-    block: ProgressBlock,
-    onComplete: () -> Unit,
-    onIncomplete: () -> Unit
-) {
-    val displayName = block.id
-        .replace("_", " ")
-        .replaceFirstChar { it.uppercase() }
+fun MainScreen() {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                block.completed -> MaterialTheme.colorScheme.primaryContainer
-                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.surfaceVariant
+    // Load today's routines immediately
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+    }
+
+    // Reload checklist when tab changes
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.name) }
+                    )
+                }
             }
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
         ) {
-
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "Scheduled: ${formatTime(block.scheduledAt)}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            block.completedAt?.let {
-                Text(
-                    text = "Completed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            block.missedAt?.let {
-                Text(
-                    text = "Missed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                if (!block.completed) {
-                    TextButton(onClick = onComplete) { Text("Done") }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onIncomplete) { Text("Missed") }
+            when (selectedTab) {
+                MainTab.Chat -> JarvisChatScreen()
+                MainTab.Checklist -> ChecklistScreen(blocks) {
+                    blocks = it
                 }
             }
         }
     }
 }
 
-private fun formatTime(timestampMs: Long): String {
-    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-    return formatter.format(Date(timestampMs))
-}
+@Composable
+private fun ChecklistScreen(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = LocalContext.current
+    val routineProvider = RoutineProvider.getInstance() // ✅ Added
+    val stats = ProgressStatsEngine.getTodayStats()
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import com.jarvismini.core.tts.AssistantTTS
-
-class MissedTaskChecker(private val context: Context) {
-
-    fun checkAndRemind() {
-        // ProgressRepository does NOT expose getTodayEntries
-        // ProgressStore does (and already exists in repo)
-        val todayEntries = ProgressStore.getTodayEntries()
-
-        todayEntries
-            .filter { it.state == ProgressState.INCOMPLETE }
-            .forEach { entry ->
-                val blockName = entry.blockId.replace('_', ' ')
-                AssistantTTS.speak(
-                    context.applicationContext,
-                    "Reminder: you missed task $blockName."
-                )
-            }
-    }
-
-    fun remindLater(entry: ProgressEntry) {
-        AssistantTTS.speak(
-            context.applicationContext,
-            "Okay, I will remind you in 30 minutes."
+    Column {
+        Text(
+            "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
         )
+
+        Spacer(Modifier.height(12.dp))
+
+        if (blocks.isEmpty()) {
+            Text(
+                "No routines scheduled for today",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(blocks) { block ->
+                    val routine = routineProvider.getRoutine(block.blockId) // ✅ map block → routine
+                    if (routine != null) {
+                        ChecklistItem(
+                            block = block,
+                            routine = routine, // ✅ pass Routine
+                            onComplete = {
+                                ProgressEngine.markComplete(context, block.id)
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            },
+                            onIncomplete = {
+                                ProgressEngine.markIncomplete(context, block.id)
+                                AssistantTTS.speak(
+                                    context,
+                                    "Okay, I will remind you in 30 minutes."
+                                )
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
