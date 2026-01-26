@@ -7,11 +7,13 @@ import java.util.Calendar
 class MissedTaskChecker(private val context: Context) {
 
     fun checkAndRemind() {
-        // Get today's entries only
+        // Get today's entries
         val todayEntries = ProgressRepository.getTodayEntries()
 
-        // Filter for incomplete tasks that have not been completed
-        val missedEntries = todayEntries.filter { it.state == ProgressState.INCOMPLETE }
+        // Filter for incomplete tasks (explicit type needed)
+        val missedEntries = todayEntries.filter { entry: ProgressEntry ->
+            entry.state == ProgressState.INCOMPLETE
+        }
 
         missedEntries.forEach { entry ->
             val blockName = entry.blockId.replace('_', ' ')
