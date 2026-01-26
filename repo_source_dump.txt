@@ -691,7 +691,6 @@ import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressState
-import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
 object ProgressInitializer {
@@ -700,8 +699,9 @@ object ProgressInitializer {
         ProgressRepository.hydrate(context)
 
         val today = System.currentTimeMillis()
+        val todayRoutines = ProgressRepository.getTodayRoutines(context)
 
-        RoutineProvider.getAllRoutines(context).forEach { routine ->
+        todayRoutines.forEach { routine ->
             ProgressRepository.register(
                 context,
                 ProgressEntry(
@@ -1266,9 +1266,10 @@ fun MainScreen() {
         blocks = ProgressRepository.getTodayBlocks()
     }
 
-    // Update checklist when tab changes
+    // Reload checklist when tab changes
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
             blocks = ProgressRepository.getTodayBlocks()
         }
     }
@@ -1318,23 +1319,31 @@ private fun ChecklistScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressEngine.markComplete(context, block.id)
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                    },
-                    onIncomplete = {
-                        ProgressEngine.markIncomplete(context, block.id)
-                        AssistantTTS.speak(
-                            context,
-                            "Okay, I will remind you in 30 minutes."
-                        )
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                    }
-                )
+        if (blocks.isEmpty()) {
+            Text(
+                "No routines scheduled for today",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(blocks) { block ->
+                    ChecklistItem(
+                        block = block,
+                        onComplete = {
+                            ProgressEngine.markComplete(context, block.id)
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        },
+                        onIncomplete = {
+                            ProgressEngine.markIncomplete(context, block.id)
+                            AssistantTTS.speak(
+                                context,
+                                "Okay, I will remind you in 30 minutes."
+                            )
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        }
+                    )
+                }
             }
         }
     }
@@ -3555,12 +3564,15 @@ data class ProgressEntry(
 package com.jarvismini.core.progress
 
 import android.content.Context
+import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
+import java.util.Calendar
 
 object ProgressRepository {
 
     fun hydrate(context: Context) = runBlocking {
         ProgressStore.init(context)
+        cleanupOldEntries(context)
     }
 
     fun register(context: Context, entry: ProgressEntry) =
@@ -3580,6 +3592,54 @@ object ProgressRepository {
 
     fun getTodayBlocks(): List<ProgressBlock> =
         ProgressStore.getTodayBlocks()
+
+    /**
+     * Returns routines scheduled for TODAY based on day-of-week.
+     */
+    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
+        val allRoutines = RoutineProvider.getAllRoutines(context)
+        val today = getCurrentDayOfWeek()
+        
+        return allRoutines.filter { routine ->
+            routine.trigger?.days?.contains(today) == true
+        }
+    }
+
+    /**
+     * Removes entries older than today at midnight.
+     */
+    private fun cleanupOldEntries(context: Context) {
+        val todayStart = getTodayStartMs()
+        val entries = ProgressStore.getAllEntries()
+        
+        entries.filter { it.scheduledAt < todayStart }
+            .forEach { old ->
+                ProgressStore.remove(context, old.blockId)
+            }
+    }
+
+    private fun getCurrentDayOfWeek(): String {
+        val cal = Calendar.getInstance()
+        return when (cal.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.SUNDAY -> "SUN"
+            Calendar.MONDAY -> "MON"
+            Calendar.TUESDAY -> "TUE"
+            Calendar.WEDNESDAY -> "WED"
+            Calendar.THURSDAY -> "THU"
+            Calendar.FRIDAY -> "FRI"
+            Calendar.SATURDAY -> "SAT"
+            else -> "SUN"
+        }
+    }
+
+    private fun getTodayStartMs(): Long {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
 }
 
 
@@ -3652,7 +3712,10 @@ object ProgressStore {
 
     fun markComplete(context: Context, blockId: String) {
         update(context, blockId) {
-            it.copy(state = ProgressState.COMPLETED)
+            it.copy(
+                state = ProgressState.COMPLETED,
+                completedAt = System.currentTimeMillis()
+            )
         }
     }
 
@@ -3663,6 +3726,11 @@ object ProgressStore {
                 missedAt = System.currentTimeMillis()
             )
         }
+    }
+
+    fun remove(context: Context, blockId: String) {
+        entries.removeAll { it.blockId == blockId }
+        save(context)
     }
 
     fun getAllEntries(): List<ProgressEntry> =
@@ -3704,8 +3772,8 @@ object ProgressStore {
                     put("blockId", it.blockId)
                     put("scheduledAt", it.scheduledAt)
                     put("state", it.state.name)
-                    put("completedAt", it.completedAt)
-                    put("missedAt", it.missedAt)
+                    put("completedAt", it.completedAt ?: 0L)
+                    put("missedAt", it.missedAt ?: 0L)
                 }
             )
         }
@@ -3844,11 +3912,11 @@ object ActionDispatcher {
 package com.jarvismini.core.routine
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.Routine
 
 /**
- * Executes routines and reports completion to ProgressEngine.
+ * Executes routines - DO NOT auto-complete.
+ * Completion is user-driven via UI.
  */
 class RoutineExecutor(
     private val context: Context
@@ -3858,11 +3926,10 @@ class RoutineExecutor(
         routine.actions.forEach { action ->
             ActionDispatcher.dispatch(context, action)
         }
-
-        // ✅ Correct signature
-        ProgressEngine.markComplete(context, routine.id)
-   
-}
+        
+        // ❌ DO NOT mark complete here
+        // Completion happens via user interaction in ChecklistScreen
+    }
 }
 
 
@@ -3872,6 +3939,7 @@ package com.jarvismini.core.routine
 import android.content.Context
 import com.jarvismini.core.routine.model.Routine
 import com.jarvismini.core.routine.model.RoutineAction
+import com.jarvismini.core.routine.model.Trigger
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -3915,6 +3983,17 @@ object RoutineProvider {
             val name = obj.getString("name")
             val enabled = obj.optBoolean("enabled", true)
 
+            // Parse trigger
+            val trigger = obj.optJSONObject("trigger")?.let { triggerObj ->
+                Trigger(
+                    type = triggerObj.getString("type"),
+                    time = triggerObj.optString("time", ""),
+                    days = triggerObj.optJSONArray("days")?.let { daysArray ->
+                        List(daysArray.length()) { daysArray.getString(it) }
+                    } ?: emptyList()
+                )
+            }
+
             val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
             val actions = mutableListOf<RoutineAction>()
 
@@ -3930,6 +4009,7 @@ object RoutineProvider {
                 id = id,
                 name = name,
                 enabled = enabled,
+                trigger = trigger,
                 actions = actions
             )
         }
@@ -3954,6 +4034,7 @@ data class Routine(
     val id: String,
     val name: String,
     val enabled: Boolean,
+    val trigger: Trigger? = null,
     val actions: List<RoutineAction>
 )
 
