@@ -7,7 +7,7 @@ e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotl
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 35s
+BUILD FAILED in 32s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -64,7 +64,9 @@ BUILD FAILED in 35s
 47	        return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
 48	                now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
 49	    }
-50	}
+50
+51	    // Stub: updateMissedTasks removed since entries are updated in markIncomplete
+52	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
