@@ -1,144 +1,109 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
-package com.jarvismini.core.progress
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
+package com.jarvismini.ui
 
-data class ProgressBlock(
-    val id: String,
-    val completed: Boolean,
-    val scheduledAt: Long,
-    val completedAt: Long? = null,
-    val missedAt: Long? = null
-)
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.ProgressBlock
+import java.text.SimpleDateFormat
+import java.util.*
 
+@Composable
+fun ChecklistItem(
+    block: ProgressBlock,
+    onComplete: () -> Unit,
+    onIncomplete: () -> Unit
+) {
+    val displayName = block.id
+        .replace("_", " ")
+        .replaceFirstChar { it.uppercase() }
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
-import java.util.Calendar
-
-object ProgressStore {
-
-    private const val PREFS = "jarvis_progress"
-    private const val KEY_ENTRIES = "entries"
-
-    private val entries = mutableListOf<ProgressEntry>()
-
-    fun init(context: Context) {
-        if (entries.isNotEmpty()) return
-        load(context)
-    }
-
-    fun register(context: Context, entry: ProgressEntry) {
-        if (entries.none { it.blockId == entry.blockId && isToday(it.scheduledAt) }) {
-            entries.add(entry)
-            save(context)
-        }
-    }
-
-    fun markComplete(context: Context, blockId: String) {
-        update(context, blockId) {
-            it.copy(
-                state = ProgressState.COMPLETED,
-                completedAt = System.currentTimeMillis()
-            )
-        }
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        update(context, blockId) {
-            it.copy(
-                state = ProgressState.INCOMPLETE,
-                missedAt = System.currentTimeMillis()
-            )
-        }
-    }
-
-    fun remove(context: Context, blockId: String) {
-        entries.removeAll { it.blockId == blockId }
-        save(context)
-    }
-
-    fun getAllEntries(): List<ProgressEntry> =
-        entries.toList()
-
-    fun getTodayEntries(): List<ProgressEntry> =
-        entries.filter { isToday(it.scheduledAt) }
-
-    fun getTodayBlocks(): List<ProgressBlock> =
-        getTodayEntries().map {
-            ProgressBlock(
-                id = it.blockId,
-                completed = it.state == ProgressState.COMPLETED,
-                scheduledAt = it.scheduledAt,
-                completedAt = it.completedAt,
-                missedAt = it.missedAt
-            )
-        }
-
-    // ---------------- INTERNAL ----------------
-
-    private fun update(
-        context: Context,
-        blockId: String,
-        transform: (ProgressEntry) -> ProgressEntry
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                block.completed -> MaterialTheme.colorScheme.primaryContainer
+                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
     ) {
-        val index = entries.indexOfFirst {
-            it.blockId == blockId && isToday(it.scheduledAt)
-        }
-        if (index != -1) {
-            entries[index] = transform(entries[index])
-            save(context)
-        }
-    }
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth()
+        ) {
+            // Routine name
+            Text(
+                text = displayName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
 
-    private fun save(context: Context) {
-        val array = JSONArray()
-        entries.forEach {
-            array.put(
-                JSONObject().apply {
-                    put("routineId", it.routineId)
-                    put("blockId", it.blockId)
-                    put("scheduledAt", it.scheduledAt)
-                    put("state", it.state.name)
-                    put("completedAt", it.completedAt ?: 0L)
-                    put("missedAt", it.missedAt ?: 0L)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Scheduled time
+            Text(
+                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Completed or Missed time
+            block.completedAt?.let { completed ->
+                Text(
+                    text = "Completed: ${formatTime(completed)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            block.missedAt?.let { missed ->
+                Text(
+                    text = "Missed: ${formatTime(missed)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!block.completed) {
+                    TextButton(onClick = onComplete) {
+                        Text("Done")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = onIncomplete) {
+                        Text("Missed")
+                    }
+                } else {
+                    Text(
+                        text = "✅ Completed",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-            )
-        }
-
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_ENTRIES, array.toString())
-            .apply()
-    }
-
-    private fun load(context: Context) {
-        val json = context
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_ENTRIES, null) ?: return
-
-        val array = JSONArray(json)
-        for (i in 0 until array.length()) {
-            val o = array.getJSONObject(i)
-            entries += ProgressEntry(
-                routineId = o.getString("routineId"),
-                blockId = o.getString("blockId"),
-                scheduledAt = o.getLong("scheduledAt"),
-                state = ProgressState.valueOf(o.getString("state")),
-                completedAt = o.optLong("completedAt").takeIf { it != 0L },
-                missedAt = o.optLong("missedAt").takeIf { it != 0L }
-            )
+            }
         }
     }
+}
 
-    private fun isToday(timestamp: Long): Boolean {
-        val now = Calendar.getInstance()
-        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-        return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
-                now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
-    }
+private fun formatTime(timestampMs: Long): String {
+    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+    return formatter.format(Date(timestampMs))
 }
 
 
@@ -200,131 +165,20 @@ fun ChecklistItem(
             )
 
             // Completed or Missed time
-            when {
-                block.completed && block.completedAt != null -> {
-                    Text(
-                        text = "Completed: ${formatTime(block.completedAt)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                block.missedAt != null -> {
-                    Text(
-                        text = "Missed: ${formatTime(block.missedAt)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+            block.completedAt?.let { completed ->
+                Text(
+                    text = "Completed: ${formatTime(completed)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Action buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!block.completed) {
-                    TextButton(onClick = onComplete) {
-                        Text("Done")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onIncomplete) {
-                        Text("Missed")
-                    }
-                } else {
-                    Text(
-                        text = "✅ Completed",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun formatTime(timestampMs: Long): String {
-    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-    return formatter.format(Date(timestampMs))
-}
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
-package com.jarvismini.ui
-
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import com.jarvismini.core.progress.ProgressBlock
-import java.text.SimpleDateFormat
-import java.util.*
-
-@Composable
-fun ChecklistItem(
-    block: ProgressBlock,
-    onComplete: () -> Unit,
-    onIncomplete: () -> Unit
-) {
-    val displayName = block.id
-        .replace("_", " ")
-        .replaceFirstChar { it.uppercase() }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                block.completed -> MaterialTheme.colorScheme.primaryContainer
-                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.surfaceVariant
-            }
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth()
-        ) {
-            // Routine name
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Scheduled time
-            Text(
-                text = "Scheduled: ${formatTime(block.scheduledAt)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // Completed or Missed time
-            when {
-                block.completed && block.completedAt != null -> {
-                    Text(
-                        text = "Completed: ${formatTime(block.completedAt)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                block.missedAt != null -> {
-                    Text(
-                        text = "Missed: ${formatTime(block.missedAt)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+            block.missedAt?.let { missed ->
+                Text(
+                    text = "Missed: ${formatTime(missed)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
