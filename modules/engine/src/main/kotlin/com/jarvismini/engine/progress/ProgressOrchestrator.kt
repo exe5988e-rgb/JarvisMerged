@@ -37,7 +37,7 @@ class ProgressOrchestrator(
                 "Great. Task marked as complete."
             )
         } else {
-            ProgressEngine.markIncomplete(context, blockId, blockName)
+            ProgressEngine.markIncomplete(context, blockId) // only 2 args now
 
             AssistantTTS.speak(
                 context,
