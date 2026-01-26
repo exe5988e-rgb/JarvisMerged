@@ -690,6 +690,7 @@ package com.jarvismini
 import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
 import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
@@ -703,7 +704,9 @@ object ProgressInitializer {
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = routine.timeMillis
+                    scheduledAt = routine.scheduledAt,
+                    timestamp = System.currentTimeMillis(),
+                    state = ProgressState.PENDING
                 )
             )
         }
@@ -718,19 +721,17 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.tts.AssistantTTS
 import kotlinx.coroutines.*
 
 class ProgressReminderService : Service() {
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val CHANNEL_ID = "progress_reminder_channel"
     private val NOTIFICATION_ID = 101
 
@@ -739,7 +740,7 @@ class ProgressReminderService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("Monitoring missed tasks…"))
 
-        serviceScope.launch {
+        scope.launch {
             while (isActive) {
                 checkMissedTasks()
                 delay(15 * 60 * 1000L)
@@ -749,11 +750,14 @@ class ProgressReminderService : Service() {
 
     private suspend fun checkMissedTasks() {
         ProgressRepository.hydrate(this)
-        val todayBlocks = ProgressRepository.getTodayBlocks(this)
-        val missedBlocks = todayBlocks.filter { !it.completed && it.id.isNotEmpty() }
+        val todayBlocks = ProgressRepository.getTodayBlocks()
+        val missed = todayBlocks.filter { !it.completed }
 
-        missedBlocks.forEach { block ->
-            AssistantTTS.speak(this, "Reminder: you missed task ${block.id}. Please complete it.")
+        missed.forEach {
+            AssistantTTS.speak(
+                applicationContext,
+                "Reminder: you missed task ${it.id}"
+            )
         }
     }
 
@@ -764,22 +768,21 @@ class ProgressReminderService : Service() {
                 "Progress Reminders",
                 NotificationManager.IMPORTANCE_LOW
             )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(content: String): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(content: String): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Jarvis Mini")
             .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .build()
-    }
 
     override fun onBind(intent: Intent?): IBinder? = null
-    override fun onDestroy() { super.onDestroy(); serviceScope.cancel() }
+    override fun onDestroy() { super.onDestroy(); scope.cancel() }
 }
 
 
@@ -1246,8 +1249,8 @@ import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.checklist.ChecklistItem
 import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.checklist.ChecklistItem
 
 enum class MainTab { Chat, Checklist }
 
@@ -1255,7 +1258,7 @@ enum class MainTab { Chat, Checklist }
 fun MainScreen() {
     val context = LocalContext.current
     var tab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
@@ -1263,7 +1266,7 @@ fun MainScreen() {
 
     LaunchedEffect(tab) {
         if (tab == MainTab.Checklist) {
-            blocks = ProgressStore.getTodayBlocks()
+            blocks = ProgressRepository.getTodayBlocks()
             val stats = ProgressStatsEngine.getTodayStats()
             AssistantTTS.speak(
                 context,
@@ -1274,14 +1277,23 @@ fun MainScreen() {
 
     Scaffold(
         topBar = {
-            TabRow(tab.ordinal) {
-                MainTab.values().forEach {
-                    Tab(tab == it, { tab = it }, { Text(it.name) })
+            TabRow(selectedTabIndex = tab.ordinal) {
+                MainTab.values().forEach { t ->
+                    Tab(
+                        selected = tab == t,
+                        onClick = { tab = t },
+                        text = { Text(t.name) }
+                    )
                 }
             }
         }
-    ) { pad ->
-        Box(Modifier.padding(pad).padding(12.dp)) {
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
             when (tab) {
                 MainTab.Chat -> JarvisChatScreen()
                 MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
@@ -1308,11 +1320,11 @@ private fun ChecklistScreen(
                     block = block,
                     onComplete = {
                         ProgressEngine.markComplete(context, block.id)
-                        update(ProgressStore.getTodayBlocks())
+                        update(ProgressRepository.getTodayBlocks())
                     },
                     onIncomplete = {
                         ProgressEngine.markIncomplete(context, block.id)
-                        update(ProgressStore.getTodayBlocks())
+                        update(ProgressRepository.getTodayBlocks())
                     }
                 )
             }
