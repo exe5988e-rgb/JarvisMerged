@@ -5,27 +5,20 @@ import kotlinx.coroutines.runBlocking
 
 object ProgressRepository {
 
-    private var hydrated = false
-
     fun hydrate(context: Context) = runBlocking {
-        if (hydrated) return@runBlocking
         ProgressStore.init(context)
-        hydrated = true
+        ProgressStore.updateMissedTasks(context)
     }
 
     fun register(context: Context, entry: ProgressEntry) = runBlocking {
         ProgressStore.register(context, entry)
     }
 
-    fun markCompleted(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, blockId, blockId)
-    }
+    fun markCompleted(context: Context, routineId: String, blockId: String) =
+        runBlocking { ProgressStore.markComplete(context, routineId, blockId) }
 
-    fun markIncomplete(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markIncomplete(context, blockId, blockId)
-    }
+    fun markIncomplete(context: Context, routineId: String, blockId: String) =
+        runBlocking { ProgressStore.markIncomplete(context, routineId, blockId) }
 
-    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-    fun getTodayEntries(context: Context): List<ProgressEntry> = ProgressStore.getTodayEntries()
-    fun getTodayBlocks(context: Context): List<ProgressBlock> = ProgressStore.getTodayBlocks()
+    fun getTodayBlocks(): List<ProgressBlock> = ProgressStore.getTodayBlocks()
 }

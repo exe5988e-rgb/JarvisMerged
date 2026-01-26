@@ -7,17 +7,8 @@ object ProgressStatsEngine {
 
     fun getTodayStats(): ProgressStats {
         val blocks = ProgressStore.getTodayBlocks()
+        val completed = blocks.count { it.completed }
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-        return ProgressStats(
-            date = today,
-            totalBlocks = blocks.size,
-            completedBlocks = blocks.count { it.completed }
-        )
+        return ProgressStats(today, blocks.size, completed)
     }
 }
-
-
----
-
-✅ 6️⃣ ProgressInitializer (DAILY SAFE REGISTRATION)

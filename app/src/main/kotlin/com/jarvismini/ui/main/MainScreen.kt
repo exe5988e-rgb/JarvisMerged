@@ -14,106 +14,70 @@ import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.checklist.ChecklistItem
 import com.jarvismini.ui.JarvisChatScreen
 
-enum class MainTab(val title: String) {
-    Chat("Chat"),
-    Checklist("Checklist")
-}
+enum class MainTab { Chat, Checklist }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
+    var tab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
 
-    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
-
-    // One-time hydration + registration
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
 
-    // Reload checklist + speak stats when entering Checklist tab
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MainTab.Checklist) {
+    LaunchedEffect(tab) {
+        if (tab == MainTab.Checklist) {
             blocks = ProgressStore.getTodayBlocks()
-
             val stats = ProgressStatsEngine.getTodayStats()
             AssistantTTS.speak(
                 context,
-                "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
+                "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
             )
         }
     }
 
     Scaffold(
         topBar = {
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                MainTab.values().forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.title) }
-                    )
+            TabRow(tab.ordinal) {
+                MainTab.values().forEach {
+                    Tab(tab == it, { tab = it }, { Text(it.name) })
                 }
             }
         }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp)
-        ) {
-            when (selectedTab) {
+    ) { pad ->
+        Box(Modifier.padding(pad).padding(12.dp)) {
+            when (tab) {
                 MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreenWithStats(
-                    blocks = blocks,
-                    onBlocksUpdated = { blocks = it }
-                )
+                MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
             }
         }
     }
 }
 
 @Composable
-private fun ChecklistScreenWithStats(
+private fun ChecklistScreen(
     blocks: List<ProgressBlock>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+    update: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column {
+        Text("Today's Checklist (${stats.completionPercent}%)")
+        Spacer(Modifier.height(8.dp))
 
-        Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
+        LazyColumn {
             items(blocks) { block ->
-
-                val displayName = block.id
-                    .replace("_", " ")
-                    .replaceFirstChar { it.uppercase() }
-
                 ChecklistItem(
                     block = block,
                     onComplete = {
                         ProgressEngine.markComplete(context, block.id)
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
+                        update(ProgressStore.getTodayBlocks())
                     },
                     onIncomplete = {
                         ProgressEngine.markIncomplete(context, block.id)
-                        AssistantTTS.speak(
-                            context,
-                            "You missed task $displayName. I will remind you in 30 minutes."
-                        )
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
+                        update(ProgressStore.getTodayBlocks())
                     }
                 )
             }

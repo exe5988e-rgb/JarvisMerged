@@ -8,10 +8,3 @@ data class ProgressStats(
     val completionPercent: Int
         get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
 }
-
-🚫 REMOVE any duplicate ProgressStats class elsewhere.
-
-
----
-
-✅ 5️⃣ ProgressStatsEngine (CONTEXT SAFE)
