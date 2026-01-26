@@ -57,7 +57,10 @@ object ProgressStore {
         getTodayEntries().map {
             ProgressBlock(
                 id = it.blockId,
-                completed = it.state == ProgressState.COMPLETED
+                completed = it.state == ProgressState.COMPLETED,
+                scheduledAt = it.scheduledAt,
+                completedAt = it.completedAt,
+                missedAt = it.missedAt
             )
         }
 

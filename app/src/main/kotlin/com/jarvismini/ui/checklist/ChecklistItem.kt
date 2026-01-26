@@ -3,9 +3,13 @@ package com.jarvismini.ui.checklist
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun ChecklistItem(
@@ -20,23 +24,84 @@ fun ChecklistItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
+            .padding(vertical = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                block.completed -> MaterialTheme.colorScheme.primaryContainer
+                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth()
         ) {
+            // Routine name
             Text(
                 text = displayName,
-                modifier = Modifier.weight(1f)
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
 
-            if (!block.completed) {
-                TextButton(onClick = onComplete) { Text("Done") }
-                TextButton(onClick = onIncomplete) { Text("Missed") }
-            } else {
-                Text("✅ Completed")
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Scheduled time
+            Text(
+                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Completed or Missed time
+            when {
+                block.completed && block.completedAt != null -> {
+                    Text(
+                        text = "Completed: ${formatTime(block.completedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                block.missedAt != null -> {
+                    Text(
+                        text = "Missed: ${formatTime(block.missedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!block.completed) {
+                    TextButton(onClick = onComplete) {
+                        Text("Done")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = onIncomplete) {
+                        Text("Missed")
+                    }
+                } else {
+                    Text(
+                        text = "✅ Completed",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
+}
+
+private fun formatTime(timestampMs: Long): String {
+    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+    return formatter.format(Date(timestampMs))
 }
