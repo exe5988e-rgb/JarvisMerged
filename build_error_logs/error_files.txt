@@ -1,33 +1,16 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:8:28 Unresolved reference: markCompleted
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:35:45 Unresolved reference: resetBlock
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:35:68 Unresolved reference: blockId
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:37:9 Unresolved reference: ProgressInitializer
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:7:23 Unresolved reference: ProgressInitializer
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:36:45 Unresolved reference: resetBlock
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:36:68 Unresolved reference: blockId
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:38:9 Unresolved reference: ProgressInitializer
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 38s
+BUILD FAILED in 36s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
-4
-5	object ProgressEngine {
-6
-7	    fun markComplete(context: Context, blockId: String) {
->>>>> ERROR HERE
-8	        ProgressRepository.markCompleted(context, blockId)
-9	    }
-10
-11	    fun markIncomplete(context: Context, blockId: String) {
-12	        ProgressRepository.markIncomplete(context, blockId)
-13	    }
-14	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 1	package com.jarvismini.core.progress
@@ -36,70 +19,72 @@ BUILD FAILED in 38s
 4	import com.jarvismini.core.routine.RoutineProvider
 5	import kotlinx.coroutines.runBlocking
 6	import java.util.Calendar
-7
-8	object ProgressRepository {
-9
-10	    fun hydrate(context: Context) = runBlocking {
-11	        ProgressStore.init(context)
-12	        cleanupOldEntries(context)
-13	    }
-14
-15	    fun register(context: Context, entry: ProgressEntry) =
-16	        runBlocking { ProgressStore.register(context, entry) }
-17
-18	    fun markComplete(context: Context, blockId: String) =
-19	        runBlocking { ProgressStore.markComplete(context, blockId) }
-20
-21	    fun markIncomplete(context: Context, blockId: String) =
-22	        runBlocking { ProgressStore.markIncomplete(context, blockId) }
-23
-24	    fun getTodayBlocks(): List<ProgressBlock> =
-25	        ProgressStore.getTodayBlocks()
-26
-27	    fun getTodayRoutines(context: Context) : List<com.jarvismini.core.routine.model.Routine> {
-28	        val allRoutines = RoutineProvider.getAllRoutines(context)
-29	        val today = getCurrentDayOfWeek()
-30	        return allRoutines.filter { it.trigger?.days?.contains(today) == true }
-31	    }
-32
-33	    fun resetTodayBlocks(context: Context) = runBlocking {
-34	        val todayBlocks = getTodayBlocks()
 >>>>> ERROR HERE
-35	        todayBlocks.forEach { ProgressStore.resetBlock(context, it.blockId) }
-36	        // Re-register today's routines
+7	import com.jarvismini.ProgressInitializer
+8
+9	object ProgressRepository {
+10
+11	    fun hydrate(context: Context) = runBlocking {
+12	        ProgressStore.init(context)
+13	        cleanupOldEntries(context)
+14	    }
+15
+16	    fun register(context: Context, entry: ProgressEntry) =
+17	        runBlocking { ProgressStore.register(context, entry) }
+18
+19	    fun markComplete(context: Context, blockId: String) =
+20	        runBlocking { ProgressStore.markComplete(context, blockId) }
+21
+22	    fun markIncomplete(context: Context, blockId: String) =
+23	        runBlocking { ProgressStore.markIncomplete(context, blockId) }
+24
+25	    fun getTodayBlocks(): List<ProgressBlock> =
+26	        ProgressStore.getTodayBlocks()
+27
+28	    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
+29	        val allRoutines = RoutineProvider.getAllRoutines(context)
+30	        val today = getCurrentDayOfWeek()
+31	        return allRoutines.filter { it.trigger?.days?.contains(today) == true }
+32	    }
+33
+34	    fun resetTodayBlocks(context: Context) = runBlocking {
+35	        val todayBlocks = getTodayBlocks()
 >>>>> ERROR HERE
-37	        ProgressInitializer.registerAllBlocks(context)
-38	    }
-39
-40	    private fun cleanupOldEntries(context: Context) {
-41	        val todayStart = getTodayStartMs()
-42	        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
-43	        old.forEach { ProgressStore.remove(context, it.blockId) }
-44	    }
-45
-46	    private fun getCurrentDayOfWeek(): String {
-47	        val cal = Calendar.getInstance()
-48	        return when (cal.get(Calendar.DAY_OF_WEEK)) {
-49	            Calendar.SUNDAY -> "SUN"
-50	            Calendar.MONDAY -> "MON"
-51	            Calendar.TUESDAY -> "TUE"
-52	            Calendar.WEDNESDAY -> "WED"
-53	            Calendar.THURSDAY -> "THU"
-54	            Calendar.FRIDAY -> "FRI"
-55	            Calendar.SATURDAY -> "SAT"
-56	            else -> "SUN"
-57	        }
-58	    }
-59
-60	    private fun getTodayStartMs(): Long {
-61	        val cal = Calendar.getInstance()
-62	        cal.set(Calendar.HOUR_OF_DAY, 0)
-63	        cal.set(Calendar.MINUTE, 0)
-64	        cal.set(Calendar.SECOND, 0)
-65	        cal.set(Calendar.MILLISECOND, 0)
-66	        return cal.timeInMillis
-67	    }
-68	}
+36	        todayBlocks.forEach { ProgressStore.resetBlock(context, it.blockId) }
+37	        // Re-register today's routines
+>>>>> ERROR HERE
+38	        ProgressInitializer.registerAllBlocks(context)
+39	    }
+40
+41	    private fun cleanupOldEntries(context: Context) {
+42	        val todayStart = getTodayStartMs()
+43	        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
+44	        old.forEach { ProgressStore.remove(context, it.blockId) }
+45	    }
+46
+47	    private fun getCurrentDayOfWeek(): String {
+48	        val cal = Calendar.getInstance()
+49	        return when (cal.get(Calendar.DAY_OF_WEEK)) {
+50	            Calendar.SUNDAY -> "SUN"
+51	            Calendar.MONDAY -> "MON"
+52	            Calendar.TUESDAY -> "TUE"
+53	            Calendar.WEDNESDAY -> "WED"
+54	            Calendar.THURSDAY -> "THU"
+55	            Calendar.FRIDAY -> "FRI"
+56	            Calendar.SATURDAY -> "SAT"
+57	            else -> "SUN"
+58	        }
+59	    }
+60
+61	    private fun getTodayStartMs(): Long {
+62	        val cal = Calendar.getInstance()
+63	        cal.set(Calendar.HOUR_OF_DAY, 3) // Reset at 3 AM
+64	        cal.set(Calendar.MINUTE, 0)
+65	        cal.set(Calendar.SECOND, 0)
+66	        cal.set(Calendar.MILLISECOND, 0)
+67	        return cal.timeInMillis
+68	    }
+69	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
