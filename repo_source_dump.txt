@@ -698,7 +698,7 @@ import kotlinx.coroutines.runBlocking
 object ProgressInitializer {
 
     fun registerAllBlocks(context: Context) = runBlocking {
-        // Hydrate store first
+        // Hydrate repository first
         ProgressRepository.hydrate(context)
 
         // Register all routines
@@ -708,8 +708,8 @@ object ProgressInitializer {
                 routineId = routine.id,
                 blockId = routine.id,
                 timestamp = System.currentTimeMillis(),
-                state = ProgressState.PENDING,
-                scheduledAt = routine.scheduledAt
+                state = ProgressState.PENDING
+                // removed scheduledAt because ProgressEntry currently doesn't have it
             )
             ProgressRepository.register(context, entry)
         }
@@ -1201,9 +1201,9 @@ fun MainScreen() {
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressRepository.getTodayBlocks(context)
+            blocks = ProgressStore.getTodayBlocks() // zero-arg
 
-            val stats = ProgressStatsEngine.getTodayStats(context)
+            val stats = ProgressStatsEngine.getTodayStats()
             AssistantTTS.speak(
                 context,
                 "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
@@ -1247,7 +1247,7 @@ private fun ChecklistScreenWithStats(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats(context)
+    val stats = ProgressStatsEngine.getTodayStats()
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -1271,18 +1271,16 @@ private fun ChecklistScreenWithStats(
                 ChecklistItem(
                     block = block,
                     onComplete = {
-                        ProgressRepository.markCompleted(context, block.id)
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        ProgressEngine.markComplete(context, block.id)
+                        onBlocksUpdated(ProgressStore.getTodayBlocks())
                     },
                     onIncomplete = {
-                        ProgressRepository.markIncomplete(context, block.id)
-
+                        ProgressEngine.markIncomplete(context, block.id)
                         AssistantTTS.speak(
                             context,
                             "You missed task $displayName. I will remind you in 30 minutes."
                         )
-
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        onBlocksUpdated(ProgressStore.getTodayBlocks())
                     }
                 )
             }
@@ -3460,21 +3458,16 @@ import android.content.Context
 
 object ProgressEngine {
 
-    /** Mark a block as complete */
     fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId)
+        ProgressRepository.markCompleted(context, blockId) // only 2 args
     }
 
-    /** Mark a block as incomplete */
     fun markIncomplete(context: Context, blockId: String) {
-        ProgressRepository.markIncomplete(context, blockId)
+        ProgressRepository.markIncomplete(context, blockId) // only 2 args
     }
 
-    /** Retrieve all progress entries */
     fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
-
-    /** Retrieve today's progress entries as ProgressBlocks */
-    fun getTodayEntries(): List<ProgressBlock> = ProgressRepository.getTodayBlocks()
+    fun getTodayEntries(): List<ProgressEntry> = ProgressRepository.getTodayEntries()
 }
 
 
@@ -3562,7 +3555,7 @@ import java.util.*
 object ProgressStatsEngine {
 
     fun getTodayStats(): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks() // zero-arg as defined in ProgressStore
+        val blocks = ProgressStore.getTodayBlocks() // zero-arg
         val total = blocks.size
         val completed = blocks.count { it.completed }
 
