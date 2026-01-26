@@ -3,6 +3,7 @@ package com.jarvismini.core.routine
 import android.content.Context
 import com.jarvismini.core.routine.model.Routine
 import com.jarvismini.core.routine.model.RoutineAction
+import com.jarvismini.core.routine.model.Trigger
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -46,6 +47,17 @@ object RoutineProvider {
             val name = obj.getString("name")
             val enabled = obj.optBoolean("enabled", true)
 
+            // Parse trigger
+            val trigger = obj.optJSONObject("trigger")?.let { triggerObj ->
+                Trigger(
+                    type = triggerObj.getString("type"),
+                    time = triggerObj.optString("time", ""),
+                    days = triggerObj.optJSONArray("days")?.let { daysArray ->
+                        List(daysArray.length()) { daysArray.getString(it) }
+                    } ?: emptyList()
+                )
+            }
+
             val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
             val actions = mutableListOf<RoutineAction>()
 
@@ -61,6 +73,7 @@ object RoutineProvider {
                 id = id,
                 name = name,
                 enabled = enabled,
+                trigger = trigger,
                 actions = actions
             )
         }

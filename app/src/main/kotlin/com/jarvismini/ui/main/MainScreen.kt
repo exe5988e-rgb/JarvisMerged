@@ -28,9 +28,10 @@ fun MainScreen() {
         blocks = ProgressRepository.getTodayBlocks()
     }
 
-    // Update checklist when tab changes
+    // Reload checklist when tab changes
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
             blocks = ProgressRepository.getTodayBlocks()
         }
     }
@@ -80,23 +81,31 @@ private fun ChecklistScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(blocks) { block ->
-                ChecklistItem(
-                    block = block,
-                    onComplete = {
-                        ProgressEngine.markComplete(context, block.id)
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                    },
-                    onIncomplete = {
-                        ProgressEngine.markIncomplete(context, block.id)
-                        AssistantTTS.speak(
-                            context,
-                            "Okay, I will remind you in 30 minutes."
-                        )
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                    }
-                )
+        if (blocks.isEmpty()) {
+            Text(
+                "No routines scheduled for today",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(blocks) { block ->
+                    ChecklistItem(
+                        block = block,
+                        onComplete = {
+                            ProgressEngine.markComplete(context, block.id)
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        },
+                        onIncomplete = {
+                            ProgressEngine.markIncomplete(context, block.id)
+                            AssistantTTS.speak(
+                                context,
+                                "Okay, I will remind you in 30 minutes."
+                            )
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        }
+                    )
+                }
             }
         }
     }

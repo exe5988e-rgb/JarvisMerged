@@ -1,11 +1,11 @@
 package com.jarvismini.core.routine
 
 import android.content.Context
-import com.jarvismini.core.progress.ProgressEngine
 import com.jarvismini.core.routine.model.Routine
 
 /**
- * Executes routines and reports completion to ProgressEngine.
+ * Executes routines - DO NOT auto-complete.
+ * Completion is user-driven via UI.
  */
 class RoutineExecutor(
     private val context: Context
@@ -15,9 +15,8 @@ class RoutineExecutor(
         routine.actions.forEach { action ->
             ActionDispatcher.dispatch(context, action)
         }
-
-        // ✅ Correct signature
-        ProgressEngine.markComplete(context, routine.id)
-   
-}
+        
+        // ❌ DO NOT mark complete here
+        // Completion happens via user interaction in ChecklistScreen
+    }
 }

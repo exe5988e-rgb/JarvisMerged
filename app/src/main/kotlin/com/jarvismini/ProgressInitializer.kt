@@ -4,7 +4,6 @@ import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressState
-import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
 object ProgressInitializer {
@@ -13,8 +12,9 @@ object ProgressInitializer {
         ProgressRepository.hydrate(context)
 
         val today = System.currentTimeMillis()
+        val todayRoutines = ProgressRepository.getTodayRoutines(context)
 
-        RoutineProvider.getAllRoutines(context).forEach { routine ->
+        todayRoutines.forEach { routine ->
             ProgressRepository.register(
                 context,
                 ProgressEntry(

@@ -26,7 +26,10 @@ object ProgressStore {
 
     fun markComplete(context: Context, blockId: String) {
         update(context, blockId) {
-            it.copy(state = ProgressState.COMPLETED)
+            it.copy(
+                state = ProgressState.COMPLETED,
+                completedAt = System.currentTimeMillis()
+            )
         }
     }
 
@@ -37,6 +40,11 @@ object ProgressStore {
                 missedAt = System.currentTimeMillis()
             )
         }
+    }
+
+    fun remove(context: Context, blockId: String) {
+        entries.removeAll { it.blockId == blockId }
+        save(context)
     }
 
     fun getAllEntries(): List<ProgressEntry> =
@@ -78,8 +86,8 @@ object ProgressStore {
                     put("blockId", it.blockId)
                     put("scheduledAt", it.scheduledAt)
                     put("state", it.state.name)
-                    put("completedAt", it.completedAt)
-                    put("missedAt", it.missedAt)
+                    put("completedAt", it.completedAt ?: 0L)
+                    put("missedAt", it.missedAt ?: 0L)
                 }
             )
         }
