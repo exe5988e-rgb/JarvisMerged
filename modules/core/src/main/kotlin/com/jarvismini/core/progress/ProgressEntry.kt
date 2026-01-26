@@ -6,6 +6,5 @@ data class ProgressEntry(
     val scheduledAt: Long,
     val state: ProgressState = ProgressState.PENDING,
     val completedAt: Long? = null,
-    val missedAt: Long? = null,
-    val lastUpdatedAt: Long = System.currentTimeMillis()
+    val missedAt: Long? = null
 )
