@@ -3900,21 +3900,28 @@ object ProgressRepository {
 
     /**
      * Reset all blocks at 3 AM by setting state back to PENDING.
-     * Does not rely on ProgressInitializer from app module.
+     * Does not rely on any app module.
      */
     fun resetTodayBlocks(context: Context) = runBlocking {
         val todayBlocks = getTodayBlocks()
+
         todayBlocks.forEach { block ->
-            val entry = ProgressStore.getEntry(block.blockId)
-            if (entry != null) {
-                val resetEntry = entry.copy(state = ProgressState.PENDING)
-                ProgressStore.register(context, resetEntry)
-            }
+            // Re-register block with state PENDING
+            register(
+                context,
+                ProgressEntry(
+                    routineId = block.id,
+                    blockId = block.id,
+                    scheduledAt = block.scheduledAt,
+                    state = ProgressState.PENDING
+                )
+            )
         }
-        // Re-register today's routines
+
+        // Re-register today's routines in case any new routine is added
         getTodayRoutines(context).forEach { routine ->
             val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
-            ProgressStore.register(
+            register(
                 context,
                 ProgressEntry(
                     routineId = routine.id,
