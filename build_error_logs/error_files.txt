@@ -1,37 +1,110 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:8:60 Too many arguments for public final fun markCompleted(context: Context, blockId: String): Unit defined in com.jarvismini.core.progress.ProgressRepository
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:12:61 Too many arguments for public final fun markIncomplete(context: Context, blockId: String): Unit defined in com.jarvismini.core.progress.ProgressRepository
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:16:69 Unresolved reference: getTodayEntries
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt:40:61 Too many arguments for public final fun markIncomplete(context: Context, blockId: String): Unit defined in com.jarvismini.core.progress.ProgressEngine
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 43s
+BUILD FAILED in 45s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
-4
-5	object ProgressEngine {
+4	import java.text.SimpleDateFormat
+5	import java.util.*
 6
-7	    fun markComplete(context: Context, blockId: String) {
+7	object ProgressStatsEngine {
+8
 >>>>> ERROR HERE
-8	        ProgressRepository.markCompleted(context, blockId, blockId)
-9	    }
-10
-11	    fun markIncomplete(context: Context, blockId: String, blockName: String) {
+9	    fun getTodayStats(context: Context): ProgressStats {
+10	        val blocks = ProgressStore.getTodayBlocks()
+11	        val total = blocks.size
+12	        val completed = blocks.count { it.completed }
+13
+14	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+15	        return ProgressStats(
+16	            date = today,
+17	            totalBlocks = total,
+18	            completedBlocks = completed
+19	        )
+20	    }
+21	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+1	package com.jarvismini.core.routine
+2
+3	import android.content.Context
+4	import com.jarvismini.core.routine.model.RoutineAction
+5
+6	/**
+7	 * Stub dispatcher for routine actions.
+8	 */
+9	object ActionDispatcher {
 >>>>> ERROR HERE
-12	        ProgressRepository.markIncomplete(context, blockId, blockId)
-13	    }
-14
-15	    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
+10	    fun dispatch(context: Context, action: RoutineAction) {
+11	        // Stub — logic will expand later
+12	    }
+13	}
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/progress/ProgressOrchestrator.kt =====
+1	package com.jarvismini.engine.progress
+2
+3	import android.content.Context
+4	import com.jarvismini.core.notifications.ProgressNotifier
+5	import com.jarvismini.core.progress.ProgressEngine
+6	import com.jarvismini.core.tts.AssistantTTS
+7	import com.jarvismini.engine.scheduler.DelayedTaskScheduler
+8
+9	class ProgressOrchestrator(
+10	    private val context: Context,
+11	    private val scheduler: DelayedTaskScheduler
+12	) {
+13
+14	    fun prompt(blockId: String, blockName: String) {
+15	        AssistantTTS.speak(
+16	            context,
+17	            "Did you complete $blockName?"
+18	        )
+19
+20	        ProgressNotifier.showCompletionPrompt(
+21	            context = context,
+22	            blockId = blockId,
+23	            blockName = blockName
+24	        )
+25	    }
+26
+27	    fun onUserResponse(
+28	        blockId: String,
+29	        blockName: String,
+30	        completed: Boolean
+31	    ) {
+32	        if (completed) {
+33	            ProgressEngine.markComplete(context, blockId)
+34
+35	            AssistantTTS.speak(
+36	                context,
+37	                "Great. Task marked as complete."
+38	            )
+39	        } else {
 >>>>> ERROR HERE
-16	    fun getTodayEntries(): List<ProgressEntry> = ProgressRepository.getTodayEntries()
-17	}
+40	            ProgressEngine.markIncomplete(context, blockId, blockName)
+41
+42	            AssistantTTS.speak(
+43	                context,
+44	                "Okay. I will remind you again in thirty minutes."
+45	            )
+46
+47	            scheduler.schedule(
+48	                delayMs = 30 * 60 * 1000L
+49	            ) {
+50	                prompt(blockId, blockName)
+51	            }
+52	        }
+53	    }
+54	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
