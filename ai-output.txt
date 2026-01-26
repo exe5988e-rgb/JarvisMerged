@@ -1,24 +1,16 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
-package com.jarvismini.core.progress
-
-data class ProgressEntry(
-    val routineId: String,
-    val blockId: String,
-    val scheduledAt: Long,
-    val state: ProgressState = ProgressState.PENDING,
-    val completedAt: Long? = null,
-    val missedAt: Long? = null
-)
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
+import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
+import java.util.Calendar
 
 object ProgressRepository {
 
     fun hydrate(context: Context) = runBlocking {
         ProgressStore.init(context)
+        cleanupOldEntries(context)
     }
 
     fun register(context: Context, entry: ProgressEntry) =
@@ -38,7 +30,57 @@ object ProgressRepository {
 
     fun getTodayBlocks(): List<ProgressBlock> =
         ProgressStore.getTodayBlocks()
+
+    /**
+     * Returns routines scheduled for TODAY based on day-of-week.
+     */
+    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
+        val allRoutines = RoutineProvider.getAllRoutines(context)
+        val today = getCurrentDayOfWeek()
+        
+        return allRoutines.filter { routine ->
+            routine.trigger?.days?.contains(today) == true
+        }
+    }
+
+    /**
+     * Removes entries older than today at midnight.
+     */
+    private fun cleanupOldEntries(context: Context) {
+        val todayStart = getTodayStartMs()
+        val entries = ProgressStore.getAllEntries()
+        
+        entries.filter { it.scheduledAt < todayStart }
+            .forEach { old ->
+                ProgressStore.remove(context, old.blockId)
+            }
+    }
+
+    private fun getCurrentDayOfWeek(): String {
+        val cal = Calendar.getInstance()
+        return when (cal.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.SUNDAY -> "SUN"
+            Calendar.MONDAY -> "MON"
+            Calendar.TUESDAY -> "TUE"
+            Calendar.WEDNESDAY -> "WED"
+            Calendar.THURSDAY -> "THU"
+            Calendar.FRIDAY -> "FRI"
+            Calendar.SATURDAY -> "SAT"
+            else -> "SUN"
+        }
+    }
+
+    private fun getTodayStartMs(): Long {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
 }
+
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 package com.jarvismini.core.progress
 
@@ -68,7 +110,10 @@ object ProgressStore {
 
     fun markComplete(context: Context, blockId: String) {
         update(context, blockId) {
-            it.copy(state = ProgressState.COMPLETED)
+            it.copy(
+                state = ProgressState.COMPLETED,
+                completedAt = System.currentTimeMillis()
+            )
         }
     }
 
@@ -79,6 +124,11 @@ object ProgressStore {
                 missedAt = System.currentTimeMillis()
             )
         }
+    }
+
+    fun remove(context: Context, blockId: String) {
+        entries.removeAll { it.blockId == blockId }
+        save(context)
     }
 
     fun getAllEntries(): List<ProgressEntry> =
@@ -120,8 +170,8 @@ object ProgressStore {
                     put("blockId", it.blockId)
                     put("scheduledAt", it.scheduledAt)
                     put("state", it.state.name)
-                    put("completedAt", it.completedAt)
-                    put("missedAt", it.missedAt)
+                    put("completedAt", it.completedAt ?: 0L)
+                    put("missedAt", it.missedAt ?: 0L)
                 }
             )
         }
@@ -158,6 +208,114 @@ object ProgressStore {
                 now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
     }
 }
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/Routine.kt =====
+package com.jarvismini.core.routine.model
+
+data class Routine(
+    val id: String,
+    val name: String,
+    val enabled: Boolean,
+    val trigger: Trigger? = null,
+    val actions: List<RoutineAction>
+)
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineProvider.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.routine.model.Routine
+import com.jarvismini.core.routine.model.RoutineAction
+import com.jarvismini.core.routine.model.Trigger
+import org.json.JSONArray
+import org.json.JSONObject
+
+object RoutineProvider {
+
+    private const val ROUTINES_DIR = "routines"
+
+    fun getAllRoutines(context: Context): List<Routine> {
+        val routines = mutableListOf<Routine>()
+        val files = context.assets.list(ROUTINES_DIR) ?: return emptyList()
+
+        files
+            .filter { it.endsWith(".json") }
+            .forEach { filename ->
+                try {
+                    val json = context.assets
+                        .open("$ROUTINES_DIR/$filename")
+                        .bufferedReader()
+                        .use { it.readText() }
+
+                    val root = JSONObject(json)
+                    if (!root.has("routines")) return@forEach
+
+                    val array = root.getJSONArray("routines")
+                    routines += parseRoutines(array)
+                } catch (_: Exception) {
+                    // ignore bad files
+                }
+            }
+
+        return routines.filter { it.enabled }
+    }
+
+    private fun parseRoutines(array: JSONArray): List<Routine> {
+        val list = mutableListOf<Routine>()
+
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+
+            val id = obj.getString("id")
+            val name = obj.getString("name")
+            val enabled = obj.optBoolean("enabled", true)
+
+            // Parse trigger
+            val trigger = obj.optJSONObject("trigger")?.let { triggerObj ->
+                Trigger(
+                    type = triggerObj.getString("type"),
+                    time = triggerObj.optString("time", ""),
+                    days = triggerObj.optJSONArray("days")?.let { daysArray ->
+                        List(daysArray.length()) { daysArray.getString(it) }
+                    } ?: emptyList()
+                )
+            }
+
+            val actionsJson = obj.optJSONArray("actions") ?: JSONArray()
+            val actions = mutableListOf<RoutineAction>()
+
+            for (j in 0 until actionsJson.length()) {
+                val a = actionsJson.getJSONObject(j)
+                actions += RoutineAction(
+                    type = a.getString("type"),
+                    params = a.toMap()
+                )
+            }
+
+            list += Routine(
+                id = id,
+                name = name,
+                enabled = enabled,
+                trigger = trigger,
+                actions = actions
+            )
+        }
+
+        return list
+    }
+}
+
+private fun JSONObject.toMap(): Map<String, String> {
+    val map = mutableMapOf<String, String>()
+    keys().forEach { key ->
+        map[key] = get(key).toString()
+    }
+    return map
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
 package com.jarvismini
 
@@ -165,7 +323,6 @@ import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressState
-import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
 object ProgressInitializer {
@@ -174,8 +331,9 @@ object ProgressInitializer {
         ProgressRepository.hydrate(context)
 
         val today = System.currentTimeMillis()
+        val todayRoutines = ProgressRepository.getTodayRoutines(context)
 
-        RoutineProvider.getAllRoutines(context).forEach { routine ->
+        todayRoutines.forEach { routine ->
             ProgressRepository.register(
                 context,
                 ProgressEntry(
@@ -186,5 +344,145 @@ object ProgressInitializer {
                 )
             )
         }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.checklist.ChecklistItem
+
+enum class MainTab { Chat, Checklist }
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+
+    // Load today's routines immediately
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+    }
+
+    // Reload checklist when tab changes
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TabRow(selectedTabIndex = selectedTab.ordinal) {
+                MainTab.values().forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.name) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(12.dp)
+        ) {
+            when (selectedTab) {
+                MainTab.Chat -> JarvisChatScreen()
+                MainTab.Checklist -> ChecklistScreen(blocks) {
+                    blocks = it
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistScreen(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = LocalContext.current
+    val stats = ProgressStatsEngine.getTodayStats()
+
+    Column {
+        Text(
+            "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        if (blocks.isEmpty()) {
+            Text(
+                "No routines scheduled for today",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(blocks) { block ->
+                    ChecklistItem(
+                        block = block,
+                        onComplete = {
+                            ProgressEngine.markComplete(context, block.id)
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        },
+                        onIncomplete = {
+                            ProgressEngine.markIncomplete(context, block.id)
+                            AssistantTTS.speak(
+                                context,
+                                "Okay, I will remind you in 30 minutes."
+                            )
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/RoutineExecutor.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import com.jarvismini.core.routine.model.Routine
+
+/**
+ * Executes routines - DO NOT auto-complete.
+ * Completion is user-driven via UI.
+ */
+class RoutineExecutor(
+    private val context: Context
+) {
+
+    fun execute(routine: Routine) {
+        routine.actions.forEach { action ->
+            ActionDispatcher.dispatch(context, action)
+        }
+        
+        // ❌ DO NOT mark complete here
+        // Completion happens via user interaction in ChecklistScreen
     }
 }
