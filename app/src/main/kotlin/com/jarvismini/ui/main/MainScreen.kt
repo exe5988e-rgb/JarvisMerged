@@ -33,7 +33,7 @@ fun MainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks()
-            val stats = ProgressStatsEngine.getTodayStats(context)
+            val stats = ProgressStatsEngine.getTodayStats()
             AssistantTTS.speak(
                 context,
                 "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
@@ -77,7 +77,7 @@ private fun ChecklistScreen(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats(context)
+    val stats = ProgressStatsEngine.getTodayStats()
 
     Column(modifier = Modifier.fillMaxSize()) {
 
