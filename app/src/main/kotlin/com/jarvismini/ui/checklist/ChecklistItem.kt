@@ -8,16 +8,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.routine.Routine
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
+    routine: Routine,  // ✅ Added routine param
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
-    val displayName = block.id
+    val displayName = routine.label
         .replace("_", " ")
         .replaceFirstChar { it.uppercase() }
 
@@ -34,48 +36,79 @@ fun ChecklistItem(
         )
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth()
         ) {
-
+            // Routine name
             Text(
                 text = displayName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "Scheduled: ${formatTime(block.scheduledAt)}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            block.completedAt?.let {
-                Text(
-                    text = "Completed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            block.missedAt?.let {
-                Text(
-                    text = "Missed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
+            // Tasks (RoutineAction list)
+            Column(modifier = Modifier.padding(start = 4.dp)) {
+                routine.actions.forEach { action ->
+                    Text(
+                        text = "• ${action.label}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Scheduled time
+            Text(
+                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Completed or Missed time
+            when {
+                block.completed && block.completedAt != null -> {
+                    Text(
+                        text = "Completed: ${formatTime(block.completedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                block.missedAt != null -> {
+                    Text(
+                        text = "Missed: ${formatTime(block.missedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!block.completed) {
-                    TextButton(onClick = onComplete) { Text("Done") }
+                    TextButton(onClick = onComplete) {
+                        Text("Done")
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onIncomplete) { Text("Missed") }
+                    TextButton(onClick = onIncomplete) {
+                        Text("Missed")
+                    }
+                } else {
+                    Text(
+                        text = "✅ Completed",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

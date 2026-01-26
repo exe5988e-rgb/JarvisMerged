@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.checklist.ChecklistItem
@@ -71,6 +72,7 @@ private fun ChecklistScreen(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
+    val routineProvider = RoutineProvider.getInstance() // ✅ Added
     val stats = ProgressStatsEngine.getTodayStats()
 
     Column {
@@ -90,21 +92,25 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    ChecklistItem(
-                        block = block,
-                        onComplete = {
-                            ProgressEngine.markComplete(context, block.id)
-                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                        },
-                        onIncomplete = {
-                            ProgressEngine.markIncomplete(context, block.id)
-                            AssistantTTS.speak(
-                                context,
-                                "Okay, I will remind you in 30 minutes."
-                            )
-                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                        }
-                    )
+                    val routine = routineProvider.getRoutine(block.blockId) // ✅ map block → routine
+                    if (routine != null) {
+                        ChecklistItem(
+                            block = block,
+                            routine = routine, // ✅ pass Routine
+                            onComplete = {
+                                ProgressEngine.markComplete(context, block.id)
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            },
+                            onIncomplete = {
+                                ProgressEngine.markIncomplete(context, block.id)
+                                AssistantTTS.speak(
+                                    context,
+                                    "Okay, I will remind you in 30 minutes."
+                                )
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            }
+                        )
+                    }
                 }
             }
         }
