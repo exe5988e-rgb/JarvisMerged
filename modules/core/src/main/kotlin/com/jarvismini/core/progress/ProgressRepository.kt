@@ -66,6 +66,3 @@ object ProgressRepository {
         return cal.timeInMillis
     }
 }
-
-
----
