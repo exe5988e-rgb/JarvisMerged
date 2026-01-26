@@ -18,6 +18,7 @@ object ProgressInitializer {
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
+                    scheduledAt = null,
                     state = ProgressState.PENDING
                 )
             )
