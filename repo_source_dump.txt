@@ -704,7 +704,7 @@ object ProgressInitializer {
                 blockId = routine.id,
                 timestamp = System.currentTimeMillis(),
                 state = ProgressState.PENDING,
-                scheduledAt = routine.scheduledAt
+                scheduledAt = routine.scheduledTime // fixed: use correct property name
             )
             ProgressRepository.register(context, entry)
         }
@@ -726,7 +726,6 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressEngine
-import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.tts.AssistantTTS
 import kotlinx.coroutines.*
 
@@ -752,7 +751,7 @@ class ProgressReminderService : Service() {
     private suspend fun checkMissedTasks() {
         ProgressRepository.hydrate(this)
         val todayBlocks = ProgressRepository.getTodayBlocks(this)
-        val missedBlocks = todayBlocks.filter { !it.completed && it.blockId.isNotEmpty() }
+        val missedBlocks = todayBlocks.filter { !it.completed && it.id.isNotEmpty() }
 
         missedBlocks.forEach { block ->
             AssistantTTS.speak(this, "Reminder: you missed task ${block.id}. Please complete it.")
@@ -1269,9 +1268,8 @@ fun MainScreen() {
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressStore.getTodayBlocks() // zero-arg
-
-            val stats = ProgressStatsEngine.getTodayStats()
+            blocks = ProgressRepository.getTodayBlocks(context) // pass context
+            val stats = ProgressStatsEngine.getTodayStats(context)
             AssistantTTS.speak(
                 context,
                 "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
@@ -1315,10 +1313,9 @@ private fun ChecklistScreenWithStats(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
+    val stats = ProgressStatsEngine.getTodayStats(context) // pass context
 
     Column(modifier = Modifier.fillMaxSize()) {
-
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -1331,7 +1328,6 @@ private fun ChecklistScreenWithStats(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(blocks) { block ->
-
                 val displayName = block.id
                     .replace("_", " ")
                     .replaceFirstChar { it.uppercase() }
@@ -1340,7 +1336,7 @@ private fun ChecklistScreenWithStats(
                     block = block,
                     onComplete = {
                         ProgressEngine.markComplete(context, block.id)
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     },
                     onIncomplete = {
                         ProgressEngine.markIncomplete(context, block.id)
@@ -1348,7 +1344,7 @@ private fun ChecklistScreenWithStats(
                             context,
                             "You missed task $displayName. I will remind you in 30 minutes."
                         )
-                        onBlocksUpdated(ProgressStore.getTodayBlocks())
+                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
                     }
                 )
             }
