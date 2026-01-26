@@ -3460,16 +3460,21 @@ import android.content.Context
 
 object ProgressEngine {
 
+    /** Mark a block as complete */
     fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId, blockId)
+        ProgressRepository.markCompleted(context, blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-        ProgressRepository.markIncomplete(context, blockId, blockId)
+    /** Mark a block as incomplete */
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressRepository.markIncomplete(context, blockId)
     }
 
+    /** Retrieve all progress entries */
     fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressRepository.getTodayEntries()
+
+    /** Retrieve today's progress entries as ProgressBlocks */
+    fun getTodayEntries(): List<ProgressBlock> = ProgressRepository.getTodayBlocks()
 }
 
 
