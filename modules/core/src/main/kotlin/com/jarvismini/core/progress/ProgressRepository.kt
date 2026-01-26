@@ -21,38 +21,19 @@ object ProgressRepository {
     fun markIncomplete(context: Context, blockId: String) =
         runBlocking { ProgressStore.markIncomplete(context, blockId) }
 
-    fun getAllEntries(): List<ProgressEntry> =
-        ProgressStore.getAllEntries()
-
-    fun getTodayEntries(): List<ProgressEntry> =
-        ProgressStore.getTodayEntries()
-
     fun getTodayBlocks(): List<ProgressBlock> =
         ProgressStore.getTodayBlocks()
 
-    /**
-     * Returns routines scheduled for TODAY based on day-of-week.
-     */
     fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
         val allRoutines = RoutineProvider.getAllRoutines(context)
         val today = getCurrentDayOfWeek()
-        
-        return allRoutines.filter { routine ->
-            routine.trigger?.days?.contains(today) == true
-        }
+        return allRoutines.filter { it.trigger?.days?.contains(today) == true }
     }
 
-    /**
-     * Removes entries older than today at midnight.
-     */
     private fun cleanupOldEntries(context: Context) {
         val todayStart = getTodayStartMs()
-        val entries = ProgressStore.getAllEntries()
-        
-        entries.filter { it.scheduledAt < todayStart }
-            .forEach { old ->
-                ProgressStore.remove(context, old.blockId)
-            }
+        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
+        old.forEach { ProgressStore.remove(context, it.blockId) }
     }
 
     private fun getCurrentDayOfWeek(): String {
