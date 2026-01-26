@@ -1,3 +1,88 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import java.util.Calendar
+
+object ProgressStore {
+
+    private val entries = mutableListOf<ProgressEntry>()
+
+    fun init(context: Context) {
+        // no-op for now
+    }
+
+    fun register(context: Context, entry: ProgressEntry) {
+        if (entries.none { it.blockId == entry.blockId && isToday(it.scheduledAt) }) {
+            entries.add(entry)
+        }
+    }
+
+    fun markComplete(context: Context, blockId: String) {
+        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
+            state = ProgressState.COMPLETED
+        }
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
+            state = ProgressState.INCOMPLETE
+            missedAt = System.currentTimeMillis()
+        }
+    }
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        entries.filter { isToday(it.scheduledAt) }
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        getTodayEntries().map {
+            ProgressBlock(
+                id = it.blockId,
+                completed = it.state == ProgressState.COMPLETED
+            )
+        }
+
+    private fun isToday(timestamp: Long): Boolean {
+        val now = Calendar.getInstance()
+        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+        return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
+                now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
+package com.jarvismini
+
+import android.content.Context
+import com.jarvismini.core.progress.ProgressEntry
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressState
+import com.jarvismini.core.routine.RoutineProvider
+import kotlinx.coroutines.runBlocking
+
+object ProgressInitializer {
+
+    fun registerAllBlocks(context: Context) = runBlocking {
+        ProgressRepository.hydrate(context)
+
+        val today = System.currentTimeMillis()
+
+        RoutineProvider.getAllRoutines(context)
+            .filter { it.isScheduledForToday() }
+            .forEach { routine ->
+                ProgressRepository.register(
+                    context,
+                    ProgressEntry(
+                        routineId = routine.id,
+                        blockId = routine.id,
+                        scheduledAt = today,
+                        state = ProgressState.PENDING
+                    )
+                )
+            }
+    }
+}
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
@@ -15,15 +100,11 @@ import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.checklist.ChecklistItem
 
-enum class MainTab {
-    Chat,
-    Checklist
-}
+enum class MainTab { Chat, Checklist }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
-
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
 
@@ -34,22 +115,17 @@ fun MainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks()
-            val stats = ProgressStatsEngine.getTodayStats()
-            AssistantTTS.speak(
-                context,
-                "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
-            )
         }
     }
 
     Scaffold(
         topBar = {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
-                MainTab.values().forEach { tab ->
+                MainTab.values().forEach {
                     Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.name) }
+                        selected = selectedTab == it,
+                        onClick = { selectedTab = it },
+                        text = { Text(it.name) }
                     )
                 }
             }
@@ -63,10 +139,9 @@ fun MainScreen() {
         ) {
             when (selectedTab) {
                 MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(
-                    blocks = blocks,
-                    onBlocksUpdated = { blocks = it }
-                )
+                MainTab.Checklist -> ChecklistScreen(blocks) {
+                    blocks = it
+                }
             }
         }
     }
@@ -80,18 +155,15 @@ private fun ChecklistScreen(
     val context = LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-
+    Column {
         Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
+            "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(Modifier.height(12.dp))
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(blocks) { block ->
                 ChecklistItem(
                     block = block,
@@ -103,7 +175,7 @@ private fun ChecklistScreen(
                         ProgressEngine.markIncomplete(context, block.id)
                         AssistantTTS.speak(
                             context,
-                            "You missed task ${block.id.replace('_', ' ')}"
+                            "Okay, I will remind you in 30 minutes."
                         )
                         onBlocksUpdated(ProgressRepository.getTodayBlocks())
                     }
