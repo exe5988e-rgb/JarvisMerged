@@ -4,6 +4,7 @@ import android.content.Context
 import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 import java.util.Calendar
+import com.jarvismini.ProgressInitializer
 
 object ProgressRepository {
 
@@ -24,7 +25,7 @@ object ProgressRepository {
     fun getTodayBlocks(): List<ProgressBlock> =
         ProgressStore.getTodayBlocks()
 
-    fun getTodayRoutines(context: Context) : List<com.jarvismini.core.routine.model.Routine> {
+    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
         val allRoutines = RoutineProvider.getAllRoutines(context)
         val today = getCurrentDayOfWeek()
         return allRoutines.filter { it.trigger?.days?.contains(today) == true }
@@ -59,7 +60,7 @@ object ProgressRepository {
 
     private fun getTodayStartMs(): Long {
         val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.HOUR_OF_DAY, 3) // Reset at 3 AM
         cal.set(Calendar.MINUTE, 0)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)

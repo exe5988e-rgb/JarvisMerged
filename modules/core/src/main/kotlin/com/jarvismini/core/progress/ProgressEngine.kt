@@ -5,7 +5,7 @@ import android.content.Context
 object ProgressEngine {
 
     fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId)
+        ProgressRepository.markComplete(context, blockId)
     }
 
     fun markIncomplete(context: Context, blockId: String) {
