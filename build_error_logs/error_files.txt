@@ -1,22 +1,14 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:11:36 Unresolved reference: Routine
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:18:14 Unresolved reference: Routine
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:24:29 Unresolved reference: it
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:22:31 Unresolved reference: label
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:44:13 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:54:33 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:54:43 Cannot infer a type for this parameter. Please specify it explicitly.
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:55:21 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:57:47 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:75:57 Smart cast to 'Long' is impossible, because 'block.completedAt' is a public API property declared in different module
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:82:54 Smart cast to 'Long' is impossible, because 'block.missedAt' is a public API property declared in different module
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:75:43 Unresolved reference: getInstance
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:95:68 Unresolved reference: blockId
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:56:44 Unresolved reference: label
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:73:43 Unresolved reference: instance
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 3s
+BUILD FAILED in 1m 7s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -31,23 +23,21 @@ BUILD FAILED in 1m 3s
 8	import androidx.compose.ui.text.font.FontWeight
 9	import androidx.compose.ui.unit.dp
 10	import com.jarvismini.core.progress.ProgressBlock
->>>>> ERROR HERE
-11	import com.jarvismini.core.routine.Routine
+11	import com.jarvismini.core.routine.model.Routine
 12	import java.text.SimpleDateFormat
 13	import java.util.*
 14
 15	@Composable
 16	fun ChecklistItem(
 17	    block: ProgressBlock,
->>>>> ERROR HERE
-18	    routine: Routine,  // ✅ Added routine param
+18	    routine: Routine,
 19	    onComplete: () -> Unit,
 20	    onIncomplete: () -> Unit
 21	) {
+>>>>> ERROR HERE
 22	    val displayName = routine.label
 23	        .replace("_", " ")
->>>>> ERROR HERE
-24	        .replaceFirstChar { it.uppercase() }
+24	        .replaceFirstChar { c: Char -> c.uppercaseChar() }
 25
 26	    Card(
 27	        modifier = Modifier
@@ -78,12 +68,10 @@ BUILD FAILED in 1m 3s
 51
 52	            // Tasks (RoutineAction list)
 53	            Column(modifier = Modifier.padding(start = 4.dp)) {
->>>>> ERROR HERE
 54	                routine.actions.forEach { action ->
->>>>> ERROR HERE
 55	                    Text(
-56	                        text = "• ${action.label}",
 >>>>> ERROR HERE
+56	                        text = "• ${action.label}",
 57	                        style = MaterialTheme.typography.bodySmall
 58	                    )
 59	                }
@@ -99,23 +87,21 @@ BUILD FAILED in 1m 3s
 69	            )
 70
 71	            // Completed or Missed time
-72	            when {
-73	                block.completed && block.completedAt != null -> {
+72	            block.completedAt?.let {
+73	                if (block.completed) {
 74	                    Text(
->>>>> ERROR HERE
-75	                        text = "Completed: ${formatTime(block.completedAt)}",
+75	                        text = "Completed: ${formatTime(it)}",
 76	                        style = MaterialTheme.typography.bodySmall,
 77	                        color = MaterialTheme.colorScheme.primary
 78	                    )
 79	                }
-80	                block.missedAt != null -> {
-81	                    Text(
->>>>> ERROR HERE
-82	                        text = "Missed: ${formatTime(block.missedAt)}",
-83	                        style = MaterialTheme.typography.bodySmall,
-84	                        color = MaterialTheme.colorScheme.error
-85	                    )
-86	                }
+80	            }
+81	            block.missedAt?.let {
+82	                Text(
+83	                    text = "Missed: ${formatTime(it)}",
+84	                    style = MaterialTheme.typography.bodySmall,
+85	                    color = MaterialTheme.colorScheme.error
+86	                )
 87	            }
 88
 89	            Spacer(modifier = Modifier.height(8.dp))
@@ -213,66 +199,63 @@ BUILD FAILED in 1m 3s
 58	        ) {
 59	            when (selectedTab) {
 60	                MainTab.Chat -> JarvisChatScreen()
-61	                MainTab.Checklist -> ChecklistScreen(blocks) {
-62	                    blocks = it
-63	                }
-64	            }
-65	        }
-66	    }
-67	}
-68
-69	@Composable
-70	private fun ChecklistScreen(
-71	    blocks: List<ProgressBlock>,
-72	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-73	) {
-74	    val context = LocalContext.current
+61	                MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
+62	            }
+63	        }
+64	    }
+65	}
+66
+67	@Composable
+68	private fun ChecklistScreen(
+69	    blocks: List<ProgressBlock>,
+70	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+71	) {
+72	    val context = LocalContext.current
 >>>>> ERROR HERE
-75	    val routineProvider = RoutineProvider.getInstance() // ✅ Added
-76	    val stats = ProgressStatsEngine.getTodayStats()
-77
-78	    Column {
-79	        Text(
-80	            "Today's Checklist (${stats.completionPercent}%)",
-81	            style = MaterialTheme.typography.titleLarge
-82	        )
+73	    val routineProvider = RoutineProvider.instance
+74	    val stats = ProgressStatsEngine.getTodayStats()
+75
+76	    Column {
+77	        Text(
+78	            "Today's Checklist (${stats.completionPercent}%)",
+79	            style = MaterialTheme.typography.titleLarge
+80	        )
+81
+82	        Spacer(Modifier.height(12.dp))
 83
-84	        Spacer(Modifier.height(12.dp))
-85
-86	        if (blocks.isEmpty()) {
-87	            Text(
-88	                "No routines scheduled for today",
-89	                style = MaterialTheme.typography.bodyMedium,
-90	                color = MaterialTheme.colorScheme.onSurfaceVariant
-91	            )
-92	        } else {
-93	            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-94	                items(blocks) { block ->
->>>>> ERROR HERE
-95	                    val routine = routineProvider.getRoutine(block.blockId) // ✅ map block → routine
-96	                    if (routine != null) {
-97	                        ChecklistItem(
-98	                            block = block,
-99	                            routine = routine, // ✅ pass Routine
-100	                            onComplete = {
-101	                                ProgressEngine.markComplete(context, block.id)
-102	                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-103	                            },
-104	                            onIncomplete = {
-105	                                ProgressEngine.markIncomplete(context, block.id)
-106	                                AssistantTTS.speak(
-107	                                    context,
-108	                                    "Okay, I will remind you in 30 minutes."
-109	                                )
-110	                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-111	                            }
-112	                        )
-113	                    }
-114	                }
-115	            }
-116	        }
-117	    }
-118	}
+84	        if (blocks.isEmpty()) {
+85	            Text(
+86	                "No routines scheduled for today",
+87	                style = MaterialTheme.typography.bodyMedium,
+88	                color = MaterialTheme.colorScheme.onSurfaceVariant
+89	            )
+90	        } else {
+91	            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+92	                items(blocks) { block ->
+93	                    val routine = routineProvider.getRoutine(block.id)
+94	                    if (routine != null) {
+95	                        ChecklistItem(
+96	                            block = block,
+97	                            routine = routine,
+98	                            onComplete = {
+99	                                ProgressEngine.markComplete(context, block.id)
+100	                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+101	                            },
+102	                            onIncomplete = {
+103	                                ProgressEngine.markIncomplete(context, block.id)
+104	                                AssistantTTS.speak(
+105	                                    context,
+106	                                    "Okay, I will remind you in 30 minutes."
+107	                                )
+108	                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+109	                            }
+110	                        )
+111	                    }
+112	                }
+113	            }
+114	        }
+115	    }
+116	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
