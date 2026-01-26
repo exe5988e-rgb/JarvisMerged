@@ -19,14 +19,22 @@ object ProgressStore {
     }
 
     fun markComplete(context: Context, blockId: String) {
-        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
-        entry.state = ProgressState.COMPLETED
+        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
+        if (index != -1) {
+            val old = entries[index]
+            entries[index] = old.copy(state = ProgressState.COMPLETED)
+        }
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
-        entry.state = ProgressState.INCOMPLETE
-        entry.missedAt = System.currentTimeMillis()
+        val index = entries.indexOfFirst { it.blockId == blockId && isToday(it.scheduledAt) }
+        if (index != -1) {
+            val old = entries[index]
+            entries[index] = old.copy(
+                state = ProgressState.INCOMPLETE,
+                missedAt = System.currentTimeMillis()
+            )
+        }
     }
 
     fun getAllEntries(): List<ProgressEntry> = entries.toList()
@@ -48,42 +56,4 @@ object ProgressStore {
         return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
                 now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
     }
-
-    // Stub: updateMissedTasks removed since entries are updated in markIncomplete
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import kotlinx.coroutines.runBlocking
-
-object ProgressRepository {
-
-    fun hydrate(context: Context) = runBlocking {
-        ProgressStore.init(context)
-        // Removed updateMissedTasks call, not implemented
-    }
-
-    fun register(context: Context, entry: ProgressEntry) =
-        runBlocking { ProgressStore.register(context, entry) }
-
-    fun markCompleted(context: Context, blockId: String) =
-        runBlocking { ProgressStore.markComplete(context, blockId) }
-
-    fun markIncomplete(context: Context, blockId: String) =
-        runBlocking { ProgressStore.markIncomplete(context, blockId) }
-
-    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-
-    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
-
-    fun getTodayBlocks(): List<ProgressBlock> = ProgressStore.getTodayBlocks()
-}
-
-//===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
-package com.jarvismini.smart
-
-object SmartFilters {
-    fun isAllowed(text: String): Boolean = true
 }
