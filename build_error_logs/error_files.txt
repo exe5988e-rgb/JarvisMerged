@@ -1,12 +1,12 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:18:21 Type mismatch: inferred type is Unit but Boolean was expected
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:18:26 Unresolved reference: isScheduledForToday
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:19:50 Unresolved reference: scheduledAt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt:26:47 Unresolved reference: scheduledAt
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 57s
+BUILD FAILED in 1m
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -19,30 +19,39 @@ BUILD FAILED in 57s
 6	import com.jarvismini.core.progress.ProgressState
 7	import com.jarvismini.core.routine.RoutineProvider
 8	import kotlinx.coroutines.runBlocking
-9
-10	object ProgressInitializer {
-11
-12	    fun registerAllBlocks(context: Context) = runBlocking {
-13	        ProgressRepository.hydrate(context)
-14
-15	        val today = System.currentTimeMillis()
-16
-17	        RoutineProvider.getAllRoutines(context)
+9	import java.util.Calendar
+10
+11	object ProgressInitializer {
+12
+13	    fun registerAllBlocks(context: Context) = runBlocking {
+14	        ProgressRepository.hydrate(context)
+15
+16	        val todayMillis = System.currentTimeMillis()
+17
+18	        RoutineProvider.getAllRoutines(context)
 >>>>> ERROR HERE
-18	            .filter { it.isScheduledForToday() }
-19	            .forEach { routine ->
-20	                ProgressRepository.register(
-21	                    context,
-22	                    ProgressEntry(
-23	                        routineId = routine.id,
-24	                        blockId = routine.id,
-25	                        scheduledAt = today,
-26	                        state = ProgressState.PENDING
-27	                    )
-28	                )
-29	            }
-30	    }
-31	}
+19	            .filter { routine -> isToday(routine.scheduledAt, todayMillis) }
+20	            .forEach { routine ->
+21	                ProgressRepository.register(
+22	                    context,
+23	                    ProgressEntry(
+24	                        routineId = routine.id,
+25	                        blockId = routine.id,
+>>>>> ERROR HERE
+26	                        scheduledAt = routine.scheduledAt,
+27	                        state = ProgressState.PENDING
+28	                    )
+29	                )
+30	            }
+31	    }
+32
+33	    private fun isToday(timestamp: Long, today: Long = System.currentTimeMillis()): Boolean {
+34	        val calNow = Calendar.getInstance().apply { timeInMillis = today }
+35	        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+36	        return calNow.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
+37	               calNow.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
+38	    }
+39	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
