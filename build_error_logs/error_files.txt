@@ -1,27 +1,13 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt:3:12 Redeclaration: ProgressStats
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:7:12 Redeclaration: ProgressStats
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:13:51 Too many arguments for public final fun getTodayBlocks(): List<ProgressBlock> defined in com.jarvismini.core.progress.ProgressStore
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
 BUILD FAILED in 35s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStats.kt =====
-1	package com.jarvismini.core.progress
-2
->>>>> ERROR HERE
-3	data class ProgressStats(
-4	    val date: String,
-5	    val totalBlocks: Int,
-6	    val completedBlocks: Int
-7	) {
-8	    val completionPercent: Int
-9	        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
-10	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
 1	package com.jarvismini.core.progress
@@ -30,31 +16,25 @@ BUILD FAILED in 35s
 4	import java.text.SimpleDateFormat
 5	import java.util.*
 6
+7	/**
+8	 * Provides statistics about today’s progress.
+9	 */
+10	object ProgressStatsEngine {
+11
+12	    fun getTodayStats(context: Context): ProgressStats {
 >>>>> ERROR HERE
-7	data class ProgressStats(
-8	    val date: String,
-9	    val totalBlocks: Int,
-10	    val completedBlocks: Int
-11	) {
-12	    val completionPercent: Int
-13	        get() = if (totalBlocks == 0) 0 else (completedBlocks * 100) / totalBlocks
-14	}
-15
-16	object ProgressStatsEngine {
-17
-18	    fun getTodayStats(context: Context): ProgressStats {
-19	        val blocks = ProgressStore.getTodayBlocks() // pass context if needed
-20	        val total = blocks.size
-21	        val completed = blocks.count { it.completed }
-22
-23	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-24	        return ProgressStats(
-25	            date = today,
-26	            totalBlocks = total,
-27	            completedBlocks = completed
-28	        )
-29	    }
-30	}
+13	        val blocks = ProgressStore.getTodayBlocks(context) // pass context
+14	        val total = blocks.size
+15	        val completed = blocks.count { it.completed }
+16
+17	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+18	        return ProgressStats(
+19	            date = today,
+20	            totalBlocks = total,
+21	            completedBlocks = completed
+22	        )
+23	    }
+24	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
