@@ -20,5 +20,12 @@ object ProgressRepository {
     fun markIncomplete(context: Context, routineId: String, blockId: String) =
         runBlocking { ProgressStore.markIncomplete(context, routineId, blockId) }
 
-    fun getTodayBlocks(): List<ProgressBlock> = ProgressStore.getTodayBlocks()
+    fun getAllEntries(): List<ProgressEntry> =
+        ProgressStore.getAllEntries()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        ProgressStore.getTodayEntries()
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        ProgressStore.getTodayBlocks()
 }

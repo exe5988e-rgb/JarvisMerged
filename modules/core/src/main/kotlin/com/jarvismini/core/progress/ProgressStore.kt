@@ -19,21 +19,27 @@ object ProgressStore {
         if (initialized) return
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
-            runCatching {
-                val type = object : TypeToken<List<ProgressEntry>>() {}.type
-                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
-                list.forEach { entries[key(it.routineId, it.blockId)] = it }
-            }
+            val type = object : TypeToken<List<ProgressEntry>>() {}.type
+            val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
+            list.forEach { entries[key(it.routineId, it.blockId)] = it }
         }
         initialized = true
     }
 
     private fun persist(context: Context) {
-        runCatching {
-            File(context.filesDir, FILE_NAME)
-                .writeText(gson.toJson(entries.values.toList()))
-        }
+        File(context.filesDir, FILE_NAME)
+            .writeText(gson.toJson(entries.values.toList()))
     }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        entries.values.filter { isToday(it.scheduledAt) }
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        getTodayEntries().map {
+            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
+        }
 
     suspend fun register(context: Context, entry: ProgressEntry) {
         val k = key(entry.routineId, entry.blockId)
@@ -77,14 +83,6 @@ object ProgressStore {
         }
         persist(context)
     }
-
-    fun getTodayEntries(): List<ProgressEntry> =
-        entries.values.filter { isToday(it.scheduledAt) }
-
-    fun getTodayBlocks(): List<ProgressBlock> =
-        getTodayEntries().map {
-            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
-        }
 
     private fun isToday(time: Long): Boolean {
         val c1 = Calendar.getInstance().apply { timeInMillis = time }
