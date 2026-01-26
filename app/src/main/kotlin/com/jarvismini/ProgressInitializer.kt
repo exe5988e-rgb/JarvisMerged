@@ -11,14 +11,13 @@ object ProgressInitializer {
 
     fun registerAllBlocks(context: Context) = runBlocking {
         ProgressRepository.hydrate(context)
+
         RoutineProvider.getAllRoutines(context).forEach { routine ->
             ProgressRepository.register(
                 context,
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = routine.scheduledAt,
-                    timestamp = System.currentTimeMillis(),
                     state = ProgressState.PENDING
                 )
             )
