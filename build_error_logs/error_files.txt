@@ -1,47 +1,131 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:10:31 Unresolved reference: MainScreen
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:24:21 Unresolved reference: MainScreen
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:36:59 Too many arguments for public final fun getTodayStats(): ProgressStats defined in com.jarvismini.core.progress.ProgressStatsEngine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:80:51 Too many arguments for public final fun getTodayStats(): ProgressStats defined in com.jarvismini.core.progress.ProgressStatsEngine
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m
+BUILD FAILED in 59s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
-1	package com.jarvismini
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+1	package com.jarvismini.ui.main
 2
-3	import android.os.Bundle
-4	import androidx.activity.ComponentActivity
-5	import androidx.activity.compose.setContent
-6	import androidx.compose.material3.MaterialTheme
-7	import androidx.compose.material3.Surface
-8	import com.jarvismini.core.JarvisState
-9	import com.jarvismini.engine.EngineProvider
+3	import androidx.compose.foundation.layout.*
+4	import androidx.compose.foundation.lazy.LazyColumn
+5	import androidx.compose.foundation.lazy.items
+6	import androidx.compose.material3.*
+7	import androidx.compose.runtime.*
+8	import androidx.compose.ui.Modifier
+9	import androidx.compose.ui.platform.LocalContext
+10	import androidx.compose.ui.unit.dp
+11	import com.jarvismini.ProgressInitializer
+12	import com.jarvismini.core.progress.*
+13	import com.jarvismini.core.tts.AssistantTTS
+14	import com.jarvismini.ui.JarvisChatScreen
+15	import com.jarvismini.ui.checklist.ChecklistItem
+16
+17	enum class MainTab {
+18	    Chat,
+19	    Checklist
+20	}
+21
+22	@Composable
+23	fun MainScreen() {
+24	    val context = LocalContext.current
+25
+26	    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+27	    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+28
+29	    LaunchedEffect(Unit) {
+30	        ProgressInitializer.registerAllBlocks(context)
+31	    }
+32
+33	    LaunchedEffect(selectedTab) {
+34	        if (selectedTab == MainTab.Checklist) {
+35	            blocks = ProgressRepository.getTodayBlocks()
 >>>>> ERROR HERE
-10	import com.jarvismini.ui.main.MainScreen
-11
-12	class MainActivity : ComponentActivity() {
-13	    override fun onCreate(savedInstanceState: Bundle?) {
-14	        super.onCreate(savedInstanceState)
-15
-16	        JarvisState.init(applicationContext)
-17	        EngineProvider.init(applicationContext)
-18
-19	        ProgressInitializer.registerAllBlocks(this)
-20
-21	        setContent {
-22	            MaterialTheme {
-23	                Surface {
+36	            val stats = ProgressStatsEngine.getTodayStats(context)
+37	            AssistantTTS.speak(
+38	                context,
+39	                "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
+40	            )
+41	        }
+42	    }
+43
+44	    Scaffold(
+45	        topBar = {
+46	            TabRow(selectedTabIndex = selectedTab.ordinal) {
+47	                MainTab.values().forEach { tab ->
+48	                    Tab(
+49	                        selected = selectedTab == tab,
+50	                        onClick = { selectedTab = tab },
+51	                        text = { Text(tab.name) }
+52	                    )
+53	                }
+54	            }
+55	        }
+56	    ) { padding ->
+57	        Box(
+58	            modifier = Modifier
+59	                .fillMaxSize()
+60	                .padding(padding)
+61	                .padding(12.dp)
+62	        ) {
+63	            when (selectedTab) {
+64	                MainTab.Chat -> JarvisChatScreen()
+65	                MainTab.Checklist -> ChecklistScreen(
+66	                    blocks = blocks,
+67	                    onBlocksUpdated = { blocks = it }
+68	                )
+69	            }
+70	        }
+71	    }
+72	}
+73
+74	@Composable
+75	private fun ChecklistScreen(
+76	    blocks: List<ProgressBlock>,
+77	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+78	) {
+79	    val context = LocalContext.current
 >>>>> ERROR HERE
-24	                    MainScreen()
-25	                }
-26	            }
-27	        }
-28	    }
-29	}
+80	    val stats = ProgressStatsEngine.getTodayStats(context)
+81
+82	    Column(modifier = Modifier.fillMaxSize()) {
+83
+84	        Text(
+85	            text = "Today's Checklist (${stats.completionPercent}%)",
+86	            style = MaterialTheme.typography.titleLarge
+87	        )
+88
+89	        Spacer(modifier = Modifier.height(12.dp))
+90
+91	        LazyColumn(
+92	            verticalArrangement = Arrangement.spacedBy(8.dp)
+93	        ) {
+94	            items(blocks) { block ->
+95	                ChecklistItem(
+96	                    block = block,
+97	                    onComplete = {
+98	                        ProgressEngine.markComplete(context, block.id)
+99	                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+100	                    },
+101	                    onIncomplete = {
+102	                        ProgressEngine.markIncomplete(context, block.id)
+103	                        AssistantTTS.speak(
+104	                            context,
+105	                            "You missed task ${block.id.replace('_', ' ')}"
+106	                        )
+107	                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+108	                    }
+109	                )
+110	            }
+111	        }
+112	    }
+113	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
