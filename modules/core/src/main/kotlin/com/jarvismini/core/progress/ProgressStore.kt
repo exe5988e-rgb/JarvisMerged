@@ -1,80 +1,52 @@
 package com.jarvismini.core.progress
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.decodeFromString
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.io.File
 
-/**
- * Central persistent store for all ProgressEntry objects.
- *
- * Guarantees:
- * - Idempotent initialization
- * - Synchronous load (off-main-thread)
- * - No duplicates, no overwrites
- * - Full time-aware progress tracking
- */
 object ProgressStore {
 
     private const val FILE_NAME = "progress_store.json"
+    private val gson = Gson()
 
-    // In-memory cache of all progress entries
     private val entries: MutableMap<String, ProgressEntry> = mutableMapOf()
-
-    // Guard to prevent multiple init loads
     @Volatile
     private var initialized = false
 
-    /**
-     * Initialize the ProgressStore by loading persisted entries.
-     * Safe to call multiple times (idempotent). Must be called before engine usage.
-     * Off-main-thread recommended for I/O.
-     */
-    suspend fun init(context: Context) = withContext(Dispatchers.IO) {
-        if (initialized) return@withContext
+    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
+
+    // Idempotent init: load persisted entries
+    suspend fun init(context: Context) {
+        if (initialized) return
 
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
             try {
-                val json = file.readText()
-                val list: List<ProgressEntry> = Json.decodeFromString(json)
+                val type = object : TypeToken<List<ProgressEntry>>() {}.type
+                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
                 list.forEach { entry ->
-                    // Merge without overwriting existing in-memory entries
-                    val key = makeKey(entry.routineId, entry.blockId)
-                    entries.putIfAbsent(key, entry)
+                    entries.putIfAbsent(makeKey(entry.routineId, entry.blockId), entry)
                 }
-            } catch (_: Exception) {
-                // Ignore corrupted file, start fresh
-            }
+            } catch (_: Exception) { }
         }
         initialized = true
     }
 
-    /** Persist current entries to disk. */
-    private suspend fun persist(context: Context) = withContext(Dispatchers.IO) {
+    private suspend fun persist(context: Context) {
         val file = File(context.filesDir, FILE_NAME)
         try {
-            val json = Json.encodeToString(entries.values.toList())
+            val json = gson.toJson(entries.values.toList())
             file.writeText(json)
-        } catch (_: Exception) {
-            // Ignore write failures; best-effort persistence
-        }
+        } catch (_: Exception) { }
     }
 
-    /** Unique key for internal map */
-    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
-
-    /** Register a block if not already present */
     suspend fun register(context: Context, entry: ProgressEntry) {
         val key = makeKey(entry.routineId, entry.blockId)
         entries.putIfAbsent(key, entry)
         persist(context)
     }
 
-    /** Mark a block as complete. Updates completedAt and lastUpdatedAt if not already set */
     suspend fun markComplete(context: Context, routineId: String, blockId: String) {
         val key = makeKey(routineId, blockId)
         val existing = entries[key]
@@ -89,23 +61,47 @@ object ProgressStore {
         }
     }
 
-    /** Mark a block as incomplete. Updates state and lastUpdatedAt */
     suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
         val key = makeKey(routineId, blockId)
         val existing = entries[key]
         if (existing != null) {
+            val now = System.currentTimeMillis()
+            val missedTime = if (existing.scheduledAt != null
+                && now > existing.scheduledAt
+                && existing.state != ProgressState.COMPLETED
+            ) now else existing.missedAt
             val updated = existing.copy(
                 state = ProgressState.INCOMPLETE,
-                lastUpdatedAt = System.currentTimeMillis()
+                lastUpdatedAt = now,
+                missedAt = missedTime
             )
             entries[key] = updated
             persist(context)
         }
     }
 
-    /** Retrieve all progress entries */
     fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
-
-    /** Retrieve all entries for today (optional filter by date can be added later) */
     fun getTodayEntries(): List<ProgressEntry> = entries.values.toList()
+
+    fun getRegisteredBlocks(): Set<String> = entries.keys.map { it.split("::")[1] }.toSet()
+    fun getCompletedBlocks(): Set<String> =
+        entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        entries.values.map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
+
+    // New function: mark overdue tasks as missed
+    suspend fun updateMissedTasks() {
+        val now = System.currentTimeMillis()
+        entries.values.forEach { entry ->
+            if (entry.state != ProgressState.COMPLETED
+                && entry.scheduledAt != null
+                && entry.scheduledAt < now
+                && entry.missedAt == null
+            ) {
+                val updated = entry.copy(missedAt = now)
+                entries[makeKey(entry.routineId, entry.blockId)] = updated
+            }
+        }
+    }
 }
