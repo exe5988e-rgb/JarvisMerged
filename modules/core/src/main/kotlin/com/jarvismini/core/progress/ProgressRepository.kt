@@ -26,6 +26,6 @@ object ProgressRepository {
     }
 
     fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
+    fun getTodayEntries(context: Context): List<ProgressEntry> = ProgressStore.getTodayEntries()
     fun getTodayBlocks(context: Context): List<ProgressBlock> = ProgressStore.getTodayBlocks()
 }

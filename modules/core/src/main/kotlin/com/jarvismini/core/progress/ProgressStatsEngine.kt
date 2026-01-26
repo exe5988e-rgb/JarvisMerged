@@ -1,15 +1,12 @@
 package com.jarvismini.core.progress
 
+import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * Provides statistics about today’s progress.
- */
 object ProgressStatsEngine {
-
-    fun getTodayStats(): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks() // no context needed
+    fun getTodayStats(context: Context): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks()
         val total = blocks.size
         val completed = blocks.count { it.completed }
 

@@ -13,11 +13,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Core init
         JarvisState.init(applicationContext)
         EngineProvider.init(applicationContext)
 
-        // 🔹 Auto-register all routine blocks
         ProgressInitializer.registerAllBlocks(this)
 
         setContent {

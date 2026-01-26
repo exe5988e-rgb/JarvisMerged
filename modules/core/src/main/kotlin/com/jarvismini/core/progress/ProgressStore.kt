@@ -9,24 +9,22 @@ object ProgressStore {
 
     private const val FILE_NAME = "progress_store.json"
     private val gson = Gson()
-
     private val entries: MutableMap<String, ProgressEntry> = mutableMapOf()
-    @Volatile
-    private var initialized = false
+    @Volatile private var initialized = false
 
     private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
 
     suspend fun init(context: Context) {
         if (initialized) return
-
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
             try {
                 val type = object : TypeToken<List<ProgressEntry>>() {}.type
                 val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
                 list.forEach { entry ->
-                    val key = makeKey(entry.routineId, entry.blockId)
-                    if (!entries.containsKey(key)) entries[key] = entry
+                    if (!entries.containsKey(makeKey(entry.routineId, entry.blockId))) {
+                        entries[makeKey(entry.routineId, entry.blockId)] = entry
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -43,7 +41,7 @@ object ProgressStore {
 
     suspend fun register(context: Context, entry: ProgressEntry) {
         val key = makeKey(entry.routineId, entry.blockId)
-        if (!entries.containsKey(key)) entries[key] = entry
+        entries.putIfAbsent(key, entry)
         persist(context)
     }
 
@@ -77,25 +75,32 @@ object ProgressStore {
         }
     }
 
-    suspend fun updateMissedTasks() {
-        val now = System.currentTimeMillis()
-        entries.values.forEach { entry ->
-            if (entry.scheduledAt != null && entry.state == ProgressState.PENDING && now > entry.scheduledAt) {
-                entries[makeKey(entry.routineId, entry.blockId)] =
-                    entry.copy(state = ProgressState.INCOMPLETE, missedAt = now, lastUpdatedAt = now)
-            }
+    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+    fun getTodayEntries(): List<ProgressEntry> {
+        val today = System.currentTimeMillis()
+        return entries.values.filter {
+            it.scheduledAt != null && isSameDay(it.scheduledAt, today)
         }
     }
 
-    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+    fun getTodayBlocks(): List<ProgressBlock> =
+        getTodayEntries().map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
 
-    fun getTodayEntries(): List<ProgressEntry> {
-        val todayStart = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
-        return entries.values.filter { it.timestamp >= todayStart }
+    private fun isSameDay(time1: Long, time2: Long): Boolean {
+        val cal1 = java.util.Calendar.getInstance().apply { timeInMillis = time1 }
+        val cal2 = java.util.Calendar.getInstance().apply { timeInMillis = time2 }
+        return cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+                cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
     }
 
-    fun getRegisteredBlocks(): Set<String> = entries.keys.map { it.split("::")[1] }.toSet()
-    fun getCompletedBlocks(): Set<String> = entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
-    fun getTodayBlocks(): List<ProgressBlock> =
-        entries.values.map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
+    suspend fun updateMissedTasks() {
+        entries.values.forEach { entry ->
+            if (entry.scheduledAt != null &&
+                entry.state != ProgressState.COMPLETED &&
+                System.currentTimeMillis() > entry.scheduledAt
+            ) {
+                markIncomplete(context = null, routineId = entry.routineId, blockId = entry.blockId) // context will be provided in usage
+            }
+        }
+    }
 }

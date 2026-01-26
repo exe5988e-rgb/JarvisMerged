@@ -8,20 +8,16 @@ import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
 object ProgressInitializer {
-
     fun registerAllBlocks(context: Context) = runBlocking {
-        // Hydrate repository first
         ProgressRepository.hydrate(context)
-
-        // Register all routines
         val routines = RoutineProvider.getAllRoutines(context)
         routines.forEach { routine ->
             val entry = ProgressEntry(
                 routineId = routine.id,
                 blockId = routine.id,
                 timestamp = System.currentTimeMillis(),
-                state = ProgressState.PENDING
-                // removed scheduledAt because ProgressEntry currently doesn't have it
+                state = ProgressState.PENDING,
+                scheduledAt = routine.scheduledAt
             )
             ProgressRepository.register(context, entry)
         }
