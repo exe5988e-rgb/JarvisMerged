@@ -1,4 +1,4 @@
-Perfect — here’s the full batch of final fixed files including persistent, time-aware progress tracking and automatic marking of overdue tasks as missed. All fixes are compile-safe and incremental, preserving existing routine behavior.
+Perfect — I can do that. Here's the full batch of fixes with the exact file header format you’ve been using, ready to drop in:
 
 
 ---
@@ -13,17 +13,44 @@ data class ProgressEntry(
     val state: ProgressState,
     val scheduledAt: Long? = null,
     val completedAt: Long? = null,
-    val missedAt: Long? = null,
-    val lastUpdatedAt: Long? = null
+    val lastUpdatedAt: Long? = null,
+    val missedAt: Long? = null
 )
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressState.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
 package com.jarvismini.core.progress
 
-enum class ProgressState {
-    COMPLETED,
-    INCOMPLETE,
-    PENDING
+import android.content.Context
+import kotlinx.coroutines.runBlocking
+
+object ProgressRepository {
+
+    private var hydrated = false
+
+    // Idempotent hydration
+    fun hydrate(context: Context) = runBlocking {
+        if (hydrated) return@runBlocking
+        ProgressStore.init(context)
+        hydrated = true
+    }
+
+    fun register(context: Context, entry: ProgressEntry) = runBlocking {
+        ProgressStore.register(context, entry)
+    }
+
+    fun markCompleted(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markIncomplete(context, blockId)
+    }
+
+    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
+
+    // Needed for MainScreen Checklist tab
+    fun getTodayBlocks(): List<ProgressBlock> =
+        ProgressStore.getTodayBlocks()
 }
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
@@ -45,10 +72,8 @@ object ProgressStore {
 
     private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
 
-    // Idempotent init: load persisted entries
     suspend fun init(context: Context) {
         if (initialized) return
-
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
             try {
@@ -76,8 +101,8 @@ object ProgressStore {
         persist(context)
     }
 
-    suspend fun markComplete(context: Context, routineId: String, blockId: String) {
-        val key = makeKey(routineId, blockId)
+    suspend fun markComplete(context: Context, blockId: String) {
+        val key = makeKey(blockId, blockId)
         val existing = entries[key]
         if (existing != null && existing.completedAt == null) {
             val updated = existing.copy(
@@ -90,15 +115,12 @@ object ProgressStore {
         }
     }
 
-    suspend fun markIncomplete(context: Context, routineId: String, blockId: String) {
-        val key = makeKey(routineId, blockId)
+    suspend fun markIncomplete(context: Context, blockId: String) {
+        val key = makeKey(blockId, blockId)
         val existing = entries[key]
         if (existing != null) {
             val now = System.currentTimeMillis()
-            val missedTime = if (existing.scheduledAt != null
-                && now > existing.scheduledAt
-                && existing.state != ProgressState.COMPLETED
-            ) now else existing.missedAt
+            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
             val updated = existing.copy(
                 state = ProgressState.INCOMPLETE,
                 lastUpdatedAt = now,
@@ -113,120 +135,9 @@ object ProgressStore {
     fun getTodayEntries(): List<ProgressEntry> = entries.values.toList()
 
     fun getRegisteredBlocks(): Set<String> = entries.keys.map { it.split("::")[1] }.toSet()
-    fun getCompletedBlocks(): Set<String> =
-        entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
-
+    fun getCompletedBlocks(): Set<String> = entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
     fun getTodayBlocks(): List<ProgressBlock> =
         entries.values.map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
-
-    // New function: mark overdue tasks as missed
-    suspend fun updateMissedTasks() {
-        val now = System.currentTimeMillis()
-        entries.values.forEach { entry ->
-            if (entry.state != ProgressState.COMPLETED
-                && entry.scheduledAt != null
-                && entry.scheduledAt < now
-                && entry.missedAt == null
-            ) {
-                val updated = entry.copy(missedAt = now)
-                entries[makeKey(entry.routineId, entry.blockId)] = updated
-            }
-        }
-    }
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import kotlinx.coroutines.runBlocking
-
-object ProgressRepository {
-
-    private var hydrated = false
-
-    // Idempotent hydration
-    fun hydrate(context: Context) = runBlocking {
-        if (hydrated) return@runBlocking
-        ProgressStore.init(context)
-        hydrated = true
-    }
-
-    fun register(context: Context, entry: ProgressEntry) = runBlocking {
-        ProgressStore.register(context, entry)
-    }
-
-    fun markCompleted(context: Context, routineId: String, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, routineId, blockId)
-    }
-
-    fun markIncomplete(context: Context, routineId: String, blockId: String) = runBlocking {
-        ProgressStore.markIncomplete(context, routineId, blockId)
-    }
-
-    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressStore.getTodayEntries()
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-object ProgressEngine {
-
-    fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String, blockName: String) {
-        ProgressRepository.markIncomplete(context, blockId, blockId)
-    }
-
-    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
-    fun getTodayEntries(): List<ProgressEntry> = ProgressRepository.getTodayEntries()
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import java.text.SimpleDateFormat
-import java.util.*
-
-object ProgressStatsEngine {
-
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks()
-        val total = blocks.size
-        val completed = blocks.count { it.completed }
-
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        return ProgressStats(
-            date = today,
-            totalBlocks = total,
-            completedBlocks = completed
-        )
-    }
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import com.jarvismini.core.tts.AssistantTTS
-
-class MissedTaskChecker(private val context: Context) {
-
-    fun checkAndRemind() {
-        val entries = ProgressStore.getAllEntries()
-        val missedEntries = entries.filter { it.state != ProgressState.COMPLETED && it.missedAt != null }
-
-        missedEntries.forEach { entry ->
-            val blockName = entry.blockId.replace('_', ' ')
-            AssistantTTS.speak(context.applicationContext, "You missed task $blockName.")
-        }
-    }
 }
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
@@ -234,7 +145,6 @@ package com.jarvismini
 
 import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
-import com.jarvismini.core.progress.ProgressStore
 import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.routine.RoutineProvider
@@ -245,9 +155,6 @@ object ProgressInitializer {
     fun registerAllBlocks(context: Context) = runBlocking {
         // Hydrate store first
         ProgressRepository.hydrate(context)
-
-        // Mark overdue tasks as missed
-        ProgressStore.updateMissedTasks()
 
         // Register all routines
         val routines = RoutineProvider.getAllRoutines(context)
@@ -263,64 +170,3 @@ object ProgressInitializer {
         }
     }
 }
-
-//===== FILE: modules/core/build.gradle.kts =====
-plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
-}
-
-android {
-    namespace = "com.jarvismini.core"
-    compileSdk = 34
-
-    defaultConfig {
-        minSdk = 23
-        targetSdk = 34
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-}
-
-dependencies {
-    // Core Android extensions
-    implementation("androidx.core:core-ktx:1.12.0")
-
-    // Gson for JSON serialization/deserialization
-    implementation("com.google.code.gson:gson:2.10.1")
-}
-
-
----
-
-✅ This batch:
-
-1. Fully persistent progress with Gson.
-
-
-2. Time-aware: scheduled vs completed vs missed.
-
-
-3. Idempotent: hydration and missed-task marking safe multiple times.
-
-
-4. Missed reminders: MissedTaskChecker only announces overdue tasks.
-
-
-5. Minimal off-main-thread I/O, safe for early bootstrap.
-
-
-
-
----
-
-If you want, the next step could be adding automatic daily re-checks for missed tasks so users are reminded even if the app wasn’t restarted.
-
-Do you want me to do that?
