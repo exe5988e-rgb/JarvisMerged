@@ -1,10 +1,120 @@
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressEntry(
+    val routineId: String,
+    val blockId: String,
+    val scheduledAt: Long,
+    val state: ProgressState = ProgressState.PENDING,
+    val completedAt: Long? = null,
+    val missedAt: Long? = null
+)
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.io.File
+import java.util.Calendar
+
+object ProgressStore {
+
+    private const val FILE_NAME = "progress_store.json"
+    private val gson = Gson()
+    private val entries = mutableListOf<ProgressEntry>()
+    private var initialized = false
+
+    suspend fun init(context: Context) {
+        if (initialized) return
+        val file = File(context.filesDir, FILE_NAME)
+        if (file.exists()) {
+            val type = object : TypeToken<List<ProgressEntry>>() {}.type
+            entries.addAll(gson.fromJson(file.readText(), type))
+        }
+        initialized = true
+    }
+
+    private fun persist(context: Context) {
+        val file = File(context.filesDir, FILE_NAME)
+        file.writeText(gson.toJson(entries))
+    }
+
+    suspend fun register(context: Context, entry: ProgressEntry) {
+        if (entries.none { it.routineId == entry.routineId && isSameDay(it.scheduledAt, entry.scheduledAt) }) {
+            entries.add(entry)
+            persist(context)
+        }
+    }
+
+    fun getTodayEntries(): List<ProgressEntry> {
+        val now = System.currentTimeMillis()
+        return entries.filter { isSameDay(it.scheduledAt, now) }
+    }
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        getTodayEntries().map {
+            ProgressBlock(
+                id = it.blockId,
+                completed = it.state == ProgressState.COMPLETED
+            )
+        }
+
+    suspend fun markComplete(context: Context, blockId: String) {
+        val now = System.currentTimeMillis()
+        entries.replaceAll {
+            if (it.blockId == blockId && isSameDay(it.scheduledAt, now))
+                it.copy(state = ProgressState.COMPLETED, completedAt = now)
+            else it
+        }
+        persist(context)
+    }
+
+    suspend fun markMissed(context: Context, blockId: String) {
+        val now = System.currentTimeMillis()
+        entries.replaceAll {
+            if (it.blockId == blockId && isSameDay(it.scheduledAt, now))
+                it.copy(state = ProgressState.INCOMPLETE, missedAt = now)
+            else it
+        }
+        persist(context)
+    }
+
+    private fun isSameDay(a: Long, b: Long): Boolean {
+        val c1 = Calendar.getInstance().apply { timeInMillis = a }
+        val c2 = Calendar.getInstance().apply { timeInMillis = b }
+        return c1.get(Calendar.YEAR) == c2.get(Calendar.YEAR) &&
+               c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
+    }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+import kotlinx.coroutines.runBlocking
+
+object ProgressEngine {
+
+    fun markComplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markComplete(context, blockId)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) = runBlocking {
+        ProgressStore.markMissed(context, blockId)
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
 package com.jarvismini
 
 import android.content.Context
 import com.jarvismini.core.progress.ProgressEntry
 import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressState
 import com.jarvismini.core.routine.RoutineProvider
 import kotlinx.coroutines.runBlocking
 
@@ -13,7 +123,7 @@ object ProgressInitializer {
     fun registerAllBlocks(context: Context) = runBlocking {
         ProgressRepository.hydrate(context)
 
-        val now = System.currentTimeMillis()
+        val todayStart = System.currentTimeMillis()
 
         RoutineProvider.getAllRoutines(context).forEach { routine ->
             ProgressRepository.register(
@@ -21,10 +131,48 @@ object ProgressInitializer {
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = now,
-                    state = ProgressState.PENDING
+                    scheduledAt = todayStart
                 )
             )
+        }
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.*
+
+@Composable
+fun ChecklistScreen(blocks: List<ProgressBlock>, update: () -> Unit) {
+    val context = LocalContext.current
+
+    LazyColumn {
+        items(blocks) { block ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(block.id)
+                Row {
+                    Button(onClick = {
+                        ProgressEngine.markComplete(context, block.id)
+                        update()
+                    }) { Text("Done") }
+
+                    Button(onClick = {
+                        ProgressEngine.markIncomplete(context, block.id)
+                        update()
+                    }) { Text("Missed") }
+                }
+            }
         }
     }
 }
