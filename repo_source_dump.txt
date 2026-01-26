@@ -3416,11 +3416,16 @@ class MissedTaskChecker(private val context: Context) {
 
     fun checkAndRemind() {
         val entries = ProgressStore.getAllEntries()
-        val missedEntries = entries.filter { it.state != ProgressState.COMPLETED && it.missedAt != null }
+        val missedEntries = entries.filter {
+            it.state == ProgressState.INCOMPLETE && it.missedAt != null
+        }
 
         missedEntries.forEach { entry ->
             val blockName = entry.blockId.replace('_', ' ')
-            AssistantTTS.speak(context.applicationContext, "You missed task $blockName.")
+            AssistantTTS.speak(
+                context.applicationContext,
+                "You missed task $blockName."
+            )
         }
     }
 }
@@ -3489,16 +3494,20 @@ package com.jarvismini.core.progress
 import android.content.Context
 
 object ProgressEngine {
+
     fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markCompleted(context, blockId)
+        ProgressRepository.markCompleted(context, blockId, blockId)
     }
 
     fun markIncomplete(context: Context, blockId: String) {
-        ProgressRepository.markIncomplete(context, blockId)
+        ProgressRepository.markIncomplete(context, blockId, blockId)
     }
 
-    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
-    fun getTodayEntries(context: Context): List<ProgressEntry> = ProgressRepository.getTodayEntries(context)
+    fun getAllEntries(): List<ProgressEntry> =
+        ProgressRepository.getAllEntries()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        ProgressRepository.getTodayEntries()
 }
 
 
@@ -3539,7 +3548,14 @@ object ProgressRepository {
     fun markIncomplete(context: Context, routineId: String, blockId: String) =
         runBlocking { ProgressStore.markIncomplete(context, routineId, blockId) }
 
-    fun getTodayBlocks(): List<ProgressBlock> = ProgressStore.getTodayBlocks()
+    fun getAllEntries(): List<ProgressEntry> =
+        ProgressStore.getAllEntries()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        ProgressStore.getTodayEntries()
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        ProgressStore.getTodayBlocks()
 }
 
 
@@ -3605,21 +3621,27 @@ object ProgressStore {
         if (initialized) return
         val file = File(context.filesDir, FILE_NAME)
         if (file.exists()) {
-            runCatching {
-                val type = object : TypeToken<List<ProgressEntry>>() {}.type
-                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
-                list.forEach { entries[key(it.routineId, it.blockId)] = it }
-            }
+            val type = object : TypeToken<List<ProgressEntry>>() {}.type
+            val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
+            list.forEach { entries[key(it.routineId, it.blockId)] = it }
         }
         initialized = true
     }
 
     private fun persist(context: Context) {
-        runCatching {
-            File(context.filesDir, FILE_NAME)
-                .writeText(gson.toJson(entries.values.toList()))
-        }
+        File(context.filesDir, FILE_NAME)
+            .writeText(gson.toJson(entries.values.toList()))
     }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
+
+    fun getTodayEntries(): List<ProgressEntry> =
+        entries.values.filter { isToday(it.scheduledAt) }
+
+    fun getTodayBlocks(): List<ProgressBlock> =
+        getTodayEntries().map {
+            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
+        }
 
     suspend fun register(context: Context, entry: ProgressEntry) {
         val k = key(entry.routineId, entry.blockId)
@@ -3663,14 +3685,6 @@ object ProgressStore {
         }
         persist(context)
     }
-
-    fun getTodayEntries(): List<ProgressEntry> =
-        entries.values.filter { isToday(it.scheduledAt) }
-
-    fun getTodayBlocks(): List<ProgressBlock> =
-        getTodayEntries().map {
-            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
-        }
 
     private fun isToday(time: Long): Boolean {
         val c1 = Calendar.getInstance().apply { timeInMillis = time }
