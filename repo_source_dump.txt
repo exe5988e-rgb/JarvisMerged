@@ -697,8 +697,7 @@ object ProgressInitializer {
 
     fun registerAllBlocks(context: Context) = runBlocking {
         ProgressRepository.hydrate(context)
-
-        val todayStart = System.currentTimeMillis()
+        val today = System.currentTimeMillis()
 
         RoutineProvider.getAllRoutines(context).forEach { routine ->
             ProgressRepository.register(
@@ -706,7 +705,7 @@ object ProgressInitializer {
                 ProgressEntry(
                     routineId = routine.id,
                     blockId = routine.id,
-                    scheduledAt = todayStart
+                    scheduledAt = today
                 )
             )
         }
@@ -3369,16 +3368,13 @@ import com.jarvismini.core.tts.AssistantTTS
 class MissedTaskChecker(private val context: Context) {
 
     fun checkAndRemind() {
-        val entries = ProgressStore.getAllEntries()
-        val missedEntries = entries.filter {
-            it.state == ProgressState.INCOMPLETE && it.missedAt != null
-        }
+        val missed = ProgressRepository.getAllEntries()
+            .filter { it.state == ProgressState.INCOMPLETE && it.missedAt != null }
 
-        missedEntries.forEach { entry ->
-            val blockName = entry.blockId.replace('_', ' ')
+        missed.forEach { entry ->
             AssistantTTS.speak(
                 context.applicationContext,
-                "You missed task $blockName."
+                "You missed task ${entry.blockId.replace('_', ' ')}"
             )
         }
     }
@@ -3446,16 +3442,15 @@ object ProgressConfigLoader {
 package com.jarvismini.core.progress
 
 import android.content.Context
-import kotlinx.coroutines.runBlocking
 
 object ProgressEngine {
 
-    fun markComplete(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, blockId)
+    fun markComplete(context: Context, blockId: String) {
+        ProgressRepository.markCompleted(context, blockId)
     }
 
-    fun markIncomplete(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markMissed(context, blockId)
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressRepository.markIncomplete(context, blockId)
     }
 }
 
@@ -3486,15 +3481,14 @@ object ProgressRepository {
         ProgressStore.updateMissedTasks(context)
     }
 
-    fun register(context: Context, entry: ProgressEntry) = runBlocking {
-        ProgressStore.register(context, entry)
-    }
+    fun register(context: Context, entry: ProgressEntry) =
+        runBlocking { ProgressStore.register(context, entry) }
 
-    fun markCompleted(context: Context, routineId: String, blockId: String) =
-        runBlocking { ProgressStore.markComplete(context, routineId, blockId) }
+    fun markCompleted(context: Context, blockId: String) =
+        runBlocking { ProgressStore.markComplete(context, blockId) }
 
-    fun markIncomplete(context: Context, routineId: String, blockId: String) =
-        runBlocking { ProgressStore.markIncomplete(context, routineId, blockId) }
+    fun markIncomplete(context: Context, blockId: String) =
+        runBlocking { ProgressStore.markIncomplete(context, blockId) }
 
     fun getAllEntries(): List<ProgressEntry> =
         ProgressStore.getAllEntries()
@@ -3574,16 +3568,17 @@ object ProgressStore {
     }
 
     private fun persist(context: Context) {
-        val file = File(context.filesDir, FILE_NAME)
-        file.writeText(gson.toJson(entries))
+        File(context.filesDir, FILE_NAME).writeText(gson.toJson(entries))
     }
 
     suspend fun register(context: Context, entry: ProgressEntry) {
-        if (entries.none { it.routineId == entry.routineId && isSameDay(it.scheduledAt, entry.scheduledAt) }) {
+        if (entries.none { it.blockId == entry.blockId && isSameDay(it.scheduledAt, entry.scheduledAt) }) {
             entries.add(entry)
             persist(context)
         }
     }
+
+    fun getAllEntries(): List<ProgressEntry> = entries.toList()
 
     fun getTodayEntries(): List<ProgressEntry> {
         val now = System.currentTimeMillis()
@@ -3592,10 +3587,7 @@ object ProgressStore {
 
     fun getTodayBlocks(): List<ProgressBlock> =
         getTodayEntries().map {
-            ProgressBlock(
-                id = it.blockId,
-                completed = it.state == ProgressState.COMPLETED
-            )
+            ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED)
         }
 
     suspend fun markComplete(context: Context, blockId: String) {
@@ -3608,10 +3600,20 @@ object ProgressStore {
         persist(context)
     }
 
-    suspend fun markMissed(context: Context, blockId: String) {
+    suspend fun markIncomplete(context: Context, blockId: String) {
         val now = System.currentTimeMillis()
         entries.replaceAll {
             if (it.blockId == blockId && isSameDay(it.scheduledAt, now))
+                it.copy(state = ProgressState.INCOMPLETE, missedAt = now)
+            else it
+        }
+        persist(context)
+    }
+
+    suspend fun updateMissedTasks(context: Context) {
+        val now = System.currentTimeMillis()
+        entries.replaceAll {
+            if (it.state == ProgressState.PENDING && it.scheduledAt < now)
                 it.copy(state = ProgressState.INCOMPLETE, missedAt = now)
             else it
         }
@@ -3622,7 +3624,7 @@ object ProgressStore {
         val c1 = Calendar.getInstance().apply { timeInMillis = a }
         val c2 = Calendar.getInstance().apply { timeInMillis = b }
         return c1.get(Calendar.YEAR) == c2.get(Calendar.YEAR) &&
-               c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
+                c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
     }
 }
 
@@ -4871,14 +4873,8 @@ object SleepMode {
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 package com.jarvismini.smart
 
-/**
- * Minimal stub so module compiles.
- * Real logic will be added later.
- */
 object SmartFilters {
-    fun isAllowed(text: String): Boolean {
-        return true
-    }
+    fun isAllowed(text: String): Boolean = true
 }
 
 
