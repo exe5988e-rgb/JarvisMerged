@@ -1,51 +1,15 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:10:23 Unresolved reference: updateMissedTasks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:23:23 Unresolved reference: getAllEntries
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:22:13 Val cannot be reassigned
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:28:13 Val cannot be reassigned
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:29:13 Val cannot be reassigned
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:22:9 Val cannot be reassigned
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:27:9 Val cannot be reassigned
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt:28:9 Val cannot be reassigned
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 36s
+BUILD FAILED in 35s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
-4	import kotlinx.coroutines.runBlocking
-5
-6	object ProgressRepository {
-7
-8	    fun hydrate(context: Context) = runBlocking {
-9	        ProgressStore.init(context)
->>>>> ERROR HERE
-10	        ProgressStore.updateMissedTasks(context)
-11	    }
-12
-13	    fun register(context: Context, entry: ProgressEntry) =
-14	        runBlocking { ProgressStore.register(context, entry) }
-15
-16	    fun markCompleted(context: Context, blockId: String) =
-17	        runBlocking { ProgressStore.markComplete(context, blockId) }
-18
-19	    fun markIncomplete(context: Context, blockId: String) =
-20	        runBlocking { ProgressStore.markIncomplete(context, blockId) }
-21
-22	    fun getAllEntries(): List<ProgressEntry> =
->>>>> ERROR HERE
-23	        ProgressStore.getAllEntries()
-24
-25	    fun getTodayEntries(): List<ProgressEntry> =
-26	        ProgressStore.getTodayEntries()
-27
-28	    fun getTodayBlocks(): List<ProgressBlock> =
-29	        ProgressStore.getTodayBlocks()
-30	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
 1	package com.jarvismini.core.progress
@@ -58,7 +22,7 @@ BUILD FAILED in 36s
 8	    private val entries = mutableListOf<ProgressEntry>()
 9
 10	    fun init(context: Context) {
-11	        // no-op for now
+11	        // no-op
 12	    }
 13
 14	    fun register(context: Context, entry: ProgressEntry) {
@@ -68,20 +32,20 @@ BUILD FAILED in 36s
 18	    }
 19
 20	    fun markComplete(context: Context, blockId: String) {
-21	        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
+21	        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
 >>>>> ERROR HERE
-22	            state = ProgressState.COMPLETED
-23	        }
-24	    }
-25
-26	    fun markIncomplete(context: Context, blockId: String) {
-27	        entries.find { it.blockId == blockId && isToday(it.scheduledAt) }?.apply {
+22	        entry.state = ProgressState.COMPLETED
+23	    }
+24
+25	    fun markIncomplete(context: Context, blockId: String) {
+26	        val entry = entries.find { it.blockId == blockId && isToday(it.scheduledAt) } ?: return
 >>>>> ERROR HERE
-28	            state = ProgressState.INCOMPLETE
+27	        entry.state = ProgressState.INCOMPLETE
 >>>>> ERROR HERE
-29	            missedAt = System.currentTimeMillis()
-30	        }
-31	    }
+28	        entry.missedAt = System.currentTimeMillis()
+29	    }
+30
+31	    fun getAllEntries(): List<ProgressEntry> = entries.toList()
 32
 33	    fun getTodayEntries(): List<ProgressEntry> =
 34	        entries.filter { isToday(it.scheduledAt) }
