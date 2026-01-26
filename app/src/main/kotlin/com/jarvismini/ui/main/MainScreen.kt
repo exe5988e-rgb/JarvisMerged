@@ -23,17 +23,20 @@ enum class MainTab(val title: String) {
 fun MainScreen() {
     val context = LocalContext.current
 
+    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
+
+    // One-time hydration + registration
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
     }
 
-    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
-    var blocks by remember { mutableStateOf<List<ProgressBlock>>(emptyList()) }
-
+    // Reload checklist + speak stats when entering Checklist tab
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
-            blocks = ProgressRepository.getTodayBlocks(context) // pass context
-            val stats = ProgressStatsEngine.getTodayStats(context)
+            blocks = ProgressStore.getTodayBlocks()
+
+            val stats = ProgressStatsEngine.getTodayStats()
             AssistantTTS.speak(
                 context,
                 "You have ${stats.completedBlocks} completed out of ${stats.totalBlocks} tasks today."
@@ -77,9 +80,10 @@ private fun ChecklistScreenWithStats(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats(context) // pass context
+    val stats = ProgressStatsEngine.getTodayStats()
 
     Column(modifier = Modifier.fillMaxSize()) {
+
         Text(
             text = "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -92,6 +96,7 @@ private fun ChecklistScreenWithStats(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(blocks) { block ->
+
                 val displayName = block.id
                     .replace("_", " ")
                     .replaceFirstChar { it.uppercase() }
@@ -100,7 +105,7 @@ private fun ChecklistScreenWithStats(
                     block = block,
                     onComplete = {
                         ProgressEngine.markComplete(context, block.id)
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        onBlocksUpdated(ProgressStore.getTodayBlocks())
                     },
                     onIncomplete = {
                         ProgressEngine.markIncomplete(context, block.id)
@@ -108,7 +113,7 @@ private fun ChecklistScreenWithStats(
                             context,
                             "You missed task $displayName. I will remind you in 30 minutes."
                         )
-                        onBlocksUpdated(ProgressRepository.getTodayBlocks(context))
+                        onBlocksUpdated(ProgressStore.getTodayBlocks())
                     }
                 )
             }
