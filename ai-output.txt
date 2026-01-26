@@ -1,172 +1,23 @@
-Perfect — I can do that. Here's the full batch of fixes with the exact file header format you’ve been using, ready to drop in:
-
-
----
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEntry.kt =====
-package com.jarvismini.core.progress
-
-data class ProgressEntry(
-    val routineId: String,
-    val blockId: String,
-    val timestamp: Long,
-    val state: ProgressState,
-    val scheduledAt: Long? = null,
-    val completedAt: Long? = null,
-    val lastUpdatedAt: Long? = null,
-    val missedAt: Long? = null
-)
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
 package com.jarvismini.core.progress
 
 import android.content.Context
-import kotlinx.coroutines.runBlocking
 
-object ProgressRepository {
+object ProgressEngine {
 
-    private var hydrated = false
-
-    // Idempotent hydration
-    fun hydrate(context: Context) = runBlocking {
-        if (hydrated) return@runBlocking
-        ProgressStore.init(context)
-        hydrated = true
+    /** Mark a block as complete */
+    fun markComplete(context: Context, blockId: String) {
+        ProgressRepository.markCompleted(context, blockId)
     }
 
-    fun register(context: Context, entry: ProgressEntry) = runBlocking {
-        ProgressStore.register(context, entry)
+    /** Mark a block as incomplete */
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressRepository.markIncomplete(context, blockId)
     }
 
-    fun markCompleted(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markComplete(context, blockId)
-    }
+    /** Retrieve all progress entries */
+    fun getAllEntries(): List<ProgressEntry> = ProgressRepository.getAllEntries()
 
-    fun markIncomplete(context: Context, blockId: String) = runBlocking {
-        ProgressStore.markIncomplete(context, blockId)
-    }
-
-    fun getAllEntries(): List<ProgressEntry> = ProgressStore.getAllEntries()
-
-    // Needed for MainScreen Checklist tab
-    fun getTodayBlocks(): List<ProgressBlock> =
-        ProgressStore.getTodayBlocks()
-}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStore.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import java.io.File
-
-object ProgressStore {
-
-    private const val FILE_NAME = "progress_store.json"
-    private val gson = Gson()
-
-    private val entries: MutableMap<String, ProgressEntry> = mutableMapOf()
-    @Volatile
-    private var initialized = false
-
-    private fun makeKey(routineId: String, blockId: String) = "$routineId::$blockId"
-
-    suspend fun init(context: Context) {
-        if (initialized) return
-        val file = File(context.filesDir, FILE_NAME)
-        if (file.exists()) {
-            try {
-                val type = object : TypeToken<List<ProgressEntry>>() {}.type
-                val list: List<ProgressEntry> = gson.fromJson(file.readText(), type)
-                list.forEach { entry ->
-                    entries.putIfAbsent(makeKey(entry.routineId, entry.blockId), entry)
-                }
-            } catch (_: Exception) { }
-        }
-        initialized = true
-    }
-
-    private suspend fun persist(context: Context) {
-        val file = File(context.filesDir, FILE_NAME)
-        try {
-            val json = gson.toJson(entries.values.toList())
-            file.writeText(json)
-        } catch (_: Exception) { }
-    }
-
-    suspend fun register(context: Context, entry: ProgressEntry) {
-        val key = makeKey(entry.routineId, entry.blockId)
-        entries.putIfAbsent(key, entry)
-        persist(context)
-    }
-
-    suspend fun markComplete(context: Context, blockId: String) {
-        val key = makeKey(blockId, blockId)
-        val existing = entries[key]
-        if (existing != null && existing.completedAt == null) {
-            val updated = existing.copy(
-                state = ProgressState.COMPLETED,
-                completedAt = System.currentTimeMillis(),
-                lastUpdatedAt = System.currentTimeMillis()
-            )
-            entries[key] = updated
-            persist(context)
-        }
-    }
-
-    suspend fun markIncomplete(context: Context, blockId: String) {
-        val key = makeKey(blockId, blockId)
-        val existing = entries[key]
-        if (existing != null) {
-            val now = System.currentTimeMillis()
-            val missedTime = if (existing.scheduledAt != null && now > existing.scheduledAt && existing.state != ProgressState.COMPLETED) now else existing.missedAt
-            val updated = existing.copy(
-                state = ProgressState.INCOMPLETE,
-                lastUpdatedAt = now,
-                missedAt = missedTime
-            )
-            entries[key] = updated
-            persist(context)
-        }
-    }
-
-    fun getAllEntries(): List<ProgressEntry> = entries.values.toList()
-    fun getTodayEntries(): List<ProgressEntry> = entries.values.toList()
-
-    fun getRegisteredBlocks(): Set<String> = entries.keys.map { it.split("::")[1] }.toSet()
-    fun getCompletedBlocks(): Set<String> = entries.values.filter { it.state == ProgressState.COMPLETED }.map { it.blockId }.toSet()
-    fun getTodayBlocks(): List<ProgressBlock> =
-        entries.values.map { ProgressBlock(it.blockId, it.state == ProgressState.COMPLETED) }
-}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
-package com.jarvismini
-
-import android.content.Context
-import com.jarvismini.core.progress.ProgressEntry
-import com.jarvismini.core.progress.ProgressRepository
-import com.jarvismini.core.progress.ProgressState
-import com.jarvismini.core.routine.RoutineProvider
-import kotlinx.coroutines.runBlocking
-
-object ProgressInitializer {
-
-    fun registerAllBlocks(context: Context) = runBlocking {
-        // Hydrate store first
-        ProgressRepository.hydrate(context)
-
-        // Register all routines
-        val routines = RoutineProvider.getAllRoutines(context)
-        routines.forEach { routine ->
-            val entry = ProgressEntry(
-                routineId = routine.id,
-                blockId = routine.id,
-                timestamp = System.currentTimeMillis(),
-                state = ProgressState.PENDING,
-                scheduledAt = routine.scheduledAt
-            )
-            ProgressRepository.register(context, entry)
-        }
-    }
+    /** Retrieve today's progress entries as ProgressBlocks */
+    fun getTodayEntries(): List<ProgressBlock> = ProgressRepository.getTodayBlocks()
 }
