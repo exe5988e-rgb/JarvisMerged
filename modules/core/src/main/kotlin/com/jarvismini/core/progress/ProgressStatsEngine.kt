@@ -1,6 +1,5 @@
 package com.jarvismini.core.progress
 
-import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -9,8 +8,8 @@ import java.util.*
  */
 object ProgressStatsEngine {
 
-    fun getTodayStats(context: Context): ProgressStats {
-        val blocks = ProgressStore.getTodayBlocks(context) // pass context
+    fun getTodayStats(): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks() // no context needed
         val total = blocks.size
         val completed = blocks.count { it.completed }
 
