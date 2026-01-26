@@ -14,15 +14,11 @@ import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.checklist.ChecklistItem
 
-enum class MainTab {
-    Chat,
-    Checklist
-}
+enum class MainTab { Chat, Checklist }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
-
     var selectedTab by remember { mutableStateOf(MainTab.Chat) }
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
 
@@ -33,22 +29,17 @@ fun MainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             blocks = ProgressRepository.getTodayBlocks()
-            val stats = ProgressStatsEngine.getTodayStats()
-            AssistantTTS.speak(
-                context,
-                "You have ${stats.completedBlocks} of ${stats.totalBlocks} tasks completed today."
-            )
         }
     }
 
     Scaffold(
         topBar = {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
-                MainTab.values().forEach { tab ->
+                MainTab.values().forEach {
                     Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.name) }
+                        selected = selectedTab == it,
+                        onClick = { selectedTab = it },
+                        text = { Text(it.name) }
                     )
                 }
             }
@@ -62,10 +53,9 @@ fun MainScreen() {
         ) {
             when (selectedTab) {
                 MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(
-                    blocks = blocks,
-                    onBlocksUpdated = { blocks = it }
-                )
+                MainTab.Checklist -> ChecklistScreen(blocks) {
+                    blocks = it
+                }
             }
         }
     }
@@ -79,18 +69,15 @@ private fun ChecklistScreen(
     val context = LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-
+    Column {
         Text(
-            text = "Today's Checklist (${stats.completionPercent}%)",
+            "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(Modifier.height(12.dp))
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(blocks) { block ->
                 ChecklistItem(
                     block = block,
@@ -102,7 +89,7 @@ private fun ChecklistScreen(
                         ProgressEngine.markIncomplete(context, block.id)
                         AssistantTTS.speak(
                             context,
-                            "You missed task ${block.id.replace('_', ' ')}"
+                            "Okay, I will remind you in 30 minutes."
                         )
                         onBlocksUpdated(ProgressRepository.getTodayBlocks())
                     }
