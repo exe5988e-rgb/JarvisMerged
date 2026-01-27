@@ -30,6 +30,9 @@ object WorkModeManager {
 
         // ⏱ Open OnePlus Clock (user navigates to Stopwatch tab)
         launchApp(context, "com.oneplus.deskclock")
+
+        // Samsung clock (safe)
+        launchApp(context, "com.sec.android.app.clockpackage")
     }
 
     fun deactivate(context: Context) {
