@@ -55,8 +55,25 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   ├── layout
 │   │   │   │   │   ├── activity_main.xml
 │   │   │   │   │   ├── activity_settings.xml
+│   │   │   │   ├── mipmap-anydpi-v26
+│   │   │   │   │   ├── ic_launcher.xml
+│   │   │   │   │   ├── ic_launcher_round.xml
+│   │   │   │   ├── mipmap-hdpi
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
 │   │   │   │   ├── mipmap-mdpi
 │   │   │   │   │   ├── ic_launcher.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xhdpi
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xxhdpi
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xxxhdpi
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
 │   │   │   │   ├── values
 │   │   │   │   │   ├── colors.xml
 │   │   │   │   │   ├── strings.xml
@@ -382,6 +399,7 @@ dependencies {
         <package android:name="com.pittvandewitt.wavelet" />
         <package android:name="com.google.android.apps.youtube.music" />
         <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
         <package android:name="com.apple.android.music" />
     </queries>
 
@@ -392,6 +410,7 @@ dependencies {
         android:allowBackup="true"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.JarvisMerged"
         android:usesCleartextTraffic="true"
@@ -486,10 +505,12 @@ dependencies {
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
         <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
-<receiver
-    android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
-    android:exported="false" />
+
+        <receiver
+            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
+            android:exported="false" />
 
     </application>
 
@@ -1556,6 +1577,22 @@ private fun ChecklistScreen(
         android:padding="12dp" />
 
 </LinearLayout>
+
+
+//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
+
+
+//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
 
 
 //===== FILE: app/src/main/res/values/colors.xml =====
@@ -3507,6 +3544,9 @@ object WorkModeManager {
 
         // ⏱ Open OnePlus Clock (user navigates to Stopwatch tab)
         launchApp(context, "com.oneplus.deskclock")
+
+        // Samsung clock (safe)
+        launchApp(context, "com.sec.android.app.clockpackage")
     }
 
     fun deactivate(context: Context) {
