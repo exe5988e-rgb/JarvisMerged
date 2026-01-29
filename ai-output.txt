@@ -1,111 +1,224 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
-package com.jarvismini.core.progress
+//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
 
-import android.content.Context
-import com.jarvismini.core.routine.RoutineProvider
-import kotlinx.coroutines.runBlocking
-import java.util.Calendar
 
-object ProgressRepository {
 
-    fun hydrate(context: Context) = runBlocking {
-        ProgressStore.init(context)
-        cleanupOldEntries(context)
-    }
+//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
 
-    fun register(context: Context, entry: ProgressEntry) =
-        runBlocking { ProgressStore.register(context, entry) }
 
-    fun markComplete(context: Context, blockId: String) =
-        runBlocking { ProgressStore.markComplete(context, blockId) }
 
-    fun markIncomplete(context: Context, blockId: String) =
-        runBlocking { ProgressStore.markIncomplete(context, blockId) }
+//===== FILE: app/src/main/res/mipmap-mdpi/name1.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
+Content: your cropped Jarvis “J” transparent PNG
+Size: 108x108
+Purpose: adaptive icon foreground
 
-    fun getTodayBlocks(): List<ProgressBlock> =
-        ProgressStore.getTodayBlocks()
 
-    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
-        val allRoutines = RoutineProvider.getAllRoutines(context)
-        val today = getCurrentDayOfWeek()
-        return allRoutines.filter { it.trigger?.days?.contains(today) == true }
-    }
 
-    /**
-     * Reset all blocks at 3 AM by setting state back to PENDING.
-     * Does not rely on any app module.
-     */
-    fun resetTodayBlocks(context: Context) = runBlocking {
-        val todayBlocks = getTodayBlocks()
+//===== FILE: app/src/main/res/mipmap-mdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_background.png
+Content: background / ring / glow / texture PNG
+Size: 108x108
+Purpose: adaptive icon background
 
-        todayBlocks.forEach { block ->
-            // Re-register block with state PENDING
-            register(
-                context,
-                ProgressEntry(
-                    routineId = block.id,
-                    blockId = block.id,
-                    scheduledAt = block.scheduledAt,
-                    state = ProgressState.PENDING
-                )
-            )
-        }
 
-        // Re-register today's routines in case any new routine is added
-        getTodayRoutines(context).forEach { routine ->
-            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
-            register(
-                context,
-                ProgressEntry(
-                    routineId = routine.id,
-                    blockId = routine.id,
-                    scheduledAt = scheduledTime,
-                    state = ProgressState.PENDING
-                )
-            )
-        }
-    }
 
-    private fun parseTimeToMs(timeStr: String): Long {
-        return try {
-            val cal = Calendar.getInstance()
-            val parts = timeStr.split(":")
-            cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-            cal.set(Calendar.MINUTE, parts[1].toInt())
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        } catch (_: Exception) {
-            System.currentTimeMillis()
-        }
-    }
+//===== FILE: app/src/main/res/mipmap-hdpi/name1.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
 
-    private fun cleanupOldEntries(context: Context) {
-        val todayStart = getTodayStartMs()
-        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
-        old.forEach { ProgressStore.remove(context, it.blockId) }
-    }
 
-    private fun getCurrentDayOfWeek(): String {
-        val cal = Calendar.getInstance()
-        return when (cal.get(Calendar.DAY_OF_WEEK)) {
-            Calendar.SUNDAY -> "SUN"
-            Calendar.MONDAY -> "MON"
-            Calendar.TUESDAY -> "TUE"
-            Calendar.WEDNESDAY -> "WED"
-            Calendar.THURSDAY -> "THU"
-            Calendar.FRIDAY -> "FRI"
-            Calendar.SATURDAY -> "SAT"
-            else -> "SUN"
-        }
-    }
 
-    private fun getTodayStartMs(): Long {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 3) // Reset at 3 AM
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
-    }
-}
+//===== FILE: app/src/main/res/mipmap-hdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_background.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xhdpi/name1.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xhdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_background.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xxhdpi/name1.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xxhdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_background.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xxxhdpi/name1.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xxxhdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_background.png
+//===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jarvismini">
+
+    <!-- ================= PERMISSIONS ================= -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
+    <!-- ================= PACKAGE VISIBILITY ================= -->
+
+    <queries>
+        <package android:name="xyz.penpencil.physicswala" />
+        <package android:name="com.pittvandewitt.wavelet" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.apple.android.music" />
+    </queries>
+
+    <!-- ================= APPLICATION ================= -->
+
+    <application
+        android:name="com.jarvismini.CoreApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JarvisMerged"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <!-- ================= MAIN ACTIVITY ================= -->
+
+        <activity
+            android:name="com.jarvismini.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ================= NOTIFICATION LISTENER ================= -->
+
+        <service
+            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= SMS RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.callhandler.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ================= CALL STATE RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ================= CALL SCREENING SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall">
+            <intent-filter>
+                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= ACCESSIBILITY SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/call_accessibility_config" />
+        </service>
+
+        <!-- ================= QUICK SETTINGS TILE ================= -->
+
+        <service
+            android:name="com.jarvismini.service.WorkModeTileService"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
