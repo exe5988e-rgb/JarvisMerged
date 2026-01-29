@@ -1,120 +1,61 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:40:39 Unresolved reference: getEntry
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt:40:54 Unresolved reference: blockId
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 36s
+BUILD FAILED in 29s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressRepository.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/MissedTaskChecker.kt =====
 1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
-4	import com.jarvismini.core.routine.RoutineProvider
-5	import kotlinx.coroutines.runBlocking
-6	import java.util.Calendar
+4	import com.jarvismini.core.tts.AssistantTTS
+5
+6	class MissedTaskChecker(private val context: Context) {
 7
-8	object ProgressRepository {
-9
-10	    fun hydrate(context: Context) = runBlocking {
-11	        ProgressStore.init(context)
-12	        cleanupOldEntries(context)
-13	    }
-14
-15	    fun register(context: Context, entry: ProgressEntry) =
-16	        runBlocking { ProgressStore.register(context, entry) }
-17
-18	    fun markComplete(context: Context, blockId: String) =
-19	        runBlocking { ProgressStore.markComplete(context, blockId) }
-20
-21	    fun markIncomplete(context: Context, blockId: String) =
-22	        runBlocking { ProgressStore.markIncomplete(context, blockId) }
+8	    fun checkAndRemind() {
+9	        // ProgressRepository does NOT expose getTodayEntries
+10	        // ProgressStore does (and already exists in repo)
+11	        val todayEntries = ProgressStore.getTodayEntries()
+12
+13	        todayEntries
+14	            .filter { it.state == ProgressState.INCOMPLETE }
+15	            .forEach { entry ->
+16	                val blockName = entry.blockId.replace('_', ' ')
+17	                AssistantTTS.speak(
+18	                    context.applicationContext,
+19	                    "Reminder: you missed task $blockName."
+20	                )
+21	            }
+22	    }
 23
-24	    fun getTodayBlocks(): List<ProgressBlock> =
-25	        ProgressStore.getTodayBlocks()
-26
-27	    fun getTodayRoutines(context: Context): List<com.jarvismini.core.routine.model.Routine> {
-28	        val allRoutines = RoutineProvider.getAllRoutines(context)
-29	        val today = getCurrentDayOfWeek()
-30	        return allRoutines.filter { it.trigger?.days?.contains(today) == true }
-31	    }
-32
-33	    /**
-34	     * Reset all blocks at 3 AM by setting state back to PENDING.
-35	     * Does not rely on ProgressInitializer from app module.
-36	     */
-37	    fun resetTodayBlocks(context: Context) = runBlocking {
-38	        val todayBlocks = getTodayBlocks()
-39	        todayBlocks.forEach { block ->
 >>>>> ERROR HERE
-40	            val entry = ProgressStore.getEntry(block.blockId)
-41	            if (entry != null) {
-42	                val resetEntry = entry.copy(state = ProgressState.PENDING)
-43	                ProgressStore.register(context, resetEntry)
-44	            }
-45	        }
-46	        // Re-register today's routines
-47	        getTodayRoutines(context).forEach { routine ->
-48	            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
-49	            ProgressStore.register(
-50	                context,
-51	                ProgressEntry(
-52	                    routineId = routine.id,
-53	                    blockId = routine.id,
-54	                    scheduledAt = scheduledTime,
-55	                    state = ProgressState.PENDING
-56	                )
-57	            )
-58	        }
-59	    }
-60
-61	    private fun parseTimeToMs(timeStr: String): Long {
-62	        return try {
-63	            val cal = Calendar.getInstance()
-64	            val parts = timeStr.split(":")
-65	            cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-66	            cal.set(Calendar.MINUTE, parts[1].toInt())
-67	            cal.set(Calendar.SECOND, 0)
-68	            cal.set(Calendar.MILLISECOND, 0)
-69	            cal.timeInMillis
-70	        } catch (_: Exception) {
-71	            System.currentTimeMillis()
-72	        }
-73	    }
-74
-75	    private fun cleanupOldEntries(context: Context) {
-76	        val todayStart = getTodayStartMs()
-77	        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
-78	        old.forEach { ProgressStore.remove(context, it.blockId) }
-79	    }
-80
-81	    private fun getCurrentDayOfWeek(): String {
-82	        val cal = Calendar.getInstance()
-83	        return when (cal.get(Calendar.DAY_OF_WEEK)) {
-84	            Calendar.SUNDAY -> "SUN"
-85	            Calendar.MONDAY -> "MON"
-86	            Calendar.TUESDAY -> "TUE"
-87	            Calendar.WEDNESDAY -> "WED"
-88	            Calendar.THURSDAY -> "THU"
-89	            Calendar.FRIDAY -> "FRI"
-90	            Calendar.SATURDAY -> "SAT"
-91	            else -> "SUN"
-92	        }
-93	    }
-94
-95	    private fun getTodayStartMs(): Long {
-96	        val cal = Calendar.getInstance()
-97	        cal.set(Calendar.HOUR_OF_DAY, 3) // Reset at 3 AM
-98	        cal.set(Calendar.MINUTE, 0)
-99	        cal.set(Calendar.SECOND, 0)
-100	        cal.set(Calendar.MILLISECOND, 0)
-101	        return cal.timeInMillis
-102	    }
-103	}
+24	    fun remindLater(entry: ProgressEntry) {
+25	        AssistantTTS.speak(
+26	            context.applicationContext,
+27	            "Okay, I will remind you in 30 minutes."
+28	        )
+29	    }
+30	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+1	package com.jarvismini.core.routine
+2
+3	import android.content.Context
+4	import com.jarvismini.core.routine.model.RoutineAction
+5
+6	/**
+7	 * Stub dispatcher for routine actions.
+8	 */
+9	object ActionDispatcher {
+>>>>> ERROR HERE
+10	    fun dispatch(context: Context, action: RoutineAction) {
+11	        // Stub — logic will expand later
+12	    }
+13	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
@@ -123,3 +64,21 @@ BUILD FAILED in 36s
 >>>>> ERROR HERE
 4	    fun isAllowed(text: String): Boolean = true
 5	}
+
+//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml =====
+1	<?xml version="1.0" encoding="utf-8"?>
+2	<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+>>>>> ERROR HERE
+3	    <background android:drawable="@mipmap/ic_launcher_background"/>
+>>>>> ERROR HERE
+4	    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+5	</adaptive-icon>
+
+//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml =====
+1	<?xml version="1.0" encoding="utf-8"?>
+2	<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+>>>>> ERROR HERE
+3	    <background android:drawable="@mipmap/ic_launcher_background"/>
+>>>>> ERROR HERE
+4	    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+5	</adaptive-icon>
