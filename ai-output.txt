@@ -16,31 +16,19 @@
 
 
 
+//====================================================
+// BACKGROUND (Metallic plate + arc reactor ring)
+//====================================================
+
 //===== FILE: app/src/main/res/mipmap-mdpi/name1.png =====
 (DUMMY FILE PLACEHOLDER)
-Rename to: ic_launcher_foreground.png
-Content: your cropped Jarvis “J” transparent PNG
-Size: 108x108
-Purpose: adaptive icon foreground
-
-
-
-//===== FILE: app/src/main/res/mipmap-mdpi/name2.png =====
-(DUMMY FILE PLACEHOLDER)
 Rename to: ic_launcher_background.png
-Content: background / ring / glow / texture PNG
-Size: 108x108
-Purpose: adaptive icon background
+Content: metallic frame + arc reactor blue ring
+Purpose: adaptive icon background layer
 
 
 
 //===== FILE: app/src/main/res/mipmap-hdpi/name1.png =====
-(DUMMY FILE PLACEHOLDER)
-Rename to: ic_launcher_foreground.png
-
-
-
-//===== FILE: app/src/main/res/mipmap-hdpi/name2.png =====
 (DUMMY FILE PLACEHOLDER)
 Rename to: ic_launcher_background.png
 
@@ -48,23 +36,11 @@ Rename to: ic_launcher_background.png
 
 //===== FILE: app/src/main/res/mipmap-xhdpi/name1.png =====
 (DUMMY FILE PLACEHOLDER)
-Rename to: ic_launcher_foreground.png
-
-
-
-//===== FILE: app/src/main/res/mipmap-xhdpi/name2.png =====
-(DUMMY FILE PLACEHOLDER)
 Rename to: ic_launcher_background.png
 
 
 
 //===== FILE: app/src/main/res/mipmap-xxhdpi/name1.png =====
-(DUMMY FILE PLACEHOLDER)
-Rename to: ic_launcher_foreground.png
-
-
-
-//===== FILE: app/src/main/res/mipmap-xxhdpi/name2.png =====
 (DUMMY FILE PLACEHOLDER)
 Rename to: ic_launcher_background.png
 
@@ -72,153 +48,41 @@ Rename to: ic_launcher_background.png
 
 //===== FILE: app/src/main/res/mipmap-xxxhdpi/name1.png =====
 (DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_background.png
+
+
+
+//====================================================
+// FOREGROUND (Glowing J only)
+//====================================================
+
+//===== FILE: app/src/main/res/mipmap-mdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
+Content: glowing Jarvis “J” only
+Background: transparent
+Purpose: adaptive icon foreground layer
+
+
+
+//===== FILE: app/src/main/res/mipmap-hdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xhdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
+Rename to: ic_launcher_foreground.png
+
+
+
+//===== FILE: app/src/main/res/mipmap-xxhdpi/name2.png =====
+(DUMMY FILE PLACEHOLDER)
 Rename to: ic_launcher_foreground.png
 
 
 
 //===== FILE: app/src/main/res/mipmap-xxxhdpi/name2.png =====
 (DUMMY FILE PLACEHOLDER)
-Rename to: ic_launcher_background.png
-//===== FILE: app/src/main/AndroidManifest.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jarvismini">
-
-    <!-- ================= PERMISSIONS ================= -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
-
-    <!-- ================= PACKAGE VISIBILITY ================= -->
-
-    <queries>
-        <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
-        <package android:name="com.google.android.apps.youtube.music" />
-        <package android:name="com.oneplus.deskclock" />
-        <package android:name="com.sec.android.app.clockpackage" />
-        <package android:name="com.apple.android.music" />
-    </queries>
-
-    <!-- ================= APPLICATION ================= -->
-
-    <application
-        android:name="com.jarvismini.CoreApp"
-        android:allowBackup="true"
-        android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMerged"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config">
-
-        <!-- ================= MAIN ACTIVITY ================= -->
-
-        <activity
-            android:name="com.jarvismini.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- ================= NOTIFICATION LISTENER ================= -->
-
-        <service
-            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= SMS RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.SmsReceiver"
-            android:permission="android.permission.BROADCAST_SMS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL STATE RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL SCREENING SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
-            android:permission="android.permission.BIND_SCREENING_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall">
-            <intent-filter>
-                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= ACCESSIBILITY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
-
-        <!-- ================= QUICK SETTINGS TILE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.WorkModeTileService"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
-            android:exported="false" />
-
-    </application>
-
-</manifest>
+Rename to: ic_launcher_foreground.png
