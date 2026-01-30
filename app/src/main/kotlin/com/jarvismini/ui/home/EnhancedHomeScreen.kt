@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,305 +15,321 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jarvismini.core.JarvisMode
-import com.jarvismini.core.JarvisState
 import com.jarvismini.ui.components.*
-import kotlin.math.PI
 
 @Composable
 fun EnhancedHomeScreen(
+    onNavigateToChat: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToDebug: () -> Unit
 ) {
     var isListening by remember { mutableStateOf(false) }
-    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
 
-    val infiniteRotation = rememberInfiniteTransition(label = "hologram")
-    val rotation by infiniteRotation.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
+    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by pulseAnimation.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
         ),
-        label = "rotation"
+        label = "pulseAlpha"
     )
-
-    val pulse by infiniteRotation.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pulse"
-    )
-
-    val scanController = remember { Animatable(0f) }
-
-    LaunchedEffect(isListening) {
-        if (isListening) {
-            scanController.animateTo(
-                targetValue = (2 * PI).toFloat(),
-                animationSpec = infiniteRepeatable(
-                    animation = tween(2000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                )
-            )
-        } else {
-            scanController.stop()
-        }
-    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color.Black,
-                        Color(0xFF001520),
-                        Color.Black
-                    )
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
                 )
             )
     ) {
-        // Grid background
+        // Background effects
         GridBackground()
+        ParticleField()
+        ScanLine()
 
-        // Particle field
-        ParticleField(progress = rotation)
-
-        // Top bar
-        TopBar(
-            onSettingsClick = onNavigateToSettings,
-            onDebugClick = onNavigateToDebug
-        )
-
-        // Main content
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 64.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Hologram
-            HologramCanvas(
-                rotation = rotation,
-                pulse = pulse,
-                scanAngle = scanController.value,
-                isScanning = isListening,
-                modifier = Modifier.size(300.dp)
-            )
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "J.A.R.V.I.S.",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 6.sp,
+                    color = Color(0xFF00E0FF)
+                )
+
+                Row {
+                    IconButton(onClick = onNavigateToDebug) {
+                        Icon(
+                            imageVector = Icons.Default.BugReport,
+                            contentDescription = "Debug",
+                            tint = Color(0xFF00E0FF)
+                        )
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = Color(0xFF00E0FF)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(40.dp))
+
+            // Central AI circle
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(200.dp)
+                    .clickable { isListening = !isListening }
+            ) {
+                // Outer pulse ring
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .alpha(if (isListening) pulseAlpha else 0.3f)
+                        .background(
+                            color = Color(0xFF00E0FF).copy(alpha = 0.1f),
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 2.dp,
+                            color = Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
+                            shape = CircleShape
+                        )
+                )
+
+                // Middle ring
+                Box(
+                    modifier = Modifier
+                        .size(150.dp)
+                        .background(
+                            color = Color(0xFF00E0FF).copy(alpha = 0.05f),
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                            shape = CircleShape
+                        )
+                )
+
+                // Inner core
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .shadow(
+                            elevation = if (isListening) 30.dp else 10.dp,
+                            shape = CircleShape,
+                            spotColor = Color(0xFF00E0FF)
+                        )
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
+                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                ) {
+                    Icon(
+                        imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                        contentDescription = "Voice",
+                        tint = Color(0xFF00E0FF),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .align(Alignment.Center)
+                    )
+                }
+            }
 
             Spacer(Modifier.height(20.dp))
 
             Text(
-                text = currentMode.name,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = 8.sp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.9f)
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                text = if (isListening) "◉ LISTENING" else "○ STANDBY",
-                fontSize = 12.sp,
+                text = if (isListening) "LISTENING..." else "TAP TO ACTIVATE",
+                fontSize = 14.sp,
                 fontFamily = FontFamily.Monospace,
-                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                color = Color(0xFF00E0FF).copy(alpha = 0.8f)
             )
 
             Spacer(Modifier.height(40.dp))
 
-            // Voice button
-            VoiceButton(
-                isListening = isListening,
-                onClick = { isListening = !isListening }
+            // Quick actions
+            Text(
+                text = "QUICK ACCESS",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
             )
 
             Spacer(Modifier.height(16.dp))
 
-            Text(
-                text = if (isListening) "Processing voice input..." else "Press to activate",
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
-            )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat)
+                }
+                item {
+                    QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar)
+                }
+                item {
+                    QuickActionCard("Tasks", Icons.Default.Checklist) {}
+                }
+                item {
+                    QuickActionCard("Notes", Icons.Default.Note) {}
+                }
+            }
 
             Spacer(Modifier.height(40.dp))
 
-            // Mode selector
-            ModeSelector(
-                currentMode = currentMode,
-                onModeChange = { newMode ->
-                    currentMode = newMode
-                    JarvisState.setMode(/* context needed */, newMode)
-                }
+            // Status cards
+            Text(
+                text = "SYSTEM STATUS",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
             )
-        }
 
-        // Scan line effect
-        ScanLine(progress = rotation)
+            Spacer(Modifier.height(16.dp))
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    StatusCard("Neural Networks", "Online", true)
+                }
+                item {
+                    StatusCard("Voice Recognition", "Active", true)
+                }
+                item {
+                    StatusCard("Automation Engine", "Standby", false)
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun TopBar(
-    onSettingsClick: () -> Unit,
-    onDebugClick: () -> Unit
-) {
+fun QuickActionCard(title: String, icon: ImageVector, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .size(100.dp)
+            .clickable(onClick = onClick)
+            .background(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                shape = RoundedCornerShape(12.dp)
+            ),
+        color = Color.Transparent
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = Color(0xFF00E0FF),
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                color = Color(0xFF00E0FF),
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+fun StatusCard(title: String, status: String, isOnline: Boolean) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp),
-        color = Color.Black.copy(alpha = 0.4f)
+            .background(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(16.dp),
+        color = Color.Transparent
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)
-                ),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row {
+            Column {
                 Text(
-                    text = "J.A.R.V.I.S.",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = 4.sp,
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
                     color = Color(0xFF00E0FF)
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "v3.1.MARK_VII",
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                    text = status,
+                    fontSize = 12.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
+                    fontFamily = FontFamily.Monospace
                 )
             }
 
-            Row {
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = Color(0xFF00E0FF)
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(
+                        color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
+                        shape = CircleShape
                     )
-                }
-                IconButton(onClick = onDebugClick) {
-                    Icon(
-                        imageVector = Icons.Default.Code,
-                        contentDescription = "Debug",
-                        tint = Color(0xFF00E0FF)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        spotColor = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00)
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun VoiceButton(
-    isListening: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(80.dp)
-            .shadow(
-                elevation = 30.dp,
-                shape = CircleShape,
-                spotColor = if (isListening) Color(0xFF00FF88) else Color(0xFF00E0FF)
             )
-            .background(
-                color = if (isListening)
-                    Color(0xFF00FF88).copy(alpha = 0.2f)
-                else
-                    Color(0xFF00E0FF).copy(alpha = 0.1f),
-                shape = CircleShape
-            )
-            .border(
-                width = 2.dp,
-                color = if (isListening) Color(0xFF00FF88) else Color(0xFF00E0FF),
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Mic,
-            contentDescription = "Voice Input",
-            tint = if (isListening) Color(0xFF00FF88) else Color(0xFF00E0FF),
-            modifier = Modifier.size(36.dp)
-        )
-    }
-}
-
-@Composable
-fun ModeSelector(
-    currentMode: JarvisMode,
-    onModeChange: (JarvisMode) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .padding(horizontal = 40.dp)
-            .fillMaxWidth()
-    ) {
-        OutlinedButton(
-            onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = Color.Black.copy(alpha = 0.7f)
-            ),
-            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f))
-        ) {
-            Text(
-                text = currentMode.name,
-                fontSize = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF00E0FF)
-            )
-        }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.background(Color.Black)
-        ) {
-            JarvisMode.values().forEach { mode ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = mode.name,
-                            fontSize = 14.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF00E0FF)
-                        )
-                    },
-                    onClick = {
-                        onModeChange(mode)
-                        expanded = false
-                    }
-                )
-            }
         }
     }
 }

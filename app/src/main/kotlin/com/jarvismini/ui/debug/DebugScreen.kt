@@ -130,7 +130,7 @@ fun StatItem(label: String, value: String) {
             text = value,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF00E0FF)
+            color = Color(0xFF00E00FF)
         )
         Spacer(Modifier.height(4.dp))
         Text(

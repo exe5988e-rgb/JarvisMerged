@@ -1,29 +1,42 @@
 package com.jarvismini.ui.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 @Composable
-fun ScanLine(progress: Float) {
+fun ScanLine() {
+    val infiniteTransition = rememberInfiniteTransition(label = "scanline")
+    val yPosition by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "yPosition"
+    )
+
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val y = size.height * progress
-        drawRect(
+        val y = yPosition * size.height
+        drawLine(
             brush = Brush.verticalGradient(
                 colors = listOf(
                     Color.Transparent,
-                    Color(0xFF00E0FF).copy(alpha = 0.05f),
+                    Color(0xFF00E0FF).copy(alpha = 0.3f),
                     Color.Transparent
                 ),
                 startY = y - 50f,
                 endY = y + 50f
             ),
-            topLeft = Offset(0f, y - 50f),
-            size = androidx.compose.ui.geometry.Size(size.width, 100f)
+            start = Offset(0f, y),
+            end = Offset(size.width, y),
+            strokeWidth = 100f
         )
     }
 }
