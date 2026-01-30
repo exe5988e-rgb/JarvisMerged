@@ -1,0 +1,1175 @@
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/boot/BootScreen.kt =====
+package com.jarvismini.ui.boot
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
+
+data class BootStep(
+    val progress: Float,
+    val message: String,
+    val delayMs: Long
+)
+
+@Composable
+fun BootScreen(onBootComplete: () -> Unit) {
+    val bootSteps = remember {
+        listOf(
+            BootStep(0.15f, "INITIALIZING NEURAL NETWORKS...", 300),
+            BootStep(0.35f, "LOADING VISION SYSTEMS...", 500),
+            BootStep(0.55f, "CALIBRATING VOICE RECOGNITION...", 400),
+            BootStep(0.75f, "ESTABLISHING SECURE PROTOCOLS...", 600),
+            BootStep(0.95f, "SYSTEMS ONLINE...", 400),
+            BootStep(1.0f, "JARVIS OPERATIONAL", 500)
+        )
+    }
+
+    var currentStep by remember { mutableStateOf(0) }
+    var bootProgress by remember { mutableStateOf(0f) }
+    var bootMessage by remember { mutableStateOf("INITIALIZING...") }
+
+    val infiniteRotation = rememberInfiniteTransition(label = "rotation")
+    val rotation by infiniteRotation.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    LaunchedEffect(Unit) {
+        bootSteps.forEachIndexed { index, step ->
+            delay(step.delayMs)
+            currentStep = index
+            bootProgress = step.progress
+            bootMessage = step.message
+        }
+        delay(500)
+        onBootComplete()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        // Grid background
+        GridBackground()
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Animated circle
+            BootCircle(
+                progress = bootProgress,
+                rotation = rotation,
+                modifier = Modifier.size(300.dp)
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            Text(
+                text = "J.A.R.V.I.S.",
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Light,
+                letterSpacing = 8.sp,
+                color = JarvisBlue
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = "MARK VII INITIALIZING...",
+                fontSize = 12.sp,
+                color = JarvisBlue.copy(alpha = 0.6f),
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            // Progress bar
+            BootProgressBar(progress = bootProgress)
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                text = "${(bootProgress * 100).toInt()}%",
+                fontSize = 14.sp,
+                color = JarvisBlue,
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = bootMessage,
+                fontSize = 12.sp,
+                color = JarvisBlue.copy(alpha = 0.8f),
+                fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
+
+@Composable
+fun BootCircle(
+    progress: Float,
+    rotation: Float,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val radius = (size.width / 2f) * progress
+
+        // Glowing center
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    JarvisBlue.copy(alpha = 0.8f),
+                    JarvisBlue.copy(alpha = 0.4f),
+                    Color.Transparent
+                ),
+                center = center,
+                radius = radius
+            ),
+            center = center,
+            radius = radius
+        )
+
+        // Rotating segments
+        for (i in 0 until 8) {
+            val angle = (i / 8f) * 2 * PI.toFloat() + rotation * PI.toFloat() / 180f
+            drawArc(
+                color = JarvisBlue.copy(alpha = 0.8f * progress),
+                startAngle = angle * 180f / PI.toFloat(),
+                sweepAngle = 15f,
+                useCenter = false,
+                style = Stroke(width = 3f),
+                topLeft = Offset(center.x - radius * 0.7f, center.y - radius * 0.7f),
+                size = androidx.compose.ui.geometry.Size(radius * 1.4f, radius * 1.4f)
+            )
+        }
+    }
+}
+
+@Composable
+fun BootProgressBar(progress: Float) {
+    Box(
+        modifier = Modifier
+            .width(400.dp)
+            .height(8.dp)
+            .background(
+                color = JarvisBlue.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(4.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = JarvisBlue.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(4.dp)
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(progress)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(JarvisBlue, Color(0xFF0080FF), JarvisBlue)
+                    ),
+                    shape = RoundedCornerShape(4.dp)
+                )
+                .shadow(
+                    elevation = 20.dp,
+                    shape = RoundedCornerShape(4.dp),
+                    spotColor = JarvisBlue
+                )
+        )
+    }
+}
+
+val JarvisBlue = Color(0xFF00E0FF)
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/components/GridBackground.kt =====
+package com.jarvismini.ui.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+
+@Composable
+fun GridBackground() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val spacing = 30.dp.toPx()
+        val gridColor = Color(0xFF00E0FF).copy(alpha = 0.05f)
+
+        // Vertical lines
+        var x = 0f
+        while (x < size.width) {
+            drawLine(
+                color = gridColor,
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 1f
+            )
+            x += spacing
+        }
+
+        // Horizontal lines
+        var y = 0f
+        while (y < size.height) {
+            drawLine(
+                color = gridColor,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1f
+            )
+            y += spacing
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/components/HologramCanvas.kt =====
+package com.jarvismini.ui.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.*
+
+@Composable
+fun HologramCanvas(
+    rotation: Float,
+    pulse: Float,
+    scanAngle: Float,
+    isScanning: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+
+        // Draw rotating rings
+        for (layer in 0 until 4) {
+            val radius = 80f + layer * 25f
+            val segments = 32 + layer * 8
+            val opacity = 0.8f - layer * 0.15f
+
+            for (i in 0 until segments) {
+                val segmentAngle = (i / segments.toFloat()) * 2 * PI.toFloat() + rotation
+                val nextAngle = ((i + 1) / segments.toFloat()) * 2 * PI.toFloat() + rotation
+
+                if (sin(segmentAngle * 3 + rotation) > 0.3f) {
+                    drawArc(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF00C8FF).copy(alpha = opacity * 0.3f),
+                                Color(0xFF00F0FF).copy(alpha = opacity),
+                                Color(0xFF00C8FF).copy(alpha = opacity * 0.3f)
+                            )
+                        ),
+                        startAngle = segmentAngle * 180f / PI.toFloat(),
+                        sweepAngle = (nextAngle - segmentAngle) * 180f / PI.toFloat(),
+                        useCenter = false,
+                        style = Stroke(width = 2f + layer * 0.5f),
+                        topLeft = Offset(center.x - radius, center.y - radius),
+                        size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2)
+                    )
+                }
+            }
+
+            // Connection lines
+            if (layer % 2 == 0) {
+                for (i in 0 until 12) {
+                    val lineAngle = (i / 12f) * 2 * PI.toFloat() + rotation * 0.5f
+                    drawLine(
+                        color = Color(0xFF00DCFF).copy(alpha = opacity * 0.2f),
+                        start = center + Offset(cos(lineAngle) * 40f, sin(lineAngle) * 40f),
+                        end = center + Offset(cos(lineAngle) * radius, sin(lineAngle) * radius),
+                        strokeWidth = 1f
+                    )
+                }
+            }
+        }
+
+        // Central core with pulsing
+        val coreRadius = 35f + sin(pulse) * 5f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFF64E6FF).copy(alpha = 0.9f),
+                    Color(0xFF00C8FF).copy(alpha = 0.6f),
+                    Color(0xFF0096FF).copy(alpha = 0f)
+                )
+            ),
+            center = center,
+            radius = coreRadius
+        )
+
+        // Inner core
+        drawCircle(
+            color = Color(0xFFC8F0FF).copy(alpha = 0.8f),
+            center = center,
+            radius = 15f + sin(pulse) * 2f
+        )
+
+        // Scanning beam
+        if (isScanning) {
+            drawLine(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF00FF96).copy(alpha = 0.6f),
+                        Color(0xFF00FF96).copy(alpha = 0.3f),
+                        Color(0xFF00FF96).copy(alpha = 0f)
+                    ),
+                    start = center,
+                    end = center + Offset(cos(scanAngle) * 200f, sin(scanAngle) * 200f)
+                ),
+                start = center,
+                end = center + Offset(cos(scanAngle) * 200f, sin(scanAngle) * 200f),
+                strokeWidth = 3f
+            )
+        }
+
+        // Orbiting nodes
+        for (i in 0 until 8) {
+            val orbitRadius = 150f
+            val orbitAngle = (i / 8f) * 2 * PI.toFloat() + rotation * 2f
+            val nodePos = center + Offset(
+                cos(orbitAngle) * orbitRadius,
+                sin(orbitAngle) * orbitRadius
+            )
+
+            // Node glow
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF00E6FF).copy(alpha = 0.4f),
+                        Color(0xFF00E6FF).copy(alpha = 0f)
+                    )
+                ),
+                center = nodePos,
+                radius = 10f
+            )
+
+            // Node center
+            drawCircle(
+                color = Color(0xFF00E6FF).copy(alpha = 0.8f),
+                center = nodePos,
+                radius = 3f
+            )
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
+package com.jarvismini.ui.home
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.ui.components.*
+import kotlin.math.PI
+
+@Composable
+fun EnhancedHomeScreen(
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDebug: () -> Unit
+) {
+    var isListening by remember { mutableStateOf(false) }
+    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+
+    val infiniteRotation = rememberInfiniteTransition(label = "hologram")
+    val rotation by infiniteRotation.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(10000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    val pulse by infiniteRotation.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pulse"
+    )
+
+    val scanController = remember { Animatable(0f) }
+
+    LaunchedEffect(isListening) {
+        if (isListening) {
+            scanController.animateTo(
+                targetValue = (2 * PI).toFloat(),
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                )
+            )
+        } else {
+            scanController.stop()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color.Black,
+                        Color(0xFF001520),
+                        Color.Black
+                    )
+                )
+            )
+    ) {
+        // Grid background
+        GridBackground()
+
+        // Particle field
+        ParticleField(progress = rotation)
+
+        // Top bar
+        TopBar(
+            onSettingsClick = onNavigateToSettings,
+            onDebugClick = onNavigateToDebug
+        )
+
+        // Main content
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 64.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Hologram
+            HologramCanvas(
+                rotation = rotation,
+                pulse = pulse,
+                scanAngle = scanController.value,
+                isScanning = isListening,
+                modifier = Modifier.size(300.dp)
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = currentMode.name,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Light,
+                letterSpacing = 8.sp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.9f)
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = if (isListening) "◉ LISTENING" else "○ STANDBY",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            // Voice button
+            VoiceButton(
+                isListening = isListening,
+                onClick = { isListening = !isListening }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = if (isListening) "Processing voice input..." else "Press to activate",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            // Mode selector
+            ModeSelector(
+                currentMode = currentMode,
+                onModeChange = { newMode ->
+                    currentMode = newMode
+                    JarvisState.setMode(/* context needed */, newMode)
+                }
+            )
+        }
+
+        // Scan line effect
+        ScanLine(progress = rotation)
+    }
+}
+
+@Composable
+fun TopBar(
+    onSettingsClick: () -> Unit,
+    onDebugClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp),
+        color = Color.Black.copy(alpha = 0.4f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)
+                ),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row {
+                Text(
+                    text = "J.A.R.V.I.S.",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 4.sp,
+                    color = Color(0xFF00E0FF)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "v3.1.MARK_VII",
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                )
+            }
+
+            Row {
+                IconButton(onClick = onSettingsClick) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color(0xFF00E0FF)
+                    )
+                }
+                IconButton(onClick = onDebugClick) {
+                    Icon(
+                        imageVector = Icons.Default.Code,
+                        contentDescription = "Debug",
+                        tint = Color(0xFF00E0FF)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VoiceButton(
+    isListening: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(80.dp)
+            .shadow(
+                elevation = 30.dp,
+                shape = CircleShape,
+                spotColor = if (isListening) Color(0xFF00FF88) else Color(0xFF00E0FF)
+            )
+            .background(
+                color = if (isListening)
+                    Color(0xFF00FF88).copy(alpha = 0.2f)
+                else
+                    Color(0xFF00E0FF).copy(alpha = 0.1f),
+                shape = CircleShape
+            )
+            .border(
+                width = 2.dp,
+                color = if (isListening) Color(0xFF00FF88) else Color(0xFF00E0FF),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Mic,
+            contentDescription = "Voice Input",
+            tint = if (isListening) Color(0xFF00FF88) else Color(0xFF00E0FF),
+            modifier = Modifier.size(36.dp)
+        )
+    }
+}
+
+@Composable
+fun ModeSelector(
+    currentMode: JarvisMode,
+    onModeChange: (JarvisMode) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 40.dp)
+            .fillMaxWidth()
+    ) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Black.copy(alpha = 0.7f)
+            ),
+            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f))
+        ) {
+            Text(
+                text = currentMode.name,
+                fontSize = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF00E0FF)
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(Color.Black)
+        ) {
+            JarvisMode.values().forEach { mode ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = mode.name,
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF00E0FF)
+                        )
+                    },
+                    onClick = {
+                        onModeChange(mode)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/components/ParticleField.kt =====
+package com.jarvismini.ui.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import kotlin.random.Random
+
+@Composable
+fun ParticleField(progress: Float) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val random = Random(42)
+        val particles = List(50) {
+            Offset(
+                random.nextFloat() * size.width,
+                (random.nextFloat() * size.height + progress * 50) % size.height
+            )
+        }
+
+        // Draw particles
+        particles.forEach { p ->
+            drawCircle(
+                color = Color(0xFF00C8FF).copy(alpha = 0.3f),
+                center = p,
+                radius = 2f
+            )
+        }
+
+        // Connect nearby particles
+        for (i in particles.indices) {
+            for (j in i + 1 until particles.size) {
+                val distance = (particles[i] - particles[j]).getDistance()
+                if (distance < 100f) {
+                    drawLine(
+                        color = Color(0xFF00C8FF).copy(alpha = 0.1f),
+                        start = particles[i],
+                        end = particles[j],
+                        strokeWidth = 0.5f
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/components/ScanLine.kt =====
+package com.jarvismini.ui.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+
+@Composable
+fun ScanLine(progress: Float) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val y = size.height * progress
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color(0xFF00E0FF).copy(alpha = 0.05f),
+                    Color.Transparent
+                ),
+                startY = y - 50f,
+                endY = y + 50f
+            ),
+            topLeft = Offset(0f, y - 50f),
+            size = androidx.compose.ui.geometry.Size(size.width, 100f)
+        )
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.checklist.ChecklistItem
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
+
+enum class MainTab { Home, Checklist, Settings, Debug }
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+    var showBoot by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
+    }
+
+    // Load today's routines immediately
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+    }
+
+    // Update checklist when tab changes
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+        }
+    }
+
+    when (selectedTab) {
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToSettings = { selectedTab = MainTab.Settings },
+            onNavigateToDebug = { selectedTab = MainTab.Debug }
+        )
+        MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+    }
+}
+
+@Composable
+private fun ChecklistScreen(
+    blocks: List<ProgressBlock>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = LocalContext.current
+    val stats = ProgressStatsEngine.getTodayStats()
+
+    Column {
+        Text(
+            "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        if (blocks.isEmpty()) {
+            Text(
+                "No routines scheduled for today",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(blocks) { block ->
+                    ChecklistItem(
+                        block = block,
+                        onComplete = {
+                            ProgressEngine.markComplete(context, block.id)
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        },
+                        onInccomplete = {
+                            ProgressEngine.markIncomplete(context, block.id)
+                            AssistantTTS.speak(
+                                context,
+                                "Okay, I will remind you in 30 minutes."
+                            )
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/settings/SettingsScreen.kt =====
+package com.jarvismini.ui.settings
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+@Composable
+fun SettingsScreen(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black))
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color(0xFF00E0FF)
+                    )
+                }
+                Text(
+                    text = "SETTINGS",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 4.sp,
+                    color = Color(0xFF00E0FF)
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = "SYSTEM CONFIGURATION",
+                fontSize = 14.sp,
+                letterSpacing = 2.sp,
+                color = Color(0xFF00E0FF),
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    SettingsTile("Permissions", "All Granted", Icons.Default.CheckCircle)
+                }
+                item {
+                    SettingsTile("LLM Model", "GPT-4.1 Mini", Icons.Default.Psychology)
+                }
+                item {
+                    SettingsTile("Voice Engine", "ElevenLabs", Icons.Default.Mic)
+                }
+                item {
+                    SettingsTile("Vision Models", "Downloaded", Icons.Default.Visibility)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsTile(title: String, subtitle: String, icon: ImageVector) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(16.dp),
+        color = Color.Transparent
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF00E0FF)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00E0FF)
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/debug/DebugScreen.kt =====
+package com.jarvismini.ui.debug
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+data class LogEntry(val level: String, val message: String)
+
+@Composable
+fun DebugScreen(onBack: () -> Unit) {
+    val logs = listOf(
+        LogEntry("INFO", "JARVIS INITIALIZED"),
+        LogEntry("DEBUG", "Hotword engine started"),
+        LogEntry("INFO", "Voice recognition online"),
+        LogEntry("WARNING", "Camera permission pending")
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color(0xFF00E0FF)
+                    )
+                }
+                Text(
+                    text = "DEBUG CONSOLE",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 4.sp,
+                    color = Color(0xFF00E0FF)
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Stats header
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = Color.Black.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(16.dp),
+                color = Color.Transparent
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    StatItem("LOGS", "245")
+                    StatItem("CPU", "12%")
+                    StatItem("RAM", "234MB")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Logs
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(logs.size) { index ->
+                    val log = logs[index]
+                    Row {
+                        Text(
+                            text = "[${log.level}]",
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = when (log.level) {
+                                "ERROR" -> Color.Red
+                                "WARNING" -> Color(0xFFFFA500)
+                                else -> Color(0xFF00E0FF)
+                            }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = log.message,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatItem(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF00E0FF)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+        )
+    }
+}
