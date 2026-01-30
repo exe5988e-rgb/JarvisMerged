@@ -1,15 +1,11 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:51:13 No value passed for parameter 'onNavigateToChat'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:51:13 No value passed for parameter 'onNavigateToCalendar'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:90:25 Cannot find a parameter with this name: onInccomplete
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:90:25 No value passed for parameter 'routine'
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:90:25 No value passed for parameter 'onIncomplete'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:88:41 Unresolved reference: routine
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 9s
+BUILD FAILED in 1m 8s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -63,62 +59,64 @@ BUILD FAILED in 1m 9s
 47
 48	    when (selectedTab) {
 49	        MainTab.Home -> EnhancedHomeScreen(
-50	            onNavigateToSettings = { selectedTab = MainTab.Settings },
->>>>> ERROR HERE
-51	            onNavigateToDebug = { selectedTab = MainTab.Debug }
-52	        )
-53	        MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
-54	        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-55	        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-56	    }
-57	}
-58
-59	@Composable
-60	private fun ChecklistScreen(
-61	    blocks: List<ProgressBlock>,
-62	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-63	) {
-64	    val context = LocalContext.current
-65	    val stats = ProgressStatsEngine.getTodayStats()
-66
-67	    Column {
-68	        Text(
-69	            "Today's Checklist (${stats.completionPercent}%)",
-70	            style = MaterialTheme.typography.titleLarge
-71	        )
-72
-73	        Spacer(Modifier.height(12.dp))
+50	            onNavigateToChat = { /* TODO: Navigate to chat */ },
+51	            onNavigateToCalendar = { /* TODO: Navigate to calendar */ },
+52	            onNavigateToSettings = { selectedTab = MainTab.Settings },
+53	            onNavigateToDebug = { selectedTab = MainTab.Debug }
+54	        )
+55	        MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
+56	        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+57	        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+58	    }
+59	}
+60
+61	@Composable
+62	private fun ChecklistScreen(
+63	    blocks: List<ProgressBlock>,
+64	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+65	) {
+66	    val context = LocalContext.current
+67	    val stats = ProgressStatsEngine.getTodayStats()
+68
+69	    Column {
+70	        Text(
+71	            "Today's Checklist (${stats.completionPercent}%)",
+72	            style = MaterialTheme.typography.titleLarge
+73	        )
 74
-75	        if (blocks.isEmpty()) {
-76	            Text(
-77	                "No routines scheduled for today",
-78	                style = MaterialTheme.typography.bodyMedium,
-79	                color = MaterialTheme.colorScheme.onSurfaceVariant
-80	            )
-81	        } else {
-82	            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-83	                items(blocks) { block ->
-84	                    ChecklistItem(
-85	                        block = block,
-86	                        onComplete = {
-87	                            ProgressEngine.markComplete(context, block.id)
-88	                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-89	                        },
+75	        Spacer(Modifier.height(12.dp))
+76
+77	        if (blocks.isEmpty()) {
+78	            Text(
+79	                "No routines scheduled for today",
+80	                style = MaterialTheme.typography.bodyMedium,
+81	                color = MaterialTheme.colorScheme.onSurfaceVariant
+82	            )
+83	        } else {
+84	            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+85	                items(blocks) { block ->
+86	                    ChecklistItem(
+87	                        block = block,
 >>>>> ERROR HERE
-90	                        onInccomplete = {
-91	                            ProgressEngine.markIncomplete(context, block.id)
-92	                            AssistantTTS.speak(
-93	                                context,
-94	                                "Okay, I will remind you in 30 minutes."
-95	                            )
-96	                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-97	                        }
-98	                    )
-99	                }
-100	            }
-101	        }
-102	    }
-103	}
+88	                        routine = block.routine,
+89	                        onComplete = {
+90	                            ProgressEngine.markComplete(context, block.id)
+91	                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+92	                        },
+93	                        onIncomplete = {
+94	                            ProgressEngine.markIncomplete(context, block.id)
+95	                            AssistantTTS.speak(
+96	                                context,
+97	                                "Okay, I will remind you in 30 minutes."
+98	                            )
+99	                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+100	                        }
+101	                    )
+102	                }
+103	            }
+104	        }
+105	    }
+106	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
