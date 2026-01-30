@@ -3,24 +3,21 @@ package com.jarvismini.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.routine.model.Routine
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
+    routine: Routine,
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
-    val displayName = block.id
-        .replace("_", " ")
-        .replaceFirstChar { it.uppercase() }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -40,7 +37,7 @@ fun ChecklistItem(
         ) {
 
             Text(
-                text = displayName,
+                text = routine.name,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -55,43 +52,32 @@ fun ChecklistItem(
             block.completedAt?.let {
                 Text(
                     text = "Completed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
 
-            block.missedAt?.let {
-                Text(
-                    text = "Missed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (!block.completed) {
-                    TextButton(onClick = onComplete) { Text("Done") }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onIncomplete) { Text("Missed") }
-                } else {
-                    Text(
-                        text = "✅ Completed",
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                Button(
+                    onClick = onComplete,
+                    enabled = !block.completed
+                ) {
+                    Text("Done")
+                }
+
+                OutlinedButton(
+                    onClick = onIncomplete
+                ) {
+                    Text("Later")
                 }
             }
         }
     }
 }
 
-private fun formatTime(timestampMs: Long): String {
-    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-    return formatter.format(Date(timestampMs))
+private fun formatTime(ms: Long): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
 }

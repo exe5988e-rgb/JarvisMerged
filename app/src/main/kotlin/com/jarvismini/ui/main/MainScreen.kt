@@ -10,10 +10,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.boot.BootScreen
 import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.checklist.ChecklistItem
+import com.jarvismini.ui.ChecklistItem
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
 
@@ -25,34 +26,42 @@ fun MainScreen() {
     var showBoot by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
     if (showBoot) {
         BootScreen(onBootComplete = { showBoot = false })
         return
     }
 
-    // Load today's routines immediately
+    // Load today's routines + progress blocks
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
     }
 
-    // Update checklist when tab changes
+    // Refresh when checklist tab opens
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
             blocks = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
         }
     }
 
     when (selectedTab) {
         MainTab.Home -> EnhancedHomeScreen(
-            onNavigateToChat = { /* TODO: Navigate to chat */ },
-            onNavigateToCalendar = { /* TODO: Navigate to calendar */ },
+            onNavigateToChat = { /* TODO */ },
+            onNavigateToCalendar = { /* TODO */ },
             onNavigateToSettings = { selectedTab = MainTab.Settings },
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
-        MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
+
+        MainTab.Checklist -> ChecklistScreen(
+            blocks = blocks,
+            routines = routines
+        ) { blocks = it }
+
         MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
     }
@@ -61,12 +70,14 @@ fun MainScreen() {
 @Composable
 private fun ChecklistScreen(
     blocks: List<ProgressBlock>,
+    routines: List<com.jarvismini.core.routine.model.Routine>,
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats()
 
-    Column {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+
         Text(
             "Today's Checklist (${stats.completionPercent}%)",
             style = MaterialTheme.typography.titleLarge
@@ -83,22 +94,28 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    ChecklistItem(
-                        block = block,
-                        routine = block.routine,
-                        onComplete = {
-                            ProgressEngine.markComplete(context, block.id)
-                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                        },
-                        onIncomplete = {
-                            ProgressEngine.markIncomplete(context, block.id)
-                            AssistantTTS.speak(
-                                context,
-                                "Okay, I will remind you in 30 minutes."
-                            )
-                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                        }
-                    )
+
+                    // ✅ OG mapping logic (ProgressBlock -> Routine)
+                    val routine = routines.find { it.id == block.id }
+
+                    if (routine != null) {
+                        ChecklistItem(
+                            block = block,
+                            routine = routine,
+                            onComplete = {
+                                ProgressEngine.markComplete(context, block.id)
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            },
+                            onIncomplete = {
+                                ProgressEngine.markIncomplete(context, block.id)
+                                AssistantTTS.speak(
+                                    context,
+                                    "Okay, I will remind you in 30 minutes."
+                                )
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            }
+                        )
+                    }
                 }
             }
         }
