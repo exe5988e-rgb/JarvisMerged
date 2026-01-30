@@ -1,21 +1,31 @@
 package com.jarvismini.ui.checklist
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.routine.model.Routine
 import java.text.SimpleDateFormat
 import java.util.*
 
+val JarvisBlue = Color(0xFF00E0FF)
+val JarvisGreen = Color(0xFF00FF00)
+val JarvisRed = Color(0xFFFF4444)
+
 @Composable
 fun ChecklistItem(
     block: ProgressBlock,
-    routine: Routine,  // ✅ Routine added
+    routine: Routine,
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
@@ -23,28 +33,40 @@ fun ChecklistItem(
         .replace("_", " ")
         .replaceFirstChar { it.uppercaseChar() }
 
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                block.completed -> MaterialTheme.colorScheme.primaryContainer
-                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.surfaceVariant
-            }
-        )
+            .padding(vertical = 6.dp)
+            .background(
+                color = when {
+                    block.completed -> JarvisBlue.copy(alpha = 0.1f)
+                    block.missedAt != null -> JarvisRed.copy(alpha = 0.1f)
+                    else -> Color.Black.copy(alpha = 0.5f)
+                },
+                shape = RoundedCornerShape(8.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = when {
+                    block.completed -> JarvisBlue.copy(alpha = 0.6f)
+                    block.missedAt != null -> JarvisRed.copy(alpha = 0.6f)
+                    else -> JarvisBlue.copy(alpha = 0.3f)
+                },
+                shape = RoundedCornerShape(8.dp)
+            ),
+        color = Color.Transparent
     ) {
         Column(
             modifier = Modifier
-                .padding(12.dp)
+                .padding(16.dp)
                 .fillMaxWidth()
         ) {
             // Routine name
             Text(
                 text = displayName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = JarvisBlue
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -61,7 +83,9 @@ fun ChecklistItem(
                     }
                     Text(
                         text = "• $displayText",
-                        style = MaterialTheme.typography.bodySmall
+                        fontSize = 12.sp,
+                        color = JarvisBlue.copy(alpha = 0.7f),
+                        fontFamily = FontFamily.Monospace
                     )
                 }
             }
@@ -71,8 +95,9 @@ fun ChecklistItem(
             // Scheduled time
             Text(
                 text = "Scheduled: ${formatTime(block.scheduledAt)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 11.sp,
+                color = JarvisBlue.copy(alpha = 0.6f),
+                fontFamily = FontFamily.Monospace
             )
 
             // Completed or Missed time
@@ -80,20 +105,22 @@ fun ChecklistItem(
                 if (block.completed) {
                     Text(
                         text = "Completed: ${formatTime(it)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        fontSize = 11.sp,
+                        color = JarvisGreen.copy(alpha = 0.8f),
+                        fontFamily = FontFamily.Monospace
                     )
                 }
             }
             block.missedAt?.let {
                 Text(
                     text = "Missed: ${formatTime(it)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
+                    fontSize = 11.sp,
+                    color = JarvisRed,
+                    fontFamily = FontFamily.Monospace
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Action buttons
             Row(
@@ -102,19 +129,38 @@ fun ChecklistItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!block.completed) {
-                    TextButton(onClick = onComplete) {
-                        Text("Done")
+                    TextButton(
+                        onClick = onComplete,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = JarvisGreen
+                        )
+                    ) {
+                        Text(
+                            "DONE",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onIncomplete) {
-                        Text("Missed")
+                    TextButton(
+                        onClick = onIncomplete,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = JarvisRed
+                        )
+                    ) {
+                        Text(
+                            "MISSED",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        )
                     }
                 } else {
                     Text(
-                        text = "✅ Completed",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
+                        text = "✅ COMPLETED",
+                        fontSize = 12.sp,
+                        color = JarvisGreen,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
                     )
                 }
             }

@@ -47,6 +47,8 @@ fun MainScreen() {
 
     when (selectedTab) {
         MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToChat = { /* TODO: Navigate to chat */ },
+            onNavigateToCalendar = { /* TODO: Navigate to calendar */ },
             onNavigateToSettings = { selectedTab = MainTab.Settings },
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
@@ -83,11 +85,12 @@ private fun ChecklistScreen(
                 items(blocks) { block ->
                     ChecklistItem(
                         block = block,
+                        routine = block.routine,
                         onComplete = {
                             ProgressEngine.markComplete(context, block.id)
                             onBlocksUpdated(ProgressRepository.getTodayBlocks())
                         },
-                        onInccomplete = {
+                        onIncomplete = {
                             ProgressEngine.markIncomplete(context, block.id)
                             AssistantTTS.speak(
                                 context,
