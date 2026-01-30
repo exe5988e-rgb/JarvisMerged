@@ -10,67 +10,55 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
-import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
 import com.jarvismini.ui.checklist.ChecklistItem
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
 
-enum class MainTab { Chat, Checklist }
+enum class MainTab { Home, Checklist, Settings, Debug }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
-    var selectedTab by remember { mutableStateOf(MainTab.Chat) }
+    var showBoot by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
-    // Load today's routines and blocks immediately
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
+    }
+
+    // Load today's routines immediately
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
-        routines = RoutineProvider.getAllRoutines(context)
     }
 
-    // Reload checklist when tab changes
+    // Update checklist when tab changes
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
             blocks = ProgressRepository.getTodayBlocks()
-            routines = RoutineProvider.getAllRoutines(context)
         }
     }
 
-    Scaffold(
-        topBar = {
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                MainTab.values().forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.name) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(12.dp)
-        ) {
-            when (selectedTab) {
-                MainTab.Chat -> JarvisChatScreen()
-                MainTab.Checklist -> ChecklistScreen(blocks, routines) { blocks = it }
-            }
-        }
+    when (selectedTab) {
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToSettings = { selectedTab = MainTab.Settings },
+            onNavigateToDebug = { selectedTab = MainTab.Debug }
+        )
+        MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 
 @Composable
 private fun ChecklistScreen(
     blocks: List<ProgressBlock>,
-    routines: List<com.jarvismini.core.routine.model.Routine>,
     onBlocksUpdated: (List<ProgressBlock>) -> Unit
 ) {
     val context = LocalContext.current
@@ -93,23 +81,21 @@ private fun ChecklistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(blocks) { block ->
-                    // map block -> routine
-                    val routine = routines.find { it.id == block.id }
-                    if (routine != null) {
-                        ChecklistItem(
-                            block = block,
-                            routine = routine,
-                            onComplete = {
-                                ProgressRepository.markComplete(context, block.id)
-                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                            },
-                            onIncomplete = {
-                                ProgressRepository.markIncomplete(context, block.id)
-                                AssistantTTS.speak(context, "Okay, I will remind you in 30 minutes.")
-                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                            }
-                        )
-                    }
+                    ChecklistItem(
+                        block = block,
+                        onComplete = {
+                            ProgressEngine.markComplete(context, block.id)
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        },
+                        onInccomplete = {
+                            ProgressEngine.markIncomplete(context, block.id)
+                            AssistantTTS.speak(
+                                context,
+                                "Okay, I will remind you in 30 minutes."
+                            )
+                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                        }
+                    )
                 }
             }
         }
