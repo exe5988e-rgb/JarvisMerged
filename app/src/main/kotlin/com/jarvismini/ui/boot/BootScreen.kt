@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.jarvismini.ui.components.GridBackground
 import kotlinx.coroutines.delay
 import kotlin.math.PI
+import kotlin.math.max
 
 data class BootStep(
     val progress: Float,
@@ -74,14 +76,12 @@ fun BootScreen(onBootComplete: () -> Unit) {
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        // Grid background
         GridBackground()
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Animated circle
             BootCircle(
                 progress = bootProgress,
                 rotation = rotation,
@@ -109,7 +109,6 @@ fun BootScreen(onBootComplete: () -> Unit) {
 
             Spacer(Modifier.height(40.dp))
 
-            // Progress bar
             BootProgressBar(progress = bootProgress)
 
             Spacer(Modifier.height(12.dp))
@@ -140,8 +139,13 @@ fun BootCircle(
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
+
+        // 🛡 SAFETY GUARD — prevents crash at progress = 0
+        if (progress <= 0f) return@Canvas
+
+        val safeProgress = max(progress, 0.01f)   // never 0
         val center = Offset(size.width / 2f, size.height / 2f)
-        val radius = (size.width / 2f) * progress
+        val radius = (size.width / 2f) * safeProgress
 
         // Glowing center
         drawCircle(
@@ -160,15 +164,19 @@ fun BootCircle(
 
         // Rotating segments
         for (i in 0 until 8) {
-            val angle = (i / 8f) * 2 * PI.toFloat() + rotation * PI.toFloat() / 180f
+            val angle = (i / 8f) * 2f * PI.toFloat() + rotation * PI.toFloat() / 180f
+
             drawArc(
-                color = JarvisBlue.copy(alpha = 0.8f * progress),
+                color = JarvisBlue.copy(alpha = 0.8f * safeProgress),
                 startAngle = angle * 180f / PI.toFloat(),
                 sweepAngle = 15f,
                 useCenter = false,
                 style = Stroke(width = 3f),
-                topLeft = Offset(center.x - radius * 0.7f, center.y - radius * 0.7f),
-                size = androidx.compose.ui.geometry.Size(radius * 1.4f, radius * 1.4f)
+                topLeft = Offset(
+                    center.x - radius * 0.7f,
+                    center.y - radius * 0.7f
+                ),
+                size = Size(radius * 1.4f, radius * 1.4f)
             )
         }
     }
@@ -176,6 +184,8 @@ fun BootCircle(
 
 @Composable
 fun BootProgressBar(progress: Float) {
+    val safeProgress = progress.coerceIn(0f, 1f)
+
     Box(
         modifier = Modifier
             .width(400.dp)
@@ -193,7 +203,7 @@ fun BootProgressBar(progress: Float) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .fillMaxWidth(progress)
+                .fillMaxWidth(safeProgress)
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(JarvisBlue, Color(0xFF0080FF), JarvisBlue)
