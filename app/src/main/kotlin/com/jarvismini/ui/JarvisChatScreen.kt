@@ -41,11 +41,13 @@ fun JarvisChatScreen(
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
+    // ================= INIT =================
     LaunchedEffect(Unit) {
         JarvisState.init(context)
         EngineProvider.init(context)
     }
 
+    // ================= PERMISSIONS =================
     LaunchedEffect(Unit) {
         if (activity == null) return@LaunchedEffect
         val perms = mutableListOf<String>()
@@ -56,12 +58,14 @@ fun JarvisChatScreen(
         if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
     }
 
+    // ================= STATE =================
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
     var expanded by remember { mutableStateOf(false) }
     val modes = JarvisMode.values().toList()
 
+    // ================= UI =================
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -73,7 +77,7 @@ fun JarvisChatScreen(
     ) {
         GridBackground()
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
 
             // ===== HEADER =====
             TopAppBar(
@@ -94,127 +98,131 @@ fun JarvisChatScreen(
                 )
             )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ===== MODE SELECTOR =====
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
             ) {
-
-                // ===== MODE SELECTOR =====
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    TextField(
-                        value = currentMode.name,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Select Mode", color = JarvisBlue) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        colors = TextFieldDefaults.textFieldColors(
-                            containerColor = Color.Transparent,
-                            focusedTextColor = JarvisBlue,
-                            unfocusedTextColor = JarvisBlue,
-                            cursorColor = JarvisBlue,
-                            focusedIndicatorColor = JarvisBlue,
-                            unfocusedIndicatorColor = JarvisBlue
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        modes.forEach { mode ->
-                            DropdownMenuItem(
-                                text = { Text(mode.name, color = JarvisBlue) },
-                                onClick = {
-                                    JarvisState.setMode(context, mode)
-                                    currentMode = mode
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        WorkModeManager.toggle(context)
-                        currentMode = JarvisState.currentMode
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue)
-                ) {
-                    Text("Toggle Work Mode", color = Color.Black)
-                }
-
-                Divider(color = JarvisBlue.copy(alpha = 0.3f))
-
-                // ===== CHAT LOG =====
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    reverseLayout = true
-                ) {
-                    items(messages.reversed()) { msg ->
-                        Text(
-                            text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
-                            color = JarvisBlue,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(6.dp)
-                        )
-                    }
-                }
-
-                // ===== INPUT BAR =====
-                Row(
+                TextField(
+                    value = currentMode.name,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Select Mode", color = JarvisBlue) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = TextFieldDefaults.textFieldColors(
+                        containerColor = Color.Transparent,
+                        focusedTextColor = JarvisBlue,
+                        unfocusedTextColor = JarvisBlue,
+                        cursorColor = JarvisBlue,
+                        focusedIndicatorColor = JarvisBlue,
+                        unfocusedIndicatorColor = JarvisBlue
+                    ),
                     modifier = Modifier
+                        .menuAnchor()
                         .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            JarvisBlue.copy(alpha = 0.4f),
-                            RoundedCornerShape(10.dp)
-                        )
-                        .padding(6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
                 ) {
-                    TextField(
-                        value = input,
-                        onValueChange = { input = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Command input…", fontFamily = FontFamily.Monospace, color = JarvisBlue.copy(alpha = 0.5f)) },
-                        colors = TextFieldDefaults.textFieldColors(
-                            containerColor = Color.Transparent,
-                            focusedTextColor = JarvisBlue,
-                            unfocusedTextColor = JarvisBlue,
-                            cursorColor = JarvisBlue,
-                            focusedIndicatorColor = JarvisBlue,
-                            unfocusedIndicatorColor = JarvisBlue
-                        )
-                    )
-
-                    IconButton(onClick = {
-                        val userText = input.trim()
-                        if (userText.isEmpty()) return@IconButton
-
-                        input = ""
-                        messages.add(ChatMessage(userText, true))
-                        messages.add(ChatMessage("Processing…", false))
-
-                        scope.launch {
-                            val result = EngineProvider.commandEngine.handle(userText)
-                            val reply = when (result) {
-                                is EngineResult.Success -> result.reply
-                                else -> EngineProvider.llmEngine.generateReply(userText)
+                    modes.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.name, color = JarvisBlue) },
+                            onClick = {
+                                JarvisState.setMode(context, mode)
+                                currentMode = mode
+                                expanded = false
                             }
-                            messages.removeLast()
-                            messages.add(ChatMessage(reply, false))
-                        }
-                    }) {
-                        Icon(Icons.Default.Send, "Send", tint = JarvisBlue)
+                        )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    WorkModeManager.toggle(context)
+                    currentMode = JarvisState.currentMode
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Toggle Work Mode", color = Color.Black)
+            }
+
+            Divider(color = JarvisBlue.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
+
+            // ===== CHAT LOG =====
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                reverseLayout = true
+            ) {
+                items(messages.reversed()) { msg ->
+                    Text(
+                        text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(6.dp)
+                    )
+                }
+            }
+
+            // ===== INPUT BAR =====
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        JarvisBlue.copy(alpha = 0.4f),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                TextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = {
+                        Text(
+                            "Command input…",
+                            fontFamily = FontFamily.Monospace,
+                            color = JarvisBlue.copy(alpha = 0.7f)
+                        )
+                    },
+                    colors = TextFieldDefaults.textFieldColors(
+                        containerColor = Color.Transparent,
+                        focusedTextColor = JarvisBlue,
+                        unfocusedTextColor = JarvisBlue,
+                        cursorColor = JarvisBlue,
+                        focusedIndicatorColor = JarvisBlue,
+                        unfocusedIndicatorColor = JarvisBlue
+                    )
+                )
+
+                IconButton(onClick = {
+                    val userText = input.trim()
+                    if (userText.isEmpty()) return@IconButton
+
+                    input = ""
+                    messages.add(ChatMessage(userText, true))
+                    messages.add(ChatMessage("Processing…", false))
+
+                    scope.launch {
+                        val result = EngineProvider.commandEngine.handle(userText)
+                        val reply = when (result) {
+                            is EngineResult.Success -> result.reply
+                            else -> EngineProvider.llmEngine.generateReply(userText)
+                        }
+                        messages.removeLast()
+                        messages.add(ChatMessage(reply, false))
+                    }
+                }) {
+                    Icon(Icons.Default.Send, "Send", tint = JarvisBlue)
                 }
             }
         }
