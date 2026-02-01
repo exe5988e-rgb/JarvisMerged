@@ -1,11 +1,14 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:88:41 Unresolved reference: routine
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:17:31 Unresolved reference: JarvisChatScreen
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:72:25 Unresolved reference: JarvisChatScreen
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:77:13 Cannot find a parameter with this name: onBack
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:77:13 No value passed for parameter 'viewModel'
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 8s
+BUILD FAILED in 1m 5s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -22,101 +25,150 @@ BUILD FAILED in 1m 8s
 10	import androidx.compose.ui.unit.dp
 11	import com.jarvismini.ProgressInitializer
 12	import com.jarvismini.core.progress.*
-13	import com.jarvismini.core.tts.AssistantTTS
-14	import com.jarvismini.ui.boot.BootScreen
-15	import com.jarvismini.ui.home.EnhancedHomeScreen
-16	import com.jarvismini.ui.checklist.ChecklistItem
-17	import com.jarvismini.ui.settings.SettingsScreen
-18	import com.jarvismini.ui.debug.DebugScreen
-19
-20	enum class MainTab { Home, Checklist, Settings, Debug }
-21
-22	@Composable
-23	fun MainScreen() {
-24	    val context = LocalContext.current
-25	    var showBoot by remember { mutableStateOf(true) }
-26	    var selectedTab by remember { mutableStateOf(MainTab.Home) }
-27	    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-28
-29	    if (showBoot) {
-30	        BootScreen(onBootComplete = { showBoot = false })
-31	        return
-32	    }
-33
-34	    // Load today's routines immediately
-35	    LaunchedEffect(Unit) {
-36	        ProgressInitializer.registerAllBlocks(context)
-37	        blocks = ProgressRepository.getTodayBlocks()
-38	    }
-39
-40	    // Update checklist when tab changes
-41	    LaunchedEffect(selectedTab) {
-42	        if (selectedTab == MainTab.Checklist) {
-43	            ProgressInitializer.registerAllBlocks(context)
-44	            blocks = ProgressRepository.getTodayBlocks()
-45	        }
-46	    }
-47
-48	    when (selectedTab) {
-49	        MainTab.Home -> EnhancedHomeScreen(
-50	            onNavigateToChat = { /* TODO: Navigate to chat */ },
-51	            onNavigateToCalendar = { /* TODO: Navigate to calendar */ },
-52	            onNavigateToSettings = { selectedTab = MainTab.Settings },
-53	            onNavigateToDebug = { selectedTab = MainTab.Debug }
-54	        )
-55	        MainTab.Checklist -> ChecklistScreen(blocks) { blocks = it }
-56	        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-57	        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-58	    }
-59	}
-60
-61	@Composable
-62	private fun ChecklistScreen(
-63	    blocks: List<ProgressBlock>,
-64	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-65	) {
-66	    val context = LocalContext.current
-67	    val stats = ProgressStatsEngine.getTodayStats()
-68
-69	    Column {
-70	        Text(
-71	            "Today's Checklist (${stats.completionPercent}%)",
-72	            style = MaterialTheme.typography.titleLarge
-73	        )
-74
-75	        Spacer(Modifier.height(12.dp))
-76
-77	        if (blocks.isEmpty()) {
-78	            Text(
-79	                "No routines scheduled for today",
-80	                style = MaterialTheme.typography.bodyMedium,
-81	                color = MaterialTheme.colorScheme.onSurfaceVariant
-82	            )
-83	        } else {
-84	            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-85	                items(blocks) { block ->
-86	                    ChecklistItem(
-87	                        block = block,
+13	import com.jarvismini.core.routine.RoutineProvider
+14	import com.jarvismini.core.tts.AssistantTTS
+15	import com.jarvismini.ui.boot.BootScreen
+16	import com.jarvismini.ui.home.EnhancedHomeScreen
 >>>>> ERROR HERE
-88	                        routine = block.routine,
-89	                        onComplete = {
-90	                            ProgressEngine.markComplete(context, block.id)
-91	                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-92	                        },
-93	                        onIncomplete = {
-94	                            ProgressEngine.markIncomplete(context, block.id)
-95	                            AssistantTTS.speak(
-96	                                context,
-97	                                "Okay, I will remind you in 30 minutes."
-98	                            )
-99	                            onBlocksUpdated(ProgressRepository.getTodayBlocks())
-100	                        }
-101	                    )
-102	                }
-103	            }
-104	        }
-105	    }
-106	}
+17	import com.jarvismini.ui.chat.JarvisChatScreen
+18	import com.jarvismini.ui.calendar.DayCalendarScreen
+19	import com.jarvismini.ui.settings.SettingsScreen
+20	import com.jarvismini.ui.debug.DebugScreen
+21	import com.jarvismini.ui.ChecklistItem
+22
+23	enum class MainTab {
+24	    Home,
+25	    Chat,
+26	    Calendar,
+27	    Checklist,
+28	    Settings,
+29	    Debug
+30	}
+31
+32	@Composable
+33	fun MainScreen() {
+34	    val context = LocalContext.current
+35
+36	    var showBoot by remember { mutableStateOf(true) }
+37	    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+38
+39	    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+40	    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+41
+42	    if (showBoot) {
+43	        BootScreen(onBootComplete = { showBoot = false })
+44	        return
+45	    }
+46
+47	    // Initial load
+48	    LaunchedEffect(Unit) {
+49	        ProgressInitializer.registerAllBlocks(context)
+50	        blocks = ProgressRepository.getTodayBlocks()
+51	        routines = RoutineProvider.getAllRoutines(context)
+52	    }
+53
+54	    // Refresh checklist when opened
+55	    LaunchedEffect(selectedTab) {
+56	        if (selectedTab == MainTab.Checklist) {
+57	            ProgressInitializer.registerAllBlocks(context)
+58	            blocks = ProgressRepository.getTodayBlocks()
+59	            routines = RoutineProvider.getAllRoutines(context)
+60	        }
+61	    }
+62
+63	    when (selectedTab) {
+64
+65	        MainTab.Home -> EnhancedHomeScreen(
+66	            onNavigateToChat = { selectedTab = MainTab.Chat },
+67	            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+68	            onNavigateToSettings = { selectedTab = MainTab.Settings },
+69	            onNavigateToDebug = { selectedTab = MainTab.Debug }
+70	        )
+71
+>>>>> ERROR HERE
+72	        MainTab.Chat -> JarvisChatScreen(
+73	            onBack = { selectedTab = MainTab.Home }
+74	        )
+75
+76	        MainTab.Calendar -> DayCalendarScreen(
+>>>>> ERROR HERE
+77	            onBack = { selectedTab = MainTab.Home }
+78	        )
+79
+80	        MainTab.Checklist -> ChecklistScreen(
+81	            blocks = blocks,
+82	            routines = routines,
+83	            onBlocksUpdated = { blocks = it }
+84	        )
+85
+86	        MainTab.Settings -> SettingsScreen(
+87	            onBack = { selectedTab = MainTab.Home }
+88	        )
+89
+90	        MainTab.Debug -> DebugScreen(
+91	            onBack = { selectedTab = MainTab.Home }
+92	        )
+93	    }
+94	}
+95
+96	@Composable
+97	private fun ChecklistScreen(
+98	    blocks: List<ProgressBlock>,
+99	    routines: List<com.jarvismini.core.routine.model.Routine>,
+100	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+101	) {
+102	    val context = LocalContext.current
+103	    val stats = ProgressStatsEngine.getTodayStats()
+104
+105	    Column(
+106	        modifier = Modifier
+107	            .fillMaxSize()
+108	            .padding(16.dp)
+109	    ) {
+110
+111	        Text(
+112	            "Today's Checklist (${stats.completionPercent}%)",
+113	            style = MaterialTheme.typography.titleLarge
+114	        )
+115
+116	        Spacer(Modifier.height(12.dp))
+117
+118	        if (blocks.isEmpty()) {
+119	            Text(
+120	                "No routines scheduled for today",
+121	                style = MaterialTheme.typography.bodyMedium,
+122	                color = MaterialTheme.colorScheme.onSurfaceVariant
+123	            )
+124	        } else {
+125	            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+126	                items(blocks) { block ->
+127
+128	                    // ProgressBlock -> Routine mapping
+129	                    val routine = routines.find { it.id == block.id }
+130
+131	                    if (routine != null) {
+132	                        ChecklistItem(
+133	                            block = block,
+134	                            routine = routine,
+135	                            onComplete = {
+136	                                ProgressEngine.markComplete(context, block.id)
+137	                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+138	                            },
+139	                            onIncomplete = {
+140	                                ProgressEngine.markIncomplete(context, block.id)
+141	                                AssistantTTS.speak(
+142	                                    context,
+143	                                    "Okay, I will remind you in 30 minutes."
+144	                                )
+145	                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+146	                            }
+147	                        )
+148	                    }
+149	                }
+150	            }
+151	        }
+152	    }
+153	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
