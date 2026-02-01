@@ -2519,6 +2519,7 @@ import com.jarvismini.ui.components.*
 fun EnhancedHomeScreen(
     onNavigateToChat: () -> Unit,
     onNavigateToCalendar: () -> Unit,
+    onNavigateToChecklist: () -> Unit, // ✅ ADDED
     onNavigateToSettings: () -> Unit,
     onNavigateToDebug: () -> Unit
 ) {
@@ -2544,7 +2545,6 @@ fun EnhancedHomeScreen(
                 )
             )
     ) {
-        // Background effects
         GridBackground()
         ParticleField()
         ScanLine()
@@ -2555,7 +2555,8 @@ fun EnhancedHomeScreen(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header
+
+            // ===== HEADER =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2571,63 +2572,42 @@ fun EnhancedHomeScreen(
 
                 Row {
                     IconButton(onClick = onNavigateToDebug) {
-                        Icon(
-                            imageVector = Icons.Default.BugReport,
-                            contentDescription = "Debug",
-                            tint = Color(0xFF00E0FF)
-                        )
+                        Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = Color(0xFF00E0FF)
-                        )
+                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF00E0FF))
                     }
                 }
             }
 
             Spacer(Modifier.height(40.dp))
 
-            // Central AI circle
+            // ===== CORE =====
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(200.dp)
                     .clickable { isListening = !isListening }
             ) {
-                // Outer pulse ring
                 Box(
                     modifier = Modifier
                         .size(200.dp)
                         .alpha(if (isListening) pulseAlpha else 0.3f)
-                        .background(
-                            color = Color(0xFF00E0FF).copy(alpha = 0.1f),
-                            shape = CircleShape
-                        )
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
                         .border(
-                            width = 2.dp,
-                            color = Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
-                            shape = CircleShape
+                            2.dp,
+                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
+                            CircleShape
                         )
                 )
 
-                // Middle ring
                 Box(
                     modifier = Modifier
                         .size(150.dp)
-                        .background(
-                            color = Color(0xFF00E0FF).copy(alpha = 0.05f),
-                            shape = CircleShape
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                            shape = CircleShape
-                        )
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
+                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
                 )
 
-                // Inner core
                 Box(
                     modifier = Modifier
                         .size(100.dp)
@@ -2638,7 +2618,7 @@ fun EnhancedHomeScreen(
                         )
                         .background(
                             brush = Brush.radialGradient(
-                                colors = listOf(
+                                listOf(
                                     Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
                                     Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
                                     Color.Transparent
@@ -2651,9 +2631,7 @@ fun EnhancedHomeScreen(
                         imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
                         contentDescription = "Voice",
                         tint = Color(0xFF00E0FF),
-                        modifier = Modifier
-                            .size(40.dp)
-                            .align(Alignment.Center)
+                        modifier = Modifier.size(40.dp).align(Alignment.Center)
                     )
                 }
             }
@@ -2669,7 +2647,7 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(40.dp))
 
-            // Quick actions
+            // ===== QUICK ACCESS =====
             Text(
                 text = "QUICK ACCESS",
                 fontSize = 12.sp,
@@ -2680,27 +2658,16 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                item {
-                    QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat)
-                }
-                item {
-                    QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar)
-                }
-                item {
-                    QuickActionCard("Tasks", Icons.Default.Checklist) {}
-                }
-                item {
-                    QuickActionCard("Notes", Icons.Default.Note) {}
-                }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat) }
+                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
+                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ FIX
+                item { QuickActionCard("Notes", Icons.Default.Note) {} }
             }
 
             Spacer(Modifier.height(40.dp))
 
-            // Status cards
+            // ===== STATUS =====
             Text(
                 text = "SYSTEM STATUS",
                 fontSize = 12.sp,
@@ -2711,114 +2678,11 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                item {
-                    StatusCard("Neural Networks", "Online", true)
-                }
-                item {
-                    StatusCard("Voice Recognition", "Active", true)
-                }
-                item {
-                    StatusCard("Automation Engine", "Standby", false)
-                }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { StatusCard("Neural Networks", "Online", true) }
+                item { StatusCard("Voice Recognition", "Active", true) }
+                item { StatusCard("Automation Engine", "Standby", false) }
             }
-        }
-    }
-}
-
-@Composable
-fun QuickActionCard(title: String, icon: ImageVector, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .size(100.dp)
-            .clickable(onClick = onClick)
-            .background(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(12.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                shape = RoundedCornerShape(12.dp)
-            ),
-        color = Color.Transparent
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = Color(0xFF00E0FF),
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = title,
-                fontSize = 12.sp,
-                color = Color(0xFF00E0FF),
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-}
-
-@Composable
-fun StatusCard(title: String, status: String, isOnline: Boolean) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(16.dp),
-        color = Color.Transparent
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF00E0FF)
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = status,
-                    fontSize = 12.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(
-                        color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
-                        shape = CircleShape
-                    )
-                    .shadow(
-                        elevation = 8.dp,
-                        shape = CircleShape,
-                        spotColor = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00)
-                    )
-            )
         }
     }
 }
@@ -2860,20 +2724,17 @@ fun MainScreen() {
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
-    // ================= BOOT =================
     if (showBoot) {
         BootScreen(onBootComplete = { showBoot = false })
         return
     }
 
-    // ================= INIT LOAD =================
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
     }
 
-    // ================= REFRESH CHECKLIST =================
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
@@ -2882,29 +2743,23 @@ fun MainScreen() {
         }
     }
 
-    // ================= ROUTER =================
     when (selectedTab) {
 
-        // ---------- HOME ----------
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist }, // ✅ FIX
             onNavigateToSettings = { selectedTab = MainTab.Settings },
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
 
-        // ---------- CHAT ----------
-        MainTab.Chat -> JarvisChatScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
 
-        // ---------- CALENDAR ----------
         MainTab.Calendar -> {
             val vm = remember { CalendarViewModel(context) }
             DayCalendarScreen(viewModel = vm)
         }
 
-        // ---------- CHECKLIST ----------
         MainTab.Checklist -> JarvisChecklistScreen(
             blocks = blocks,
             routines = routines,
@@ -2912,15 +2767,9 @@ fun MainScreen() {
             onBack = { selectedTab = MainTab.Home }
         )
 
-        // ---------- SETTINGS ----------
-        MainTab.Settings -> SettingsScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
 
-        // ---------- DEBUG ----------
-        MainTab.Debug -> DebugScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 
