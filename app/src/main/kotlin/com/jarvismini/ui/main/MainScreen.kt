@@ -1,25 +1,18 @@
 package com.jarvismini.ui.main
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
-import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.boot.BootScreen
 import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.chat.JarvisChatScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
-import com.jarvismini.ui.ChecklistItem
 
 enum class MainTab {
     Home,
@@ -40,19 +33,20 @@ fun MainScreen() {
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
+    // ================= BOOT =================
     if (showBoot) {
         BootScreen(onBootComplete = { showBoot = false })
         return
     }
 
-    // Initial load
+    // ================= INITIAL LOAD =================
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
     }
 
-    // Refresh checklist when opened
+    // ================= REFRESH CHECKLIST =================
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
@@ -61,9 +55,10 @@ fun MainScreen() {
         }
     }
 
+    // ================= ROUTER =================
     when (selectedTab) {
 
-        // ================= HOME =================
+        // -------- HOME --------
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
@@ -71,91 +66,34 @@ fun MainScreen() {
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
 
-        // ================= CHAT =================
+        // -------- CHAT --------
         MainTab.Chat -> {
             JarvisChatScreen()
         }
 
-        // ================= CALENDAR =================
+        // -------- CALENDAR --------
         MainTab.Calendar -> {
             val vm = remember { CalendarViewModel(context) }
             DayCalendarScreen(viewModel = vm)
         }
 
-        // ================= CHECKLIST =================
-        MainTab.Checklist -> ChecklistScreen(
-            blocks = blocks,
-            routines = routines,
-            onBlocksUpdated = { blocks = it }
-        )
+        // -------- CHECKLIST --------
+        MainTab.Checklist -> {
+            JarvisChecklistScreen(
+                blocks = blocks,
+                routines = routines,
+                onBlocksUpdated = { blocks = it }
+            )
+        }
 
-        // ================= SETTINGS =================
+        // -------- SETTINGS --------
         MainTab.Settings -> {
             SettingsScreen(onBack = { selectedTab = MainTab.Home })
         }
 
-        // ================= DEBUG =================
+        // -------- DEBUG --------
         MainTab.Debug -> {
             DebugScreen(onBack = { selectedTab = MainTab.Home })
-        }
-    }
-}
-
-@Composable
-private fun ChecklistScreen(
-    blocks: List<ProgressBlock>,
-    routines: List<com.jarvismini.core.routine.model.Routine>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-        Text(
-            "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        if (blocks.isEmpty()) {
-            Text(
-                "No routines scheduled for today",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(blocks) { block ->
-
-                    // ProgressBlock -> Routine mapping
-                    val routine = routines.find { it.id == block.id }
-
-                    if (routine != null) {
-                        ChecklistItem(
-                            block = block,
-                            routine = routine,
-                            onComplete = {
-                                ProgressEngine.markComplete(context, block.id)
-                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                            },
-                            onIncomplete = {
-                                ProgressEngine.markIncomplete(context, block.id)
-                                AssistantTTS.speak(
-                                    context,
-                                    "Okay, I will remind you in 30 minutes."
-                                )
-                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                            }
-                        )
-                    }
-                }
-            }
         }
     }
 }
