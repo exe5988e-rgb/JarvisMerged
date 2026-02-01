@@ -31,7 +31,7 @@ import com.jarvismini.ui.components.*
 fun EnhancedHomeScreen(
     onNavigateToChat: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToChecklist: () -> Unit, // ✅ ADDED
+    onNavigateToChecklist: () -> Unit, // ✅ FIX
     onNavigateToSettings: () -> Unit,
     onNavigateToDebug: () -> Unit
 ) {
@@ -173,7 +173,7 @@ fun EnhancedHomeScreen(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat) }
                 item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
-                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ FIX
+                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ WORKS
                 item { QuickActionCard("Notes", Icons.Default.Note) {} }
             }
 
@@ -198,87 +198,94 @@ fun EnhancedHomeScreen(
         }
     }
 }
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-package com.jarvismini.ui.main
 
-import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
-import com.jarvismini.ProgressInitializer
-import com.jarvismini.core.progress.*
-import com.jarvismini.core.routine.RoutineProvider
-import com.jarvismini.ui.boot.BootScreen
-import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.calendar.CalendarViewModel
-import com.jarvismini.ui.calendar.DayCalendarScreen
-import com.jarvismini.ui.settings.SettingsScreen
-import com.jarvismini.ui.debug.DebugScreen
-import com.jarvismini.ui.checklist.JarvisChecklistScreen
+/* ================== LOCAL COMPONENTS ================== */
 
-enum class MainTab {
-    Home,
-    Chat,
-    Calendar,
-    Checklist,
-    Settings,
-    Debug
+@Composable
+private fun QuickActionCard(
+    title: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .size(100.dp)
+            .clickable(onClick = onClick)
+            .background(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                shape = RoundedCornerShape(12.dp)
+            ),
+        color = Color.Transparent
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Icon(icon, contentDescription = title, tint = Color(0xFF00E0FF), modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                color = Color(0xFF00E0FF),
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
 }
 
 @Composable
-fun MainScreen() {
-    val context = LocalContext.current
+private fun StatusCard(
+    title: String,
+    status: String,
+    isOnline: Boolean
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(16.dp),
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF00E0FF))
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    status,
+                    fontSize = 12.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
+                    fontFamily = FontFamily.Monospace
+                )
+            }
 
-    var showBoot by remember { mutableStateOf(true) }
-    var selectedTab by remember { mutableStateOf(MainTab.Home) }
-
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-
-    if (showBoot) {
-        BootScreen(onBootComplete = { showBoot = false })
-        return
-    }
-
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
-        blocks = ProgressRepository.getTodayBlocks()
-        routines = RoutineProvider.getAllRoutines(context)
-    }
-
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MainTab.Checklist) {
-            ProgressInitializer.registerAllBlocks(context)
-            blocks = ProgressRepository.getTodayBlocks()
-            routines = RoutineProvider.getAllRoutines(context)
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(
+                        color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
+                        shape = CircleShape
+                    )
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        spotColor = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00)
+                    )
+            )
         }
-    }
-
-    when (selectedTab) {
-
-        MainTab.Home -> EnhancedHomeScreen(
-            onNavigateToChat = { selectedTab = MainTab.Chat },
-            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist = { selectedTab = MainTab.Checklist }, // ✅ FIX
-            onNavigateToSettings = { selectedTab = MainTab.Settings },
-            onNavigateToDebug = { selectedTab = MainTab.Debug }
-        )
-
-        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Calendar -> {
-            val vm = remember { CalendarViewModel(context) }
-            DayCalendarScreen(viewModel = vm)
-        }
-
-        MainTab.Checklist -> JarvisChecklistScreen(
-            blocks = blocks,
-            routines = routines,
-            onBlocksUpdated = { blocks = it },
-            onBack = { selectedTab = MainTab.Home }
-        )
-
-        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
