@@ -59,7 +59,6 @@ fun JarvisChatScreen(
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
-    var expanded by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -101,56 +100,35 @@ fun JarvisChatScreen(
             ) {
 
                 // ===== MODE STRIP =====
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            JarvisBlue.copy(alpha = 0.4f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    TextField(
-                        value = currentMode.name,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Select Mode") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded)
-                        },
-                        colors = TextFieldDefaults.textFieldColors(
-                            containerColor = Color.Black.copy(alpha = 0.3f),
-                            focusedTextColor = JarvisBlue,
-                            unfocusedTextColor = JarvisBlue,
-                            cursorColor = JarvisBlue,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
+                    Text(
+                        text = "MODE: ${currentMode.name}",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace
                     )
 
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                    Button(
+                        onClick = {
+                            WorkModeManager.toggle(context)
+                            currentMode = JarvisState.currentMode
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = JarvisBlue,
+                            contentColor = Color.Black
+                        )
                     ) {
-                        JarvisMode.values().forEach { mode ->
-                            DropdownMenuItem(
-                                text = { Text(mode.name, color = JarvisBlue) },
-                                onClick = {
-                                    JarvisState.setMode(context, mode)
-                                    currentMode = mode
-                                    expanded = false
-                                }
-                            )
-                        }
+                        Text("TOGGLE", fontFamily = FontFamily.Monospace)
                     }
-                }
-
-                Button(
-                    onClick = {
-                        WorkModeManager.toggle(context)
-                        currentMode = JarvisState.currentMode
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Toggle Work Mode")
                 }
 
                 Divider(color = JarvisBlue.copy(alpha = 0.3f))
