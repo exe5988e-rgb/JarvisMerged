@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.model.Routine
 import com.jarvismini.core.tts.AssistantTTS
@@ -32,7 +33,7 @@ fun JarvisChecklistScreen(
     onBlocksUpdated: (List<ProgressBlock>) -> Unit,
     onBack: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats()
 
     Box(
@@ -96,7 +97,8 @@ fun JarvisChecklistScreen(
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(blocks) { block ->
 
-                            val routine = routines.find { it.id == block.id } ?: return@items
+                            val routine =
+                                routines.find { it.id == block.id } ?: return@items
 
                             Surface(
                                 modifier = Modifier
@@ -114,17 +116,21 @@ fun JarvisChecklistScreen(
                                     block = block,
                                     routine = routine,
 
-                                    // ✅ REAL ENGINE WIRING
+                                    // ✅ PROPER SCREEN → ENGINE WIRING
                                     onComplete = {
                                         ProgressEngine.markComplete(context, block.id)
                                         AssistantTTS.speak(context, "Task completed.")
-                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                                        onBlocksUpdated(
+                                            ProgressRepository.getTodayBlocks()
+                                        )
                                     },
 
                                     onIncomplete = {
                                         ProgressEngine.markIncomplete(context, block.id)
                                         AssistantTTS.speak(context, "Task marked incomplete.")
-                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                                        onBlocksUpdated(
+                                            ProgressRepository.getTodayBlocks()
+                                        )
                                     }
                                 )
                             }
