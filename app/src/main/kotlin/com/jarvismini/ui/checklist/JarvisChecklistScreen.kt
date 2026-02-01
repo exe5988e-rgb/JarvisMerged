@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -18,14 +20,15 @@ import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.model.Routine
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.components.GridBackground
-import com.jarvismini.ui.theme.JarvisBlue
-import com.jarvismini.ui.theme.JarvisBackground
+
+private val JarvisBlue = Color(0xFF00E0FF)
 
 @Composable
 fun JarvisChecklistScreen(
     blocks: List<ProgressBlock>,
     routines: List<Routine>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
+    onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val stats = ProgressStatsEngine.getTodayStats()
@@ -35,74 +38,89 @@ fun JarvisChecklistScreen(
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(Color.Black, JarvisBackground, Color.Black)
+                    listOf(Color.Black, Color(0xFF001520), Color.Black)
                 )
             )
     ) {
         GridBackground()
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
-            Text(
-                text = "JARVIS TASK MATRIX",
-                fontSize = 22.sp,
-                color = JarvisBlue,
-                fontFamily = FontFamily.Monospace
+            // ===== HEADER BAR =====
+            TopAppBar(
+                title = {
+                    Text(
+                        "J.A.R.V.I.S TASK MATRIX",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = JarvisBlue)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.6f)
+                )
             )
 
-            Text(
-                text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
-                fontSize = 12.sp,
-                color = JarvisBlue.copy(alpha = 0.7f),
-                fontFamily = FontFamily.Monospace
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
 
-            Spacer(Modifier.height(16.dp))
-
-            if (blocks.isEmpty()) {
                 Text(
-                    text = "NO ACTIVE ROUTINES",
-                    color = JarvisBlue,
+                    text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
+                    fontSize = 12.sp,
+                    color = JarvisBlue.copy(alpha = 0.7f),
                     fontFamily = FontFamily.Monospace
                 )
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(blocks) { block ->
 
-                        val routine = routines.find { it.id == block.id } ?: return@items
+                Spacer(Modifier.height(16.dp))
 
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    JarvisBlue.copy(alpha = 0.4f),
-                                    RoundedCornerShape(10.dp)
-                                ),
-                            color = Color.Black.copy(alpha = 0.6f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
+                if (blocks.isEmpty()) {
+                    Text(
+                        text = "NO ACTIVE ROUTINES",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace
+                    )
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(blocks) { block ->
 
-                            ChecklistItem(
-                                block = block,
-                                routine = routine,
+                            val routine = routines.find { it.id == block.id } ?: return@items
 
-                                onComplete = {
-                                    ProgressEngine.markComplete(context, block.id)
-                                    AssistantTTS.speak(context, "Task completed.")
-                                    onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                                },
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        JarvisBlue.copy(alpha = 0.4f),
+                                        RoundedCornerShape(10.dp)
+                                    ),
+                                color = Color.Black.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
 
-                                onIncomplete = {
-                                    ProgressEngine.markIncomplete(context, block.id)
-                                    AssistantTTS.speak(context, "Task marked incomplete.")
-                                    onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                                }
-                            )
+                                ChecklistItem(
+                                    block = block,
+                                    routine = routine,
+
+                                    onComplete = {
+                                        ProgressEngine.markComplete(context, block.id)
+                                        AssistantTTS.speak(context, "Task completed.")
+                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                                    },
+
+                                    onIncomplete = {
+                                        ProgressEngine.markIncomplete(context, block.id)
+                                        AssistantTTS.speak(context, "Task marked incomplete.")
+                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                                    }
+                                )
+                            }
                         }
                     }
                 }

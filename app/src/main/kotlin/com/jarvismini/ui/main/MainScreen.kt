@@ -7,12 +7,12 @@ import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.ui.boot.BootScreen
 import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.chat.JarvisChatScreen
-import com.jarvismini.ui.checklist.JarvisChecklistScreen
+import com.jarvismini.ui.JarvisChatScreen
 import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
 
 enum class MainTab {
     Home,
@@ -39,7 +39,7 @@ fun MainScreen() {
         return
     }
 
-    // ================= INITIAL LOAD =================
+    // ================= INIT LOAD =================
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
@@ -58,7 +58,7 @@ fun MainScreen() {
     // ================= ROUTER =================
     when (selectedTab) {
 
-        // -------- HOME --------
+        // ---------- HOME ----------
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
@@ -66,34 +66,33 @@ fun MainScreen() {
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
 
-        // -------- CHAT --------
-        MainTab.Chat -> {
-            JarvisChatScreen()
-        }
+        // ---------- CHAT ----------
+        MainTab.Chat -> JarvisChatScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
 
-        // -------- CALENDAR --------
+        // ---------- CALENDAR ----------
         MainTab.Calendar -> {
             val vm = remember { CalendarViewModel(context) }
             DayCalendarScreen(viewModel = vm)
         }
 
-        // -------- CHECKLIST --------
-        MainTab.Checklist -> {
-            JarvisChecklistScreen(
-                blocks = blocks,
-                routines = routines,
-                onBlocksUpdated = { blocks = it }
-            )
-        }
+        // ---------- CHECKLIST ----------
+        MainTab.Checklist -> JarvisChecklistScreen(
+            blocks = blocks,
+            routines = routines,
+            onBlocksUpdated = { blocks = it },
+            onBack = { selectedTab = MainTab.Home }
+        )
 
-        // -------- SETTINGS --------
-        MainTab.Settings -> {
-            SettingsScreen(onBack = { selectedTab = MainTab.Home })
-        }
+        // ---------- SETTINGS ----------
+        MainTab.Settings -> SettingsScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
 
-        // -------- DEBUG --------
-        MainTab.Debug -> {
-            DebugScreen(onBack = { selectedTab = MainTab.Home })
-        }
+        // ---------- DEBUG ----------
+        MainTab.Debug -> DebugScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
     }
 }
