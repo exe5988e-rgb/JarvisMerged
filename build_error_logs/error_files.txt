@@ -1,195 +1,15 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:21:5 Conflicting declarations: public val JarvisBlue: Color, private val JarvisBlue: Color
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:22:13 Conflicting declarations: public val JarvisBlue: Color, private val JarvisBlue: Color
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:54:25 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:61:25 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:70:29 Overload resolution ambiguity: 
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:84:37 Overload resolution ambiguity: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:50:13 This material API is experimental and is likely to change or to be removed in the future.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:63:26 This material API is experimental and is likely to change or to be removed in the future.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:63:44 This material API is experimental and is likely to change or to be removed in the future.
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 4s
+BUILD FAILED in 1m 9s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
-1	package com.jarvismini.ui.checklist
-2
-3	import androidx.compose.foundation.background
-4	import androidx.compose.foundation.border
-5	import androidx.compose.foundation.layout.*
-6	import androidx.compose.foundation.shape.RoundedCornerShape
-7	import androidx.compose.material3.*
-8	import androidx.compose.runtime.Composable
-9	import androidx.compose.ui.Alignment
-10	import androidx.compose.ui.Modifier
-11	import androidx.compose.ui.graphics.Color
-12	import androidx.compose.ui.text.font.FontFamily
-13	import androidx.compose.ui.text.font.FontWeight
-14	import androidx.compose.ui.unit.dp
-15	import androidx.compose.ui.unit.sp
-16	import com.jarvismini.core.progress.ProgressBlock
-17	import com.jarvismini.core.routine.model.Routine
-18	import java.text.SimpleDateFormat
-19	import java.util.*
-20
->>>>> ERROR HERE
-21	val JarvisBlue = Color(0xFF00E0FF)
-22	val JarvisGreen = Color(0xFF00FF00)
-23	val JarvisRed = Color(0xFFFF4444)
-24
-25	@Composable
-26	fun ChecklistItem(
-27	    block: ProgressBlock,
-28	    routine: Routine,
-29	    onComplete: () -> Unit,
-30	    onIncomplete: () -> Unit
-31	) {
-32	    val displayName = routine.name
-33	        .replace("_", " ")
-34	        .replaceFirstChar { it.uppercaseChar() }
-35
-36	    Surface(
-37	        modifier = Modifier
-38	            .fillMaxWidth()
-39	            .padding(vertical = 6.dp)
-40	            .background(
-41	                color = when {
-42	                    block.completed -> JarvisBlue.copy(alpha = 0.1f)
-43	                    block.missedAt != null -> JarvisRed.copy(alpha = 0.1f)
-44	                    else -> Color.Black.copy(alpha = 0.5f)
-45	                },
-46	                shape = RoundedCornerShape(8.dp)
-47	            )
-48	            .border(
-49	                width = 1.dp,
-50	                color = when {
-51	                    block.completed -> JarvisBlue.copy(alpha = 0.6f)
-52	                    block.missedAt != null -> JarvisRed.copy(alpha = 0.6f)
-53	                    else -> JarvisBlue.copy(alpha = 0.3f)
-54	                },
-55	                shape = RoundedCornerShape(8.dp)
-56	            ),
-57	        color = Color.Transparent
-58	    ) {
-59	        Column(
-60	            modifier = Modifier
-61	                .padding(16.dp)
-62	                .fillMaxWidth()
-63	        ) {
-64	            // Routine name
-65	            Text(
-66	                text = displayName,
-67	                fontSize = 16.sp,
-68	                fontWeight = FontWeight.Bold,
-69	                color = JarvisBlue
-70	            )
-71
-72	            Spacer(modifier = Modifier.height(8.dp))
-73
-74	            // Tasks (RoutineAction list)
-75	            Column(modifier = Modifier.padding(start = 4.dp)) {
-76	                routine.actions.forEach { action ->
-77	                    val displayText = buildString {
-78	                        append(action.type.replace("_", " ").replaceFirstChar { it.uppercaseChar() })
-79	                        if (action.params.isNotEmpty()) {
-80	                            append(": ")
-81	                            append(action.params.entries.joinToString { "${it.key}=${it.value}" })
-82	                        }
-83	                    }
-84	                    Text(
-85	                        text = "• $displayText",
-86	                        fontSize = 12.sp,
-87	                        color = JarvisBlue.copy(alpha = 0.7f),
-88	                        fontFamily = FontFamily.Monospace
-89	                    )
-90	                }
-91	            }
-92
-93	            Spacer(modifier = Modifier.height(8.dp))
-94
-95	            // Scheduled time
-96	            Text(
-97	                text = "Scheduled: ${formatTime(block.scheduledAt)}",
-98	                fontSize = 11.sp,
-99	                color = JarvisBlue.copy(alpha = 0.6f),
-100	                fontFamily = FontFamily.Monospace
-101	            )
-102
-103	            // Completed or Missed time
-104	            block.completedAt?.let {
-105	                if (block.completed) {
-106	                    Text(
-107	                        text = "Completed: ${formatTime(it)}",
-108	                        fontSize = 11.sp,
-109	                        color = JarvisGreen.copy(alpha = 0.8f),
-110	                        fontFamily = FontFamily.Monospace
-111	                    )
-112	                }
-113	            }
-114	            block.missedAt?.let {
-115	                Text(
-116	                    text = "Missed: ${formatTime(it)}",
-117	                    fontSize = 11.sp,
-118	                    color = JarvisRed,
-119	                    fontFamily = FontFamily.Monospace
-120	                )
-121	            }
-122
-123	            Spacer(modifier = Modifier.height(12.dp))
-124
-125	            // Action buttons
-126	            Row(
-127	                modifier = Modifier.fillMaxWidth(),
-128	                horizontalArrangement = Arrangement.End,
-129	                verticalAlignment = Alignment.CenterVertically
-130	            ) {
-131	                if (!block.completed) {
-132	                    TextButton(
-133	                        onClick = onComplete,
-134	                        colors = ButtonDefaults.textButtonColors(
-135	                            contentColor = JarvisGreen
-136	                        )
-137	                    ) {
-138	                        Text(
-139	                            "DONE",
-140	                            fontFamily = FontFamily.Monospace,
-141	                            fontSize = 12.sp
-142	                        )
-143	                    }
-144	                    Spacer(modifier = Modifier.width(8.dp))
-145	                    TextButton(
-146	                        onClick = onIncomplete,
-147	                        colors = ButtonDefaults.textButtonColors(
-148	                            contentColor = JarvisRed
-149	                        )
-150	                    ) {
-151	                        Text(
-152	                            "MISSED",
-153	                            fontFamily = FontFamily.Monospace,
-154	                            fontSize = 12.sp
-155	                        )
-156	                    }
-157	                } else {
-158	                    Text(
-159	                        text = "✅ COMPLETED",
-160	                        fontSize = 12.sp,
-161	                        color = JarvisGreen,
-162	                        fontWeight = FontWeight.Bold,
-163	                        fontFamily = FontFamily.Monospace
-164	                    )
-165	                }
-166	            }
-167	        }
-168	    }
-169	}
-170
-171	private fun formatTime(timestampMs: Long): String {
-172	    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-173	    return formatter.format(Date(timestampMs))
-174	}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
 1	package com.jarvismini.ui.checklist
@@ -200,117 +20,130 @@ BUILD FAILED in 1m 4s
 6	import androidx.compose.foundation.lazy.LazyColumn
 7	import androidx.compose.foundation.lazy.items
 8	import androidx.compose.foundation.shape.RoundedCornerShape
-9	import androidx.compose.material3.*
-10	import androidx.compose.runtime.*
-11	import androidx.compose.ui.Modifier
-12	import androidx.compose.ui.graphics.Brush
-13	import androidx.compose.ui.graphics.Color
-14	import androidx.compose.ui.text.font.FontFamily
-15	import androidx.compose.ui.unit.dp
-16	import androidx.compose.ui.unit.sp
-17	import com.jarvismini.core.progress.*
-18	import com.jarvismini.core.routine.model.Routine
-19	import com.jarvismini.core.tts.AssistantTTS
-20	import com.jarvismini.ui.components.GridBackground
-21
->>>>> ERROR HERE
-22	private val JarvisBlue = Color(0xFF00E0FF)
+9	import androidx.compose.material.icons.Icons
+10	import androidx.compose.material.icons.filled.ArrowBack
+11	import androidx.compose.material3.*
+12	import androidx.compose.runtime.Composable
+13	import androidx.compose.ui.Modifier
+14	import androidx.compose.ui.graphics.Brush
+15	import androidx.compose.ui.graphics.Color
+16	import androidx.compose.ui.text.font.FontFamily
+17	import androidx.compose.ui.unit.dp
+18	import androidx.compose.ui.unit.sp
+19	import com.jarvismini.core.progress.*
+20	import com.jarvismini.core.routine.model.Routine
+21	import com.jarvismini.core.tts.AssistantTTS
+22	import com.jarvismini.ui.components.GridBackground
 23
-24	@Composable
-25	fun JarvisChecklistScreen(
-26	    blocks: List<ProgressBlock>,
-27	    routines: List<Routine>,
-28	    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-29	) {
-30	    val context = androidx.compose.ui.platform.LocalContext.current
-31	    val stats = ProgressStatsEngine.getTodayStats()
-32
-33	    Box(
-34	        modifier = Modifier
-35	            .fillMaxSize()
-36	            .background(
-37	                Brush.radialGradient(
-38	                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-39	                )
-40	            )
-41	    ) {
-42	        GridBackground()
-43
-44	        Column(
-45	            modifier = Modifier
-46	                .fillMaxSize()
-47	                .padding(16.dp)
-48	        ) {
-49
-50	            // HEADER
-51	            Text(
-52	                text = "JARVIS TASK MATRIX",
-53	                fontSize = 22.sp,
+24	private val JarvisBlue = Color(0xFF00E0FF)
+25
+26	@Composable
+27	fun JarvisChecklistScreen(
+28	    blocks: List<ProgressBlock>,
+29	    routines: List<Routine>,
+30	    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
+31	    onBack: () -> Unit
+32	) {
+33	    val context = androidx.compose.ui.platform.LocalContext.current
+34	    val stats = ProgressStatsEngine.getTodayStats()
+35
+36	    Box(
+37	        modifier = Modifier
+38	            .fillMaxSize()
+39	            .background(
+40	                Brush.radialGradient(
+41	                    listOf(Color.Black, Color(0xFF001520), Color.Black)
+42	                )
+43	            )
+44	    ) {
+45	        GridBackground()
+46
+47	        Column(modifier = Modifier.fillMaxSize()) {
+48
+49	            // ===== HEADER BAR =====
 >>>>> ERROR HERE
-54	                color = JarvisBlue,
-55	                fontFamily = FontFamily.Monospace
-56	            )
-57
-58	            Text(
-59	                text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
-60	                fontSize = 12.sp,
+50	            TopAppBar(
+51	                title = {
+52	                    Text(
+53	                        "J.A.R.V.I.S TASK MATRIX",
+54	                        color = JarvisBlue,
+55	                        fontFamily = FontFamily.Monospace
+56	                    )
+57	                },
+58	                navigationIcon = {
+59	                    IconButton(onClick = onBack) {
+60	                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = JarvisBlue)
+61	                    }
+62	                },
 >>>>> ERROR HERE
-61	                color = JarvisBlue.copy(alpha = 0.7f),
-62	                fontFamily = FontFamily.Monospace
-63	            )
-64
-65	            Spacer(Modifier.height(16.dp))
-66
-67	            if (blocks.isEmpty()) {
-68	                Text(
-69	                    text = "NO ACTIVE ROUTINES",
->>>>> ERROR HERE
-70	                    color = JarvisBlue,
-71	                    fontFamily = FontFamily.Monospace
-72	                )
-73	            } else {
-74	                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-75	                    items(blocks) { block ->
-76
-77	                        val routine = routines.find { it.id == block.id } ?: return@items
-78
-79	                        Surface(
-80	                            modifier = Modifier
-81	                                .fillMaxWidth()
-82	                                .border(
-83	                                    1.dp,
->>>>> ERROR HERE
-84	                                    JarvisBlue.copy(alpha = 0.4f),
-85	                                    RoundedCornerShape(10.dp)
-86	                                ),
-87	                            color = Color.Black.copy(alpha = 0.6f),
-88	                            shape = RoundedCornerShape(10.dp)
-89	                        ) {
-90
-91	                            ChecklistItem(
-92	                                block = block,
-93	                                routine = routine,
+63	                colors = TopAppBarDefaults.topAppBarColors(
+64	                    containerColor = Color.Black.copy(alpha = 0.6f)
+65	                )
+66	            )
+67
+68	            Column(
+69	                modifier = Modifier
+70	                    .fillMaxSize()
+71	                    .padding(16.dp)
+72	            ) {
+73
+74	                Text(
+75	                    text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
+76	                    fontSize = 12.sp,
+77	                    color = JarvisBlue.copy(alpha = 0.7f),
+78	                    fontFamily = FontFamily.Monospace
+79	                )
+80
+81	                Spacer(Modifier.height(16.dp))
+82
+83	                if (blocks.isEmpty()) {
+84	                    Text(
+85	                        text = "NO ACTIVE ROUTINES",
+86	                        color = JarvisBlue,
+87	                        fontFamily = FontFamily.Monospace
+88	                    )
+89	                } else {
+90	                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+91	                        items(blocks) { block ->
+92
+93	                            val routine = routines.find { it.id == block.id } ?: return@items
 94
-95	                                // ✅ REAL ENGINE WIRING
-96	                                onComplete = {
-97	                                    ProgressEngine.markComplete(context, block.id)
-98	                                    AssistantTTS.speak(context, "Task completed.")
-99	                                    onBlocksUpdated(ProgressRepository.getTodayBlocks())
-100	                                },
-101
-102	                                onIncomplete = {
-103	                                    ProgressEngine.markIncomplete(context, block.id)
-104	                                    AssistantTTS.speak(context, "Task marked incomplete.")
-105	                                    onBlocksUpdated(ProgressRepository.getTodayBlocks())
-106	                                }
-107	                            )
-108	                        }
-109	                    }
-110	                }
-111	            }
-112	        }
-113	    }
-114	}
+95	                            Surface(
+96	                                modifier = Modifier
+97	                                    .fillMaxWidth()
+98	                                    .border(
+99	                                        1.dp,
+100	                                        JarvisBlue.copy(alpha = 0.4f),
+101	                                        RoundedCornerShape(10.dp)
+102	                                    ),
+103	                                color = Color.Black.copy(alpha = 0.6f),
+104	                                shape = RoundedCornerShape(10.dp)
+105	                            ) {
+106
+107	                                ChecklistItem(
+108	                                    block = block,
+109	                                    routine = routine,
+110
+111	                                    onComplete = {
+112	                                        ProgressEngine.markComplete(context, block.id)
+113	                                        AssistantTTS.speak(context, "Task completed.")
+114	                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+115	                                    },
+116
+117	                                    onIncomplete = {
+118	                                        ProgressEngine.markIncomplete(context, block.id)
+119	                                        AssistantTTS.speak(context, "Task marked incomplete.")
+120	                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
+121	                                    }
+122	                                )
+123	                            }
+124	                        }
+125	                    }
+126	                }
+127	            }
+128	        }
+129	    }
+130	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
