@@ -2432,7 +2432,8 @@ import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.boot.BootScreen
 import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.chat.JarvisChatScreen
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
@@ -2480,6 +2481,7 @@ fun MainScreen() {
 
     when (selectedTab) {
 
+        // ================= HOME =================
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
@@ -2487,27 +2489,33 @@ fun MainScreen() {
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
 
-        MainTab.Chat -> JarvisChatScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        // ================= CHAT =================
+        MainTab.Chat -> {
+            JarvisChatScreen()
+        }
 
-        MainTab.Calendar -> DayCalendarScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        // ================= CALENDAR =================
+        MainTab.Calendar -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(viewModel = vm)
+        }
 
+        // ================= CHECKLIST =================
         MainTab.Checklist -> ChecklistScreen(
             blocks = blocks,
             routines = routines,
             onBlocksUpdated = { blocks = it }
         )
 
-        MainTab.Settings -> SettingsScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        // ================= SETTINGS =================
+        MainTab.Settings -> {
+            SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        }
 
-        MainTab.Debug -> DebugScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        // ================= DEBUG =================
+        MainTab.Debug -> {
+            DebugScreen(onBack = { selectedTab = MainTab.Home })
+        }
     }
 }
 
