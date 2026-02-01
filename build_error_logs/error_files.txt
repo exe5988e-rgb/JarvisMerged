@@ -1,149 +1,227 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:50:13 This material API is experimental and is likely to change or to be removed in the future.
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:63:26 This material API is experimental and is likely to change or to be removed in the future.
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt:63:44 This material API is experimental and is likely to change or to be removed in the future.
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:173:24 Unresolved reference: QuickActionCard
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:174:24 Unresolved reference: QuickActionCard
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:175:24 Unresolved reference: QuickActionCard
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:176:24 Unresolved reference: QuickActionCard
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:193:24 Unresolved reference: StatusCard
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:194:24 Unresolved reference: StatusCard
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:195:24 Unresolved reference: StatusCard
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 9s
+BUILD FAILED in 1m 6s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
-1	package com.jarvismini.ui.checklist
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
+1	package com.jarvismini.ui.home
 2
-3	import androidx.compose.foundation.background
-4	import androidx.compose.foundation.border
-5	import androidx.compose.foundation.layout.*
-6	import androidx.compose.foundation.lazy.LazyColumn
-7	import androidx.compose.foundation.lazy.items
-8	import androidx.compose.foundation.shape.RoundedCornerShape
-9	import androidx.compose.material.icons.Icons
-10	import androidx.compose.material.icons.filled.ArrowBack
-11	import androidx.compose.material3.*
-12	import androidx.compose.runtime.Composable
-13	import androidx.compose.ui.Modifier
-14	import androidx.compose.ui.graphics.Brush
-15	import androidx.compose.ui.graphics.Color
-16	import androidx.compose.ui.text.font.FontFamily
-17	import androidx.compose.ui.unit.dp
-18	import androidx.compose.ui.unit.sp
-19	import com.jarvismini.core.progress.*
-20	import com.jarvismini.core.routine.model.Routine
-21	import com.jarvismini.core.tts.AssistantTTS
-22	import com.jarvismini.ui.components.GridBackground
-23
-24	private val JarvisBlue = Color(0xFF00E0FF)
-25
-26	@Composable
-27	fun JarvisChecklistScreen(
-28	    blocks: List<ProgressBlock>,
-29	    routines: List<Routine>,
-30	    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
-31	    onBack: () -> Unit
-32	) {
-33	    val context = androidx.compose.ui.platform.LocalContext.current
-34	    val stats = ProgressStatsEngine.getTodayStats()
-35
-36	    Box(
-37	        modifier = Modifier
-38	            .fillMaxSize()
-39	            .background(
-40	                Brush.radialGradient(
-41	                    listOf(Color.Black, Color(0xFF001520), Color.Black)
-42	                )
-43	            )
-44	    ) {
-45	        GridBackground()
-46
-47	        Column(modifier = Modifier.fillMaxSize()) {
-48
-49	            // ===== HEADER BAR =====
+3	import androidx.compose.animation.core.*
+4	import androidx.compose.foundation.background
+5	import androidx.compose.foundation.border
+6	import androidx.compose.foundation.clickable
+7	import androidx.compose.foundation.layout.*
+8	import androidx.compose.foundation.lazy.LazyColumn
+9	import androidx.compose.foundation.lazy.LazyRow
+10	import androidx.compose.foundation.shape.CircleShape
+11	import androidx.compose.foundation.shape.RoundedCornerShape
+12	import androidx.compose.material.icons.Icons
+13	import androidx.compose.material.icons.filled.*
+14	import androidx.compose.material3.*
+15	import androidx.compose.runtime.*
+16	import androidx.compose.ui.Alignment
+17	import androidx.compose.ui.Modifier
+18	import androidx.compose.ui.draw.alpha
+19	import androidx.compose.ui.draw.shadow
+20	import androidx.compose.ui.graphics.Brush
+21	import androidx.compose.ui.graphics.Color
+22	import androidx.compose.ui.graphics.vector.ImageVector
+23	import androidx.compose.ui.text.font.FontFamily
+24	import androidx.compose.ui.text.font.FontWeight
+25	import androidx.compose.ui.unit.dp
+26	import androidx.compose.ui.unit.sp
+27	import com.jarvismini.ui.components.*
+28
+29	@Composable
+30	fun EnhancedHomeScreen(
+31	    onNavigateToChat: () -> Unit,
+32	    onNavigateToCalendar: () -> Unit,
+33	    onNavigateToChecklist: () -> Unit, // ✅ ADDED
+34	    onNavigateToSettings: () -> Unit,
+35	    onNavigateToDebug: () -> Unit
+36	) {
+37	    var isListening by remember { mutableStateOf(false) }
+38
+39	    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
+40	    val pulseAlpha by pulseAnimation.animateFloat(
+41	        initialValue = 0.3f,
+42	        targetValue = 1f,
+43	        animationSpec = infiniteRepeatable(
+44	            animation = tween(1500, easing = FastOutSlowInEasing),
+45	            repeatMode = RepeatMode.Reverse
+46	        ),
+47	        label = "pulseAlpha"
+48	    )
+49
+50	    Box(
+51	        modifier = Modifier
+52	            .fillMaxSize()
+53	            .background(
+54	                brush = Brush.radialGradient(
+55	                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+56	                )
+57	            )
+58	    ) {
+59	        GridBackground()
+60	        ParticleField()
+61	        ScanLine()
+62
+63	        Column(
+64	            modifier = Modifier
+65	                .fillMaxSize()
+66	                .padding(20.dp),
+67	            horizontalAlignment = Alignment.CenterHorizontally
+68	        ) {
+69
+70	            // ===== HEADER =====
+71	            Row(
+72	                modifier = Modifier.fillMaxWidth(),
+73	                horizontalArrangement = Arrangement.SpaceBetween,
+74	                verticalAlignment = Alignment.CenterVertically
+75	            ) {
+76	                Text(
+77	                    text = "J.A.R.V.I.S.",
+78	                    fontSize = 32.sp,
+79	                    fontWeight = FontWeight.Light,
+80	                    letterSpacing = 6.sp,
+81	                    color = Color(0xFF00E0FF)
+82	                )
+83
+84	                Row {
+85	                    IconButton(onClick = onNavigateToDebug) {
+86	                        Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
+87	                    }
+88	                    IconButton(onClick = onNavigateToSettings) {
+89	                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF00E0FF))
+90	                    }
+91	                }
+92	            }
+93
+94	            Spacer(Modifier.height(40.dp))
+95
+96	            // ===== CORE =====
+97	            Box(
+98	                contentAlignment = Alignment.Center,
+99	                modifier = Modifier
+100	                    .size(200.dp)
+101	                    .clickable { isListening = !isListening }
+102	            ) {
+103	                Box(
+104	                    modifier = Modifier
+105	                        .size(200.dp)
+106	                        .alpha(if (isListening) pulseAlpha else 0.3f)
+107	                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
+108	                        .border(
+109	                            2.dp,
+110	                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
+111	                            CircleShape
+112	                        )
+113	                )
+114
+115	                Box(
+116	                    modifier = Modifier
+117	                        .size(150.dp)
+118	                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
+119	                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
+120	                )
+121
+122	                Box(
+123	                    modifier = Modifier
+124	                        .size(100.dp)
+125	                        .shadow(
+126	                            elevation = if (isListening) 30.dp else 10.dp,
+127	                            shape = CircleShape,
+128	                            spotColor = Color(0xFF00E0FF)
+129	                        )
+130	                        .background(
+131	                            brush = Brush.radialGradient(
+132	                                listOf(
+133	                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
+134	                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
+135	                                    Color.Transparent
+136	                                )
+137	                            ),
+138	                            shape = CircleShape
+139	                        )
+140	                ) {
+141	                    Icon(
+142	                        imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+143	                        contentDescription = "Voice",
+144	                        tint = Color(0xFF00E0FF),
+145	                        modifier = Modifier.size(40.dp).align(Alignment.Center)
+146	                    )
+147	                }
+148	            }
+149
+150	            Spacer(Modifier.height(20.dp))
+151
+152	            Text(
+153	                text = if (isListening) "LISTENING..." else "TAP TO ACTIVATE",
+154	                fontSize = 14.sp,
+155	                fontFamily = FontFamily.Monospace,
+156	                color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+157	            )
+158
+159	            Spacer(Modifier.height(40.dp))
+160
+161	            // ===== QUICK ACCESS =====
+162	            Text(
+163	                text = "QUICK ACCESS",
+164	                fontSize = 12.sp,
+165	                fontFamily = FontFamily.Monospace,
+166	                letterSpacing = 2.sp,
+167	                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+168	            )
+169
+170	            Spacer(Modifier.height(16.dp))
+171
+172	            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
 >>>>> ERROR HERE
-50	            TopAppBar(
-51	                title = {
-52	                    Text(
-53	                        "J.A.R.V.I.S TASK MATRIX",
-54	                        color = JarvisBlue,
-55	                        fontFamily = FontFamily.Monospace
-56	                    )
-57	                },
-58	                navigationIcon = {
-59	                    IconButton(onClick = onBack) {
-60	                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = JarvisBlue)
-61	                    }
-62	                },
+173	                item { QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat) }
 >>>>> ERROR HERE
-63	                colors = TopAppBarDefaults.topAppBarColors(
-64	                    containerColor = Color.Black.copy(alpha = 0.6f)
-65	                )
-66	            )
-67
-68	            Column(
-69	                modifier = Modifier
-70	                    .fillMaxSize()
-71	                    .padding(16.dp)
-72	            ) {
-73
-74	                Text(
-75	                    text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
-76	                    fontSize = 12.sp,
-77	                    color = JarvisBlue.copy(alpha = 0.7f),
-78	                    fontFamily = FontFamily.Monospace
-79	                )
-80
-81	                Spacer(Modifier.height(16.dp))
-82
-83	                if (blocks.isEmpty()) {
-84	                    Text(
-85	                        text = "NO ACTIVE ROUTINES",
-86	                        color = JarvisBlue,
-87	                        fontFamily = FontFamily.Monospace
-88	                    )
-89	                } else {
-90	                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-91	                        items(blocks) { block ->
-92
-93	                            val routine = routines.find { it.id == block.id } ?: return@items
-94
-95	                            Surface(
-96	                                modifier = Modifier
-97	                                    .fillMaxWidth()
-98	                                    .border(
-99	                                        1.dp,
-100	                                        JarvisBlue.copy(alpha = 0.4f),
-101	                                        RoundedCornerShape(10.dp)
-102	                                    ),
-103	                                color = Color.Black.copy(alpha = 0.6f),
-104	                                shape = RoundedCornerShape(10.dp)
-105	                            ) {
-106
-107	                                ChecklistItem(
-108	                                    block = block,
-109	                                    routine = routine,
-110
-111	                                    onComplete = {
-112	                                        ProgressEngine.markComplete(context, block.id)
-113	                                        AssistantTTS.speak(context, "Task completed.")
-114	                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-115	                                    },
-116
-117	                                    onIncomplete = {
-118	                                        ProgressEngine.markIncomplete(context, block.id)
-119	                                        AssistantTTS.speak(context, "Task marked incomplete.")
-120	                                        onBlocksUpdated(ProgressRepository.getTodayBlocks())
-121	                                    }
-122	                                )
-123	                            }
-124	                        }
-125	                    }
-126	                }
-127	            }
-128	        }
-129	    }
-130	}
+174	                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
+>>>>> ERROR HERE
+175	                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ FIX
+>>>>> ERROR HERE
+176	                item { QuickActionCard("Notes", Icons.Default.Note) {} }
+177	            }
+178
+179	            Spacer(Modifier.height(40.dp))
+180
+181	            // ===== STATUS =====
+182	            Text(
+183	                text = "SYSTEM STATUS",
+184	                fontSize = 12.sp,
+185	                fontFamily = FontFamily.Monospace,
+186	                letterSpacing = 2.sp,
+187	                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+188	            )
+189
+190	            Spacer(Modifier.height(16.dp))
+191
+192	            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+>>>>> ERROR HERE
+193	                item { StatusCard("Neural Networks", "Online", true) }
+>>>>> ERROR HERE
+194	                item { StatusCard("Voice Recognition", "Active", true) }
+>>>>> ERROR HERE
+195	                item { StatusCard("Automation Engine", "Standby", false) }
+196	            }
+197	        }
+198	    }
+199	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
