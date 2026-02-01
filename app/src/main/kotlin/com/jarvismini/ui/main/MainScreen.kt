@@ -33,20 +33,17 @@ fun MainScreen() {
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
-    // ================= BOOT =================
     if (showBoot) {
         BootScreen(onBootComplete = { showBoot = false })
         return
     }
 
-    // ================= INIT LOAD =================
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
     }
 
-    // ================= REFRESH CHECKLIST =================
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
@@ -55,29 +52,23 @@ fun MainScreen() {
         }
     }
 
-    // ================= ROUTER =================
     when (selectedTab) {
 
-        // ---------- HOME ----------
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist }, // ✅ FIX
             onNavigateToSettings = { selectedTab = MainTab.Settings },
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
 
-        // ---------- CHAT ----------
-        MainTab.Chat -> JarvisChatScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
 
-        // ---------- CALENDAR ----------
         MainTab.Calendar -> {
             val vm = remember { CalendarViewModel(context) }
             DayCalendarScreen(viewModel = vm)
         }
 
-        // ---------- CHECKLIST ----------
         MainTab.Checklist -> JarvisChecklistScreen(
             blocks = blocks,
             routines = routines,
@@ -85,14 +76,8 @@ fun MainScreen() {
             onBack = { selectedTab = MainTab.Home }
         )
 
-        // ---------- SETTINGS ----------
-        MainTab.Settings -> SettingsScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
 
-        // ---------- DEBUG ----------
-        MainTab.Debug -> DebugScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
