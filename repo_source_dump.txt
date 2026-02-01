@@ -1108,7 +1108,7 @@ import com.jarvismini.engine.EngineResult
 import com.jarvismini.ui.components.GridBackground
 import kotlinx.coroutines.launch
 
-private val JarvisBlue = Color(0xFFAA00FF) // purple-ish blue for theme
+private val JarvisBlue = Color(0xFF00E0FF)
 
 @Composable
 fun JarvisChatScreen(
@@ -1179,54 +1179,53 @@ fun JarvisChatScreen(
             ) {
 
                 // ===== MODE SELECTOR =====
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    ExposedDropdownMenuBox(
-                        expanded = expanded,
-                        onExpandedChange = { expanded = !expanded }
-                    ) {
-                        TextField(
-                            value = currentMode.name,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("MODE", color = JarvisBlue) },
-                            modifier = Modifier
-                                .menuAnchor()
-                                .fillMaxWidth(),
-                            colors = TextFieldDefaults.textFieldColors(
-                                containerColor = Color.Black,
-                                focusedTextColor = JarvisBlue,
-                                unfocusedTextColor = JarvisBlue,
-                                cursorColor = JarvisBlue,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            )
-                        )
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TextField(
+                        value = currentMode.name,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Select Mode", color = JarvisBlue) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        colors = TextFieldDefaults.textFieldColors(
+                            containerColor = Color.Transparent,
+                            focusedTextColor = JarvisBlue,
+                            unfocusedTextColor = JarvisBlue,
+                            cursorColor = JarvisBlue,
+                            focusedIndicatorColor = JarvisBlue,
+                            unfocusedIndicatorColor = JarvisBlue
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                        ExposedDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.background(Color.Black)
-                        ) {
-                            modes.forEach { mode ->
-                                DropdownMenuItem(
-                                    text = { Text(mode.name, color = JarvisBlue) },
-                                    onClick = {
-                                        JarvisState.setMode(context, mode)
-                                        currentMode = mode
-                                        expanded = false
-                                    }
-                                )
-                            }
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        modes.forEach { mode ->
+                            DropdownMenuItem(
+                                text = { Text(mode.name, color = JarvisBlue) },
+                                onClick = {
+                                    JarvisState.setMode(context, mode)
+                                    currentMode = mode
+                                    expanded = false
+                                }
+                            )
                         }
                     }
                 }
 
-                // ===== TOGGLE WORK MODE =====
-                Button(onClick = {
-                    WorkModeManager.toggle(context)
-                    currentMode = JarvisState.currentMode
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("TOGGLE WORK MODE", color = JarvisBlue)
+                Button(
+                    onClick = {
+                        WorkModeManager.toggle(context)
+                        currentMode = JarvisState.currentMode
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue)
+                ) {
+                    Text("Toggle Work Mode", color = Color.Black)
                 }
 
                 Divider(color = JarvisBlue.copy(alpha = 0.3f))
@@ -1262,19 +1261,14 @@ fun JarvisChatScreen(
                         value = input,
                         onValueChange = { input = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = {
-                            Text(
-                                "Command input…",
-                                fontFamily = FontFamily.Monospace
-                            )
-                        },
+                        placeholder = { Text("Command input…", fontFamily = FontFamily.Monospace, color = JarvisBlue.copy(alpha = 0.5f)) },
                         colors = TextFieldDefaults.textFieldColors(
                             containerColor = Color.Transparent,
                             focusedTextColor = JarvisBlue,
                             unfocusedTextColor = JarvisBlue,
                             cursorColor = JarvisBlue,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
+                            focusedIndicatorColor = JarvisBlue,
+                            unfocusedIndicatorColor = JarvisBlue
                         )
                     )
 
