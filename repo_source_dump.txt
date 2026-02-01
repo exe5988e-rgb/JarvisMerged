@@ -1108,7 +1108,7 @@ import com.jarvismini.engine.EngineResult
 import com.jarvismini.ui.components.GridBackground
 import kotlinx.coroutines.launch
 
-private val JarvisBlue = Color(0xFF00E0FF)
+private val JarvisBlue = Color(0xFFAA00FF) // purple-ish blue for theme
 
 @Composable
 fun JarvisChatScreen(
@@ -1136,6 +1136,8 @@ fun JarvisChatScreen(
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+    var expanded by remember { mutableStateOf(false) }
+    val modes = JarvisMode.values().toList()
 
     Box(
         modifier = Modifier
@@ -1176,36 +1178,55 @@ fun JarvisChatScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
 
-                // ===== MODE STRIP =====
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            JarvisBlue.copy(alpha = 0.4f),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "MODE: ${currentMode.name}",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
-                    )
-
-                    Button(
-                        onClick = {
-                            WorkModeManager.toggle(context)
-                            currentMode = JarvisState.currentMode
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = JarvisBlue,
-                            contentColor = Color.Black
-                        )
+                // ===== MODE SELECTOR =====
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded }
                     ) {
-                        Text("TOGGLE", fontFamily = FontFamily.Monospace)
+                        TextField(
+                            value = currentMode.name,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("MODE", color = JarvisBlue) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth(),
+                            colors = TextFieldDefaults.textFieldColors(
+                                containerColor = Color.Black,
+                                focusedTextColor = JarvisBlue,
+                                unfocusedTextColor = JarvisBlue,
+                                cursorColor = JarvisBlue,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            )
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.background(Color.Black)
+                        ) {
+                            modes.forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(mode.name, color = JarvisBlue) },
+                                    onClick = {
+                                        JarvisState.setMode(context, mode)
+                                        currentMode = mode
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
+                }
+
+                // ===== TOGGLE WORK MODE =====
+                Button(onClick = {
+                    WorkModeManager.toggle(context)
+                    currentMode = JarvisState.currentMode
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Text("TOGGLE WORK MODE", color = JarvisBlue)
                 }
 
                 Divider(color = JarvisBlue.copy(alpha = 0.3f))
