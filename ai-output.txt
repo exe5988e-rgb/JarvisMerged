@@ -1,223 +1,154 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/boot/BootScreen.kt =====
-package com.jarvismini.ui.boot
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
 
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.jarvismini.ui.components.GridBackground
-import kotlinx.coroutines.delay
-import kotlin.math.PI
-import kotlin.math.max
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.chat.JarvisChatScreen
+import com.jarvismini.ui.calendar.DayCalendarScreen
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
+import com.jarvismini.ui.ChecklistItem
 
-data class BootStep(
-    val progress: Float,
-    val message: String,
-    val delayMs: Long
-)
+enum class MainTab {
+    Home,
+    Chat,
+    Calendar,
+    Checklist,
+    Settings,
+    Debug
+}
 
 @Composable
-fun BootScreen(onBootComplete: () -> Unit) {
-    val bootSteps = remember {
-        listOf(
-            BootStep(0.15f, "INITIALIZING NEURAL NETWORKS...", 300),
-            BootStep(0.35f, "LOADING VISION SYSTEMS...", 500),
-            BootStep(0.55f, "CALIBRATING VOICE RECOGNITION...", 400),
-            BootStep(0.75f, "ESTABLISHING SECURE PROTOCOLS...", 600),
-            BootStep(0.95f, "SYSTEMS ONLINE...", 400),
-            BootStep(1.0f, "JARVIS OPERATIONAL", 500)
+fun MainScreen() {
+    val context = LocalContext.current
+
+    var showBoot by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
+    }
+
+    // Initial load
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
+    }
+
+    // Refresh checklist when opened
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
+        }
+    }
+
+    when (selectedTab) {
+
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToChat = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+            onNavigateToSettings = { selectedTab = MainTab.Settings },
+            onNavigateToDebug = { selectedTab = MainTab.Debug }
+        )
+
+        MainTab.Chat -> JarvisChatScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
+
+        MainTab.Calendar -> DayCalendarScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
+
+        MainTab.Checklist -> ChecklistScreen(
+            blocks = blocks,
+            routines = routines,
+            onBlocksUpdated = { blocks = it }
+        )
+
+        MainTab.Settings -> SettingsScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
+
+        MainTab.Debug -> DebugScreen(
+            onBack = { selectedTab = MainTab.Home }
         )
     }
+}
 
-    var currentStep by remember { mutableStateOf(0) }
-    var bootProgress by remember { mutableStateOf(0f) }
-    var bootMessage by remember { mutableStateOf("INITIALIZING...") }
+@Composable
+private fun ChecklistScreen(
+    blocks: List<ProgressBlock>,
+    routines: List<com.jarvismini.core.routine.model.Routine>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = LocalContext.current
+    val stats = ProgressStatsEngine.getTodayStats()
 
-    val infiniteRotation = rememberInfiniteTransition(label = "rotation")
-    val rotation by infiniteRotation.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
-    LaunchedEffect(Unit) {
-        bootSteps.forEachIndexed { index, step ->
-            delay(step.delayMs)
-            currentStep = index
-            bootProgress = step.progress
-            bootMessage = step.message
-        }
-        delay(500)
-        onBootComplete()
-    }
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
+            .padding(16.dp)
     ) {
-        GridBackground()
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            BootCircle(
-                progress = bootProgress,
-                rotation = rotation,
-                modifier = Modifier.size(300.dp)
-            )
+        Text(
+            "Today's Checklist (${stats.completionPercent}%)",
+            style = MaterialTheme.typography.titleLarge
+        )
 
-            Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(12.dp))
 
+        if (blocks.isEmpty()) {
             Text(
-                text = "J.A.R.V.I.S.",
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = 8.sp,
-                color = JarvisBlue
+                "No routines scheduled for today",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(blocks) { block ->
 
-            Spacer(Modifier.height(20.dp))
+                    // ProgressBlock -> Routine mapping
+                    val routine = routines.find { it.id == block.id }
 
-            Text(
-                text = "MARK VII INITIALIZING...",
-                fontSize = 12.sp,
-                color = JarvisBlue.copy(alpha = 0.6f),
-                fontFamily = FontFamily.Monospace
-            )
-
-            Spacer(Modifier.height(40.dp))
-
-            BootProgressBar(progress = bootProgress)
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                text = "${(bootProgress * 100).toInt()}%",
-                fontSize = 14.sp,
-                color = JarvisBlue,
-                fontFamily = FontFamily.Monospace
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            Text(
-                text = bootMessage,
-                fontSize = 12.sp,
-                color = JarvisBlue.copy(alpha = 0.8f),
-                fontFamily = FontFamily.Monospace
-            )
+                    if (routine != null) {
+                        ChecklistItem(
+                            block = block,
+                            routine = routine,
+                            onComplete = {
+                                ProgressEngine.markComplete(context, block.id)
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            },
+                            onIncomplete = {
+                                ProgressEngine.markIncomplete(context, block.id)
+                                AssistantTTS.speak(
+                                    context,
+                                    "Okay, I will remind you in 30 minutes."
+                                )
+                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
-
-@Composable
-fun BootCircle(
-    progress: Float,
-    rotation: Float,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-
-        // 🛡 SAFETY GUARD — prevents crash at progress = 0
-        if (progress <= 0f) return@Canvas
-
-        val safeProgress = max(progress, 0.01f)   // never 0
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val radius = (size.width / 2f) * safeProgress
-
-        // Glowing center
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    JarvisBlue.copy(alpha = 0.8f),
-                    JarvisBlue.copy(alpha = 0.4f),
-                    Color.Transparent
-                ),
-                center = center,
-                radius = radius
-            ),
-            center = center,
-            radius = radius
-        )
-
-        // Rotating segments
-        for (i in 0 until 8) {
-            val angle = (i / 8f) * 2f * PI.toFloat() + rotation * PI.toFloat() / 180f
-
-            drawArc(
-                color = JarvisBlue.copy(alpha = 0.8f * safeProgress),
-                startAngle = angle * 180f / PI.toFloat(),
-                sweepAngle = 15f,
-                useCenter = false,
-                style = Stroke(width = 3f),
-                topLeft = Offset(
-                    center.x - radius * 0.7f,
-                    center.y - radius * 0.7f
-                ),
-                size = Size(radius * 1.4f, radius * 1.4f)
-            )
-        }
-    }
-}
-
-@Composable
-fun BootProgressBar(progress: Float) {
-    val safeProgress = progress.coerceIn(0f, 1f)
-
-    Box(
-        modifier = Modifier
-            .width(400.dp)
-            .height(8.dp)
-            .background(
-                color = JarvisBlue.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(4.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = JarvisBlue.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(4.dp)
-            )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(safeProgress)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(JarvisBlue, Color(0xFF0080FF), JarvisBlue)
-                    ),
-                    shape = RoundedCornerShape(4.dp)
-                )
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(4.dp),
-                    spotColor = JarvisBlue
-                )
-        )
-    }
-}
-
-val JarvisBlue = Color(0xFF00E0FF)
