@@ -30,7 +30,7 @@ import com.jarvismini.ui.components.*
 fun EnhancedHomeScreen(
     onNavigateToChat: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToChecklist: () -> Unit, // ✅ ADDED
+    onNavigateToChecklist: () -> Unit, // ✅ FIX
     onNavigateToSettings: () -> Unit,
     onNavigateToDebug: () -> Unit
 ) {
@@ -172,7 +172,7 @@ fun EnhancedHomeScreen(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat) }
                 item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
-                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ FIX
+                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ WORKS
                 item { QuickActionCard("Notes", Icons.Default.Note) {} }
             }
 
@@ -194,6 +194,97 @@ fun EnhancedHomeScreen(
                 item { StatusCard("Voice Recognition", "Active", true) }
                 item { StatusCard("Automation Engine", "Standby", false) }
             }
+        }
+    }
+}
+
+/* ================== LOCAL COMPONENTS ================== */
+
+@Composable
+private fun QuickActionCard(
+    title: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .size(100.dp)
+            .clickable(onClick = onClick)
+            .background(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                shape = RoundedCornerShape(12.dp)
+            ),
+        color = Color.Transparent
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Icon(icon, contentDescription = title, tint = Color(0xFF00E0FF), modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                color = Color(0xFF00E0FF),
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusCard(
+    title: String,
+    status: String,
+    isOnline: Boolean
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(16.dp),
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF00E0FF))
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    status,
+                    fontSize = 12.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(
+                        color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
+                        shape = CircleShape
+                    )
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        spotColor = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00)
+                    )
+            )
         }
     }
 }
