@@ -59,6 +59,7 @@ fun JarvisChatScreen(
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+    var expanded by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -100,29 +101,56 @@ fun JarvisChatScreen(
             ) {
 
                 // ===== MODE STRIP =====
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            JarvisBlue.copy(alpha = 0.4f),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
                 ) {
-                    Text(
-                        text = "MODE: ${currentMode.name}",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
+                    TextField(
+                        value = currentMode.name,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Select Mode") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+                        },
+                        colors = TextFieldDefaults.textFieldColors(
+                            containerColor = Color.Black.copy(alpha = 0.3f),
+                            focusedTextColor = JarvisBlue,
+                            unfocusedTextColor = JarvisBlue,
+                            cursorColor = JarvisBlue,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
 
-                    TextButton(onClick = {
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        JarvisMode.values().forEach { mode ->
+                            DropdownMenuItem(
+                                text = { Text(mode.name, color = JarvisBlue) },
+                                onClick = {
+                                    JarvisState.setMode(context, mode)
+                                    currentMode = mode
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = {
                         WorkModeManager.toggle(context)
                         currentMode = JarvisState.currentMode
-                    }) {
-                        Text("TOGGLE", color = JarvisBlue)
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Toggle Work Mode")
                 }
 
                 Divider(color = JarvisBlue.copy(alpha = 0.3f))
@@ -165,13 +193,13 @@ fun JarvisChatScreen(
                             )
                         },
                         colors = TextFieldDefaults.textFieldColors(
-                                     containerColor = Color.Transparent,
-                                     focusedTextColor = JarvisBlue,
-                                     unfocusedTextColor = JarvisBlue,
-                                     cursorColor = JarvisBlue,
-                                     focusedIndicatorColor = Color.Transparent,
-                                     unfocusedIndicatorColor = Color.Transparent
-                     )
+                            containerColor = Color.Transparent,
+                            focusedTextColor = JarvisBlue,
+                            unfocusedTextColor = JarvisBlue,
+                            cursorColor = JarvisBlue,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        )
                     )
 
                     IconButton(onClick = {
