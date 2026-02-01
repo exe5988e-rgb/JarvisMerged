@@ -1,227 +1,216 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:173:24 Unresolved reference: QuickActionCard
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:174:24 Unresolved reference: QuickActionCard
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:175:24 Unresolved reference: QuickActionCard
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:176:24 Unresolved reference: QuickActionCard
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:193:24 Unresolved reference: StatusCard
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:194:24 Unresolved reference: StatusCard
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt:195:24 Unresolved reference: StatusCard
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt:169:29 Cannot find a parameter with this name: textColor
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 6s
+BUILD FAILED in 1m 2s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
-1	package com.jarvismini.ui.home
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
+1	@file:OptIn(ExperimentalMaterial3Api::class)
 2
-3	import androidx.compose.animation.core.*
-4	import androidx.compose.foundation.background
-5	import androidx.compose.foundation.border
-6	import androidx.compose.foundation.clickable
-7	import androidx.compose.foundation.layout.*
-8	import androidx.compose.foundation.lazy.LazyColumn
-9	import androidx.compose.foundation.lazy.LazyRow
-10	import androidx.compose.foundation.shape.CircleShape
-11	import androidx.compose.foundation.shape.RoundedCornerShape
-12	import androidx.compose.material.icons.Icons
-13	import androidx.compose.material.icons.filled.*
-14	import androidx.compose.material3.*
-15	import androidx.compose.runtime.*
-16	import androidx.compose.ui.Alignment
-17	import androidx.compose.ui.Modifier
-18	import androidx.compose.ui.draw.alpha
-19	import androidx.compose.ui.draw.shadow
-20	import androidx.compose.ui.graphics.Brush
-21	import androidx.compose.ui.graphics.Color
-22	import androidx.compose.ui.graphics.vector.ImageVector
-23	import androidx.compose.ui.text.font.FontFamily
-24	import androidx.compose.ui.text.font.FontWeight
-25	import androidx.compose.ui.unit.dp
-26	import androidx.compose.ui.unit.sp
-27	import com.jarvismini.ui.components.*
-28
-29	@Composable
-30	fun EnhancedHomeScreen(
-31	    onNavigateToChat: () -> Unit,
-32	    onNavigateToCalendar: () -> Unit,
-33	    onNavigateToChecklist: () -> Unit, // ✅ ADDED
-34	    onNavigateToSettings: () -> Unit,
-35	    onNavigateToDebug: () -> Unit
-36	) {
-37	    var isListening by remember { mutableStateOf(false) }
-38
-39	    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-40	    val pulseAlpha by pulseAnimation.animateFloat(
-41	        initialValue = 0.3f,
-42	        targetValue = 1f,
-43	        animationSpec = infiniteRepeatable(
-44	            animation = tween(1500, easing = FastOutSlowInEasing),
-45	            repeatMode = RepeatMode.Reverse
-46	        ),
-47	        label = "pulseAlpha"
-48	    )
-49
-50	    Box(
-51	        modifier = Modifier
-52	            .fillMaxSize()
-53	            .background(
-54	                brush = Brush.radialGradient(
-55	                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-56	                )
-57	            )
-58	    ) {
-59	        GridBackground()
-60	        ParticleField()
-61	        ScanLine()
+3	package com.jarvismini.ui
+4
+5	import android.app.Activity
+6	import android.content.pm.PackageManager
+7	import androidx.compose.foundation.background
+8	import androidx.compose.foundation.border
+9	import androidx.compose.foundation.layout.*
+10	import androidx.compose.foundation.lazy.LazyColumn
+11	import androidx.compose.foundation.lazy.items
+12	import androidx.compose.foundation.shape.RoundedCornerShape
+13	import androidx.compose.material.icons.Icons
+14	import androidx.compose.material.icons.filled.ArrowBack
+15	import androidx.compose.material.icons.filled.Send
+16	import androidx.compose.material3.*
+17	import androidx.compose.runtime.*
+18	import androidx.compose.ui.Modifier
+19	import androidx.compose.ui.graphics.Brush
+20	import androidx.compose.ui.graphics.Color
+21	import androidx.compose.ui.platform.LocalContext
+22	import androidx.compose.ui.text.font.FontFamily
+23	import androidx.compose.ui.unit.dp
+24	import androidx.core.app.ActivityCompat
+25	import androidx.core.content.ContextCompat
+26	import com.jarvismini.core.JarvisMode
+27	import com.jarvismini.core.JarvisState
+28	import com.jarvismini.core.WorkModeManager
+29	import com.jarvismini.engine.EngineProvider
+30	import com.jarvismini.engine.EngineResult
+31	import com.jarvismini.ui.components.GridBackground
+32	import kotlinx.coroutines.launch
+33
+34	private val JarvisBlue = Color(0xFF00E0FF)
+35
+36	@Composable
+37	fun JarvisChatScreen(
+38	    onBack: () -> Unit
+39	) {
+40	    val context = LocalContext.current
+41	    val activity = context as? Activity
+42	    val scope = rememberCoroutineScope()
+43
+44	    LaunchedEffect(Unit) {
+45	        JarvisState.init(context)
+46	        EngineProvider.init(context)
+47	    }
+48
+49	    LaunchedEffect(Unit) {
+50	        if (activity == null) return@LaunchedEffect
+51	        val perms = mutableListOf<String>()
+52	        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+53	            perms += android.Manifest.permission.READ_CONTACTS
+54	        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+55	            perms += android.Manifest.permission.SEND_SMS
+56	        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+57	    }
+58
+59	    val messages = remember { mutableStateListOf<ChatMessage>() }
+60	    var input by remember { mutableStateOf("") }
+61	    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
 62
-63	        Column(
-64	            modifier = Modifier
-65	                .fillMaxSize()
-66	                .padding(20.dp),
-67	            horizontalAlignment = Alignment.CenterHorizontally
-68	        ) {
-69
-70	            // ===== HEADER =====
-71	            Row(
-72	                modifier = Modifier.fillMaxWidth(),
-73	                horizontalArrangement = Arrangement.SpaceBetween,
-74	                verticalAlignment = Alignment.CenterVertically
-75	            ) {
-76	                Text(
-77	                    text = "J.A.R.V.I.S.",
-78	                    fontSize = 32.sp,
-79	                    fontWeight = FontWeight.Light,
-80	                    letterSpacing = 6.sp,
-81	                    color = Color(0xFF00E0FF)
-82	                )
-83
-84	                Row {
-85	                    IconButton(onClick = onNavigateToDebug) {
-86	                        Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
-87	                    }
-88	                    IconButton(onClick = onNavigateToSettings) {
-89	                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF00E0FF))
-90	                    }
-91	                }
-92	            }
-93
-94	            Spacer(Modifier.height(40.dp))
-95
-96	            // ===== CORE =====
-97	            Box(
-98	                contentAlignment = Alignment.Center,
-99	                modifier = Modifier
-100	                    .size(200.dp)
-101	                    .clickable { isListening = !isListening }
-102	            ) {
-103	                Box(
+63	    Box(
+64	        modifier = Modifier
+65	            .fillMaxSize()
+66	            .background(
+67	                Brush.radialGradient(
+68	                    listOf(Color.Black, Color(0xFF001520), Color.Black)
+69	                )
+70	            )
+71	    ) {
+72	        GridBackground()
+73
+74	        Column(modifier = Modifier.fillMaxSize()) {
+75
+76	            // ===== HEADER =====
+77	            TopAppBar(
+78	                title = {
+79	                    Text(
+80	                        "J.A.R.V.I.S CHAT",
+81	                        color = JarvisBlue,
+82	                        fontFamily = FontFamily.Monospace
+83	                    )
+84	                },
+85	                navigationIcon = {
+86	                    IconButton(onClick = onBack) {
+87	                        Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+88	                    }
+89	                },
+90	                colors = TopAppBarDefaults.topAppBarColors(
+91	                    containerColor = Color.Black.copy(alpha = 0.6f)
+92	                )
+93	            )
+94
+95	            Column(
+96	                modifier = Modifier
+97	                    .fillMaxSize()
+98	                    .padding(12.dp),
+99	                verticalArrangement = Arrangement.spacedBy(12.dp)
+100	            ) {
+101
+102	                // ===== MODE STRIP =====
+103	                Row(
 104	                    modifier = Modifier
-105	                        .size(200.dp)
-106	                        .alpha(if (isListening) pulseAlpha else 0.3f)
-107	                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
-108	                        .border(
-109	                            2.dp,
-110	                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
-111	                            CircleShape
-112	                        )
-113	                )
-114
-115	                Box(
-116	                    modifier = Modifier
-117	                        .size(150.dp)
-118	                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
-119	                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
-120	                )
-121
-122	                Box(
-123	                    modifier = Modifier
-124	                        .size(100.dp)
-125	                        .shadow(
-126	                            elevation = if (isListening) 30.dp else 10.dp,
-127	                            shape = CircleShape,
-128	                            spotColor = Color(0xFF00E0FF)
-129	                        )
-130	                        .background(
-131	                            brush = Brush.radialGradient(
-132	                                listOf(
-133	                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
-134	                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
-135	                                    Color.Transparent
-136	                                )
-137	                            ),
-138	                            shape = CircleShape
-139	                        )
-140	                ) {
-141	                    Icon(
-142	                        imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-143	                        contentDescription = "Voice",
-144	                        tint = Color(0xFF00E0FF),
-145	                        modifier = Modifier.size(40.dp).align(Alignment.Center)
-146	                    )
-147	                }
-148	            }
-149
-150	            Spacer(Modifier.height(20.dp))
-151
-152	            Text(
-153	                text = if (isListening) "LISTENING..." else "TAP TO ACTIVATE",
-154	                fontSize = 14.sp,
-155	                fontFamily = FontFamily.Monospace,
-156	                color = Color(0xFF00E0FF).copy(alpha = 0.8f)
-157	            )
-158
-159	            Spacer(Modifier.height(40.dp))
-160
-161	            // ===== QUICK ACCESS =====
-162	            Text(
-163	                text = "QUICK ACCESS",
-164	                fontSize = 12.sp,
-165	                fontFamily = FontFamily.Monospace,
-166	                letterSpacing = 2.sp,
-167	                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
-168	            )
-169
-170	            Spacer(Modifier.height(16.dp))
-171
-172	            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+105	                        .fillMaxWidth()
+106	                        .border(
+107	                            1.dp,
+108	                            JarvisBlue.copy(alpha = 0.4f),
+109	                            RoundedCornerShape(8.dp)
+110	                        )
+111	                        .padding(10.dp),
+112	                    horizontalArrangement = Arrangement.SpaceBetween
+113	                ) {
+114	                    Text(
+115	                        text = "MODE: ${currentMode.name}",
+116	                        color = JarvisBlue,
+117	                        fontFamily = FontFamily.Monospace
+118	                    )
+119
+120	                    TextButton(onClick = {
+121	                        WorkModeManager.toggle(context)
+122	                        currentMode = JarvisState.currentMode
+123	                    }) {
+124	                        Text("TOGGLE", color = JarvisBlue)
+125	                    }
+126	                }
+127
+128	                Divider(color = JarvisBlue.copy(alpha = 0.3f))
+129
+130	                // ===== CHAT LOG =====
+131	                LazyColumn(
+132	                    modifier = Modifier.weight(1f),
+133	                    reverseLayout = true
+134	                ) {
+135	                    items(messages.reversed()) { msg ->
+136	                        Text(
+137	                            text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+138	                            color = JarvisBlue,
+139	                            fontFamily = FontFamily.Monospace,
+140	                            modifier = Modifier.padding(6.dp)
+141	                        )
+142	                    }
+143	                }
+144
+145	                // ===== INPUT BAR =====
+146	                Row(
+147	                    modifier = Modifier
+148	                        .fillMaxWidth()
+149	                        .border(
+150	                            1.dp,
+151	                            JarvisBlue.copy(alpha = 0.4f),
+152	                            RoundedCornerShape(10.dp)
+153	                        )
+154	                        .padding(6.dp),
+155	                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+156	                ) {
+157	                    TextField(
+158	                        value = input,
+159	                        onValueChange = { input = it },
+160	                        modifier = Modifier.weight(1f),
+161	                        placeholder = {
+162	                            Text(
+163	                                "Command input…",
+164	                                fontFamily = FontFamily.Monospace
+165	                            )
+166	                        },
+167	                        colors = TextFieldDefaults.textFieldColors(
+168	                            containerColor = Color.Transparent,
 >>>>> ERROR HERE
-173	                item { QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat) }
->>>>> ERROR HERE
-174	                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
->>>>> ERROR HERE
-175	                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ FIX
->>>>> ERROR HERE
-176	                item { QuickActionCard("Notes", Icons.Default.Note) {} }
-177	            }
-178
-179	            Spacer(Modifier.height(40.dp))
-180
-181	            // ===== STATUS =====
-182	            Text(
-183	                text = "SYSTEM STATUS",
-184	                fontSize = 12.sp,
-185	                fontFamily = FontFamily.Monospace,
-186	                letterSpacing = 2.sp,
-187	                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
-188	            )
-189
-190	            Spacer(Modifier.height(16.dp))
-191
-192	            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
->>>>> ERROR HERE
-193	                item { StatusCard("Neural Networks", "Online", true) }
->>>>> ERROR HERE
-194	                item { StatusCard("Voice Recognition", "Active", true) }
->>>>> ERROR HERE
-195	                item { StatusCard("Automation Engine", "Standby", false) }
-196	            }
-197	        }
-198	    }
-199	}
+169	                            textColor = JarvisBlue,
+170	                            cursorColor = JarvisBlue,
+171	                            focusedIndicatorColor = Color.Transparent,
+172	                            unfocusedIndicatorColor = Color.Transparent
+173	                        )
+174	                    )
+175
+176	                    IconButton(onClick = {
+177	                        val userText = input.trim()
+178	                        if (userText.isEmpty()) return@IconButton
+179
+180	                        input = ""
+181	                        messages.add(ChatMessage(userText, true))
+182	                        messages.add(ChatMessage("Processing…", false))
+183
+184	                        scope.launch {
+185	                            val result = EngineProvider.commandEngine.handle(userText)
+186	                            val reply = when (result) {
+187	                                is EngineResult.Success -> result.reply
+188	                                else -> EngineProvider.llmEngine.generateReply(userText)
+189	                            }
+190	                            messages.removeLast()
+191	                            messages.add(ChatMessage(reply, false))
+192	                        }
+193	                    }) {
+194	                        Icon(Icons.Default.Send, "Send", tint = JarvisBlue)
+195	                    }
+196	                }
+197	            }
+198	        }
+199	    }
+200	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
