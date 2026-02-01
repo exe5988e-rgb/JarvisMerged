@@ -18,8 +18,8 @@ import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.model.Routine
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.components.GridBackground
-
-private val JarvisBlue = Color(0xFF00E0FF)
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisBackground
 
 @Composable
 fun JarvisChecklistScreen(
@@ -35,7 +35,7 @@ fun JarvisChecklistScreen(
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                    colors = listOf(Color.Black, JarvisBackground, Color.Black)
                 )
             )
     ) {
@@ -47,7 +47,6 @@ fun JarvisChecklistScreen(
                 .padding(16.dp)
         ) {
 
-            // HEADER
             Text(
                 text = "JARVIS TASK MATRIX",
                 fontSize = 22.sp,
@@ -92,7 +91,6 @@ fun JarvisChecklistScreen(
                                 block = block,
                                 routine = routine,
 
-                                // ✅ REAL ENGINE WIRING
                                 onComplete = {
                                     ProgressEngine.markComplete(context, block.id)
                                     AssistantTTS.speak(context, "Task completed.")

@@ -15,12 +15,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.routine.model.Routine
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisGreen
+import com.jarvismini.ui.theme.JarvisRed
 import java.text.SimpleDateFormat
 import java.util.*
-
-val JarvisBlue = Color(0xFF00E0FF)
-val JarvisGreen = Color(0xFF00FF00)
-val JarvisRed = Color(0xFFFF4444)
 
 @Composable
 fun ChecklistItem(
@@ -61,7 +60,7 @@ fun ChecklistItem(
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {
-            // Routine name
+
             Text(
                 text = displayName,
                 fontSize = 16.sp,
@@ -71,7 +70,6 @@ fun ChecklistItem(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Tasks (RoutineAction list)
             Column(modifier = Modifier.padding(start = 4.dp)) {
                 routine.actions.forEach { action ->
                     val displayText = buildString {
@@ -92,7 +90,6 @@ fun ChecklistItem(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Scheduled time
             Text(
                 text = "Scheduled: ${formatTime(block.scheduledAt)}",
                 fontSize = 11.sp,
@@ -100,7 +97,6 @@ fun ChecklistItem(
                 fontFamily = FontFamily.Monospace
             )
 
-            // Completed or Missed time
             block.completedAt?.let {
                 if (block.completed) {
                     Text(
@@ -111,6 +107,7 @@ fun ChecklistItem(
                     )
                 }
             }
+
             block.missedAt?.let {
                 Text(
                     text = "Missed: ${formatTime(it)}",
@@ -122,37 +119,18 @@ fun ChecklistItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!block.completed) {
-                    TextButton(
-                        onClick = onComplete,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = JarvisGreen
-                        )
-                    ) {
-                        Text(
-                            "DONE",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp
-                        )
+                    TextButton(onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisGreen)) {
+                        Text("DONE", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(
-                        onClick = onIncomplete,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = JarvisRed
-                        )
-                    ) {
-                        Text(
-                            "MISSED",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp
-                        )
+                    TextButton(onClick = onIncomplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisRed)) {
+                        Text("MISSED", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                     }
                 } else {
                     Text(
