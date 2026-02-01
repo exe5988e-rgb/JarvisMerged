@@ -1,144 +1,284 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
-@file:OptIn(ExperimentalMaterial3Api::class)
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
+package com.jarvismini.ui.home
 
-package com.jarvismini.ui.checklist
-
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
-import com.jarvismini.core.progress.*
-import com.jarvismini.core.routine.model.Routine
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.components.GridBackground
-
-private val JarvisBlue = Color(0xFF00E0FF)
+import com.jarvismini.ui.components.*
 
 @Composable
-fun JarvisChecklistScreen(
-    blocks: List<ProgressBlock>,
-    routines: List<Routine>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
-    onBack: () -> Unit
+fun EnhancedHomeScreen(
+    onNavigateToChat: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToChecklist: () -> Unit, // ✅ ADDED
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDebug: () -> Unit
 ) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
+    var isListening by remember { mutableStateOf(false) }
+
+    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by pulseAnimation.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.radialGradient(
-                    listOf(Color.Black, Color(0xFF001520), Color.Black)
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
                 )
             )
     ) {
         GridBackground()
+        ParticleField()
+        ScanLine()
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
 
-            // ===== HEADER BAR =====
-            TopAppBar(
-                title = {
-                    Text(
-                        "J.A.R.V.I.S TASK MATRIX",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = JarvisBlue
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.6f)
-                )
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
+            // ===== HEADER =====
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Text(
-                    text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
-                    fontSize = 12.sp,
-                    color = JarvisBlue.copy(alpha = 0.7f),
-                    fontFamily = FontFamily.Monospace
+                    text = "J.A.R.V.I.S.",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 6.sp,
+                    color = Color(0xFF00E0FF)
                 )
 
-                Spacer(Modifier.height(16.dp))
-
-                if (blocks.isEmpty()) {
-                    Text(
-                        text = "NO ACTIVE ROUTINES",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
-                    )
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(blocks) { block ->
-
-                            val routine =
-                                routines.find { it.id == block.id } ?: return@items
-
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        1.dp,
-                                        JarvisBlue.copy(alpha = 0.4f),
-                                        RoundedCornerShape(10.dp)
-                                    ),
-                                color = Color.Black.copy(alpha = 0.6f),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-
-                                ChecklistItem(
-                                    block = block,
-                                    routine = routine,
-
-                                    // ✅ PROPER SCREEN → ENGINE WIRING
-                                    onComplete = {
-                                        ProgressEngine.markComplete(context, block.id)
-                                        AssistantTTS.speak(context, "Task completed.")
-                                        onBlocksUpdated(
-                                            ProgressRepository.getTodayBlocks()
-                                        )
-                                    },
-
-                                    onIncomplete = {
-                                        ProgressEngine.markIncomplete(context, block.id)
-                                        AssistantTTS.speak(context, "Task marked incomplete.")
-                                        onBlocksUpdated(
-                                            ProgressRepository.getTodayBlocks()
-                                        )
-                                    }
-                                )
-                            }
-                        }
+                Row {
+                    IconButton(onClick = onNavigateToDebug) {
+                        Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF00E0FF))
                     }
                 }
             }
+
+            Spacer(Modifier.height(40.dp))
+
+            // ===== CORE =====
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(200.dp)
+                    .clickable { isListening = !isListening }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .alpha(if (isListening) pulseAlpha else 0.3f)
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
+                        .border(
+                            2.dp,
+                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
+                            CircleShape
+                        )
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(150.dp)
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
+                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .shadow(
+                            elevation = if (isListening) 30.dp else 10.dp,
+                            shape = CircleShape,
+                            spotColor = Color(0xFF00E0FF)
+                        )
+                        .background(
+                            brush = Brush.radialGradient(
+                                listOf(
+                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
+                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                ) {
+                    Icon(
+                        imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                        contentDescription = "Voice",
+                        tint = Color(0xFF00E0FF),
+                        modifier = Modifier.size(40.dp).align(Alignment.Center)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = if (isListening) "LISTENING..." else "TAP TO ACTIVATE",
+                fontSize = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            // ===== QUICK ACCESS =====
+            Text(
+                text = "QUICK ACCESS",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat) }
+                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
+                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) } // ✅ FIX
+                item { QuickActionCard("Notes", Icons.Default.Note) {} }
+            }
+
+            Spacer(Modifier.height(40.dp))
+
+            // ===== STATUS =====
+            Text(
+                text = "SYSTEM STATUS",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { StatusCard("Neural Networks", "Online", true) }
+                item { StatusCard("Voice Recognition", "Active", true) }
+                item { StatusCard("Automation Engine", "Standby", false) }
+            }
         }
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.calendar.CalendarViewModel
+import com.jarvismini.ui.calendar.DayCalendarScreen
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
+
+enum class MainTab {
+    Home,
+    Chat,
+    Calendar,
+    Checklist,
+    Settings,
+    Debug
+}
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+
+    var showBoot by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
+    }
+
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
+        }
+    }
+
+    when (selectedTab) {
+
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToChat = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist }, // ✅ FIX
+            onNavigateToSettings = { selectedTab = MainTab.Settings },
+            onNavigateToDebug = { selectedTab = MainTab.Debug }
+        )
+
+        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+
+        MainTab.Calendar -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(viewModel = vm)
+        }
+
+        MainTab.Checklist -> JarvisChecklistScreen(
+            blocks = blocks,
+            routines = routines,
+            onBlocksUpdated = { blocks = it },
+            onBack = { selectedTab = MainTab.Home }
+        )
+
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
