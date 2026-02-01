@@ -49,8 +49,10 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── EventColor.kt
 │   │   │   │   │   │   │   ├── chat
 │   │   │   │   │   │   │   │   ├── ChatScreen.kt
+│   │   │   │   │   │   │   │   ├── JarvisChatScreen.kt
 │   │   │   │   │   │   │   ├── checklist
 │   │   │   │   │   │   │   │   ├── ChecklistItem.kt
+│   │   │   │   │   │   │   │   ├── JarvisChecklistScreen.kt
 │   │   │   │   │   │   │   ├── components
 │   │   │   │   │   │   │   │   ├── GridBackground.kt
 │   │   │   │   │   │   │   │   ├── HologramCanvas.kt
@@ -1550,6 +1552,216 @@ fun ChatScreen() {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
+@file:OptIn(ExperimentalMaterial3Api::class)
+
+package com.jarvismini.ui.chat
+
+import android.app.Activity
+import android.content.pm.PackageManager
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.WorkModeManager
+import com.jarvismini.engine.EngineProvider
+import com.jarvismini.engine.EngineResult
+import com.jarvismini.ui.ChatMessage
+import com.jarvismini.ui.components.GridBackground
+import kotlinx.coroutines.launch
+
+private val JarvisBlue = Color(0xFF00E0FF)
+
+@Composable
+fun JarvisChatScreen() {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        JarvisState.init(context)
+        EngineProvider.init(context)
+    }
+
+    LaunchedEffect(Unit) {
+        if (activity == null) return@LaunchedEffect
+        val perms = mutableListOf<String>()
+
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+            perms += android.Manifest.permission.READ_CONTACTS
+
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+            perms += android.Manifest.permission.SEND_SMS
+
+        if (perms.isNotEmpty())
+            ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+    }
+
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var input by remember { mutableStateOf("") }
+    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+    var expanded by remember { mutableStateOf(false) }
+    val modes = JarvisMode.values().toList()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
+            )
+    ) {
+        GridBackground()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+
+            // HEADER
+            Text(
+                text = "JARVIS CORE INTERFACE",
+                fontSize = 22.sp,
+                color = JarvisBlue,
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            // MODE PANEL
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                TextField(
+                    value = currentMode.name,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("OPERATION MODE", color = JarvisBlue) },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth(),
+                    colors = TextFieldDefaults.textFieldColors(
+                        containerColor = Color.Black,
+                        focusedTextColor = JarvisBlue,
+                        unfocusedTextColor = JarvisBlue
+                    )
+                )
+
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    modes.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.name, color = JarvisBlue) },
+                            onClick = {
+                                JarvisState.setMode(context, mode)
+                                currentMode = mode
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            TextButton(onClick = {
+                WorkModeManager.toggle(context)
+                currentMode = JarvisState.currentMode
+            }) {
+                Text("TOGGLE WORK MODE", color = JarvisBlue, fontFamily = FontFamily.Monospace)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // CHAT PANEL
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .border(1.dp, JarvisBlue.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+                color = Color.Black.copy(alpha = 0.6f),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                LazyColumn(
+                    reverseLayout = true,
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    items(messages.reversed()) { msg ->
+                        Text(
+                            text = if (msg.isUser) "YOU > ${msg.text}" else "JARVIS > ${msg.text}",
+                            color = if (msg.isUser) Color.White else JarvisBlue,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // INPUT PANEL
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("COMMAND INPUT...", color = JarvisBlue.copy(alpha = 0.5f)) },
+                    colors = TextFieldDefaults.textFieldColors(
+                        containerColor = Color.Black,
+                        focusedTextColor = JarvisBlue,
+                        unfocusedTextColor = JarvisBlue
+                    )
+                )
+
+                Spacer(Modifier.width(10.dp))
+
+                Button(
+                    onClick = {
+                        val userText = input.trim()
+                        if (userText.isEmpty()) return@Button
+
+                        input = ""
+                        messages.add(ChatMessage(userText, true))
+                        messages.add(ChatMessage("PROCESSING...", false))
+
+                        scope.launch {
+                            val result = EngineProvider.commandEngine.handle(userText)
+                            val reply = when (result) {
+                                is EngineResult.Success -> result.reply
+                                is EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
+                                else -> EngineProvider.llmEngine.generateReply(userText)
+                            }
+
+                            messages.removeLast()
+                            messages.add(ChatMessage(reply, false))
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue)
+                ) {
+                    Text("SEND", color = Color.Black, fontFamily = FontFamily.Monospace)
+                }
+            }
+        }
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
 package com.jarvismini.ui.checklist
 
@@ -1724,6 +1936,123 @@ fun ChecklistItem(
 private fun formatTime(timestampMs: Long): String {
     val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
     return formatter.format(Date(timestampMs))
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
+package com.jarvismini.ui.checklist
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.model.Routine
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.ui.components.GridBackground
+
+private val JarvisBlue = Color(0xFF00E0FF)
+
+@Composable
+fun JarvisChecklistScreen(
+    blocks: List<ProgressBlock>,
+    routines: List<Routine>,
+    onBlocksUpdated: (List<ProgressBlock>) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val stats = ProgressStatsEngine.getTodayStats()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
+            )
+    ) {
+        GridBackground()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+
+            // HEADER
+            Text(
+                text = "JARVIS TASK MATRIX",
+                fontSize = 22.sp,
+                color = JarvisBlue,
+                fontFamily = FontFamily.Monospace
+            )
+
+            Text(
+                text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
+                fontSize = 12.sp,
+                color = JarvisBlue.copy(alpha = 0.7f),
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            if (blocks.isEmpty()) {
+                Text(
+                    text = "NO ACTIVE ROUTINES",
+                    color = JarvisBlue,
+                    fontFamily = FontFamily.Monospace
+                )
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(blocks) { block ->
+
+                        val routine = routines.find { it.id == block.id } ?: return@items
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    1.dp,
+                                    JarvisBlue.copy(alpha = 0.4f),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            color = Color.Black.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+
+                            ChecklistItem(
+                                block = block,
+                                routine = routine,
+
+                                // ✅ REAL ENGINE WIRING
+                                onComplete = {
+                                    ProgressEngine.markComplete(context, block.id)
+                                    AssistantTTS.speak(context, "Task completed.")
+                                    onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                                },
+
+                                onIncomplete = {
+                                    ProgressEngine.markIncomplete(context, block.id)
+                                    AssistantTTS.speak(context, "Task marked incomplete.")
+                                    onBlocksUpdated(ProgressRepository.getTodayBlocks())
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 
@@ -2418,26 +2747,19 @@ fun StatusCard(title: String, status: String, isOnline: Boolean) {
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
-import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.boot.BootScreen
 import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.chat.JarvisChatScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
-import com.jarvismini.ui.ChecklistItem
 
 enum class MainTab {
     Home,
@@ -2458,19 +2780,20 @@ fun MainScreen() {
     var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
+    // ================= BOOT =================
     if (showBoot) {
         BootScreen(onBootComplete = { showBoot = false })
         return
     }
 
-    // Initial load
+    // ================= INITIAL LOAD =================
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
     }
 
-    // Refresh checklist when opened
+    // ================= REFRESH CHECKLIST =================
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
@@ -2479,9 +2802,10 @@ fun MainScreen() {
         }
     }
 
+    // ================= ROUTER =================
     when (selectedTab) {
 
-        // ================= HOME =================
+        // -------- HOME --------
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
@@ -2489,91 +2813,34 @@ fun MainScreen() {
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
 
-        // ================= CHAT =================
+        // -------- CHAT --------
         MainTab.Chat -> {
             JarvisChatScreen()
         }
 
-        // ================= CALENDAR =================
+        // -------- CALENDAR --------
         MainTab.Calendar -> {
             val vm = remember { CalendarViewModel(context) }
             DayCalendarScreen(viewModel = vm)
         }
 
-        // ================= CHECKLIST =================
-        MainTab.Checklist -> ChecklistScreen(
-            blocks = blocks,
-            routines = routines,
-            onBlocksUpdated = { blocks = it }
-        )
+        // -------- CHECKLIST --------
+        MainTab.Checklist -> {
+            JarvisChecklistScreen(
+                blocks = blocks,
+                routines = routines,
+                onBlocksUpdated = { blocks = it }
+            )
+        }
 
-        // ================= SETTINGS =================
+        // -------- SETTINGS --------
         MainTab.Settings -> {
             SettingsScreen(onBack = { selectedTab = MainTab.Home })
         }
 
-        // ================= DEBUG =================
+        // -------- DEBUG --------
         MainTab.Debug -> {
             DebugScreen(onBack = { selectedTab = MainTab.Home })
-        }
-    }
-}
-
-@Composable
-private fun ChecklistScreen(
-    blocks: List<ProgressBlock>,
-    routines: List<com.jarvismini.core.routine.model.Routine>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit
-) {
-    val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-        Text(
-            "Today's Checklist (${stats.completionPercent}%)",
-            style = MaterialTheme.typography.titleLarge
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        if (blocks.isEmpty()) {
-            Text(
-                "No routines scheduled for today",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(blocks) { block ->
-
-                    // ProgressBlock -> Routine mapping
-                    val routine = routines.find { it.id == block.id }
-
-                    if (routine != null) {
-                        ChecklistItem(
-                            block = block,
-                            routine = routine,
-                            onComplete = {
-                                ProgressEngine.markComplete(context, block.id)
-                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                            },
-                            onIncomplete = {
-                                ProgressEngine.markIncomplete(context, block.id)
-                                AssistantTTS.speak(
-                                    context,
-                                    "Okay, I will remind you in 30 minutes."
-                                )
-                                onBlocksUpdated(ProgressRepository.getTodayBlocks())
-                            }
-                        )
-                    }
-                }
-            }
         }
     }
 }
