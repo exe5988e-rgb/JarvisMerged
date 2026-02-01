@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.jarvismini.ui.checklist
 
 import androidx.compose.foundation.background
@@ -57,7 +59,11 @@ fun JarvisChecklistScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = JarvisBlue)
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = JarvisBlue
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -108,6 +114,7 @@ fun JarvisChecklistScreen(
                                     block = block,
                                     routine = routine,
 
+                                    // ✅ REAL ENGINE WIRING
                                     onComplete = {
                                         ProgressEngine.markComplete(context, block.id)
                                         AssistantTTS.speak(context, "Task completed.")
