@@ -1,101 +1,242 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchService.kt:8:26 Unresolved reference: ContextCompat
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt:79:39 Unresolved reference: ASSISTANT
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt:87:29 Type mismatch: inferred type is JarvisMode but Context was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt:87:29 No value passed for parameter 'mode'
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt:96:29 Unresolved reference: activateWorkMode
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt:98:29 Unresolved reference: deactivateWorkMode
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt:40:49 Type mismatch: inferred type is String but Long was expected
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt:40:59 Too many arguments for public final fun start(context: Context, taskName: String, durationMinutes: Long): Unit defined in com.jarvismini.core.routine.TaskTimerService.Companion
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt:58:26 Unresolved reference: stop
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 37s
+BUILD FAILED in 40s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchService.kt =====
-1	package com.jarvismini.core.stopwatch
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+1	package com.jarvismini.core.routine
 2
-3	import android.app.*
-4	import android.content.Context
-5	import android.content.Intent
+3	import android.app.NotificationChannel
+4	import android.app.NotificationManager
+5	import android.content.Context
 6	import android.os.Build
-7	import android.os.IBinder
->>>>> ERROR HERE
-8	import androidx.core.app.ContextCompat
-9	import androidx.core.app.NotificationCompat
-10	import kotlinx.coroutines.*
-11	import androidx.core.content.ContextCompat
-12
-13	/**
-14	 * Foreground service to show stopwatch notification
-15	 */
-16	class StopwatchService : Service() {
-17
-18	    companion object {
-19	        private const val CHANNEL_ID = "stopwatch_channel"
-20	        private const val NOTIF_ID = 1001
-21
-22	        fun start(context: Context) {
-23	            val intent = Intent(context, StopwatchService::class.java)
-24	            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-25	                ContextCompat.startForegroundService(context, intent)
-26	            } else {
-27	                context.startService(intent)
-28	            }
-29	        }
-30
-31	        fun stop(context: Context) {
-32	            val intent = Intent(context, StopwatchService::class.java)
-33	            context.stopService(intent)
-34	        }
-35	    }
-36
-37	    private val scope = CoroutineScope(Dispatchers.Default)
-38
-39	    override fun onCreate() {
-40	        super.onCreate()
-41	        createChannel()
-42	        startForeground(NOTIF_ID, buildNotification("00:00"))
-43
-44	        scope.launch {
-45	            while (StopwatchManager.state.value.isRunning) {
-46	                val elapsed = StopwatchManager.getCurrentElapsed()
-47	                val manager = getSystemService(NotificationManager::class.java)
-48	                manager.notify(NOTIF_ID, buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed)))
-49	                delay(500)
-50	            }
+7	import androidx.core.app.NotificationCompat
+8	import com.jarvismini.core.JarvisMode
+9	import com.jarvismini.core.JarvisState
+10	import com.jarvismini.core.WorkModeManager
+11	import com.jarvismini.core.routine.model.RoutineAction
+12	import com.jarvismini.core.tts.AssistantTTS
+13
+14	/**
+15	 * FIXED ActionDispatcher - now actually executes routine actions
+16	 *
+17	 * Supports all action types from routine JSON files:
+18	 * - speak: TTS voice announcements
+19	 * - notify: Show notification
+20	 * - set_mode: Change Jarvis mode (WORK, FOCUS, NORMAL)
+21	 * - set_dnd: Enable/disable Do Not Disturb
+22	 * - network_time_sync: Sync time from network
+23	 * - start_timer: NEW - Start task-specific countdown timer
+24	 */
+25	object ActionDispatcher {
+26
+27	    private const val CHANNEL_ID = "jarvis_routine_actions"
+28	    private const val TAG = "ActionDispatcher"
+29
+30	    fun dispatch(context: Context, action: RoutineAction) {
+31	        android.util.Log.d(TAG, "Dispatching action: ${action.type} with params: ${action.params}")
+32
+33	        when (action.type) {
+34	            "speak" -> handleSpeak(context, action)
+35	            "notify" -> handleNotify(context, action)
+36	            "set_mode" -> handleSetMode(action)
+37	            "set_dnd" -> handleSetDnd(context, action)
+38	            "network_time_sync" -> handleNetworkTimeSync()
+39	            "start_timer" -> handleStartTimer(context, action)
+40	            else -> {
+41	                android.util.Log.w(TAG, "Unknown action type: ${action.type}")
+42	            }
+43	        }
+44	    }
+45
+46	    private fun handleSpeak(context: Context, action: RoutineAction) {
+47	        val message = action.params["message"] ?: return
+48	        android.util.Log.d(TAG, "Speaking: $message")
+49	        AssistantTTS.speak(context, message)
+50	    }
 51
-52	            stopSelf()
-53	        }
-54	    }
+52	    private fun handleNotify(context: Context, action: RoutineAction) {
+53	        val message = action.params["message"] ?: return
+54	        val title = action.params["title"] ?: "Jarvis Routine"
 55
-56	    override fun onDestroy() {
-57	        scope.cancel()
-58	        super.onDestroy()
-59	    }
-60
-61	    override fun onBind(intent: Intent?): IBinder? = null
-62
-63	    private fun buildNotification(time: String): Notification {
-64	        return NotificationCompat.Builder(this, CHANNEL_ID)
-65	            .setContentTitle("Stopwatch Running")
-66	            .setContentText("Elapsed: $time")
-67	            .setSmallIcon(android.R.drawable.ic_media_play)
-68	            .setOngoing(true)
-69	            .build()
+56	        android.util.Log.d(TAG, "Showing notification: $title - $message")
+57
+58	        createNotificationChannel(context)
+59
+60	        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+61	            .setContentTitle(title)
+62	            .setContentText(message)
+63	            .setSmallIcon(android.R.drawable.ic_dialog_info)
+64	            .setPriority(NotificationCompat.PRIORITY_HIGH)
+65	            .setAutoCancel(true)
+66	            .build()
+67
+68	        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+69	        notificationManager.notify(message.hashCode(), notification)
 70	    }
 71
-72	    private fun createChannel() {
-73	        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-74	        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-75	            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-76	                val channel = NotificationChannel(
-77	                    CHANNEL_ID,
-78	                    "Stopwatch",
-79	                    NotificationManager.IMPORTANCE_LOW
-80	                )
-81	                manager.createNotificationChannel(channel)
-82	            }
-83	        }
-84	    }
-85	}
+72	    private fun handleSetMode(action: RoutineAction) {
+73	        val modeName = action.params["mode"] ?: return
+74
+75	        val mode = when (modeName.uppercase()) {
+76	            "WORK" -> JarvisMode.WORK
+77	            "FOCUS" -> JarvisMode.FOCUS
+78	            "NORMAL" -> JarvisMode.NORMAL
+>>>>> ERROR HERE
+79	            "ASSISTANT" -> JarvisMode.ASSISTANT
+80	            else -> {
+81	                android.util.Log.w(TAG, "Unknown mode: $modeName")
+82	                return
+83	            }
+84	        }
+85
+86	        android.util.Log.d(TAG, "Setting mode to: $mode")
+>>>>> ERROR HERE
+87	        JarvisState.setMode(mode)
+88	    }
+89
+90	    private fun handleSetDnd(context: Context, action: RoutineAction) {
+91	        val dndEnabled = action.params["dnd"]?.toBoolean() ?: return
+92
+93	        android.util.Log.d(TAG, "Setting DND to: $dndEnabled")
+94
+95	        if (dndEnabled) {
+>>>>> ERROR HERE
+96	            WorkModeManager.activateWorkMode(context)
+97	        } else {
+>>>>> ERROR HERE
+98	            WorkModeManager.deactivateWorkMode(context)
+99	        }
+100	    }
+101
+102	    private fun handleNetworkTimeSync() {
+103	        // Network time sync - can be implemented later
+104	        android.util.Log.d(TAG, "Network time sync requested (not yet implemented)")
+105	    }
+106
+107	    private fun handleStartTimer(context: Context, action: RoutineAction) {
+108	        val durationMinutes = action.params["duration"]?.toLongOrNull() ?: return
+109	        val taskName = action.params["task"] ?: "Task"
+110
+111	        android.util.Log.d(TAG, "Starting timer: $taskName for $durationMinutes minutes")
+112
+113	        // Start the task timer service
+114	        TaskTimerService.start(context, taskName, durationMinutes)
+115	    }
+116
+117	    private fun createNotificationChannel(context: Context) {
+118	        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+119	            val channel = NotificationChannel(
+120	                CHANNEL_ID,
+121	                "Routine Actions",
+122	                NotificationManager.IMPORTANCE_HIGH
+123	            ).apply {
+124	                description = "Notifications from Jarvis routine actions"
+125	            }
+126
+127	            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+128	            notificationManager.createNotificationChannel(channel)
+129	        }
+130	    }
+131	}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt =====
+1	package com.jarvismini.core.routine
+2
+3	import android.content.Context
+4	import kotlinx.coroutines.flow.MutableStateFlow
+5	import kotlinx.coroutines.flow.StateFlow
+6	import kotlinx.coroutines.flow.asStateFlow
+7
+8	/**
+9	 * Manages active task timers across the app
+10	 * Tracks which tasks have active timers and their remaining time
+11	 */
+12	object TaskTimerManager {
+13
+14	    data class TimerState(
+15	        val taskId: String,
+16	        val taskName: String,
+17	        val totalSeconds: Long,
+18	        val remainingSeconds: Long,
+19	        val isActive: Boolean = true
+20	    )
+21
+22	    private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
+23	    val activeTimers: StateFlow<Map<String, TimerState>> = _activeTimers.asStateFlow()
+24
+25	    /**
+26	     * Start a new timer for a task
+27	     */
+28	    fun startTimer(context: Context, taskId: String, taskName: String, durationMinutes: Long) {
+29	        val totalSeconds = durationMinutes * 60
+30
+31	        _activeTimers.value = _activeTimers.value + (taskId to TimerState(
+32	            taskId = taskId,
+33	            taskName = taskName,
+34	            totalSeconds = totalSeconds,
+35	            remainingSeconds = totalSeconds,
+36	            isActive = true
+37	        ))
+38
+39	        // Start the service
+>>>>> ERROR HERE
+40	        TaskTimerService.start(context, taskId, taskName, durationMinutes)
+41	    }
+42
+43	    /**
+44	     * Update timer remaining time (called by service)
+45	     */
+46	    fun updateTimer(taskId: String, remainingSeconds: Long) {
+47	        val current = _activeTimers.value[taskId] ?: return
+48	        _activeTimers.value = _activeTimers.value + (taskId to current.copy(
+49	            remainingSeconds = remainingSeconds
+50	        ))
+51	    }
+52
+53	    /**
+54	     * Stop and remove a timer
+55	     */
+56	    fun stopTimer(context: Context, taskId: String) {
+57	        _activeTimers.value = _activeTimers.value - taskId
+>>>>> ERROR HERE
+58	        TaskTimerService.stop(context, taskId)
+59	    }
+60
+61	    /**
+62	     * Get timer state for a specific task
+63	     */
+64	    fun getTimerState(taskId: String): TimerState? {
+65	        return _activeTimers.value[taskId]
+66	    }
+67
+68	    /**
+69	     * Check if task has active timer
+70	     */
+71	    fun hasActiveTimer(taskId: String): Boolean {
+72	        return _activeTimers.value.containsKey(taskId)
+73	    }
+74
+75	    /**
+76	     * Clear all timers
+77	     */
+78	    fun clearAll() {
+79	        _activeTimers.value = emptyMap()
+80	    }
+81	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
