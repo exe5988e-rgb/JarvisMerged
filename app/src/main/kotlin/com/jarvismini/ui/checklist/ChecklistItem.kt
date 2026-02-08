@@ -1,106 +1,153 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.jarvismini.ui.checklist
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.routine.model.Routine
-import kotlinx.coroutines.delay
-
-private val JarvisBlue = Color(0xFF00E0FF)
-private val JarvisGreen = Color(0xFF00FF9C)
-private val JarvisRed = Color(0xFFFF4C4C)
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisGreen
+import com.jarvismini.ui.theme.JarvisRed
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun ChecklistItem(
-    block: ProgressBlock,
-    routine: Routine,
-    onComplete: () -> Unit,
-    onIncomplete: () -> Unit
+block: ProgressBlock,
+routine: Routine,
+onComplete: () -> Unit,
+onIncomplete: () -> Unit
 ) {
-    var remainingMs by remember { mutableStateOf(0L) }
+val displayName = routine.name
+.replace("_", " ")
+.replaceFirstChar { it.uppercaseChar() }
 
-    val durationMs = block.durationMinutes * 60 * 1000L
+Surface(  
+    modifier = Modifier  
+        .fillMaxWidth()  
+        .padding(vertical = 6.dp)  
+        .background(  
+            color = when {  
+                block.completed -> JarvisBlue.copy(alpha = 0.1f)  
+                block.missedAt != null -> JarvisRed.copy(alpha = 0.1f)  
+                else -> Color.Black.copy(alpha = 0.5f)  
+            },  
+            shape = RoundedCornerShape(8.dp)  
+        )  
+        .border(  
+            width = 1.dp,  
+            color = when {  
+                block.completed -> JarvisBlue.copy(alpha = 0.6f)  
+                block.missedAt != null -> JarvisRed.copy(alpha = 0.6f)  
+                else -> JarvisBlue.copy(alpha = 0.3f)  
+            },  
+            shape = RoundedCornerShape(8.dp)  
+        ),  
+    color = Color.Transparent  
+) {  
+    Column(  
+        modifier = Modifier  
+            .padding(16.dp)  
+            .fillMaxWidth()  
+    ) {  
 
-    LaunchedEffect(block.startTimestamp, block.durationMinutes) {
-        while (true) {
-            if (block.startTimestamp > 0 && durationMs > 0) {
-                val elapsed = System.currentTimeMillis() - block.startTimestamp
-                remainingMs = (durationMs - elapsed).coerceAtLeast(0L)
-            } else {
-                remainingMs = 0L
-            }
-            delay(1000)
-        }
-    }
+        Text(  
+            text = displayName,  
+            fontSize = 16.sp,  
+            fontWeight = FontWeight.Bold,  
+            color = JarvisBlue  
+        )  
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.6f))
-            .padding(16.dp)
-    ) {
+        Spacer(modifier = Modifier.height(8.dp))  
 
-        Text(
-            text = routine.name.uppercase(),
-            color = JarvisBlue,
-            fontSize = 18.sp,
-            fontFamily = FontFamily.Monospace
-        )
+        Column(modifier = Modifier.padding(start = 4.dp)) {  
+            routine.actions.forEach { action ->  
+                val displayText = buildString {  
+                    append(action.type.replace("_", " ").replaceFirstChar { it.uppercaseChar() })  
+                    if (action.params.isNotEmpty()) {  
+                        append(": ")  
+                        append(action.params.entries.joinToString { "${it.key}=${it.value}" })  
+                    }  
+                }  
+                Text(  
+                    text = "• $displayText",  
+                    fontSize = 12.sp,  
+                    color = JarvisBlue.copy(alpha = 0.7f),  
+                    fontFamily = FontFamily.Monospace  
+                )  
+            }  
+        }  
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))  
 
-        if (durationMs > 0 && remainingMs > 0) {
-            Text(
-                text = "TIME LEFT: ${formatTime(remainingMs)}",
-                color = JarvisBlue.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        }
+        Text(  
+            text = "Scheduled: ${formatTime(block.scheduledAt)}",  
+            fontSize = 11.sp,  
+            color = JarvisBlue.copy(alpha = 0.6f),  
+            fontFamily = FontFamily.Monospace  
+        )  
 
-        Spacer(Modifier.height(12.dp))
+        block.completedAt?.let {  
+            if (block.completed) {  
+                Text(  
+                    text = "Completed: ${formatTime(it)}",  
+                    fontSize = 11.sp,  
+                    color = JarvisGreen.copy(alpha = 0.8f),  
+                    fontFamily = FontFamily.Monospace  
+                )  
+            }  
+        }  
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        block.missedAt?.let {  
+            Text(  
+                text = "Missed: ${formatTime(it)}",  
+                fontSize = 11.sp,  
+                color = JarvisRed,  
+                fontFamily = FontFamily.Monospace  
+            )  
+        }  
 
-            Button(
-                onClick = onComplete,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = JarvisGreen
-                )
-            ) {
-                Text("DONE", fontFamily = FontFamily.Monospace)
-            }
+        Spacer(modifier = Modifier.height(12.dp))  
 
-            OutlinedButton(
-                onClick = onIncomplete,
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(JarvisRed)
-                )
-            ) {
-                Text(
-                    "LATER",
-                    color = JarvisRed,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-        }
-    }
+        Row(  
+            modifier = Modifier.fillMaxWidth(),  
+            horizontalArrangement = Arrangement.End,  
+            verticalAlignment = Alignment.CenterVertically  
+        ) {  
+            if (!block.completed) {  
+                TextButton(onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisGreen)) {  
+                    Text("DONE", fontFamily = FontFamily.Monospace, fontSize = 12.sp)  
+                }  
+                Spacer(modifier = Modifier.width(8.dp))  
+                TextButton(onClick = onIncomplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisRed)) {  
+                    Text("MISSED", fontFamily = FontFamily.Monospace, fontSize = 12.sp)  
+                }  
+            } else {  
+                Text(  
+                    text = "✅ COMPLETED",  
+                    fontSize = 12.sp,  
+                    color = JarvisGreen,  
+                    fontWeight = FontWeight.Bold,  
+                    fontFamily = FontFamily.Monospace  
+                )  
+            }  
+        }  
+    }  
 }
 
-private fun formatTime(ms: Long): String {
-    val totalSec = ms / 1000
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return "%02d:%02d".format(min, sec)
+}
+
+private fun formatTime(timestampMs: Long): String {
+val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+return formatter.format(Date(timestampMs))
 }
