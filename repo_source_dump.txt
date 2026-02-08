@@ -6589,11 +6589,8 @@ class StopwatchService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-
-        // Start foreground notification immediately
         startForeground(NOTIF_ID, buildNotification("00:00"))
 
-        // Update notification periodically while stopwatch is running
         scope.launch {
             while (StopwatchManager.state.value.isRunning) {
                 val elapsed = StopwatchManager.getCurrentElapsed()
@@ -6627,17 +6624,19 @@ class StopwatchService : Service() {
     }
 
     /**
-     * Create notification channel if it doesn't exist
+     * Create notification channel if it doesn't exist (API 26+)
      */
     private fun createChannel() {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Stopwatch",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            manager.createNotificationChannel(channel)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Stopwatch",
+                    NotificationManager.IMPORTANCE_LOW
+                )
+                manager.createNotificationChannel(channel)
+            }
         }
     }
 }
