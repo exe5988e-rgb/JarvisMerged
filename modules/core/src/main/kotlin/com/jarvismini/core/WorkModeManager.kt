@@ -4,26 +4,15 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.jarvismini.core.stopwatch.StopwatchManager
 
 object WorkModeManager {
 
-    fun toggle(context: Context): Boolean {
-        return if (JarvisState.currentMode == JarvisMode.WORK) {
+    fun toggle(context: Context) {
+        if (JarvisState.currentMode == JarvisMode.WORK) {
             deactivate(context)
-            false
         } else {
             activate(context)
-            true
         }
-    }
-
-    fun enable(context: Context) {
-        activate(context)
-    }
-
-    fun disable(context: Context) {
-        deactivate(context)
     }
 
     fun activate(context: Context) {
@@ -34,14 +23,16 @@ object WorkModeManager {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
         }
 
-        // Launch productivity apps
         launchApp(context, "xyz.penpencil.physicswala")
         launchApp(context, "com.pittvandewitt.wavelet")
         launchApp(context, "com.google.android.apps.youtube.music")
         launchApp(context, "com.apple.android.music")
 
-        // Auto-start built-in stopwatch when work mode is activated
-        StopwatchManager.start(context)
+        // ⏱ Open OnePlus Clock (user navigates to Stopwatch tab)
+        launchApp(context, "com.oneplus.deskclock")
+
+        // Samsung clock (safe)
+        launchApp(context, "com.sec.android.app.clockpackage")
     }
 
     fun deactivate(context: Context) {
@@ -52,8 +43,8 @@ object WorkModeManager {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
         }
 
-        // Stop built-in stopwatch when work mode is deactivated
-        StopwatchManager.stop(context)
+        // ⏹ Open Clock so Accessibility can click Pause if needed
+        launchApp(context, "com.oneplus.deskclock")
     }
 
     private fun launchApp(context: Context, pkg: String) {
