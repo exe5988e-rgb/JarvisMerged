@@ -1,97 +1,153 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchService.kt =====
-package com.jarvismini.core.stopwatch
+//===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jarvismini">
 
-import android.app.*
-import android.content.Context
-import android.content.Intent
-import android.os.Build
-import android.os.IBinder
-import androidx.core.app.NotificationCompat
-import kotlinx.coroutines.*
+    <!-- ================= PERMISSIONS ================= -->
 
-/**
- * Foreground service to show persistent notification for stopwatch
- */
-class StopwatchService : Service() {
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
-    companion object {
-        private const val CHANNEL_ID = "stopwatch_channel"
-        private const val NOTIF_ID = 1001
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
 
-        /**
-         * Start the stopwatch service safely depending on API level
-         */
-        fun start(context: Context) {
-            val intent = Intent(context, StopwatchService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
-        }
+    <!-- ================= PACKAGE VISIBILITY ================= -->
 
-        /**
-         * Stop the stopwatch service
-         */
-        fun stop(context: Context) {
-            val intent = Intent(context, StopwatchService::class.java)
-            context.stopService(intent)
-        }
-    }
+    <queries>
+        <package android:name="xyz.penpencil.physicswala" />
+        <package android:name="com.pittvandewitt.wavelet" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.apple.android.music" />
+    </queries>
 
-    private val scope = CoroutineScope(Dispatchers.Default)
+    <!-- ================= APPLICATION ================= -->
 
-    override fun onCreate() {
-        super.onCreate()
-        createChannel()
-        startForeground(NOTIF_ID, buildNotification("00:00"))
+    <application
+        android:name="com.jarvismini.CoreApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JarvisMerged"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
 
-        scope.launch {
-            while (StopwatchManager.state.value.isRunning) {
-                val elapsed = StopwatchManager.getCurrentElapsed()
-                val manager = getSystemService(NotificationManager::class.java)
-                manager.notify(
-                    NOTIF_ID,
-                    buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed))
-                )
-                delay(500)
-            }
-        }
-    }
+        <!-- ================= MAIN ACTIVITY ================= -->
 
-    override fun onDestroy() {
-        scope.cancel()
-        super.onDestroy()
-    }
+        <activity
+            android:name="com.jarvismini.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
-    override fun onBind(intent: Intent?): IBinder? = null
+        <!-- ================= NOTIFICATION LISTENER ================= -->
 
-    /**
-     * Build the persistent stopwatch notification
-     */
-    private fun buildNotification(time: String): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Stopwatch Running")
-            .setContentText("Elapsed: $time")
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setOngoing(true)
-            .build()
-    }
+        <service
+            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
-    /**
-     * Create notification channel if it doesn't exist (API 26+)
-     */
-    private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "Stopwatch",
-                    NotificationManager.IMPORTANCE_LOW
-                )
-                manager.createNotificationChannel(channel)
-            }
-        }
-    }
-}
+        <!-- ================= SMS RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.callhandler.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ================= CALL STATE RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ================= CALL SCREENING SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall">
+            <intent-filter>
+                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= ACCESSIBILITY SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/call_accessibility_config" />
+        </service>
+
+        <!-- ================= QUICK SETTINGS TILE ================= -->
+
+        <service
+            android:name="com.jarvismini.service.WorkModeTileService"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= WORK MODE SERVICE ================= -->
+
+        <service
+            android:name=".core.workmode.WorkModeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
