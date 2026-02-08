@@ -5217,13 +5217,18 @@ dependencies {
         { "type": "network_time_sync" },
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
-        { "type": "start_stopwatch" },
+        {
+          "type": "start_timer",
+          "task": "Sunday Backlog Sprint",
+          "duration": "330"
+        },
         {
           "type": "speak",
-          "message": "Sunday backlog sprint started. Five hours to clear pending topics."
+          "message": "Sunday backlog sprint started. Five and a half hours to clear pending topics."
         },
         {
           "type": "notify",
+          "title": "Backlog Sprint",
           "message": "Backlog Sprint: Complete as much as possible before mock test."
         }
       ]
@@ -5245,11 +5250,17 @@ dependencies {
         { "type": "set_mode", "mode": "WORK" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Sunday Mock Test",
+          "duration": "180"
+        },
+        {
           "type": "speak",
           "message": "Mock test started. Three hours. Full exam conditions."
         },
         {
           "type": "notify",
+          "title": "Mock Test",
           "message": "Mock Test in progress. No interruptions."
         }
       ]
@@ -5270,11 +5281,17 @@ dependencies {
         { "type": "network_time_sync" },
         { "type": "set_mode", "mode": "FOCUS" },
         {
+          "type": "start_timer",
+          "task": "Mock Analysis",
+          "duration": "315"
+        },
+        {
           "type": "speak",
-          "message": "Mock completed. Start mistake analysis and error logging."
+          "message": "Mock completed. Start mistake analysis and error logging. Five hours fifteen minutes."
         },
         {
           "type": "notify",
+          "title": "Mock Analysis",
           "message": "Analyze mistakes. Mark weak areas."
         }
       ]
@@ -5326,11 +5343,17 @@ dependencies {
         { "type": "set_mode", "mode": "WORK" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Morning Lectures",
+          "duration": "360"
+        },
+        {
           "type": "speak",
-          "message": "Morning lectures started. Focus on current classes."
+          "message": "Morning lectures started. You have 6 hours. Focus on current classes."
         },
         {
           "type": "notify",
+          "title": "Morning Lectures Block",
           "message": "08:00–14:00: Current lectures block."
         }
       ]
@@ -5350,6 +5373,7 @@ dependencies {
         { "type": "set_dnd", "dnd": false },
         {
           "type": "notify",
+          "title": "Lunch Break",
           "message": "14:00–15:00: Lunch and mental reset."
         }
       ]
@@ -5368,11 +5392,17 @@ dependencies {
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Reactivation Block",
+          "duration": "180"
+        },
+        {
           "type": "speak",
-          "message": "Reactivation block started. Resume syllabus sweep."
+          "message": "Reactivation block started. Three hours. Resume syllabus sweep."
         },
         {
           "type": "notify",
+          "title": "Reactivation Block",
           "message": "15:00–18:00: Reactivation and revision."
         }
       ]
@@ -5391,6 +5421,7 @@ dependencies {
         { "type": "set_mode", "mode": "NORMAL" },
         {
           "type": "notify",
+          "title": "Oxygen Hour",
           "message": "18:00–19:00: Physical reset. Movement and breathing."
         }
       ]
@@ -5409,11 +5440,17 @@ dependencies {
         { "type": "set_mode", "mode": "WORK" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Backlog Lectures",
+          "duration": "120"
+        },
+        {
           "type": "speak",
-          "message": "Backlog lectures block started."
+          "message": "Backlog lectures block started. Two hours."
         },
         {
           "type": "notify",
+          "title": "Backlog Lectures",
           "message": "19:00–21:00: Backlog clearance."
         }
       ]
@@ -5432,11 +5469,17 @@ dependencies {
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Current Homework",
+          "duration": "150"
+        },
+        {
           "type": "speak",
           "message": "Start current homework. Two and a half hours. No backlog, no revision."
         },
         {
           "type": "notify",
+          "title": "Current Homework",
           "message": "21:00–23:30: Current homework (2.5 hours)."
         }
       ]
@@ -5455,11 +5498,17 @@ dependencies {
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Skipped Homework",
+          "duration": "50"
+        },
+        {
           "type": "speak",
           "message": "Clear skipped homework. Fifty minutes only."
         },
         {
           "type": "notify",
+          "title": "Skipped Homework",
           "message": "23:30–00:20: Skipped homework (50 minutes)."
         }
       ]
@@ -5478,11 +5527,17 @@ dependencies {
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Backlog Homework Sprint",
+          "duration": "30"
+        },
+        {
           "type": "speak",
           "message": "Backlog homework sprint. Thirty minutes."
         },
         {
           "type": "notify",
+          "title": "Backlog Homework Sprint",
           "message": "00:20–00:50: Backlog homework (30 minutes)."
         }
       ]
@@ -5502,6 +5557,7 @@ dependencies {
         { "type": "set_dnd", "dnd": false },
         {
           "type": "notify",
+          "title": "Night Wrap",
           "message": "00:50–01:00: Save work, note carryovers, prep tomorrow."
         }
       ]
@@ -5521,6 +5577,7 @@ dependencies {
         { "type": "set_dnd", "dnd": false },
         {
           "type": "notify",
+          "title": "Wind Down",
           "message": "01:00–03:00: Light work or planning only. Wind down."
         }
       ]
@@ -5620,7 +5677,19 @@ dependencies {
                   "enum": ["play", "pause", "next", "prev"]
                 },
                 "message": { "type": "string" },
-                "duration_min": { "type": "integer" }
+                "title": { "type": "string" },
+                "task": { 
+                  "type": "string",
+                  "description": "Task name for timer (required for start_timer)"
+                },
+                "duration": { 
+                  "type": "string",
+                  "description": "Duration in minutes as string (required for start_timer)"
+                },
+                "duration_min": { 
+                  "type": "integer",
+                  "description": "Duration in minutes (deprecated, use 'duration' instead)"
+                }
               }
             }
           }
