@@ -2,11 +2,10 @@
 
 -- COMPILE / RESOURCE ERRORS --
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchService.kt:8:26 Unresolved reference: ContextCompat
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchService.kt:24:17 Unresolved reference: ContextCompat
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 38s
+BUILD FAILED in 37s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -22,81 +21,81 @@ BUILD FAILED in 38s
 8	import androidx.core.app.ContextCompat
 9	import androidx.core.app.NotificationCompat
 10	import kotlinx.coroutines.*
-11
-12	/**
-13	 * Foreground service to show stopwatch notification
-14	 */
-15	class StopwatchService : Service() {
-16
-17	    companion object {
-18	        private const val CHANNEL_ID = "stopwatch_channel"
-19	        private const val NOTIF_ID = 1001
-20
-21	        fun start(context: Context) {
-22	            val intent = Intent(context, StopwatchService::class.java)
-23	            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
->>>>> ERROR HERE
-24	                ContextCompat.startForegroundService(context, intent)
-25	            } else {
-26	                context.startService(intent)
-27	            }
-28	        }
-29
-30	        fun stop(context: Context) {
-31	            val intent = Intent(context, StopwatchService::class.java)
-32	            context.stopService(intent)
-33	        }
-34	    }
-35
-36	    private val scope = CoroutineScope(Dispatchers.Default)
-37
-38	    override fun onCreate() {
-39	        super.onCreate()
-40	        createChannel()
-41	        startForeground(NOTIF_ID, buildNotification("00:00"))
-42
-43	        scope.launch {
-44	            while (StopwatchManager.state.value.isRunning) {
-45	                val elapsed = StopwatchManager.getCurrentElapsed()
-46	                val manager = getSystemService(NotificationManager::class.java)
-47	                manager.notify(NOTIF_ID, buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed)))
-48	                delay(500)
-49	            }
-50
-51	            stopSelf()
-52	        }
-53	    }
-54
-55	    override fun onDestroy() {
-56	        scope.cancel()
-57	        super.onDestroy()
-58	    }
-59
-60	    override fun onBind(intent: Intent?): IBinder? = null
-61
-62	    private fun buildNotification(time: String): Notification {
-63	        return NotificationCompat.Builder(this, CHANNEL_ID)
-64	            .setContentTitle("Stopwatch Running")
-65	            .setContentText("Elapsed: $time")
-66	            .setSmallIcon(android.R.drawable.ic_media_play)
-67	            .setOngoing(true)
-68	            .build()
-69	    }
-70
-71	    private fun createChannel() {
-72	        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-73	        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-74	            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-75	                val channel = NotificationChannel(
-76	                    CHANNEL_ID,
-77	                    "Stopwatch",
-78	                    NotificationManager.IMPORTANCE_LOW
-79	                )
-80	                manager.createNotificationChannel(channel)
-81	            }
-82	        }
-83	    }
-84	}
+11	import androidx.core.content.ContextCompat
+12
+13	/**
+14	 * Foreground service to show stopwatch notification
+15	 */
+16	class StopwatchService : Service() {
+17
+18	    companion object {
+19	        private const val CHANNEL_ID = "stopwatch_channel"
+20	        private const val NOTIF_ID = 1001
+21
+22	        fun start(context: Context) {
+23	            val intent = Intent(context, StopwatchService::class.java)
+24	            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+25	                ContextCompat.startForegroundService(context, intent)
+26	            } else {
+27	                context.startService(intent)
+28	            }
+29	        }
+30
+31	        fun stop(context: Context) {
+32	            val intent = Intent(context, StopwatchService::class.java)
+33	            context.stopService(intent)
+34	        }
+35	    }
+36
+37	    private val scope = CoroutineScope(Dispatchers.Default)
+38
+39	    override fun onCreate() {
+40	        super.onCreate()
+41	        createChannel()
+42	        startForeground(NOTIF_ID, buildNotification("00:00"))
+43
+44	        scope.launch {
+45	            while (StopwatchManager.state.value.isRunning) {
+46	                val elapsed = StopwatchManager.getCurrentElapsed()
+47	                val manager = getSystemService(NotificationManager::class.java)
+48	                manager.notify(NOTIF_ID, buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed)))
+49	                delay(500)
+50	            }
+51
+52	            stopSelf()
+53	        }
+54	    }
+55
+56	    override fun onDestroy() {
+57	        scope.cancel()
+58	        super.onDestroy()
+59	    }
+60
+61	    override fun onBind(intent: Intent?): IBinder? = null
+62
+63	    private fun buildNotification(time: String): Notification {
+64	        return NotificationCompat.Builder(this, CHANNEL_ID)
+65	            .setContentTitle("Stopwatch Running")
+66	            .setContentText("Elapsed: $time")
+67	            .setSmallIcon(android.R.drawable.ic_media_play)
+68	            .setOngoing(true)
+69	            .build()
+70	    }
+71
+72	    private fun createChannel() {
+73	        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+74	        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+75	            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+76	                val channel = NotificationChannel(
+77	                    CHANNEL_ID,
+78	                    "Stopwatch",
+79	                    NotificationManager.IMPORTANCE_LOW
+80	                )
+81	                manager.createNotificationChannel(channel)
+82	            }
+83	        }
+84	    }
+85	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
