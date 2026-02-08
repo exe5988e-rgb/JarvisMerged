@@ -36,21 +36,21 @@ fun JarvisChecklistScreen() {
     val context = LocalContext.current
     val routines = remember { RoutineProvider.getAllRoutines(context) }
     val today = remember { getCurrentDayOfWeek() }
-    
+
     val todayRoutines = routines.filter { routine ->
         routine.enabled && routine.trigger?.days?.contains(today) == true
     }.sortedBy { routine ->
         parseTimeToMinutes(routine.trigger?.time ?: "00:00")
     }
-    
+
     // Track active timers
     val activeTimers by TaskTimerManager.activeTimers.collectAsState()
-    
+
     // Dialog state
     var showTimerDialog by remember { mutableStateOf(false) }
     var selectedTaskId by remember { mutableStateOf("") }
     var selectedTaskName by remember { mutableStateOf("") }
-    
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -73,9 +73,9 @@ fun JarvisChecklistScreen() {
                 color = JarvisBlue,
                 fontFamily = FontFamily.Monospace
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Completion percentage (placeholder for now)
             Text(
                 text = "SYSTEM COMPLETION: 0%",
@@ -83,9 +83,9 @@ fun JarvisChecklistScreen() {
                 color = JarvisBlue.copy(alpha = 0.7f),
                 fontFamily = FontFamily.Monospace
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Task list
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -107,7 +107,7 @@ fun JarvisChecklistScreen() {
             }
         }
     }
-    
+
     // Timer dialog
     if (showTimerDialog) {
         TaskTimerDialog(
@@ -157,7 +157,7 @@ fun TaskCard(
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f)
                 )
-                
+
                 // Timer button
                 if (timerState == null) {
                     OutlinedButton(
@@ -189,9 +189,9 @@ fun TaskCard(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Timer display (if active)
             timerState?.let {
                 TaskTimerDisplay(
@@ -200,7 +200,7 @@ fun TaskCard(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            
+
             // Actions list
             routine.actions.forEach { action ->
                 Row(
@@ -218,6 +218,7 @@ fun TaskCard(
                             "notify" -> "Notify: ${action.params["message"]}"
                             "set_mode" -> "Set mode: ${action.params["mode"]}"
                             "set_dnd" -> "Set dnd: ${action.params["dnd"]}"
+                            "start_timer" -> "Timer: ${action.params["task"]} (${action.params["duration"]} min)"
                             else -> "${action.type}: ${action.params}"
                         },
                         color = JarvisGreen.copy(alpha = 0.7f),
@@ -226,9 +227,9 @@ fun TaskCard(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Scheduled time
             routine.trigger?.time?.let { time ->
                 Text(
@@ -238,14 +239,13 @@ fun TaskCard(
                     fontFamily = FontFamily.Monospace
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
                 OutlinedButton(
                     onClick = { /* Mark complete */ },
@@ -260,7 +260,7 @@ fun TaskCard(
                         fontSize = 12.sp
                     )
                 }
-                
+
                 OutlinedButton(
                     onClick = { /* Mark missed */ },
                     colors = ButtonDefaults.outlinedButtonColors(

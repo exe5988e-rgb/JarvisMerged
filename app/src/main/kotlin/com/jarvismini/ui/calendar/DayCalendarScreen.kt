@@ -19,7 +19,7 @@ import java.util.*
 
 /**
  * FIXED DayCalendarScreen - now shows routines as calendar events
- * 
+ *
  * Changes:
  * - Fetches today's routines from RoutineProvider
  * - Converts routines to CalendarEvent objects
@@ -28,7 +28,7 @@ import java.util.*
 @Composable
 fun DayCalendarScreen(viewModel: CalendarViewModel) {
     val context = LocalContext.current
-    
+
     val now = TimeUtils.nowMs()
     val dayStart = now - (now % (24 * 60 * 60 * 1000))
     val dayEnd = dayStart + (24 * 60 * 60 * 1000)
@@ -37,7 +37,7 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
     val events = remember(dayStart) {
         val routines = RoutineProvider.getAllRoutines(context)
         val today = getCurrentDayOfWeek()
-        
+
         routines
             .filter { routine ->
                 routine.enabled && routine.trigger?.days?.contains(today) == true
@@ -50,16 +50,20 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
                         title = routine.name,
                         startTimeMs = eventTime,
                         endTimeMs = eventTime + (60 * 60 * 1000), // 1 hour default duration
-                        description = routine.actions.joinToString("\n") { action ->
-                            when (action.type) {
-                                "speak" -> "🔊 ${action.params["message"]}"
-                                "notify" -> "🔔 ${action.params["message"]}"
-                                "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
-                                else -> action.type
-                            }
-                        },
                         status = if (eventTime < now) EventStatus.COMPLETED else EventStatus.SCHEDULED,
-                        calendarId = "routines"
+                        meta = mapOf(
+                            "description" to routine.actions.joinToString("\n") { action ->
+                                when (action.type) {
+                                    "speak" -> "🔊 ${action.params["message"]}"
+                                    "notify" -> "🔔 ${action.params["message"]}"
+                                    "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
+                                    "start_timer" -> "⏱️ Timer: ${action.params["task"]} (${action.params["duration"]} min)"
+                                    else -> action.type
+                                }
+                            },
+                            "calendarId" to "routines",
+                            "type" to "routine"
+                        )
                     )
                 }
             }
@@ -77,7 +81,7 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        
+
         if (events.isEmpty()) {
             // Show empty state
             Box(

@@ -57,7 +57,7 @@ fun MainScreen() {
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist = { selectedTab = MainTab.Checklist }, // ✅ FIX
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
             onNavigateToSettings = { selectedTab = MainTab.Settings },
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
@@ -69,12 +69,7 @@ fun MainScreen() {
             DayCalendarScreen(viewModel = vm)
         }
 
-        MainTab.Checklist -> JarvisChecklistScreen(
-            blocks = blocks,
-            routines = routines,
-            onBlocksUpdated = { blocks = it },
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Checklist -> JarvisChecklistScreen()
 
         MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
 
