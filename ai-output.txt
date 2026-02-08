@@ -1,218 +1,500 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
-package com.jarvismini.core.routine
+//===== FILE: modules/core/src/main/assets/routines/sunday_routine.json =====
+{
+  "version": "1.0",
+  "timezone": "Asia/Kolkata",
+  "networkSync": true,
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
-import android.os.Build
-import androidx.core.app.NotificationCompat
-import com.jarvismini.core.JarvisMode
-import com.jarvismini.core.JarvisState
-import com.jarvismini.core.WorkModeManager
-import com.jarvismini.core.routine.model.RoutineAction
-import com.jarvismini.core.tts.AssistantTTS
+  "routines": [
+    {
+      "id": "sunday_morning_backlog",
+      "name": "Sunday Backlog Sprint",
+      "enabled": true,
 
-/**
- * FIXED ActionDispatcher - now actually executes routine actions
- *
- * Supports all action types from routine JSON files:
- * - speak: TTS voice announcements
- * - notify: Show notification
- * - set_mode: Change Jarvis mode (WORK, FOCUS, NORMAL)
- * - set_dnd: Enable/disable Do Not Disturb
- * - network_time_sync: Sync time from network
- * - start_timer: NEW - Start task-specific countdown timer
- */
-object ActionDispatcher {
+      "trigger": {
+        "type": "time",
+        "time": "08:30",
+        "days": ["SUN"]
+      },
 
-    private const val CHANNEL_ID = "jarvis_routine_actions"
-    private const val TAG = "ActionDispatcher"
-
-    fun dispatch(context: Context, action: RoutineAction) {
-        android.util.Log.d(TAG, "Dispatching action: ${action.type} with params: ${action.params}")
-
-        when (action.type) {
-            "speak" -> handleSpeak(context, action)
-            "notify" -> handleNotify(context, action)
-            "set_mode" -> handleSetMode(context, action)
-            "set_dnd" -> handleSetDnd(context, action)
-            "network_time_sync" -> handleNetworkTimeSync()
-            "start_timer" -> handleStartTimer(context, action)
-            else -> {
-                android.util.Log.w(TAG, "Unknown action type: ${action.type}")
-            }
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Sunday Backlog Sprint",
+          "duration": "330"
+        },
+        {
+          "type": "speak",
+          "message": "Sunday backlog sprint started. Five and a half hours to clear pending topics."
+        },
+        {
+          "type": "notify",
+          "title": "Backlog Sprint",
+          "message": "Backlog Sprint: Complete as much as possible before mock test."
         }
-    }
+      ]
+    },
 
-    private fun handleSpeak(context: Context, action: RoutineAction) {
-        val message = action.params["message"] ?: return
-        android.util.Log.d(TAG, "Speaking: $message")
-        AssistantTTS.speak(context, message)
-    }
+    {
+      "id": "sunday_mock_test",
+      "name": "Sunday Mock Test Block",
+      "enabled": true,
 
-    private fun handleNotify(context: Context, action: RoutineAction) {
-        val message = action.params["message"] ?: return
-        val title = action.params["title"] ?: "Jarvis Routine"
+      "trigger": {
+        "type": "time",
+        "time": "14:00",
+        "days": ["SUN"]
+      },
 
-        android.util.Log.d(TAG, "Showing notification: $title - $message")
-
-        createNotificationChannel(context)
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(message.hashCode(), notification)
-    }
-
-    private fun handleSetMode(context: Context, action: RoutineAction) {
-        val modeName = action.params["mode"] ?: return
-
-        val mode = when (modeName.uppercase()) {
-            "WORK" -> JarvisMode.WORK
-            "FOCUS" -> JarvisMode.FOCUS
-            "NORMAL" -> JarvisMode.NORMAL
-            "DRIVING" -> JarvisMode.DRIVING
-            "SLEEP" -> JarvisMode.SLEEP
-            else -> {
-                android.util.Log.w(TAG, "Unknown mode: $modeName")
-                return
-            }
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "WORK" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Sunday Mock Test",
+          "duration": "180"
+        },
+        {
+          "type": "speak",
+          "message": "Mock test started. Three hours. Full exam conditions."
+        },
+        {
+          "type": "notify",
+          "title": "Mock Test",
+          "message": "Mock Test in progress. No interruptions."
         }
+      ]
+    },
 
-        android.util.Log.d(TAG, "Setting mode to: $mode")
-        JarvisState.setMode(context, mode)
-    }
+    {
+      "id": "sunday_analysis",
+      "name": "Mock Analysis + Mistake Review",
+      "enabled": true,
 
-    private fun handleSetDnd(context: Context, action: RoutineAction) {
-        val dndEnabled = action.params["dnd"]?.toBoolean() ?: return
+      "trigger": {
+        "type": "time",
+        "time": "17:15",
+        "days": ["SUN"]
+      },
 
-        android.util.Log.d(TAG, "Setting DND to: $dndEnabled")
-
-        if (dndEnabled) {
-            WorkModeManager.activate(context)
-        } else {
-            WorkModeManager.deactivate(context)
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "FOCUS" },
+        {
+          "type": "start_timer",
+          "task": "Mock Analysis",
+          "duration": "315"
+        },
+        {
+          "type": "speak",
+          "message": "Mock completed. Start mistake analysis and error logging. Five hours fifteen minutes."
+        },
+        {
+          "type": "notify",
+          "title": "Mock Analysis",
+          "message": "Analyze mistakes. Mark weak areas."
         }
-    }
+      ]
+    },
 
-    private fun handleNetworkTimeSync() {
-        // Network time sync - can be implemented later
-        android.util.Log.d(TAG, "Network time sync requested (not yet implemented)")
-    }
+    {
+      "id": "sunday_shutdown",
+      "name": "Sunday Wind Down",
+      "enabled": true,
 
-    private fun handleStartTimer(context: Context, action: RoutineAction) {
-        val durationMinutes = action.params["duration"]?.toLongOrNull() ?: return
-        val taskName = action.params["task"] ?: "Task"
+      "trigger": {
+        "type": "time",
+        "time": "22:30",
+        "days": ["SUN"]
+      },
 
-        android.util.Log.d(TAG, "Starting timer: $taskName for $durationMinutes minutes")
-
-        // Start the task timer service
-        TaskTimerService.start(context, taskName, durationMinutes)
-    }
-
-    private fun createNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Routine Actions",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications from Jarvis routine actions"
-            }
-
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "speak",
+          "message": "Sunday complete. Wind down and prepare for the week."
         }
+      ]
     }
+  ]
 }
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt =====
-package com.jarvismini.core.routine
+//===== FILE: modules/core/src/main/assets/routines/work_routine.json =====
+{
+  "version": "1.0",
+  "timezone": "Asia/Kolkata",
+  "networkSync": true,
 
-import android.content.Context
-import android.content.Intent
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+  "routines": [
+    {
+      "id": "weekday_morning_lectures",
+      "name": "Morning Lectures Block",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "08:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "network_time_sync" },
+        { "type": "set_mode", "mode": "WORK" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Morning Lectures",
+          "duration": "360"
+        },
+        {
+          "type": "speak",
+          "message": "Morning lectures started. You have 6 hours. Focus on current classes."
+        },
+        {
+          "type": "notify",
+          "title": "Morning Lectures Block",
+          "message": "08:00–14:00: Current lectures block."
+        }
+      ]
+    },
 
-/**
- * Manages active task timers across the app
- * Tracks which tasks have active timers and their remaining time
- */
-object TaskTimerManager {
+    {
+      "id": "weekday_lunch_reset",
+      "name": "Lunch and Reset",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "14:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "notify",
+          "title": "Lunch Break",
+          "message": "14:00–15:00: Lunch and mental reset."
+        }
+      ]
+    },
 
-    data class TimerState(
-        val taskId: String,
-        val taskName: String,
-        val totalSeconds: Long,
-        val remainingSeconds: Long,
-        val isActive: Boolean = true
-    )
+    {
+      "id": "weekday_reactivation_block",
+      "name": "Reactivation Block",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "15:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Reactivation Block",
+          "duration": "180"
+        },
+        {
+          "type": "speak",
+          "message": "Reactivation block started. Three hours. Resume syllabus sweep."
+        },
+        {
+          "type": "notify",
+          "title": "Reactivation Block",
+          "message": "15:00–18:00: Reactivation and revision."
+        }
+      ]
+    },
 
-    private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
-    val activeTimers: StateFlow<Map<String, TimerState>> = _activeTimers.asStateFlow()
+    {
+      "id": "weekday_oxygen_hour",
+      "name": "Oxygen Hour",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "18:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        {
+          "type": "notify",
+          "title": "Oxygen Hour",
+          "message": "18:00–19:00: Physical reset. Movement and breathing."
+        }
+      ]
+    },
 
-    /**
-     * Start a new timer for a task
-     */
-    fun startTimer(context: Context, taskId: String, taskName: String, durationMinutes: Long) {
-        val totalSeconds = durationMinutes * 60
+    {
+      "id": "weekday_backlog_block",
+      "name": "Backlog Lectures",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "19:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "WORK" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Backlog Lectures",
+          "duration": "120"
+        },
+        {
+          "type": "speak",
+          "message": "Backlog lectures block started. Two hours."
+        },
+        {
+          "type": "notify",
+          "title": "Backlog Lectures",
+          "message": "19:00–21:00: Backlog clearance."
+        }
+      ]
+    },
 
-        _activeTimers.value = _activeTimers.value + (taskId to TimerState(
-            taskId = taskId,
-            taskName = taskName,
-            totalSeconds = totalSeconds,
-            remainingSeconds = totalSeconds,
-            isActive = true
-        ))
+    {
+      "id": "weekday_current_hw",
+      "name": "Current Homework Block",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "21:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Current Homework",
+          "duration": "150"
+        },
+        {
+          "type": "speak",
+          "message": "Start current homework. Two and a half hours. No backlog, no revision."
+        },
+        {
+          "type": "notify",
+          "title": "Current Homework",
+          "message": "21:00–23:30: Current homework (2.5 hours)."
+        }
+      ]
+    },
 
-        // Start the service - using the correct signature
-        TaskTimerService.start(context, taskName, durationMinutes)
+    {
+      "id": "weekday_skipped_hw",
+      "name": "Skipped Homework Clearance",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "23:30",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Skipped Homework",
+          "duration": "50"
+        },
+        {
+          "type": "speak",
+          "message": "Clear skipped homework. Fifty minutes only."
+        },
+        {
+          "type": "notify",
+          "title": "Skipped Homework",
+          "message": "23:30–00:20: Skipped homework (50 minutes)."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_backlog_hw",
+      "name": "Backlog Homework Sprint",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "00:20",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "FOCUS" },
+        { "type": "set_dnd", "dnd": true },
+        {
+          "type": "start_timer",
+          "task": "Backlog Homework Sprint",
+          "duration": "30"
+        },
+        {
+          "type": "speak",
+          "message": "Backlog homework sprint. Thirty minutes."
+        },
+        {
+          "type": "notify",
+          "title": "Backlog Homework Sprint",
+          "message": "00:20–00:50: Backlog homework (30 minutes)."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_night_buffer",
+      "name": "Night Wrap and Save Progress",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "00:50",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "notify",
+          "title": "Night Wrap",
+          "message": "00:50–01:00: Save work, note carryovers, prep tomorrow."
+        }
+      ]
+    },
+
+    {
+      "id": "weekday_wind_down",
+      "name": "Late Night Wind Down",
+      "enabled": true,
+      "trigger": {
+        "type": "time",
+        "time": "01:00",
+        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
+      },
+      "actions": [
+        { "type": "set_mode", "mode": "NORMAL" },
+        { "type": "set_dnd", "dnd": false },
+        {
+          "type": "notify",
+          "title": "Wind Down",
+          "message": "01:00–03:00: Light work or planning only. Wind down."
+        }
+      ]
     }
-
-    /**
-     * Update timer remaining time (called by service)
-     */
-    fun updateTimer(taskId: String, remainingSeconds: Long) {
-        val current = _activeTimers.value[taskId] ?: return
-        _activeTimers.value = _activeTimers.value + (taskId to current.copy(
-            remainingSeconds = remainingSeconds
-        ))
-    }
-
-    /**
-     * Stop and remove a timer
-     */
-    fun stopTimer(context: Context, taskId: String) {
-        _activeTimers.value = _activeTimers.value - taskId
-        // Stop the service by sending stopService intent
-        val intent = Intent(context, TaskTimerService::class.java)
-        context.stopService(intent)
-    }
-
-    /**
-     * Get timer state for a specific task
-     */
-    fun getTimerState(taskId: String): TimerState? {
-        return _activeTimers.value[taskId]
-    }
-
-    /**
-     * Check if task has active timer
-     */
-    fun hasActiveTimer(taskId: String): Boolean {
-        return _activeTimers.value.containsKey(taskId)
-    }
-
-    /**
-     * Clear all timers
-     */
-    fun clearAll() {
-        _activeTimers.value = emptyMap()
-    }
+  ]
 }
+//===== FILE: modules/core/src/main/assets/schema/routine.schema.json =====
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JarvisRoutineSchema",
+  "type": "object",
+  "required": ["version", "timezone", "networkSync", "routines"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone (ex: Asia/Kolkata)"
+    },
+    "networkSync": {
+      "type": "boolean",
+      "description": "Whether time is synced via network"
+    },
+    "routines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "trigger", "actions"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "trigger": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["time", "event", "mode"]
+              },
+              "time": {
+                "type": "string",
+                "description": "HH:mm format"
+              },
+              "days": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+                }
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["NORMAL", "WORK", "DRIVING", "SLEEP", "FOCUS"]
+              },
+              "event": {
+                "type": "string"
+              }
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "launch_app",
+                    "set_mode",
+                    "set_dnd",
+                    "media_control",
+                    "start_stopwatch",
+                    "start_timer",
+                    "speak",
+                    "notify",
+                    "network_time_sync"
+                  ]
+                },
+                "package": { "type": "string" },
+                "mode": { "type": "string" },
+                "dnd": { "type": "boolean" },
+                "media": {
+                  "type": "string",
+                  "enum": ["play", "pause", "next", "prev"]
+                },
+                "message": { "type": "string" },
+                "title": { "type": "string" },
+                "task": { 
+                  "type": "string",
+                  "description": "Task name for timer (required for start_timer)"
+                },
+                "duration": { 
+                  "type": "string",
+                  "description": "Duration in minutes as string (required for start_timer)"
+                },
+                "duration_min": { 
+                  "type": "integer",
+                  "description": "Duration in minutes (deprecated, use 'duration' instead)"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
