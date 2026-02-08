@@ -5,11 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import androidx.core.app.ContextCompat
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 
 /**
- * Foreground service to show persistent notification for stopwatch
+ * Foreground service to show stopwatch notification
  */
 class StopwatchService : Service() {
 
@@ -17,21 +18,15 @@ class StopwatchService : Service() {
         private const val CHANNEL_ID = "stopwatch_channel"
         private const val NOTIF_ID = 1001
 
-        /**
-         * Start the stopwatch service safely depending on API level
-         */
         fun start(context: Context) {
             val intent = Intent(context, StopwatchService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+                ContextCompat.startForegroundService(context, intent)
             } else {
                 context.startService(intent)
             }
         }
 
-        /**
-         * Stop the stopwatch service
-         */
         fun stop(context: Context) {
             val intent = Intent(context, StopwatchService::class.java)
             context.stopService(intent)
@@ -49,12 +44,11 @@ class StopwatchService : Service() {
             while (StopwatchManager.state.value.isRunning) {
                 val elapsed = StopwatchManager.getCurrentElapsed()
                 val manager = getSystemService(NotificationManager::class.java)
-                manager.notify(
-                    NOTIF_ID,
-                    buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed))
-                )
+                manager.notify(NOTIF_ID, buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed)))
                 delay(500)
             }
+
+            stopSelf()
         }
     }
 
@@ -65,9 +59,6 @@ class StopwatchService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    /**
-     * Build the persistent stopwatch notification
-     */
     private fun buildNotification(time: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Stopwatch Running")
@@ -77,12 +68,9 @@ class StopwatchService : Service() {
             .build()
     }
 
-    /**
-     * Create notification channel if it doesn't exist (API 26+)
-     */
     private fun createChannel() {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (manager.getNotificationChannel(CHANNEL_ID) == null) {
                 val channel = NotificationChannel(
                     CHANNEL_ID,

@@ -4,14 +4,13 @@ import android.content.Context
 import android.os.SystemClock
 import com.jarvismini.core.Logger
 import com.jarvismini.core.tts.AssistantTTS
-import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Built-in stopwatch manager - no external clock app needed!
- * Starts a foreground service when running to ensure persistent notification.
+ * Built-in stopwatch manager
+ * Handles start, pause, stop, reset, and persistent notification via StopwatchService
  */
 object StopwatchManager {
 
@@ -27,15 +26,12 @@ object StopwatchManager {
     private val _state = MutableStateFlow(StopwatchState())
     val state: StateFlow<StopwatchState> = _state.asStateFlow()
 
-    private var tickerJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.Default)
-
     private const val PREF_KEY_START_TIME = "stopwatch_start_time"
     private const val PREF_KEY_PAUSED_AT = "stopwatch_paused_at"
     private const val PREF_KEY_IS_RUNNING = "stopwatch_is_running"
 
     /**
-     * Initialize and restore state from preferences
+     * Initialize state from shared preferences
      */
     fun init(context: Context) {
         val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
@@ -47,10 +43,8 @@ object StopwatchManager {
             _state.value = StopwatchState(
                 isRunning = true,
                 startTimeMs = startTime,
-                pausedAtMs = 0L,
                 elapsedTimeMs = SystemClock.elapsedRealtime() - startTime
             )
-            startTicker()
             StopwatchService.start(context)
         } else if (pausedAt > 0) {
             _state.value = StopwatchState(
@@ -61,68 +55,71 @@ object StopwatchManager {
         }
     }
 
+    /**
+     * Start or resume stopwatch
+     */
     fun start(context: Context) {
-        val currentState = _state.value
-        if (currentState.isRunning) return
+        val current = _state.value
+        if (current.isRunning) return
 
         val now = SystemClock.elapsedRealtime()
-        val startTime = if (currentState.pausedAtMs > 0) now - currentState.pausedAtMs else now
+        val startTime = if (current.pausedAtMs > 0) now - current.pausedAtMs else now
+        val elapsed = if (current.pausedAtMs > 0) current.pausedAtMs else 0L
 
         _state.value = StopwatchState(
             isRunning = true,
             startTimeMs = startTime,
             pausedAtMs = 0L,
-            elapsedTimeMs = if (currentState.pausedAtMs > 0) currentState.pausedAtMs else 0L
+            elapsedTimeMs = elapsed
         )
 
         saveState(context)
-        startTicker()
-
         StopwatchService.start(context)
 
         AssistantTTS.speak(context, "Stopwatch started")
         Logger.d(TAG, "Stopwatch started")
     }
 
+    /**
+     * Pause stopwatch
+     */
     fun pause(context: Context) {
-        val currentState = _state.value
-        if (!currentState.isRunning) return
+        val current = _state.value
+        if (!current.isRunning) return
 
         val elapsed = getCurrentElapsed()
-        _state.value = currentState.copy(
+        _state.value = current.copy(
             isRunning = false,
             pausedAtMs = elapsed,
             elapsedTimeMs = elapsed
         )
 
-        stopTicker()
         saveState(context)
         StopwatchService.stop(context)
 
-        val timeStr = formatElapsedTime(elapsed)
-        AssistantTTS.speak(context, "Stopwatch paused at $timeStr")
-        Logger.d(TAG, "Stopwatch paused at $timeStr")
+        AssistantTTS.speak(context, "Stopwatch paused at ${formatElapsedTime(elapsed)}")
+        Logger.d(TAG, "Stopwatch paused at ${formatElapsedTime(elapsed)}")
     }
 
+    /**
+     * Stop stopwatch completely
+     */
     fun stop(context: Context) {
         val elapsed = getCurrentElapsed()
-        _state.value = StopwatchState(
-            isRunning = false,
-            elapsedTimeMs = elapsed
-        )
+        _state.value = StopwatchState(isRunning = false, elapsedTimeMs = elapsed)
 
-        stopTicker()
         saveState(context)
         StopwatchService.stop(context)
 
-        val timeStr = formatElapsedTime(elapsed)
-        AssistantTTS.speak(context, "Stopwatch stopped. Total time: $timeStr")
-        Logger.d(TAG, "Stopwatch stopped at $timeStr")
+        AssistantTTS.speak(context, "Stopwatch stopped. Total time: ${formatElapsedTime(elapsed)}")
+        Logger.d(TAG, "Stopwatch stopped at ${formatElapsedTime(elapsed)}")
     }
 
+    /**
+     * Reset stopwatch
+     */
     fun reset(context: Context) {
         _state.value = StopwatchState()
-        stopTicker()
         saveState(context)
         StopwatchService.stop(context)
 
@@ -130,59 +127,44 @@ object StopwatchManager {
         Logger.d(TAG, "Stopwatch reset")
     }
 
+    /**
+     * Toggle start/pause
+     */
     fun toggle(context: Context) {
         if (_state.value.isRunning) pause(context) else start(context)
     }
 
+    /**
+     * Current elapsed time
+     */
     fun getCurrentElapsed(): Long {
-        val currentState = _state.value
-        return if (currentState.isRunning) SystemClock.elapsedRealtime() - currentState.startTimeMs
-        else currentState.elapsedTimeMs
+        val current = _state.value
+        return if (current.isRunning) SystemClock.elapsedRealtime() - current.startTimeMs else current.elapsedTimeMs
     }
 
+    /**
+     * Format elapsed time for display HH:MM:SS
+     */
     fun formatElapsedTime(ms: Long): String {
-        val seconds = (ms / 1000) % 60
-        val minutes = (ms / (1000 * 60)) % 60
-        val hours = (ms / (1000 * 60 * 60))
-
-        return when {
-            hours > 0 -> "%d hours %d minutes %d seconds".format(hours, minutes, seconds)
-            minutes > 0 -> "%d minutes %d seconds".format(minutes, seconds)
-            else -> "%d seconds".format(seconds)
-        }
+        val sec = (ms / 1000) % 60
+        val min = (ms / 60000) % 60
+        val hrs = ms / 3600000
+        return if (hrs > 0) "%d:%02d:%02d".format(hrs, min, sec)
+        else "%02d:%02d".format(min, sec)
     }
 
-    fun formatElapsedTimeShort(ms: Long): String {
-        val seconds = (ms / 1000) % 60
-        val minutes = (ms / (1000 * 60)) % 60
-        val hours = (ms / (1000 * 60 * 60))
-        return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
-        else "%02d:%02d".format(minutes, seconds)
-    }
-
-    private fun startTicker() {
-        if (tickerJob?.isActive == true) return
-
-        tickerJob = scope.launch {
-            while (_state.value.isRunning) {
-                _state.value = _state.value.copy(elapsedTimeMs = getCurrentElapsed())
-                delay(100L)
-            }
-        }
-    }
-
-    private fun stopTicker() {
-        tickerJob?.cancel()
-        tickerJob = null
-    }
+    /**
+     * Short format (MM:SS or H:MM:SS)
+     */
+    fun formatElapsedTimeShort(ms: Long): String = formatElapsedTime(ms)
 
     private fun saveState(context: Context) {
         val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-        val s = _state.value
+        val current = _state.value
         prefs.edit().apply {
-            putBoolean(PREF_KEY_IS_RUNNING, s.isRunning)
-            putLong(PREF_KEY_START_TIME, s.startTimeMs)
-            putLong(PREF_KEY_PAUSED_AT, s.pausedAtMs)
+            putBoolean(PREF_KEY_IS_RUNNING, current.isRunning)
+            putLong(PREF_KEY_START_TIME, current.startTimeMs)
+            putLong(PREF_KEY_PAUSED_AT, current.pausedAtMs)
             apply()
         }
     }
