@@ -3,12 +3,6 @@
 -- COMPILE / RESOURCE ERRORS --
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressReminderService.kt:31:24 Unresolved reference: startPeriodicReminders
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ProgressReminderService.kt:48:24 Unresolved reference: stopPeriodicReminders
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:14:13 Cannot find a parameter with this name: startTimestamp
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:16:28 Unresolved reference: saveTodayBlocks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:25:28 Unresolved reference: saveTodayBlocks
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:35:13 Cannot find a parameter with this name: durationMinutes
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:36:13 Cannot find a parameter with this name: startTimestamp
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt:39:28 Unresolved reference: saveTodayBlocks
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:42:23 Unresolved reference: missedAt
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:51:23 Unresolved reference: missedAt
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:94:51 Unresolved reference: scheduledAt
@@ -30,7 +24,7 @@ e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/ja
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 10s
+BUILD FAILED in 1m 4s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -87,55 +81,6 @@ BUILD FAILED in 1m 10s
 48	        ProgressEngine.stopPeriodicReminders()
 49	    }
 50	}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
-4
-5	object ProgressEngine {
-6
-7	    fun markComplete(context: Context, blockId: String) {
-8	        val blocks = ProgressRepository.getTodayBlocks().toMutableList()
-9	        val index = blocks.indexOfFirst { it.id == blockId }
-10	        if (index == -1) return
-11
-12	        blocks[index] = blocks[index].copy(
-13	            completed = true,
->>>>> ERROR HERE
-14	            startTimestamp = 0L
-15	        )
->>>>> ERROR HERE
-16	        ProgressRepository.saveTodayBlocks(blocks)
-17	    }
-18
-19	    fun markIncomplete(context: Context, blockId: String) {
-20	        val blocks = ProgressRepository.getTodayBlocks().toMutableList()
-21	        val index = blocks.indexOfFirst { it.id == blockId }
-22	        if (index == -1) return
-23
-24	        blocks[index] = blocks[index].copy(completed = false)
->>>>> ERROR HERE
-25	        ProgressRepository.saveTodayBlocks(blocks)
-26	    }
-27
-28	    // NEW: start task with user duration
-29	    fun startTask(context: Context, blockId: String, durationMinutes: Int) {
-30	        val blocks = ProgressRepository.getTodayBlocks().toMutableList()
-31	        val index = blocks.indexOfFirst { it.id == blockId }
-32	        if (index == -1) return
-33
-34	        blocks[index] = blocks[index].copy(
->>>>> ERROR HERE
-35	            durationMinutes = durationMinutes,
->>>>> ERROR HERE
-36	            startTimestamp = System.currentTimeMillis()
-37	        )
-38
->>>>> ERROR HERE
-39	        ProgressRepository.saveTodayBlocks(blocks)
-40	    }
-41	}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
 1	package com.jarvismini.ui
