@@ -4,29 +4,30 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import com.jarvismini.core.calendar.model.CalendarEvent
 import com.jarvismini.core.utils.TimeUtils
 import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.calendar.model.EventStatus
-import java.text.SimpleDateFormat
 import java.util.*
 
+private val JarvisBlue = Color(0xFF00E0FF)
+
 /**
- * FIXED DayCalendarScreen - now shows routines as calendar events
- *
- * Changes:
- * - Fetches today's routines from RoutineProvider
- * - Converts routines to CalendarEvent objects
- * - Shows them in chronological order
+ * FULLY WORKING DayCalendarScreen with back button
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DayCalendarScreen(viewModel: CalendarViewModel) {
+fun DayCalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
 
     val now = TimeUtils.nowMs()
@@ -71,21 +72,34 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Header
-        Text(
-            text = "Today's Schedule",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
+        // ===== TOP APP BAR WITH BACK BUTTON =====
+        TopAppBar(
+            title = {
+                Text(
+                    "Today's Schedule",
+                    color = JarvisBlue,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.headlineMedium
+                )
+            },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Black.copy(alpha = 0.6f)
+            )
         )
 
         if (events.isEmpty()) {
             // Show empty state
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -97,7 +111,9 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
         } else {
             // Show events
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(events) { event ->

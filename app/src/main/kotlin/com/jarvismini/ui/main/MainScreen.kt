@@ -66,10 +66,15 @@ fun MainScreen() {
 
         MainTab.Calendar -> {
             val vm = remember { CalendarViewModel(context) }
-            DayCalendarScreen(viewModel = vm)
+            DayCalendarScreen(
+                viewModel = vm,
+                onBack = { selectedTab = MainTab.Home }
+            )
         }
 
-        MainTab.Checklist -> JarvisChecklistScreen()
+        MainTab.Checklist -> JarvisChecklistScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
 
         MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
 

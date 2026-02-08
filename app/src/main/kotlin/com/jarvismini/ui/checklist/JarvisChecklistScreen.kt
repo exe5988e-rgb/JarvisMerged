@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,9 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.routine.TaskTimerManager
+import com.jarvismini.core.progress.ProgressRepository
+import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.timer.TaskTimerDialog
 import com.jarvismini.ui.timer.TaskTimerDisplay
-import java.text.SimpleDateFormat
 import java.util.*
 
 private val JarvisBlue = Color(0xFF00E0FF)
@@ -29,18 +33,27 @@ private val JarvisGreen = Color(0xFF00FF00)
 private val JarvisRed = Color(0xFFFF4444)
 
 /**
- * UPDATED JarvisChecklistScreen with timer integration
+ * FULLY WORKING JarvisChecklistScreen
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JarvisChecklistScreen() {
+fun JarvisChecklistScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val routines = remember { RoutineProvider.getAllRoutines(context) }
+    
+    // State with refresh trigger
+    var refreshTrigger by remember { mutableStateOf(0) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     val today = remember { getCurrentDayOfWeek() }
 
-    val todayRoutines = routines.filter { routine ->
-        routine.enabled && routine.trigger?.days?.contains(today) == true
-    }.sortedBy { routine ->
-        parseTimeToMinutes(routine.trigger?.time ?: "00:00")
+    // Load data whenever refreshTrigger changes
+    LaunchedEffect(refreshTrigger) {
+        routines = RoutineProvider.getAllRoutines(context).filter { routine ->
+            routine.enabled && routine.trigger?.days?.contains(today) == true
+        }.sortedBy { routine ->
+            parseTimeToMinutes(routine.trigger?.time ?: "00:00")
+        }
+        blocks = ProgressRepository.getTodayBlocks()
     }
 
     // Track active timers
@@ -61,48 +74,79 @@ fun JarvisChecklistScreen() {
             )
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Header
-            Text(
-                text = "J.A.R.V.I.S TASK MATRIX",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = JarvisBlue,
-                fontFamily = FontFamily.Monospace
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Completion percentage (placeholder for now)
-            Text(
-                text = "SYSTEM COMPLETION: 0%",
-                fontSize = 14.sp,
-                color = JarvisBlue.copy(alpha = 0.7f),
-                fontFamily = FontFamily.Monospace
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Task list
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(todayRoutines) { routine ->
-                    TaskCard(
-                        routine = routine,
-                        timerState = activeTimers[routine.id],
-                        onTimerClick = {
-                            selectedTaskId = routine.id
-                            selectedTaskName = routine.name
-                            showTimerDialog = true
-                        },
-                        onStopTimer = {
-                            TaskTimerManager.stopTimer(context, routine.id)
-                        }
+            // ===== TOP APP BAR WITH BACK BUTTON =====
+            TopAppBar(
+                title = {
+                    Text(
+                        "J.A.R.V.I.S TASK MATRIX",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.6f)
+                )
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Completion percentage
+                val completedCount = blocks.count { it.completed }
+                val totalCount = routines.size
+                val completionPercent = if (totalCount > 0) (completedCount * 100) / totalCount else 0
+
+                Text(
+                    text = "SYSTEM COMPLETION: $completionPercent% ($completedCount/$totalCount)",
+                    fontSize = 14.sp,
+                    color = JarvisBlue.copy(alpha = 0.7f),
+                    fontFamily = FontFamily.Monospace
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Task list
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(routines) { routine ->
+                        val block = blocks.find { it.id == routine.id }
+                        TaskCard(
+                            routine = routine,
+                            block = block,
+                            timerState = activeTimers[routine.id],
+                            onTimerClick = {
+                                selectedTaskId = routine.id
+                                selectedTaskName = routine.name
+                                showTimerDialog = true
+                            },
+                            onStopTimer = {
+                                TaskTimerManager.stopTimer(context, routine.id)
+                                AssistantTTS.speak(context, "Timer stopped for ${routine.name}")
+                            },
+                            onMarkComplete = {
+                                ProgressRepository.markComplete(context, routine.id)
+                                AssistantTTS.speak(context, "${routine.name} marked as complete")
+                                refreshTrigger++ // Force refresh
+                            },
+                            onMarkMissed = {
+                                ProgressRepository.markIncomplete(context, routine.id)
+                                AssistantTTS.speak(context, "${routine.name} marked as missed")
+                                refreshTrigger++ // Force refresh
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -112,7 +156,9 @@ fun JarvisChecklistScreen() {
     if (showTimerDialog) {
         TaskTimerDialog(
             taskName = selectedTaskName,
-            onDismiss = { showTimerDialog = false },
+            onDismiss = { 
+                showTimerDialog = false
+            },
             onStartTimer = { durationMinutes ->
                 TaskTimerManager.startTimer(
                     context,
@@ -120,6 +166,8 @@ fun JarvisChecklistScreen() {
                     selectedTaskName,
                     durationMinutes
                 )
+                showTimerDialog = false
+                AssistantTTS.speak(context, "Timer started for $selectedTaskName, $durationMinutes minutes")
             }
         )
     }
@@ -128,64 +176,107 @@ fun JarvisChecklistScreen() {
 @Composable
 fun TaskCard(
     routine: com.jarvismini.core.routine.model.Routine,
+    block: ProgressBlock?,
     timerState: TaskTimerManager.TimerState?,
     onTimerClick: () -> Unit,
-    onStopTimer: () -> Unit
+    onStopTimer: () -> Unit,
+    onMarkComplete: () -> Unit,
+    onMarkMissed: () -> Unit
 ) {
+    val isCompleted = block?.completed == true
+    val isMissed = block?.missedAt != null && !isCompleted
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF001520)
+            containerColor = when {
+                isCompleted -> Color(0xFF001520).copy(alpha = 0.5f)
+                isMissed -> Color(0xFF200505)
+                else -> Color(0xFF001520)
+            }
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisBlue.copy(alpha = 0.5f))
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = when {
+                isCompleted -> JarvisGreen.copy(alpha = 0.5f)
+                isMissed -> JarvisRed.copy(alpha = 0.5f)
+                else -> JarvisBlue.copy(alpha = 0.5f)
+            }
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // Title and timer button
+            // Status indicator + Title and timer button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = routine.name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = JarvisBlue,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.weight(1f)
-                )
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Status icon
+                    Text(
+                        text = when {
+                            isCompleted -> "✓ "
+                            isMissed -> "✗ "
+                            else -> "○ "
+                        },
+                        color = when {
+                            isCompleted -> JarvisGreen
+                            isMissed -> JarvisRed
+                            else -> JarvisBlue
+                        },
+                        fontSize = 20.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    
+                    Text(
+                        text = routine.name,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = when {
+                            isCompleted -> JarvisGreen.copy(alpha = 0.7f)
+                            isMissed -> JarvisRed.copy(alpha = 0.7f)
+                            else -> JarvisBlue
+                        },
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
 
-                // Timer button
-                if (timerState == null) {
-                    OutlinedButton(
-                        onClick = onTimerClick,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = JarvisGreen
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
-                    ) {
-                        Text(
-                            "⏱️ TIMER",
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = onStopTimer,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = JarvisRed
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
-                    ) {
-                        Text(
-                            "■ STOP",
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
+                // Timer button (only show if not completed/missed)
+                if (!isCompleted && !isMissed) {
+                    if (timerState == null) {
+                        OutlinedButton(
+                            onClick = onTimerClick,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = JarvisGreen
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                        ) {
+                            Text(
+                                "⏱️ TIMER",
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onStopTimer,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = JarvisRed
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                        ) {
+                            Text(
+                                "■ STOP",
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 }
             }
@@ -242,38 +333,56 @@ fun TaskCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Action buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
-            ) {
-                OutlinedButton(
-                    onClick = { /* Mark complete */ },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = JarvisGreen
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+            // Action buttons (only show if not already marked)
+            if (!isCompleted && !isMissed) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
                 ) {
-                    Text(
-                        "DONE",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
-                    )
-                }
+                    OutlinedButton(
+                        onClick = onMarkComplete,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = JarvisGreen
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                    ) {
+                        Text(
+                            "DONE",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        )
+                    }
 
-                OutlinedButton(
-                    onClick = { /* Mark missed */ },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = JarvisRed
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
-                ) {
-                    Text(
-                        "MISSED",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
-                    )
+                    OutlinedButton(
+                        onClick = onMarkMissed,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = JarvisRed
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                    ) {
+                        Text(
+                            "MISSED",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
+            } else if (isCompleted) {
+                Text(
+                    text = "✓ COMPLETED",
+                    color = JarvisGreen,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+            } else if (isMissed) {
+                Text(
+                    text = "✗ MISSED",
+                    color = JarvisRed,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
             }
         }
     }
