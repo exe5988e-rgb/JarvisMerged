@@ -1737,7 +1737,7 @@ import java.util.*
 
 /**
  * FIXED DayCalendarScreen - now shows routines as calendar events
- * 
+ *
  * Changes:
  * - Fetches today's routines from RoutineProvider
  * - Converts routines to CalendarEvent objects
@@ -1746,7 +1746,7 @@ import java.util.*
 @Composable
 fun DayCalendarScreen(viewModel: CalendarViewModel) {
     val context = LocalContext.current
-    
+
     val now = TimeUtils.nowMs()
     val dayStart = now - (now % (24 * 60 * 60 * 1000))
     val dayEnd = dayStart + (24 * 60 * 60 * 1000)
@@ -1755,7 +1755,7 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
     val events = remember(dayStart) {
         val routines = RoutineProvider.getAllRoutines(context)
         val today = getCurrentDayOfWeek()
-        
+
         routines
             .filter { routine ->
                 routine.enabled && routine.trigger?.days?.contains(today) == true
@@ -1768,16 +1768,20 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
                         title = routine.name,
                         startTimeMs = eventTime,
                         endTimeMs = eventTime + (60 * 60 * 1000), // 1 hour default duration
-                        description = routine.actions.joinToString("\n") { action ->
-                            when (action.type) {
-                                "speak" -> "🔊 ${action.params["message"]}"
-                                "notify" -> "🔔 ${action.params["message"]}"
-                                "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
-                                else -> action.type
-                            }
-                        },
                         status = if (eventTime < now) EventStatus.COMPLETED else EventStatus.SCHEDULED,
-                        calendarId = "routines"
+                        meta = mapOf(
+                            "description" to routine.actions.joinToString("\n") { action ->
+                                when (action.type) {
+                                    "speak" -> "🔊 ${action.params["message"]}"
+                                    "notify" -> "🔔 ${action.params["message"]}"
+                                    "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
+                                    "start_timer" -> "⏱️ Timer: ${action.params["task"]} (${action.params["duration"]} min)"
+                                    else -> action.type
+                                }
+                            },
+                            "calendarId" to "routines",
+                            "type" to "routine"
+                        )
                     )
                 }
             }
@@ -1795,7 +1799,7 @@ fun DayCalendarScreen(viewModel: CalendarViewModel) {
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        
+
         if (events.isEmpty()) {
             // Show empty state
             Box(
@@ -2296,21 +2300,21 @@ fun JarvisChecklistScreen() {
     val context = LocalContext.current
     val routines = remember { RoutineProvider.getAllRoutines(context) }
     val today = remember { getCurrentDayOfWeek() }
-    
+
     val todayRoutines = routines.filter { routine ->
         routine.enabled && routine.trigger?.days?.contains(today) == true
     }.sortedBy { routine ->
         parseTimeToMinutes(routine.trigger?.time ?: "00:00")
     }
-    
+
     // Track active timers
     val activeTimers by TaskTimerManager.activeTimers.collectAsState()
-    
+
     // Dialog state
     var showTimerDialog by remember { mutableStateOf(false) }
     var selectedTaskId by remember { mutableStateOf("") }
     var selectedTaskName by remember { mutableStateOf("") }
-    
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -2333,9 +2337,9 @@ fun JarvisChecklistScreen() {
                 color = JarvisBlue,
                 fontFamily = FontFamily.Monospace
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Completion percentage (placeholder for now)
             Text(
                 text = "SYSTEM COMPLETION: 0%",
@@ -2343,9 +2347,9 @@ fun JarvisChecklistScreen() {
                 color = JarvisBlue.copy(alpha = 0.7f),
                 fontFamily = FontFamily.Monospace
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Task list
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -2367,7 +2371,7 @@ fun JarvisChecklistScreen() {
             }
         }
     }
-    
+
     // Timer dialog
     if (showTimerDialog) {
         TaskTimerDialog(
@@ -2417,7 +2421,7 @@ fun TaskCard(
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f)
                 )
-                
+
                 // Timer button
                 if (timerState == null) {
                     OutlinedButton(
@@ -2449,9 +2453,9 @@ fun TaskCard(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Timer display (if active)
             timerState?.let {
                 TaskTimerDisplay(
@@ -2460,7 +2464,7 @@ fun TaskCard(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            
+
             // Actions list
             routine.actions.forEach { action ->
                 Row(
@@ -2478,6 +2482,7 @@ fun TaskCard(
                             "notify" -> "Notify: ${action.params["message"]}"
                             "set_mode" -> "Set mode: ${action.params["mode"]}"
                             "set_dnd" -> "Set dnd: ${action.params["dnd"]}"
+                            "start_timer" -> "Timer: ${action.params["task"]} (${action.params["duration"]} min)"
                             else -> "${action.type}: ${action.params}"
                         },
                         color = JarvisGreen.copy(alpha = 0.7f),
@@ -2486,9 +2491,9 @@ fun TaskCard(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Scheduled time
             routine.trigger?.time?.let { time ->
                 Text(
@@ -2498,14 +2503,13 @@ fun TaskCard(
                     fontFamily = FontFamily.Monospace
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
                 OutlinedButton(
                     onClick = { /* Mark complete */ },
@@ -2520,7 +2524,7 @@ fun TaskCard(
                         fontSize = 12.sp
                     )
                 }
-                
+
                 OutlinedButton(
                     onClick = { /* Mark missed */ },
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -3266,7 +3270,7 @@ fun MainScreen() {
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat = { selectedTab = MainTab.Chat },
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist = { selectedTab = MainTab.Checklist }, // ✅ FIX
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
             onNavigateToSettings = { selectedTab = MainTab.Settings },
             onNavigateToDebug = { selectedTab = MainTab.Debug }
         )
@@ -3278,12 +3282,7 @@ fun MainScreen() {
             DayCalendarScreen(viewModel = vm)
         }
 
-        MainTab.Checklist -> JarvisChecklistScreen(
-            blocks = blocks,
-            routines = routines,
-            onBlocksUpdated = { blocks = it },
-            onBack = { selectedTab = MainTab.Home }
-        )
+        MainTab.Checklist -> JarvisChecklistScreen()
 
         MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
 
