@@ -11,10 +11,9 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CALL_SCREENING" />
-
-    <!-- Foreground service base permission -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <uses-feature
         android:name="android.hardware.telephony"
@@ -99,11 +98,11 @@
         </service>
 
         <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
-        <!-- FIX: removed phoneCall service type -->
 
         <service
             android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
-            android:exported="false">
+            android:exported="false"
+            android:foregroundServiceType="phoneCall">
             <intent-filter>
                 <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
             </intent-filter>
@@ -134,10 +133,17 @@
             </intent-filter>
         </service>
 
-        <!-- ================= WORK MODE FOREGROUND SERVICE ================= -->
+        <!-- ================= WORK MODE SERVICE ================= -->
 
         <service
             android:name=".core.workmode.WorkModeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- ================= STOPWATCH SERVICE ================= -->
+
+        <service
+            android:name=".core.stopwatch.StopwatchService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
