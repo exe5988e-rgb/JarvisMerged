@@ -33,6 +33,12 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── MainActivity.kt
 │   │   │   │   │   │   ├── ProgressInitializer.kt
 │   │   │   │   │   │   ├── ProgressReminderService.kt
+│   │   │   │   │   │   ├── core
+│   │   │   │   │   │   │   ├── progress
+│   │   │   │   │   │   │   │   ├── ProgressBlock.kt
+│   │   │   │   │   │   │   │   ├── ProgressEngine.kt
+│   │   │   │   │   │   │   ├── workmode
+│   │   │   │   │   │   │   │   ├── WorkModeService.kt
 │   │   │   │   │   │   ├── service
 │   │   │   │   │   │   │   ├── CallAutoReplyService.kt
 │   │   │   │   │   │   │   ├── WorkModeTileService.kt
@@ -878,6 +884,133 @@ class ProgressReminderService : Service() {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/core/progress/ProgressBlock.kt =====
+package com.jarvismini.core.progress
+
+data class ProgressBlock(
+    val id: String,
+    val completed: Boolean = false,
+
+    // User-defined countdown duration
+    val durationMinutes: Int = 0,
+
+    // Timestamp when countdown started
+    val startTimestamp: Long = 0L
+)
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
+package com.jarvismini.core.progress
+
+import android.content.Context
+
+object ProgressEngine {
+
+    fun markComplete(context: Context, blockId: String) {
+        val blocks = ProgressRepository.getTodayBlocks().toMutableList()
+        val index = blocks.indexOfFirst { it.id == blockId }
+        if (index == -1) return
+
+        blocks[index] = blocks[index].copy(
+            completed = true,
+            startTimestamp = 0L
+        )
+        ProgressRepository.saveTodayBlocks(blocks)
+    }
+
+    fun markIncomplete(context: Context, blockId: String) {
+        val blocks = ProgressRepository.getTodayBlocks().toMutableList()
+        val index = blocks.indexOfFirst { it.id == blockId }
+        if (index == -1) return
+
+        blocks[index] = blocks[index].copy(completed = false)
+        ProgressRepository.saveTodayBlocks(blocks)
+    }
+
+    // NEW: start task with user duration
+    fun startTask(context: Context, blockId: String, durationMinutes: Int) {
+        val blocks = ProgressRepository.getTodayBlocks().toMutableList()
+        val index = blocks.indexOfFirst { it.id == blockId }
+        if (index == -1) return
+
+        blocks[index] = blocks[index].copy(
+            durationMinutes = durationMinutes,
+            startTimestamp = System.currentTimeMillis()
+        )
+
+        ProgressRepository.saveTodayBlocks(blocks)
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/core/workmode/WorkModeService.kt =====
+package com.jarvismini.core.workmode
+
+import android.app.*
+import android.content.Intent
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.*
+
+class WorkModeService : Service() {
+
+    private val channelId = "jarvis_workmode"
+    private var startTime = 0L
+    private val scope = CoroutineScope(Dispatchers.Default)
+
+    override fun onCreate() {
+        super.onCreate()
+        createChannel()
+        startTime = System.currentTimeMillis()
+        startForeground(1, buildNotification("00:00:00"))
+
+        scope.launch {
+            while (true) {
+                val elapsed = System.currentTimeMillis() - startTime
+                val text = formatTime(elapsed)
+                val manager = getSystemService(NotificationManager::class.java)
+                manager.notify(1, buildNotification(text))
+                delay(1000)
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun buildNotification(time: String): Notification {
+        return NotificationCompat.Builder(this, channelId)
+            .setContentTitle("JARVIS WORK MODE")
+            .setContentText("Focus Time: $time")
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setOngoing(true)
+            .build()
+    }
+
+    private fun createChannel() {
+        val channel = NotificationChannel(
+            channelId,
+            "Work Mode",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun formatTime(ms: Long): String {
+        val totalSec = ms / 1000
+        val hrs = totalSec / 3600
+        val min = (totalSec % 3600) / 60
+        val sec = totalSec % 60
+        return "%02d:%02d:%02d".format(hrs, min, sec)
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/service/CallAutoReplyService.kt =====
 package com.jarvismini.callhandler.service
 
@@ -948,18 +1081,30 @@ class CallAutoReplyService : Service() {
 //===== FILE: app/src/main/kotlin/com/jarvismini/service/WorkModeTileService.kt =====
 package com.jarvismini.service
 
+import android.content.Intent
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
+import com.jarvismini.core.workmode.WorkModeService
 
 class WorkModeTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
 
-        WorkModeManager.toggle(this)
+        val isNowOn = WorkModeManager.toggle(this)
+
+        if (isNowOn) {
+            ContextCompat.startForegroundService(
+                this,
+                Intent(this, WorkModeService::class.java)
+            )
+        } else {
+            stopService(Intent(this, WorkModeService::class.java))
+        }
 
         qsTile.state =
             if (JarvisState.currentMode == JarvisMode.WORK)
@@ -1167,6 +1312,7 @@ private fun formatElapsedTime(ms: Long): String {
 package com.jarvismini.ui
 
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1190,6 +1336,7 @@ import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
+import com.jarvismini.core.workmode.WorkModeService
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
 import com.jarvismini.ui.components.GridBackground
@@ -1307,9 +1454,22 @@ fun JarvisChatScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // ===== WORK MODE TOGGLE =====
             Button(
                 onClick = {
-                    WorkModeManager.toggle(context)
+                    val isNowOn = WorkModeManager.toggle(context)
+
+                    if (isNowOn) {
+                        ContextCompat.startForegroundService(
+                            context,
+                            Intent(context, WorkModeService::class.java)
+                        )
+                    } else {
+                        context.stopService(
+                            Intent(context, WorkModeService::class.java)
+                        )
+                    }
+
                     currentMode = JarvisState.currentMode
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
@@ -1957,32 +2117,28 @@ fun JarvisChatScreen() {
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.jarvismini.ui.checklist
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.core.progress.ProgressBlock
-import com.jarvismini.core.routine.ActionDispatcher
 import com.jarvismini.core.routine.model.Routine
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.*
+
+private val JarvisBlue = Color(0xFF00E0FF)
+private val JarvisGreen = Color(0xFF00FF9C)
+private val JarvisRed = Color(0xFFFF4C4C)
 
 @Composable
 fun ChecklistItem(
@@ -1991,229 +2147,81 @@ fun ChecklistItem(
     onComplete: () -> Unit,
     onIncomplete: () -> Unit
 ) {
-    var elapsedTime by remember { mutableStateOf(0L) }
-    var isTimerRunning by remember { mutableStateOf(false) }
+    var remainingMs by remember { mutableStateOf(0L) }
 
-    // Stopwatch ticker
-    LaunchedEffect(isTimerRunning) {
-        if (isTimerRunning) {
-            val startTime = System.currentTimeMillis()
-            while (isTimerRunning) {
-                elapsedTime = System.currentTimeMillis() - startTime
-                delay(100L)
+    val durationMs = block.durationMinutes * 60 * 1000L
+
+    LaunchedEffect(block.startTimestamp, block.durationMinutes) {
+        while (true) {
+            if (block.startTimestamp > 0 && durationMs > 0) {
+                val elapsed = System.currentTimeMillis() - block.startTimestamp
+                remainingMs = (durationMs - elapsed).coerceAtLeast(0L)
+            } else {
+                remainingMs = 0L
             }
+            delay(1000)
         }
     }
 
-    // Pulsing animation for active timer
-    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by pulseAnimation.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
-    val containerColor = when {
-        block.completed -> Color(0xFF00E0FF).copy(alpha = 0.15f)
-        block.missedAt != null -> Color(0xFFFF4444).copy(alpha = 0.15f)
-        else -> Color(0xFF001520).copy(alpha = 0.8f)
-    }
-
-    val borderColor = when {
-        block.completed -> Color(0xFF00E0FF)
-        block.missedAt != null -> Color(0xFFFF4444)
-        else -> Color(0xFF00E0FF).copy(alpha = 0.4f)
-    }
-
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        )
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(containerColor)
-                .border(1.dp, borderColor)
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+
+        Text(
+            text = routine.name.uppercase(),
+            color = JarvisBlue,
+            fontSize = 18.sp,
+            fontFamily = FontFamily.Monospace
+        )
+
+        Spacer(Modifier.height(6.dp))
+
+        if (durationMs > 0 && remainingMs > 0) {
+            Text(
+                text = "TIME LEFT: ${formatTime(remainingMs)}",
+                color = JarvisBlue.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+            Button(
+                onClick = onComplete,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = JarvisGreen
+                )
             ) {
-                // ===== STOPWATCH TIMER (LEFT SIDE) =====
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(end = 16.dp)
-                ) {
-                    // Timer Display
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(60.dp)
-                            .background(
-                                brush = if (isTimerRunning) {
-                                    Brush.radialGradient(
-                                        colors = listOf(
-                                            Color(0xFF00E0FF).copy(alpha = pulseAlpha * 0.3f),
-                                            Color.Transparent
-                                        )
-                                    )
-                                } else {
-                                    Brush.radialGradient(
-                                        colors = listOf(
-                                            Color(0xFF00E0FF).copy(alpha = 0.1f),
-                                            Color.Transparent
-                                        )
-                                    )
-                                },
-                                shape = CircleShape
-                            )
-                            .border(
-                                1.dp,
-                                if (isTimerRunning) Color(0xFF00E0FF).copy(alpha = pulseAlpha)
-                                else Color(0xFF00E0FF).copy(alpha = 0.4f),
-                                CircleShape
-                            )
-                    ) {
-                        Text(
-                            text = formatElapsedTime(elapsedTime),
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF00E0FF),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                Text("DONE", fontFamily = FontFamily.Monospace)
+            }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Start/Stop Button
-                    IconButton(
-                        onClick = { isTimerRunning = !isTimerRunning },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                Color(0xFF00E0FF).copy(alpha = 0.1f),
-                                CircleShape
-                            )
-                            .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.6f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = if (isTimerRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
-                            contentDescription = if (isTimerRunning) "Stop" else "Start",
-                            tint = Color(0xFF00E0FF),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                // ===== TASK DETAILS =====
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = routine.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00E0FF)
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Scheduled: ${formatTime(block.scheduledAt)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.7f)
-                    )
-
-                    block.completedAt?.let {
-                        Text(
-                            text = "Completed: ${formatTime(it)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF00E0FF).copy(alpha = 0.7f)
-                        )
-                    }
-
-                    block.missedAt?.let {
-                        Text(
-                            text = "Missed: ${formatTime(it)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFFF4444).copy(alpha = 0.9f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // ===== ACTION BUTTONS (RIGHT SIDE) =====
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                isTimerRunning = false
-                                onComplete()
-                            },
-                            enabled = !block.completed,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f),
-                                contentColor = Color(0xFF00E0FF),
-                                disabledContainerColor = Color(0xFF00E0FF).copy(alpha = 0.1f),
-                                disabledContentColor = Color(0xFF00E0FF).copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.border(
-                                1.dp,
-                                if (!block.completed) Color(0xFF00E0FF) else Color(0xFF00E0FF).copy(alpha = 0.3f)
-                            )
-                        ) {
-                            Text("Done")
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                isTimerRunning = false
-                                onIncomplete()
-                            },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFF00E0FF).copy(alpha = 0.8f)
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                Color(0xFF00E0FF).copy(alpha = 0.6f)
-                            )
-                        ) {
-                            Text("Missed")
-                        }
-                    }
-                }
+            OutlinedButton(
+                onClick = onIncomplete,
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(JarvisRed)
+                )
+            ) {
+                Text(
+                    "LATER",
+                    color = JarvisRed,
+                    fontFamily = FontFamily.Monospace
+                )
             }
         }
     }
 }
 
 private fun formatTime(ms: Long): String {
-    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
-}
-
-private fun formatElapsedTime(ms: Long): String {
-    val seconds = (ms / 1000) % 60
-    val minutes = (ms / (1000 * 60)) % 60
-    val hours = (ms / (1000 * 60 * 60))
-    return if (hours > 0) {
-        String.format("%d:%02d:%02d", hours, minutes, seconds)
-    } else {
-        String.format("%02d:%02d", minutes, seconds)
-    }
+    val totalSec = ms / 1000
+    val min = totalSec / 60
+    val sec = totalSec % 60
+    return "%02d:%02d".format(min, sec)
 }
 
 
@@ -5517,11 +5525,13 @@ import com.jarvismini.core.stopwatch.StopwatchManager
 
 object WorkModeManager {
 
-    fun toggle(context: Context) {
-        if (JarvisState.currentMode == JarvisMode.WORK) {
+    fun toggle(context: Context): Boolean {
+        return if (JarvisState.currentMode == JarvisMode.WORK) {
             deactivate(context)
+            false
         } else {
             activate(context)
+            true
         }
     }
 
