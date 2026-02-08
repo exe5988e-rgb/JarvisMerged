@@ -6200,10 +6200,8 @@ object ProgressStatsEngine {
 
         val rate = (completed.toFloat() / total.toFloat()) * 100f
 
-        // ðŸ”¹ NEW: total work time
-        val totalWorkTime = blocks.sumOf {
-            TaskTimerStore.getElapsed(context, it.id)
-        }
+        // total work time removed (TaskTimerStore deleted)
+        val totalWorkTime: Long = 0L
 
         return StatsWrapper(
             completedCount = completed,
