@@ -6,38 +6,42 @@ import java.util.*
 
 object ProgressStatsEngine {
 
-// Existing method (kept intact)
-fun getTodayStats(): ProgressStats {
-val blocks = ProgressStore.getTodayBlocks()
-val completed = blocks.count { it.completed }
-val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-return ProgressStats(today, blocks.size, completed)
-}
+    fun getTodayStats(): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks()
+        val completed = blocks.count { it.completed }
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        return ProgressStats(today, blocks.size, completed)
+    }
 
-// 🔧 Added for ProgressEngine compatibility
-fun getStats(context: Context): StatsWrapper {
-val blocks = ProgressStore.getTodayBlocks()
+    fun getStats(context: Context): StatsWrapper {
+        val blocks = ProgressStore.getTodayBlocks()
 
-val completed = blocks.count { it.completed }    
-val missed = blocks.count { it.missedAt != null }    
-val pending = blocks.size - completed - missed    
-val total = blocks.size.coerceAtLeast(1)    
+        val completed = blocks.count { it.completed }
+        val missed = blocks.count { it.missedAt != null }
+        val pending = blocks.size - completed - missed
+        val total = blocks.size.coerceAtLeast(1)
 
-val rate = (completed.toFloat() / total.toFloat()) * 100f    
+        val rate = (completed.toFloat() / total.toFloat()) * 100f
 
-return StatsWrapper(    
-    completedCount = completed,    
-    pendingCount = pending,    
-    missedCount = missed,    
-    completionRate = rate    
-)
+        // ðŸ”¹ NEW: total work time
+        val totalWorkTime = blocks.sumOf {
+            TaskTimerStore.getElapsed(context, it.id)
+        }
 
-}
+        return StatsWrapper(
+            completedCount = completed,
+            pendingCount = pending,
+            missedCount = missed,
+            completionRate = rate,
+            totalWorkTimeMs = totalWorkTime
+        )
+    }
 
-data class StatsWrapper(
-val completedCount: Int,
-val pendingCount: Int,
-val missedCount: Int,
-val completionRate: Float
-)
+    data class StatsWrapper(
+        val completedCount: Int,
+        val pendingCount: Int,
+        val missedCount: Int,
+        val completionRate: Float,
+        val totalWorkTimeMs: Long
+    )
 }
