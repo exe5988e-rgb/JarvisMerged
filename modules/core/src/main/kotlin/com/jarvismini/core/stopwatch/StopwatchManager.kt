@@ -7,9 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Manages stopwatch state and timing
- * 
- * Improved version with better service integration
+ * FIXED StopwatchManager - pause now keeps notification visible
  */
 object StopwatchManager {
     
@@ -20,9 +18,6 @@ object StopwatchManager {
     private var pausedTimeMs: Long = 0L
     private var totalElapsedBeforePause: Long = 0L
     
-    /**
-     * Start or resume the stopwatch
-     */
     fun start(context: Context) {
         android.util.Log.d("StopwatchManager", "start() called, current state: ${_state.value}")
         
@@ -39,9 +34,6 @@ object StopwatchManager {
         }
     }
     
-    /**
-     * Pause the stopwatch
-     */
     fun pause(context: Context) {
         android.util.Log.d("StopwatchManager", "pause() called")
         
@@ -51,14 +43,12 @@ object StopwatchManager {
             
             _state.value = _state.value.copy(isRunning = false)
             
-            // Stop the service when paused
-            StopwatchService.stop(context)
+            // DON'T stop service - just update notification to paused state
+            // Service will update notification to show "Paused"
+            android.util.Log.d("StopwatchManager", "Keeping service running, updating to paused state")
         }
     }
     
-    /**
-     * Reset the stopwatch to zero
-     */
     fun reset(context: Context) {
         android.util.Log.d("StopwatchManager", "reset() called")
         
@@ -72,17 +62,11 @@ object StopwatchManager {
         StopwatchService.stop(context)
     }
     
-    /**
-     * Stop the stopwatch (pause and reset)
-     */
     fun stop(context: Context) {
         android.util.Log.d("StopwatchManager", "stop() called")
         reset(context)
     }
     
-    /**
-     * Get current elapsed time in milliseconds
-     */
     fun getCurrentElapsed(): Long {
         return if (_state.value.isRunning) {
             totalElapsedBeforePause + (SystemClock.elapsedRealtime() - startTimeMs)
@@ -91,9 +75,6 @@ object StopwatchManager {
         }
     }
     
-    /**
-     * Format elapsed time as MM:SS for notification
-     */
     fun formatElapsedTimeShort(elapsedMs: Long): String {
         val totalSeconds = elapsedMs / 1000
         val minutes = totalSeconds / 60
@@ -101,9 +82,6 @@ object StopwatchManager {
         return String.format("%02d:%02d", minutes, seconds)
     }
     
-    /**
-     * Format elapsed time as HH:MM:SS for UI display
-     */
     fun formatElapsedTimeLong(elapsedMs: Long): String {
         val totalSeconds = elapsedMs / 1000
         val hours = totalSeconds / 3600
@@ -118,9 +96,6 @@ object StopwatchManager {
     }
 }
 
-/**
- * Represents the current state of the stopwatch
- */
 data class StopwatchState(
     val isRunning: Boolean = false
 )

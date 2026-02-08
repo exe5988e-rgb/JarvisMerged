@@ -11,9 +11,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Foreground service to show stopwatch notification
+ * FIXED StopwatchService - notification now persists when paused
  * 
- * Fixed version with proper lifecycle management and notification handling
+ * Key changes:
+ * - Notification stays visible when paused (shows "Paused" state)
+ * - Service only stops when reset, not when paused
+ * - Notification updates to show paused time
  */
 class StopwatchService : Service() {
 
@@ -39,6 +42,17 @@ class StopwatchService : Service() {
             val intent = Intent(context, StopwatchService::class.java)
             context.stopService(intent)
         }
+        
+        fun updatePausedState(context: Context) {
+            // Send broadcast to update notification to paused state
+            val intent = Intent(context, StopwatchService::class.java)
+            intent.action = "UPDATE_PAUSED"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
     }
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -47,20 +61,22 @@ class StopwatchService : Service() {
     override fun onCreate() {
         super.onCreate()
         android.util.Log.d(TAG, "Service onCreate called")
-        
-        // CRITICAL: Create notification channel BEFORE calling startForeground
         createChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        android.util.Log.d(TAG, "Service onStartCommand called")
+        android.util.Log.d(TAG, "Service onStartCommand called with action: ${intent?.action}")
         
         try {
-            // Start foreground IMMEDIATELY with initial notification
-            val notification = buildNotification("00:00")
+            // Get current elapsed time for initial notification
+            val elapsed = StopwatchManager.getCurrentElapsed()
+            val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
+            val isRunning = StopwatchManager.state.value.isRunning
+            
+            // Start foreground IMMEDIATELY
+            val notification = buildNotification(timeString, isRunning)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // API 29+ requires specific foreground service type
                 startForeground(
                     NOTIF_ID,
                     notification,
@@ -72,7 +88,7 @@ class StopwatchService : Service() {
             
             android.util.Log.d(TAG, "Service started in foreground successfully")
             
-            // Now start observing stopwatch state
+            // Start observing stopwatch state
             startObservingStopwatch()
             
         } catch (e: Exception) {
@@ -80,18 +96,14 @@ class StopwatchService : Service() {
             stopSelf()
         }
         
-        // START_STICKY ensures service restarts if killed by system
         return START_STICKY
     }
 
     private fun startObservingStopwatch() {
-        // Cancel any existing job
         updateJob?.cancel()
         
-        // Start new coroutine to observe stopwatch state
         updateJob = scope.launch {
             try {
-                // Collect state changes from StopwatchManager
                 StopwatchManager.state.collectLatest { state ->
                     android.util.Log.d(TAG, "State changed: isRunning=${state.isRunning}")
                     
@@ -101,30 +113,36 @@ class StopwatchService : Service() {
                             val elapsed = StopwatchManager.getCurrentElapsed()
                             val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
                             
-                            updateNotification(timeString)
+                            updateNotification(timeString, true)
                             delay(500)
                             
-                            // Re-check state in case it changed during delay
                             if (!StopwatchManager.state.value.isRunning) {
                                 break
                             }
                         }
+                        
+                        // When stopwatch pauses, show paused notification
+                        if (!state.isRunning) {
+                            val elapsed = StopwatchManager.getCurrentElapsed()
+                            val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
+                            updateNotification(timeString, false)
+                        }
                     } else {
-                        // Stopwatch stopped - stop service
-                        android.util.Log.d(TAG, "Stopwatch stopped, stopping service")
-                        stopSelf()
+                        // Stopwatch paused - keep notification visible with paused state
+                        val elapsed = StopwatchManager.getCurrentElapsed()
+                        val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
+                        updateNotification(timeString, false)
                     }
                 }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "Error in update loop: ${e.message}", e)
-                stopSelf()
             }
         }
     }
 
-    private fun updateNotification(time: String) {
+    private fun updateNotification(time: String, isRunning: Boolean) {
         try {
-            val notification = buildNotification(time)
+            val notification = buildNotification(time, isRunning)
             val manager = getSystemService(NotificationManager::class.java)
             manager?.notify(NOTIF_ID, notification)
         } catch (e: Exception) {
@@ -141,8 +159,7 @@ class StopwatchService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun buildNotification(time: String): Notification {
-        // Create pending intent to open app when notification is tapped
+    private fun buildNotification(time: String, isRunning: Boolean): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -154,10 +171,13 @@ class StopwatchService : Service() {
             }
         )
 
+        val title = if (isRunning) "Stopwatch Running" else "Stopwatch Paused"
+        val icon = if (isRunning) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Stopwatch Running")
+            .setContentTitle(title)
             .setContentText("Elapsed: $time")
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(icon)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
