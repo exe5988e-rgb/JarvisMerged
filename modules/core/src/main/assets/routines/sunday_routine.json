@@ -19,13 +19,18 @@
         { "type": "network_time_sync" },
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
-        { "type": "start_stopwatch" },
+        {
+          "type": "start_timer",
+          "task": "Sunday Backlog Sprint",
+          "duration": "330"
+        },
         {
           "type": "speak",
-          "message": "Sunday backlog sprint started. Five hours to clear pending topics."
+          "message": "Sunday backlog sprint started. Five and a half hours to clear pending topics."
         },
         {
           "type": "notify",
+          "title": "Backlog Sprint",
           "message": "Backlog Sprint: Complete as much as possible before mock test."
         }
       ]
@@ -47,11 +52,17 @@
         { "type": "set_mode", "mode": "WORK" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Sunday Mock Test",
+          "duration": "180"
+        },
+        {
           "type": "speak",
           "message": "Mock test started. Three hours. Full exam conditions."
         },
         {
           "type": "notify",
+          "title": "Mock Test",
           "message": "Mock Test in progress. No interruptions."
         }
       ]
@@ -72,11 +83,17 @@
         { "type": "network_time_sync" },
         { "type": "set_mode", "mode": "FOCUS" },
         {
+          "type": "start_timer",
+          "task": "Mock Analysis",
+          "duration": "315"
+        },
+        {
           "type": "speak",
-          "message": "Mock completed. Start mistake analysis and error logging."
+          "message": "Mock completed. Start mistake analysis and error logging. Five hours fifteen minutes."
         },
         {
           "type": "notify",
+          "title": "Mock Analysis",
           "message": "Analyze mistakes. Mark weak areas."
         }
       ]

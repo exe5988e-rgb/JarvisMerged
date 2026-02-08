@@ -88,7 +88,19 @@
                   "enum": ["play", "pause", "next", "prev"]
                 },
                 "message": { "type": "string" },
-                "duration_min": { "type": "integer" }
+                "title": { "type": "string" },
+                "task": { 
+                  "type": "string",
+                  "description": "Task name for timer (required for start_timer)"
+                },
+                "duration": { 
+                  "type": "string",
+                  "description": "Duration in minutes as string (required for start_timer)"
+                },
+                "duration_min": { 
+                  "type": "integer",
+                  "description": "Duration in minutes (deprecated, use 'duration' instead)"
+                }
               }
             }
           }

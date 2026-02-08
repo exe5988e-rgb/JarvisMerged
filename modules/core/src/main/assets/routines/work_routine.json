@@ -18,11 +18,17 @@
         { "type": "set_mode", "mode": "WORK" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Morning Lectures",
+          "duration": "360"
+        },
+        {
           "type": "speak",
-          "message": "Morning lectures started. Focus on current classes."
+          "message": "Morning lectures started. You have 6 hours. Focus on current classes."
         },
         {
           "type": "notify",
+          "title": "Morning Lectures Block",
           "message": "08:00–14:00: Current lectures block."
         }
       ]
@@ -42,6 +48,7 @@
         { "type": "set_dnd", "dnd": false },
         {
           "type": "notify",
+          "title": "Lunch Break",
           "message": "14:00–15:00: Lunch and mental reset."
         }
       ]
@@ -60,11 +67,17 @@
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Reactivation Block",
+          "duration": "180"
+        },
+        {
           "type": "speak",
-          "message": "Reactivation block started. Resume syllabus sweep."
+          "message": "Reactivation block started. Three hours. Resume syllabus sweep."
         },
         {
           "type": "notify",
+          "title": "Reactivation Block",
           "message": "15:00–18:00: Reactivation and revision."
         }
       ]
@@ -83,6 +96,7 @@
         { "type": "set_mode", "mode": "NORMAL" },
         {
           "type": "notify",
+          "title": "Oxygen Hour",
           "message": "18:00–19:00: Physical reset. Movement and breathing."
         }
       ]
@@ -101,11 +115,17 @@
         { "type": "set_mode", "mode": "WORK" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Backlog Lectures",
+          "duration": "120"
+        },
+        {
           "type": "speak",
-          "message": "Backlog lectures block started."
+          "message": "Backlog lectures block started. Two hours."
         },
         {
           "type": "notify",
+          "title": "Backlog Lectures",
           "message": "19:00–21:00: Backlog clearance."
         }
       ]
@@ -124,11 +144,17 @@
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Current Homework",
+          "duration": "150"
+        },
+        {
           "type": "speak",
           "message": "Start current homework. Two and a half hours. No backlog, no revision."
         },
         {
           "type": "notify",
+          "title": "Current Homework",
           "message": "21:00–23:30: Current homework (2.5 hours)."
         }
       ]
@@ -147,11 +173,17 @@
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Skipped Homework",
+          "duration": "50"
+        },
+        {
           "type": "speak",
           "message": "Clear skipped homework. Fifty minutes only."
         },
         {
           "type": "notify",
+          "title": "Skipped Homework",
           "message": "23:30–00:20: Skipped homework (50 minutes)."
         }
       ]
@@ -170,11 +202,17 @@
         { "type": "set_mode", "mode": "FOCUS" },
         { "type": "set_dnd", "dnd": true },
         {
+          "type": "start_timer",
+          "task": "Backlog Homework Sprint",
+          "duration": "30"
+        },
+        {
           "type": "speak",
           "message": "Backlog homework sprint. Thirty minutes."
         },
         {
           "type": "notify",
+          "title": "Backlog Homework Sprint",
           "message": "00:20–00:50: Backlog homework (30 minutes)."
         }
       ]
@@ -194,6 +232,7 @@
         { "type": "set_dnd", "dnd": false },
         {
           "type": "notify",
+          "title": "Night Wrap",
           "message": "00:50–01:00: Save work, note carryovers, prep tomorrow."
         }
       ]
@@ -213,6 +252,7 @@
         { "type": "set_dnd", "dnd": false },
         {
           "type": "notify",
+          "title": "Wind Down",
           "message": "01:00–03:00: Light work or planning only. Wind down."
         }
       ]
