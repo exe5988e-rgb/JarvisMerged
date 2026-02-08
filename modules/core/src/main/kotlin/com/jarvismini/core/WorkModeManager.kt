@@ -8,11 +8,13 @@ import com.jarvismini.core.stopwatch.StopwatchManager
 
 object WorkModeManager {
 
-    fun toggle(context: Context) {
-        if (JarvisState.currentMode == JarvisMode.WORK) {
+    fun toggle(context: Context): Boolean {
+        return if (JarvisState.currentMode == JarvisMode.WORK) {
             deactivate(context)
+            false
         } else {
             activate(context)
+            true
         }
     }
 

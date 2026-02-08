@@ -3,6 +3,7 @@
 package com.jarvismini.ui
 
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +27,7 @@ import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
+import com.jarvismini.core.workmode.WorkModeService
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
 import com.jarvismini.ui.components.GridBackground
@@ -143,9 +145,22 @@ fun JarvisChatScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // ===== WORK MODE TOGGLE =====
             Button(
                 onClick = {
-                    WorkModeManager.toggle(context)
+                    val isNowOn = WorkModeManager.toggle(context)
+
+                    if (isNowOn) {
+                        ContextCompat.startForegroundService(
+                            context,
+                            Intent(context, WorkModeService::class.java)
+                        )
+                    } else {
+                        context.stopService(
+                            Intent(context, WorkModeService::class.java)
+                        )
+                    }
+
                     currentMode = JarvisState.currentMode
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
