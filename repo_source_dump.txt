@@ -237,6 +237,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   │   │   ├── RoutineAction.kt
 │   │   │   │   │   │   │   │   │   │   ├── Trigger.kt
 │   │   │   │   │   │   │   │   ├── stopwatch
+│   │   │   │   │   │   │   │   │   ├── NotificationPermissionHelper.kt
 │   │   │   │   │   │   │   │   │   ├── StopwatchManager.kt
 │   │   │   │   │   │   │   │   │   ├── StopwatchService.kt
 │   │   │   │   │   │   │   │   ├── time
@@ -738,11 +739,13 @@ class CoreApp : Application() {
 package com.jarvismini
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.ui.main.MainScreen
 
@@ -755,11 +758,40 @@ class MainActivity : ComponentActivity() {
 
         ProgressInitializer.registerAllBlocks(this)
 
+        // Request notification permission on startup if needed (Android 13+)
+        if (NotificationPermissionHelper.shouldRequestPermission(this)) {
+            NotificationPermissionHelper.requestPermission(this)
+        }
+
         setContent {
             MaterialTheme {
                 Surface {
                     MainScreen()
                 }
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS) {
+            if (NotificationPermissionHelper.isPermissionGranted(this)) {
+                Toast.makeText(
+                    this,
+                    "Notification permission granted! Stopwatch will work in background.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Notification permission denied. Stopwatch notifications won't be visible.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -3130,285 +3162,110 @@ fun SettingsTile(title: String, subtitle: String, icon: ImageVector) {
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/stopwatch/StopwatchWidget.kt =====
 package com.jarvismini.ui.stopwatch
 
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import android.app.Activity
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.core.stopwatch.StopwatchManager
+import kotlinx.coroutines.delay
 
 /**
- * Holographic stopwatch widget with Jarvis theme
+ * Stopwatch UI Widget with proper permission handling
  */
 @Composable
-fun StopwatchWidget(
-    modifier: Modifier = Modifier
-) {
+fun StopwatchWidget() {
     val context = LocalContext.current
-    val stopwatchState by StopwatchManager.state.collectAsState()
-
-    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by pulseAnimation.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF001520).copy(alpha = 0.95f),
-                            Color(0xFF002030).copy(alpha = 0.90f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .border(
-                    1.dp,
-                    if (stopwatchState.isRunning) 
-                        Color(0xFF00E0FF).copy(alpha = pulseAlpha)
-                    else 
-                        Color(0xFF00E0FF).copy(alpha = 0.4f),
-                    RoundedCornerShape(16.dp)
-                )
-                .padding(24.dp)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Status Text
-                Text(
-                    text = if (stopwatchState.isRunning) "RUNNING" 
-                           else if (stopwatchState.elapsedTimeMs > 0) "PAUSED"
-                           else "READY",
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 2.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.7f)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Timer Display
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(180.dp)
-                        .alpha(if (stopwatchState.isRunning) 1f else 0.7f)
-                        .background(
-                            brush = if (stopwatchState.isRunning) {
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0xFF00E0FF).copy(alpha = pulseAlpha * 0.2f),
-                                        Color.Transparent
-                                    )
-                                )
-                            } else {
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0xFF00E0FF).copy(alpha = 0.05f),
-                                        Color.Transparent
-                                    )
-                                )
-                            },
-                            shape = CircleShape
-                        )
-                        .border(
-                            2.dp,
-                            if (stopwatchState.isRunning)
-                                Color(0xFF00E0FF).copy(alpha = pulseAlpha)
-                            else
-                                Color(0xFF00E0FF).copy(alpha = 0.3f),
-                            CircleShape
-                        )
-                ) {
-                    Text(
-                        text = StopwatchManager.formatElapsedTimeShort(stopwatchState.elapsedTimeMs),
-                        fontSize = 48.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00E0FF)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Control Buttons
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Reset Button
-                    IconButton(
-                        onClick = { StopwatchManager.reset(context) },
-                        modifier = Modifier
-                            .size(56.dp)
-                            .background(
-                                Color(0xFF00E0FF).copy(alpha = 0.1f),
-                                CircleShape
-                            )
-                            .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Reset",
-                            tint = Color(0xFF00E0FF),
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    // Play/Pause Button (larger, primary action)
-                    IconButton(
-                        onClick = { StopwatchManager.toggle(context) },
-                        modifier = Modifier
-                            .size(72.dp)
-                            .background(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0xFF00E0FF).copy(alpha = 0.3f),
-                                        Color(0xFF00E0FF).copy(alpha = 0.1f)
-                                    )
-                                ),
-                                shape = CircleShape
-                            )
-                            .border(2.dp, Color(0xFF00E0FF), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = if (stopwatchState.isRunning) 
-                                Icons.Default.Pause 
-                            else 
-                                Icons.Default.PlayArrow,
-                            contentDescription = if (stopwatchState.isRunning) "Pause" else "Start",
-                            tint = Color(0xFF00E0FF),
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-
-                    // Stop Button
-                    IconButton(
-                        onClick = { StopwatchManager.stop(context) },
-                        modifier = Modifier
-                            .size(56.dp)
-                            .background(
-                                Color(0xFF00E0FF).copy(alpha = 0.1f),
-                                CircleShape
-                            )
-                            .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Stop,
-                            contentDescription = "Stop",
-                            tint = Color(0xFF00E0FF),
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Button Labels
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "RESET",
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (stopwatchState.isRunning) "PAUSE" else "START",
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.8f),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "STOP",
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+    val state by StopwatchManager.state.collectAsState()
+    
+    var displayTime by remember { mutableStateOf("00:00") }
+    
+    // Update display time every 100ms when running
+    LaunchedEffect(state.isRunning) {
+        while (state.isRunning) {
+            displayTime = StopwatchManager.formatElapsedTimeLong(
+                StopwatchManager.getCurrentElapsed()
+            )
+            delay(100)
         }
     }
-}
-
-/**
- * Compact stopwatch display for top bar or floating widget
- */
-@Composable
-fun CompactStopwatchDisplay(
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
-) {
-    val stopwatchState by StopwatchManager.state.collectAsState()
-
-    if (stopwatchState.isRunning || stopwatchState.elapsedTimeMs > 0) {
-        Row(
-            modifier = modifier
-                .background(
-                    Color(0xFF00E0FF).copy(alpha = 0.1f),
-                    RoundedCornerShape(20.dp)
+    
+    // Update display time even when paused (for resume case)
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (!state.isRunning) {
+                displayTime = StopwatchManager.formatElapsedTimeLong(
+                    StopwatchManager.getCurrentElapsed()
                 )
-                .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            }
+            delay(100)
+        }
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Display time
+        Text(
+            text = displayTime,
+            style = MaterialTheme.typography.displayLarge
+        )
+        
+        // Control buttons
+        Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                imageVector = if (stopwatchState.isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = null,
-                tint = Color(0xFF00E0FF),
-                modifier = Modifier.size(16.dp)
-            )
+            if (!state.isRunning) {
+                Button(
+                    onClick = {
+                        // Check permission before starting
+                        if (NotificationPermissionHelper.shouldRequestPermission(context)) {
+                            (context as? Activity)?.let { activity ->
+                                NotificationPermissionHelper.requestPermission(activity)
+                                Toast.makeText(
+                                    context,
+                                    "Please grant notification permission",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        } else {
+                            StopwatchManager.start(context)
+                        }
+                    }
+                ) {
+                    Text("Start")
+                }
+            } else {
+                Button(
+                    onClick = { StopwatchManager.pause(context) }
+                ) {
+                    Text("Pause")
+                }
+            }
+            
+            Button(
+                onClick = { StopwatchManager.reset(context) },
+                enabled = displayTime != "00:00"
+            ) {
+                Text("Reset")
+            }
+        }
+        
+        // Permission status indicator
+        if (NotificationPermissionHelper.shouldRequestPermission(context)) {
             Text(
-                text = StopwatchManager.formatElapsedTimeShort(stopwatchState.elapsedTimeMs),
-                fontSize = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF00E0FF),
-                fontWeight = FontWeight.Bold
+                text = "⚠️ Notification permission required for background timer",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
             )
         }
     }
@@ -4697,7 +4554,18 @@ dependencies {
 
 //===== FILE: modules/core/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ADD THESE PERMISSIONS TO YOUR EXISTING MANIFEST -->
+    
+    <!-- Required for foreground service on API 28+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- Required for foreground service type on API 34+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    
+    <!-- Required for posting notifications on API 33+ (Android 13) -->
+    <uses-permission android:na
 
 
 //===== FILE: modules/core/src/main/assets/routines/progress_config.json =====
@@ -6345,178 +6213,206 @@ data class Trigger(
 )
 
 
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/NotificationPermissionHelper.kt =====
+package com.jarvismini.core.stopwatch
+
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+
+/**
+ * Helper for requesting notification permission on Android 13+ (API 33+)
+ */
+object NotificationPermissionHelper {
+    
+    const val REQUEST_CODE_POST_NOTIFICATIONS = 1001
+    
+    /**
+     * Check if we need to request POST_NOTIFICATIONS permission
+     * Only needed on Android 13+ (API 33+)
+     */
+    fun shouldRequestPermission(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            !isPermissionGranted(context)
+        } else {
+            false
+        }
+    }
+    
+    /**
+     * Check if POST_NOTIFICATIONS permission is granted
+     */
+    fun isPermissionGranted(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+    
+    /**
+     * Request POST_NOTIFICATIONS permission from the user
+     */
+    fun requestPermission(activity: Activity, requestCode: Int = REQUEST_CODE_POST_NOTIFICATIONS) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                requestCode
+            )
+        }
+    }
+    
+    /**
+     * Check if the user previously denied the permission and should see a rationale
+     */
+    fun shouldShowRationale(activity: Activity): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.shouldShowRequestPermissionRationale(
+                activity,
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+        } else {
+            false
+        }
+    }
+}
+
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt =====
 package com.jarvismini.core.stopwatch
 
 import android.content.Context
 import android.os.SystemClock
-import com.jarvismini.core.Logger
-import com.jarvismini.core.tts.AssistantTTS
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Built-in stopwatch manager
- * Handles start, pause, stop, reset, and persistent notification via StopwatchService
+ * Manages stopwatch state and timing
+ * 
+ * Improved version with better service integration
  */
 object StopwatchManager {
-
-    private val TAG = "StopwatchManager"
-
-    data class StopwatchState(
-        val isRunning: Boolean = false,
-        val elapsedTimeMs: Long = 0L,
-        val startTimeMs: Long = 0L,
-        val pausedAtMs: Long = 0L
-    )
-
+    
     private val _state = MutableStateFlow(StopwatchState())
     val state: StateFlow<StopwatchState> = _state.asStateFlow()
-
-    private const val PREF_KEY_START_TIME = "stopwatch_start_time"
-    private const val PREF_KEY_PAUSED_AT = "stopwatch_paused_at"
-    private const val PREF_KEY_IS_RUNNING = "stopwatch_is_running"
-
+    
+    private var startTimeMs: Long = 0L
+    private var pausedTimeMs: Long = 0L
+    private var totalElapsedBeforePause: Long = 0L
+    
     /**
-     * Initialize state from shared preferences
-     */
-    fun init(context: Context) {
-        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-        val isRunning = prefs.getBoolean(PREF_KEY_IS_RUNNING, false)
-        val startTime = prefs.getLong(PREF_KEY_START_TIME, 0L)
-        val pausedAt = prefs.getLong(PREF_KEY_PAUSED_AT, 0L)
-
-        if (isRunning && startTime > 0) {
-            _state.value = StopwatchState(
-                isRunning = true,
-                startTimeMs = startTime,
-                elapsedTimeMs = SystemClock.elapsedRealtime() - startTime
-            )
-            StopwatchService.start(context)
-        } else if (pausedAt > 0) {
-            _state.value = StopwatchState(
-                isRunning = false,
-                pausedAtMs = pausedAt,
-                elapsedTimeMs = pausedAt
-            )
-        }
-    }
-
-    /**
-     * Start or resume stopwatch
+     * Start or resume the stopwatch
      */
     fun start(context: Context) {
-        val current = _state.value
-        if (current.isRunning) return
-
-        val now = SystemClock.elapsedRealtime()
-        val startTime = if (current.pausedAtMs > 0) now - current.pausedAtMs else now
-        val elapsed = if (current.pausedAtMs > 0) current.pausedAtMs else 0L
-
-        _state.value = StopwatchState(
-            isRunning = true,
-            startTimeMs = startTime,
-            pausedAtMs = 0L,
-            elapsedTimeMs = elapsed
-        )
-
-        saveState(context)
-        StopwatchService.start(context)
-
-        AssistantTTS.speak(context, "Stopwatch started")
-        Logger.d(TAG, "Stopwatch started")
+        android.util.Log.d("StopwatchManager", "start() called, current state: ${_state.value}")
+        
+        if (!_state.value.isRunning) {
+            startTimeMs = SystemClock.elapsedRealtime()
+            
+            // Update state BEFORE starting service
+            _state.value = _state.value.copy(isRunning = true)
+            
+            android.util.Log.d("StopwatchManager", "Starting service...")
+            
+            // Start the foreground service
+            StopwatchService.start(context)
+        }
     }
-
+    
     /**
-     * Pause stopwatch
+     * Pause the stopwatch
      */
     fun pause(context: Context) {
-        val current = _state.value
-        if (!current.isRunning) return
-
-        val elapsed = getCurrentElapsed()
-        _state.value = current.copy(
-            isRunning = false,
-            pausedAtMs = elapsed,
-            elapsedTimeMs = elapsed
-        )
-
-        saveState(context)
-        StopwatchService.stop(context)
-
-        AssistantTTS.speak(context, "Stopwatch paused at ${formatElapsedTime(elapsed)}")
-        Logger.d(TAG, "Stopwatch paused at ${formatElapsedTime(elapsed)}")
+        android.util.Log.d("StopwatchManager", "pause() called")
+        
+        if (_state.value.isRunning) {
+            pausedTimeMs = SystemClock.elapsedRealtime()
+            totalElapsedBeforePause += (pausedTimeMs - startTimeMs)
+            
+            _state.value = _state.value.copy(isRunning = false)
+            
+            // Stop the service when paused
+            StopwatchService.stop(context)
+        }
     }
-
+    
     /**
-     * Stop stopwatch completely
-     */
-    fun stop(context: Context) {
-        val elapsed = getCurrentElapsed()
-        _state.value = StopwatchState(isRunning = false, elapsedTimeMs = elapsed)
-
-        saveState(context)
-        StopwatchService.stop(context)
-
-        AssistantTTS.speak(context, "Stopwatch stopped. Total time: ${formatElapsedTime(elapsed)}")
-        Logger.d(TAG, "Stopwatch stopped at ${formatElapsedTime(elapsed)}")
-    }
-
-    /**
-     * Reset stopwatch
+     * Reset the stopwatch to zero
      */
     fun reset(context: Context) {
-        _state.value = StopwatchState()
-        saveState(context)
+        android.util.Log.d("StopwatchManager", "reset() called")
+        
+        startTimeMs = 0L
+        pausedTimeMs = 0L
+        totalElapsedBeforePause = 0L
+        
+        _state.value = StopwatchState(isRunning = false)
+        
+        // Stop the service when reset
         StopwatchService.stop(context)
-
-        AssistantTTS.speak(context, "Stopwatch reset")
-        Logger.d(TAG, "Stopwatch reset")
     }
-
+    
     /**
-     * Toggle start/pause
+     * Stop the stopwatch (pause and reset)
      */
-    fun toggle(context: Context) {
-        if (_state.value.isRunning) pause(context) else start(context)
+    fun stop(context: Context) {
+        android.util.Log.d("StopwatchManager", "stop() called")
+        reset(context)
     }
-
+    
     /**
-     * Current elapsed time
+     * Get current elapsed time in milliseconds
      */
     fun getCurrentElapsed(): Long {
-        val current = _state.value
-        return if (current.isRunning) SystemClock.elapsedRealtime() - current.startTimeMs else current.elapsedTimeMs
+        return if (_state.value.isRunning) {
+            totalElapsedBeforePause + (SystemClock.elapsedRealtime() - startTimeMs)
+        } else {
+            totalElapsedBeforePause
+        }
     }
-
+    
     /**
-     * Format elapsed time for display HH:MM:SS
+     * Format elapsed time as MM:SS for notification
      */
-    fun formatElapsedTime(ms: Long): String {
-        val sec = (ms / 1000) % 60
-        val min = (ms / 60000) % 60
-        val hrs = ms / 3600000
-        return if (hrs > 0) "%d:%02d:%02d".format(hrs, min, sec)
-        else "%02d:%02d".format(min, sec)
+    fun formatElapsedTimeShort(elapsedMs: Long): String {
+        val totalSeconds = elapsedMs / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format("%02d:%02d", minutes, seconds)
     }
-
+    
     /**
-     * Short format (MM:SS or H:MM:SS)
+     * Format elapsed time as HH:MM:SS for UI display
      */
-    fun formatElapsedTimeShort(ms: Long): String = formatElapsedTime(ms)
-
-    private fun saveState(context: Context) {
-        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-        val current = _state.value
-        prefs.edit().apply {
-            putBoolean(PREF_KEY_IS_RUNNING, current.isRunning)
-            putLong(PREF_KEY_START_TIME, current.startTimeMs)
-            putLong(PREF_KEY_PAUSED_AT, current.pausedAtMs)
-            apply()
+    fun formatElapsedTimeLong(elapsedMs: Long): String {
+        val totalSeconds = elapsedMs / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        
+        return if (hours > 0) {
+            String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
         }
     }
 }
+
+/**
+ * Represents the current state of the stopwatch
+ */
+data class StopwatchState(
+    val isRunning: Boolean = false
+)
 
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchService.kt =====
@@ -6525,27 +6421,35 @@ package com.jarvismini.core.stopwatch
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
-import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Foreground service to show stopwatch notification
+ * 
+ * Fixed version with proper lifecycle management and notification handling
  */
 class StopwatchService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "stopwatch_channel"
         private const val NOTIF_ID = 1001
+        private const val TAG = "StopwatchService"
 
         fun start(context: Context) {
             val intent = Intent(context, StopwatchService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(context, intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Failed to start service: ${e.message}")
             }
         }
 
@@ -6555,26 +6459,100 @@ class StopwatchService : Service() {
         }
     }
 
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var updateJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
+        android.util.Log.d(TAG, "Service onCreate called")
+        
+        // CRITICAL: Create notification channel BEFORE calling startForeground
         createChannel()
-        startForeground(NOTIF_ID, buildNotification("00:00"))
+    }
 
-        scope.launch {
-            while (StopwatchManager.state.value.isRunning) {
-                val elapsed = StopwatchManager.getCurrentElapsed()
-                val manager = getSystemService(NotificationManager::class.java)
-                manager.notify(NOTIF_ID, buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed)))
-                delay(500)
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.d(TAG, "Service onStartCommand called")
+        
+        try {
+            // Start foreground IMMEDIATELY with initial notification
+            val notification = buildNotification("00:00")
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // API 29+ requires specific foreground service type
+                startForeground(
+                    NOTIF_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(NOTIF_ID, notification)
             }
-
+            
+            android.util.Log.d(TAG, "Service started in foreground successfully")
+            
+            // Now start observing stopwatch state
+            startObservingStopwatch()
+            
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to start foreground: ${e.message}", e)
             stopSelf()
+        }
+        
+        // START_STICKY ensures service restarts if killed by system
+        return START_STICKY
+    }
+
+    private fun startObservingStopwatch() {
+        // Cancel any existing job
+        updateJob?.cancel()
+        
+        // Start new coroutine to observe stopwatch state
+        updateJob = scope.launch {
+            try {
+                // Collect state changes from StopwatchManager
+                StopwatchManager.state.collectLatest { state ->
+                    android.util.Log.d(TAG, "State changed: isRunning=${state.isRunning}")
+                    
+                    if (state.isRunning) {
+                        // Update notification every 500ms while running
+                        while (state.isRunning && isActive) {
+                            val elapsed = StopwatchManager.getCurrentElapsed()
+                            val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
+                            
+                            updateNotification(timeString)
+                            delay(500)
+                            
+                            // Re-check state in case it changed during delay
+                            if (!StopwatchManager.state.value.isRunning) {
+                                break
+                            }
+                        }
+                    } else {
+                        // Stopwatch stopped - stop service
+                        android.util.Log.d(TAG, "Stopwatch stopped, stopping service")
+                        stopSelf()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error in update loop: ${e.message}", e)
+                stopSelf()
+            }
+        }
+    }
+
+    private fun updateNotification(time: String) {
+        try {
+            val notification = buildNotification(time)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.notify(NOTIF_ID, notification)
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to update notification: ${e.message}")
         }
     }
 
     override fun onDestroy() {
+        android.util.Log.d(TAG, "Service onDestroy called")
+        updateJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }
@@ -6582,24 +6560,58 @@ class StopwatchService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun buildNotification(time: String): Notification {
+        // Create pending intent to open app when notification is tapped
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            packageManager.getLaunchIntentForPackage(packageName),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Stopwatch Running")
             .setContentText("Elapsed: $time")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
 
     private fun createChannel() {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_ID,
-                    "Stopwatch",
-                    NotificationManager.IMPORTANCE_LOW
-                )
-                manager.createNotificationChannel(channel)
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            
+            if (manager != null) {
+                val existingChannel = manager.getNotificationChannel(CHANNEL_ID)
+                
+                if (existingChannel == null) {
+                    android.util.Log.d(TAG, "Creating notification channel")
+                    
+                    val channel = NotificationChannel(
+                        CHANNEL_ID,
+                        "Stopwatch",
+                        NotificationManager.IMPORTANCE_LOW
+                    ).apply {
+                        description = "Shows stopwatch timer while running"
+                        setShowBadge(false)
+                        enableLights(false)
+                        enableVibration(false)
+                    }
+                    
+                    manager.createNotificationChannel(channel)
+                    android.util.Log.d(TAG, "Notification channel created successfully")
+                } else {
+                    android.util.Log.d(TAG, "Notification channel already exists")
+                }
+            } else {
+                android.util.Log.e(TAG, "NotificationManager is null!")
             }
         }
     }
