@@ -11,10 +11,11 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
+    <!-- Foreground service base permission -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    
+
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
@@ -98,11 +99,11 @@
         </service>
 
         <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
+        <!-- FIX: removed phoneCall service type -->
 
         <service
             android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync"
+            android:exported="false">
             <intent-filter>
                 <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
             </intent-filter>
@@ -132,11 +133,14 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
-        <!-- ================= workModeservice ================= -->
+
+        <!-- ================= WORK MODE FOREGROUND SERVICE ================= -->
+
         <service
-    android:name=".core.workmode.WorkModeService"
-    android:exported="false"
-    android:foregroundServiceType="dataSync" />
+            android:name=".core.workmode.WorkModeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
 
         <receiver
