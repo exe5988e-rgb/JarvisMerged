@@ -1,139 +1,80 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt =====
-package com.jarvismini.ui.calendar
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.utils.TimeUtils
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
-import com.jarvismini.core.calendar.model.EventStatus
-import java.text.SimpleDateFormat
-import java.util.*
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.calendar.CalendarViewModel
+import com.jarvismini.ui.calendar.DayCalendarScreen
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
 
-/**
- * FIXED DayCalendarScreen - now shows routines as calendar events
- *
- * Changes:
- * - Fetches today's routines from RoutineProvider
- * - Converts routines to CalendarEvent objects
- * - Shows them in chronological order
- */
+enum class MainTab {
+    Home,
+    Chat,
+    Calendar,
+    Checklist,
+    Settings,
+    Debug
+}
+
 @Composable
-fun DayCalendarScreen(viewModel: CalendarViewModel) {
+fun MainScreen() {
     val context = LocalContext.current
 
-    val now = TimeUtils.nowMs()
-    val dayStart = now - (now % (24 * 60 * 60 * 1000))
-    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
+    var showBoot by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
 
-    // Get today's routines and convert to calendar events
-    val events = remember(dayStart) {
-        val routines = RoutineProvider.getAllRoutines(context)
-        val today = getCurrentDayOfWeek()
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
-        routines
-            .filter { routine ->
-                routine.enabled && routine.trigger?.days?.contains(today) == true
-            }
-            .mapNotNull { routine ->
-                routine.trigger?.time?.let { timeStr ->
-                    val eventTime = parseTimeToMs(timeStr)
-                    CalendarEvent(
-                        id = routine.id,
-                        title = routine.name,
-                        startTimeMs = eventTime,
-                        endTimeMs = eventTime + (60 * 60 * 1000), // 1 hour default duration
-                        status = if (eventTime < now) EventStatus.COMPLETED else EventStatus.SCHEDULED,
-                        meta = mapOf(
-                            "description" to routine.actions.joinToString("\n") { action ->
-                                when (action.type) {
-                                    "speak" -> "🔊 ${action.params["message"]}"
-                                    "notify" -> "🔔 ${action.params["message"]}"
-                                    "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
-                                    "start_timer" -> "⏱️ Timer: ${action.params["task"]} (${action.params["duration"]} min)"
-                                    else -> action.type
-                                }
-                            },
-                            "calendarId" to "routines",
-                            "type" to "routine"
-                        )
-                    )
-                }
-            }
-            .sortedBy { it.startTimeMs }
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp)
-    ) {
-        // Header
-        Text(
-            text = "Today's Schedule",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
+    }
 
-        if (events.isEmpty()) {
-            // Show empty state
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No routines scheduled for today",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            // Show events
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(events) { event ->
-                    CalendarEventCard(event)
-                }
-            }
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
         }
     }
-}
 
-private fun getCurrentDayOfWeek(): String {
-    val cal = Calendar.getInstance()
-    return when (cal.get(Calendar.DAY_OF_WEEK)) {
-        Calendar.SUNDAY -> "SUN"
-        Calendar.MONDAY -> "MON"
-        Calendar.TUESDAY -> "TUE"
-        Calendar.WEDNESDAY -> "WED"
-        Calendar.THURSDAY -> "THU"
-        Calendar.FRIDAY -> "FRI"
-        Calendar.SATURDAY -> "SAT"
-        else -> "SUN"
-    }
-}
+    when (selectedTab) {
 
-private fun parseTimeToMs(timeStr: String): Long {
-    return try {
-        val cal = Calendar.getInstance()
-        val parts = timeStr.split(":")
-        cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-        cal.set(Calendar.MINUTE, parts[1].toInt())
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        cal.timeInMillis
-    } catch (_: Exception) {
-        System.currentTimeMillis()
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToChat = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings = { selectedTab = MainTab.Settings },
+            onNavigateToDebug = { selectedTab = MainTab.Debug }
+        )
+
+        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+
+        MainTab.Calendar -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(viewModel = vm)
+        }
+
+        MainTab.Checklist -> JarvisChecklistScreen()
+
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
@@ -440,82 +381,141 @@ private fun parseTimeToMinutes(time: String): Int {
         0
     }
 }
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-package com.jarvismini.ui.main
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt =====
+package com.jarvismini.ui.calendar
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-import com.jarvismini.ProgressInitializer
-import com.jarvismini.core.progress.*
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.utils.TimeUtils
 import com.jarvismini.core.routine.RoutineProvider
-import com.jarvismini.ui.boot.BootScreen
-import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.JarvisChatScreen
-import com.jarvismini.ui.calendar.CalendarViewModel
-import com.jarvismini.ui.calendar.DayCalendarScreen
-import com.jarvismini.ui.settings.SettingsScreen
-import com.jarvismini.ui.debug.DebugScreen
-import com.jarvismini.ui.checklist.JarvisChecklistScreen
+import com.jarvismini.core.calendar.model.EventStatus
+import java.text.SimpleDateFormat
+import java.util.*
 
-enum class MainTab {
-    Home,
-    Chat,
-    Calendar,
-    Checklist,
-    Settings,
-    Debug
-}
-
+/**
+ * FIXED DayCalendarScreen - now shows routines as calendar events
+ *
+ * Changes:
+ * - Fetches today's routines from RoutineProvider
+ * - Converts routines to CalendarEvent objects
+ * - Shows them in chronological order
+ */
 @Composable
-fun MainScreen() {
+fun DayCalendarScreen(viewModel: CalendarViewModel) {
     val context = LocalContext.current
 
-    var showBoot by remember { mutableStateOf(true) }
-    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+    val now = TimeUtils.nowMs()
+    val dayStart = now - (now % (24 * 60 * 60 * 1000))
+    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
 
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+    // Get today's routines and convert to calendar events
+    val events = remember(dayStart) {
+        val routines = RoutineProvider.getAllRoutines(context)
+        val today = getCurrentDayOfWeek()
 
-    if (showBoot) {
-        BootScreen(onBootComplete = { showBoot = false })
-        return
+        routines
+            .filter { routine ->
+                routine.enabled && routine.trigger?.days?.contains(today) == true
+            }
+            .mapNotNull { routine ->
+                routine.trigger?.time?.let { timeStr ->
+                    val eventTime = parseTimeToMs(timeStr)
+                    CalendarEvent(
+                        id = routine.id,
+                        title = routine.name,
+                        startTimeMs = eventTime,
+                        endTimeMs = eventTime + (60 * 60 * 1000), // 1 hour default duration
+                        status = if (eventTime < now) EventStatus.COMPLETED else EventStatus.SCHEDULED,
+                        meta = mapOf(
+                            "description" to routine.actions.joinToString("\n") { action ->
+                                when (action.type) {
+                                    "speak" -> "🔊 ${action.params["message"]}"
+                                    "notify" -> "🔔 ${action.params["message"]}"
+                                    "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
+                                    "start_timer" -> "⏱️ Timer: ${action.params["task"]} (${action.params["duration"]} min)"
+                                    else -> action.type
+                                }
+                            },
+                            "calendarId" to "routines",
+                            "type" to "routine"
+                        )
+                    )
+                }
+            }
+            .sortedBy { it.startTimeMs }
     }
 
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
-        blocks = ProgressRepository.getTodayBlocks()
-        routines = RoutineProvider.getAllRoutines(context)
-    }
-
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MainTab.Checklist) {
-            ProgressInitializer.registerAllBlocks(context)
-            blocks = ProgressRepository.getTodayBlocks()
-            routines = RoutineProvider.getAllRoutines(context)
-        }
-    }
-
-    when (selectedTab) {
-
-        MainTab.Home -> EnhancedHomeScreen(
-            onNavigateToChat = { selectedTab = MainTab.Chat },
-            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
-            onNavigateToSettings = { selectedTab = MainTab.Settings },
-            onNavigateToDebug = { selectedTab = MainTab.Debug }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp)
+    ) {
+        // Header
+        Text(
+            text = "Today's Schedule",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Calendar -> {
-            val vm = remember { CalendarViewModel(context) }
-            DayCalendarScreen(viewModel = vm)
+        if (events.isEmpty()) {
+            // Show empty state
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No routines scheduled for today",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            // Show events
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(events) { event ->
+                    CalendarEventCard(event)
+                }
+            }
         }
+    }
+}
 
-        MainTab.Checklist -> JarvisChecklistScreen()
+private fun getCurrentDayOfWeek(): String {
+    val cal = Calendar.getInstance()
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.SUNDAY -> "SUN"
+        Calendar.MONDAY -> "MON"
+        Calendar.TUESDAY -> "TUE"
+        Calendar.WEDNESDAY -> "WED"
+        Calendar.THURSDAY -> "THU"
+        Calendar.FRIDAY -> "FRI"
+        Calendar.SATURDAY -> "SAT"
+        else -> "SUN"
+    }
+}
 
-        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+private fun parseTimeToMs(timeStr: String): Long {
+    return try {
+        val cal = Calendar.getInstance()
+        val parts = timeStr.split(":")
+        cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
+        cal.set(Calendar.MINUTE, parts[1].toInt())
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.timeInMillis
+    } catch (_: Exception) {
+        System.currentTimeMillis()
     }
 }
