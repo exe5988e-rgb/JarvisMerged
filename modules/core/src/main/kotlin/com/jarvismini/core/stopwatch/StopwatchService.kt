@@ -8,6 +8,7 @@ import android.os.IBinder
 import androidx.core.app.ContextCompat
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
+import androidx.core.content.ContextCompat
 
 /**
  * Foreground service to show stopwatch notification
