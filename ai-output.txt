@@ -1,500 +1,521 @@
-//===== FILE: modules/core/src/main/assets/routines/sunday_routine.json =====
-{
-  "version": "1.0",
-  "timezone": "Asia/Kolkata",
-  "networkSync": true,
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/DayCalendarScreen.kt =====
+package com.jarvismini.ui.calendar
 
-  "routines": [
-    {
-      "id": "sunday_morning_backlog",
-      "name": "Sunday Backlog Sprint",
-      "enabled": true,
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.utils.TimeUtils
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.core.calendar.model.EventStatus
+import java.text.SimpleDateFormat
+import java.util.*
 
-      "trigger": {
-        "type": "time",
-        "time": "08:30",
-        "days": ["SUN"]
-      },
+/**
+ * FIXED DayCalendarScreen - now shows routines as calendar events
+ *
+ * Changes:
+ * - Fetches today's routines from RoutineProvider
+ * - Converts routines to CalendarEvent objects
+ * - Shows them in chronological order
+ */
+@Composable
+fun DayCalendarScreen(viewModel: CalendarViewModel) {
+    val context = LocalContext.current
 
-      "actions": [
-        { "type": "network_time_sync" },
-        { "type": "set_mode", "mode": "FOCUS" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Sunday Backlog Sprint",
-          "duration": "330"
-        },
-        {
-          "type": "speak",
-          "message": "Sunday backlog sprint started. Five and a half hours to clear pending topics."
-        },
-        {
-          "type": "notify",
-          "title": "Backlog Sprint",
-          "message": "Backlog Sprint: Complete as much as possible before mock test."
-        }
-      ]
-    },
+    val now = TimeUtils.nowMs()
+    val dayStart = now - (now % (24 * 60 * 60 * 1000))
+    val dayEnd = dayStart + (24 * 60 * 60 * 1000)
 
-    {
-      "id": "sunday_mock_test",
-      "name": "Sunday Mock Test Block",
-      "enabled": true,
+    // Get today's routines and convert to calendar events
+    val events = remember(dayStart) {
+        val routines = RoutineProvider.getAllRoutines(context)
+        val today = getCurrentDayOfWeek()
 
-      "trigger": {
-        "type": "time",
-        "time": "14:00",
-        "days": ["SUN"]
-      },
-
-      "actions": [
-        { "type": "network_time_sync" },
-        { "type": "set_mode", "mode": "WORK" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Sunday Mock Test",
-          "duration": "180"
-        },
-        {
-          "type": "speak",
-          "message": "Mock test started. Three hours. Full exam conditions."
-        },
-        {
-          "type": "notify",
-          "title": "Mock Test",
-          "message": "Mock Test in progress. No interruptions."
-        }
-      ]
-    },
-
-    {
-      "id": "sunday_analysis",
-      "name": "Mock Analysis + Mistake Review",
-      "enabled": true,
-
-      "trigger": {
-        "type": "time",
-        "time": "17:15",
-        "days": ["SUN"]
-      },
-
-      "actions": [
-        { "type": "network_time_sync" },
-        { "type": "set_mode", "mode": "FOCUS" },
-        {
-          "type": "start_timer",
-          "task": "Mock Analysis",
-          "duration": "315"
-        },
-        {
-          "type": "speak",
-          "message": "Mock completed. Start mistake analysis and error logging. Five hours fifteen minutes."
-        },
-        {
-          "type": "notify",
-          "title": "Mock Analysis",
-          "message": "Analyze mistakes. Mark weak areas."
-        }
-      ]
-    },
-
-    {
-      "id": "sunday_shutdown",
-      "name": "Sunday Wind Down",
-      "enabled": true,
-
-      "trigger": {
-        "type": "time",
-        "time": "22:30",
-        "days": ["SUN"]
-      },
-
-      "actions": [
-        { "type": "network_time_sync" },
-        { "type": "set_mode", "mode": "NORMAL" },
-        { "type": "set_dnd", "dnd": false },
-        {
-          "type": "speak",
-          "message": "Sunday complete. Wind down and prepare for the week."
-        }
-      ]
-    }
-  ]
-}
-//===== FILE: modules/core/src/main/assets/routines/work_routine.json =====
-{
-  "version": "1.0",
-  "timezone": "Asia/Kolkata",
-  "networkSync": true,
-
-  "routines": [
-    {
-      "id": "weekday_morning_lectures",
-      "name": "Morning Lectures Block",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "08:00",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "network_time_sync" },
-        { "type": "set_mode", "mode": "WORK" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Morning Lectures",
-          "duration": "360"
-        },
-        {
-          "type": "speak",
-          "message": "Morning lectures started. You have 6 hours. Focus on current classes."
-        },
-        {
-          "type": "notify",
-          "title": "Morning Lectures Block",
-          "message": "08:00–14:00: Current lectures block."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_lunch_reset",
-      "name": "Lunch and Reset",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "14:00",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "NORMAL" },
-        { "type": "set_dnd", "dnd": false },
-        {
-          "type": "notify",
-          "title": "Lunch Break",
-          "message": "14:00–15:00: Lunch and mental reset."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_reactivation_block",
-      "name": "Reactivation Block",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "15:00",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "FOCUS" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Reactivation Block",
-          "duration": "180"
-        },
-        {
-          "type": "speak",
-          "message": "Reactivation block started. Three hours. Resume syllabus sweep."
-        },
-        {
-          "type": "notify",
-          "title": "Reactivation Block",
-          "message": "15:00–18:00: Reactivation and revision."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_oxygen_hour",
-      "name": "Oxygen Hour",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "18:00",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "NORMAL" },
-        {
-          "type": "notify",
-          "title": "Oxygen Hour",
-          "message": "18:00–19:00: Physical reset. Movement and breathing."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_backlog_block",
-      "name": "Backlog Lectures",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "19:00",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "WORK" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Backlog Lectures",
-          "duration": "120"
-        },
-        {
-          "type": "speak",
-          "message": "Backlog lectures block started. Two hours."
-        },
-        {
-          "type": "notify",
-          "title": "Backlog Lectures",
-          "message": "19:00–21:00: Backlog clearance."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_current_hw",
-      "name": "Current Homework Block",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "21:00",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "FOCUS" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Current Homework",
-          "duration": "150"
-        },
-        {
-          "type": "speak",
-          "message": "Start current homework. Two and a half hours. No backlog, no revision."
-        },
-        {
-          "type": "notify",
-          "title": "Current Homework",
-          "message": "21:00–23:30: Current homework (2.5 hours)."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_skipped_hw",
-      "name": "Skipped Homework Clearance",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "23:30",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "FOCUS" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Skipped Homework",
-          "duration": "50"
-        },
-        {
-          "type": "speak",
-          "message": "Clear skipped homework. Fifty minutes only."
-        },
-        {
-          "type": "notify",
-          "title": "Skipped Homework",
-          "message": "23:30–00:20: Skipped homework (50 minutes)."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_backlog_hw",
-      "name": "Backlog Homework Sprint",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "00:20",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "FOCUS" },
-        { "type": "set_dnd", "dnd": true },
-        {
-          "type": "start_timer",
-          "task": "Backlog Homework Sprint",
-          "duration": "30"
-        },
-        {
-          "type": "speak",
-          "message": "Backlog homework sprint. Thirty minutes."
-        },
-        {
-          "type": "notify",
-          "title": "Backlog Homework Sprint",
-          "message": "00:20–00:50: Backlog homework (30 minutes)."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_night_buffer",
-      "name": "Night Wrap and Save Progress",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "00:50",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "NORMAL" },
-        { "type": "set_dnd", "dnd": false },
-        {
-          "type": "notify",
-          "title": "Night Wrap",
-          "message": "00:50–01:00: Save work, note carryovers, prep tomorrow."
-        }
-      ]
-    },
-
-    {
-      "id": "weekday_wind_down",
-      "name": "Late Night Wind Down",
-      "enabled": true,
-      "trigger": {
-        "type": "time",
-        "time": "01:00",
-        "days": ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
-      },
-      "actions": [
-        { "type": "set_mode", "mode": "NORMAL" },
-        { "type": "set_dnd", "dnd": false },
-        {
-          "type": "notify",
-          "title": "Wind Down",
-          "message": "01:00–03:00: Light work or planning only. Wind down."
-        }
-      ]
-    }
-  ]
-}
-//===== FILE: modules/core/src/main/assets/schema/routine.schema.json =====
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "JarvisRoutineSchema",
-  "type": "object",
-  "required": ["version", "timezone", "networkSync", "routines"],
-  "properties": {
-    "version": {
-      "type": "string",
-      "description": "Schema version"
-    },
-    "timezone": {
-      "type": "string",
-      "description": "IANA timezone (ex: Asia/Kolkata)"
-    },
-    "networkSync": {
-      "type": "boolean",
-      "description": "Whether time is synced via network"
-    },
-    "routines": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "name", "trigger", "actions"],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "trigger": {
-            "type": "object",
-            "required": ["type"],
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": ["time", "event", "mode"]
-              },
-              "time": {
-                "type": "string",
-                "description": "HH:mm format"
-              },
-              "days": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "enum": ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
-                }
-              },
-              "mode": {
-                "type": "string",
-                "enum": ["NORMAL", "WORK", "DRIVING", "SLEEP", "FOCUS"]
-              },
-              "event": {
-                "type": "string"
-              }
+        routines
+            .filter { routine ->
+                routine.enabled && routine.trigger?.days?.contains(today) == true
             }
-          },
-          "actions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["type"],
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "enum": [
-                    "launch_app",
-                    "set_mode",
-                    "set_dnd",
-                    "media_control",
-                    "start_stopwatch",
-                    "start_timer",
-                    "speak",
-                    "notify",
-                    "network_time_sync"
-                  ]
-                },
-                "package": { "type": "string" },
-                "mode": { "type": "string" },
-                "dnd": { "type": "boolean" },
-                "media": {
-                  "type": "string",
-                  "enum": ["play", "pause", "next", "prev"]
-                },
-                "message": { "type": "string" },
-                "title": { "type": "string" },
-                "task": { 
-                  "type": "string",
-                  "description": "Task name for timer (required for start_timer)"
-                },
-                "duration": { 
-                  "type": "string",
-                  "description": "Duration in minutes as string (required for start_timer)"
-                },
-                "duration_min": { 
-                  "type": "integer",
-                  "description": "Duration in minutes (deprecated, use 'duration' instead)"
+            .mapNotNull { routine ->
+                routine.trigger?.time?.let { timeStr ->
+                    val eventTime = parseTimeToMs(timeStr)
+                    CalendarEvent(
+                        id = routine.id,
+                        title = routine.name,
+                        startTimeMs = eventTime,
+                        endTimeMs = eventTime + (60 * 60 * 1000), // 1 hour default duration
+                        status = if (eventTime < now) EventStatus.COMPLETED else EventStatus.SCHEDULED,
+                        meta = mapOf(
+                            "description" to routine.actions.joinToString("\n") { action ->
+                                when (action.type) {
+                                    "speak" -> "🔊 ${action.params["message"]}"
+                                    "notify" -> "🔔 ${action.params["message"]}"
+                                    "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
+                                    "start_timer" -> "⏱️ Timer: ${action.params["task"]} (${action.params["duration"]} min)"
+                                    else -> action.type
+                                }
+                            },
+                            "calendarId" to "routines",
+                            "type" to "routine"
+                        )
+                    )
                 }
-              }
             }
-          }
-        }
-      }
+            .sortedBy { it.startTimeMs }
     }
-  }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp)
+    ) {
+        // Header
+        Text(
+            text = "Today's Schedule",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        if (events.isEmpty()) {
+            // Show empty state
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No routines scheduled for today",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            // Show events
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(events) { event ->
+                    CalendarEventCard(event)
+                }
+            }
+        }
+    }
 }
 
+private fun getCurrentDayOfWeek(): String {
+    val cal = Calendar.getInstance()
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.SUNDAY -> "SUN"
+        Calendar.MONDAY -> "MON"
+        Calendar.TUESDAY -> "TUE"
+        Calendar.WEDNESDAY -> "WED"
+        Calendar.THURSDAY -> "THU"
+        Calendar.FRIDAY -> "FRI"
+        Calendar.SATURDAY -> "SAT"
+        else -> "SUN"
+    }
+}
+
+private fun parseTimeToMs(timeStr: String): Long {
+    return try {
+        val cal = Calendar.getInstance()
+        val parts = timeStr.split(":")
+        cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
+        cal.set(Calendar.MINUTE, parts[1].toInt())
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.timeInMillis
+    } catch (_: Exception) {
+        System.currentTimeMillis()
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
+package com.jarvismini.ui.checklist
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.core.routine.TaskTimerManager
+import com.jarvismini.ui.timer.TaskTimerDialog
+import com.jarvismini.ui.timer.TaskTimerDisplay
+import java.text.SimpleDateFormat
+import java.util.*
+
+private val JarvisBlue = Color(0xFF00E0FF)
+private val JarvisGreen = Color(0xFF00FF00)
+private val JarvisRed = Color(0xFFFF4444)
+
+/**
+ * UPDATED JarvisChecklistScreen with timer integration
+ */
+@Composable
+fun JarvisChecklistScreen() {
+    val context = LocalContext.current
+    val routines = remember { RoutineProvider.getAllRoutines(context) }
+    val today = remember { getCurrentDayOfWeek() }
+
+    val todayRoutines = routines.filter { routine ->
+        routine.enabled && routine.trigger?.days?.contains(today) == true
+    }.sortedBy { routine ->
+        parseTimeToMinutes(routine.trigger?.time ?: "00:00")
+    }
+
+    // Track active timers
+    val activeTimers by TaskTimerManager.activeTimers.collectAsState()
+
+    // Dialog state
+    var showTimerDialog by remember { mutableStateOf(false) }
+    var selectedTaskId by remember { mutableStateOf("") }
+    var selectedTaskName by remember { mutableStateOf("") }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // Header
+            Text(
+                text = "J.A.R.V.I.S TASK MATRIX",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = JarvisBlue,
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Completion percentage (placeholder for now)
+            Text(
+                text = "SYSTEM COMPLETION: 0%",
+                fontSize = 14.sp,
+                color = JarvisBlue.copy(alpha = 0.7f),
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Task list
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(todayRoutines) { routine ->
+                    TaskCard(
+                        routine = routine,
+                        timerState = activeTimers[routine.id],
+                        onTimerClick = {
+                            selectedTaskId = routine.id
+                            selectedTaskName = routine.name
+                            showTimerDialog = true
+                        },
+                        onStopTimer = {
+                            TaskTimerManager.stopTimer(context, routine.id)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // Timer dialog
+    if (showTimerDialog) {
+        TaskTimerDialog(
+            taskName = selectedTaskName,
+            onDismiss = { showTimerDialog = false },
+            onStartTimer = { durationMinutes ->
+                TaskTimerManager.startTimer(
+                    context,
+                    selectedTaskId,
+                    selectedTaskName,
+                    durationMinutes
+                )
+            }
+        )
+    }
+}
+
+@Composable
+fun TaskCard(
+    routine: com.jarvismini.core.routine.model.Routine,
+    timerState: TaskTimerManager.TimerState?,
+    onTimerClick: () -> Unit,
+    onStopTimer: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF001520)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisBlue.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Title and timer button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = routine.name,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = JarvisBlue,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Timer button
+                if (timerState == null) {
+                    OutlinedButton(
+                        onClick = onTimerClick,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = JarvisGreen
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                    ) {
+                        Text(
+                            "⏱️ TIMER",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onStopTimer,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = JarvisRed
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                    ) {
+                        Text(
+                            "■ STOP",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Timer display (if active)
+            timerState?.let {
+                TaskTimerDisplay(
+                    remainingSeconds = it.remainingSeconds,
+                    totalSeconds = it.totalSeconds
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Actions list
+            routine.actions.forEach { action ->
+                Row(
+                    modifier = Modifier.padding(vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "• ",
+                        color = JarvisGreen,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = when (action.type) {
+                            "speak" -> "Speak: ${action.params["message"]}"
+                            "notify" -> "Notify: ${action.params["message"]}"
+                            "set_mode" -> "Set mode: ${action.params["mode"]}"
+                            "set_dnd" -> "Set dnd: ${action.params["dnd"]}"
+                            "start_timer" -> "Timer: ${action.params["task"]} (${action.params["duration"]} min)"
+                            else -> "${action.type}: ${action.params}"
+                        },
+                        color = JarvisGreen.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Scheduled time
+            routine.trigger?.time?.let { time ->
+                Text(
+                    text = "Scheduled: $time",
+                    color = JarvisBlue.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                OutlinedButton(
+                    onClick = { /* Mark complete */ },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = JarvisGreen
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                ) {
+                    Text(
+                        "DONE",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = { /* Mark missed */ },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = JarvisRed
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                ) {
+                    Text(
+                        "MISSED",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun getCurrentDayOfWeek(): String {
+    val cal = Calendar.getInstance()
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.SUNDAY -> "SUN"
+        Calendar.MONDAY -> "MON"
+        Calendar.TUESDAY -> "TUE"
+        Calendar.WEDNESDAY -> "WED"
+        Calendar.THURSDAY -> "THU"
+        Calendar.FRIDAY -> "FRI"
+        Calendar.SATURDAY -> "SAT"
+        else -> "SUN"
+    }
+}
+
+private fun parseTimeToMinutes(time: String): Int {
+    return try {
+        val parts = time.split(":")
+        parts[0].toInt() * 60 + parts[1].toInt()
+    } catch (e: Exception) {
+        0
+    }
+}
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.JarvisChatScreen
+import com.jarvismini.ui.calendar.CalendarViewModel
+import com.jarvismini.ui.calendar.DayCalendarScreen
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
+
+enum class MainTab {
+    Home,
+    Chat,
+    Calendar,
+    Checklist,
+    Settings,
+    Debug
+}
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+
+    var showBoot by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
+    }
+
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
+        }
+    }
+
+    when (selectedTab) {
+
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToChat = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings = { selectedTab = MainTab.Settings },
+            onNavigateToDebug = { selectedTab = MainTab.Debug }
+        )
+
+        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+
+        MainTab.Calendar -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(viewModel = vm)
+        }
+
+        MainTab.Checklist -> JarvisChecklistScreen()
+
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+    }
+}
