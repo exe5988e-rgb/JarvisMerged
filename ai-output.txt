@@ -4,6 +4,7 @@ package com.jarvismini.core.stopwatch
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
@@ -17,11 +18,21 @@ class StopwatchService : Service() {
         private const val CHANNEL_ID = "stopwatch_channel"
         private const val NOTIF_ID = 1001
 
+        /**
+         * Start the stopwatch service safely depending on API level
+         */
         fun start(context: Context) {
             val intent = Intent(context, StopwatchService::class.java)
-            context.startForegroundService(intent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
+        /**
+         * Stop the stopwatch service
+         */
         fun stop(context: Context) {
             val intent = Intent(context, StopwatchService::class.java)
             context.stopService(intent)
@@ -29,20 +40,23 @@ class StopwatchService : Service() {
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
-    private var startTime = 0L
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startTime = System.currentTimeMillis()
 
+        // Start foreground notification immediately
         startForeground(NOTIF_ID, buildNotification("00:00"))
 
+        // Update notification periodically while stopwatch is running
         scope.launch {
             while (StopwatchManager.state.value.isRunning) {
                 val elapsed = StopwatchManager.getCurrentElapsed()
                 val manager = getSystemService(NotificationManager::class.java)
-                manager.notify(NOTIF_ID, buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed)))
+                manager.notify(
+                    NOTIF_ID,
+                    buildNotification(StopwatchManager.formatElapsedTimeShort(elapsed))
+                )
                 delay(500)
             }
         }
@@ -55,6 +69,9 @@ class StopwatchService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * Build the persistent stopwatch notification
+     */
     private fun buildNotification(time: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Stopwatch Running")
@@ -64,360 +81,18 @@ class StopwatchService : Service() {
             .build()
     }
 
+    /**
+     * Create notification channel if it doesn't exist
+     */
     private fun createChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            val channel = NotificationChannel(CHANNEL_ID, "Stopwatch", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Stopwatch",
+                NotificationManager.IMPORTANCE_LOW
+            )
             manager.createNotificationChannel(channel)
         }
     }
 }
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt =====
-package com.jarvismini.core.stopwatch
-
-import android.content.Context
-import android.os.SystemClock
-import com.jarvismini.core.Logger
-import com.jarvismini.core.tts.AssistantTTS
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-
-/**
- * Built-in stopwatch manager - no external clock app needed!
- * Starts a foreground service when running to ensure persistent notification.
- */
-object StopwatchManager {
-
-    private val TAG = "StopwatchManager"
-
-    data class StopwatchState(
-        val isRunning: Boolean = false,
-        val elapsedTimeMs: Long = 0L,
-        val startTimeMs: Long = 0L,
-        val pausedAtMs: Long = 0L
-    )
-
-    private val _state = MutableStateFlow(StopwatchState())
-    val state: StateFlow<StopwatchState> = _state.asStateFlow()
-
-    private var tickerJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.Default)
-
-    private const val PREF_KEY_START_TIME = "stopwatch_start_time"
-    private const val PREF_KEY_PAUSED_AT = "stopwatch_paused_at"
-    private const val PREF_KEY_IS_RUNNING = "stopwatch_is_running"
-
-    /**
-     * Initialize and restore state from preferences
-     */
-    fun init(context: Context) {
-        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-        val isRunning = prefs.getBoolean(PREF_KEY_IS_RUNNING, false)
-        val startTime = prefs.getLong(PREF_KEY_START_TIME, 0L)
-        val pausedAt = prefs.getLong(PREF_KEY_PAUSED_AT, 0L)
-
-        if (isRunning && startTime > 0) {
-            _state.value = StopwatchState(
-                isRunning = true,
-                startTimeMs = startTime,
-                pausedAtMs = 0L,
-                elapsedTimeMs = SystemClock.elapsedRealtime() - startTime
-            )
-            startTicker()
-            StopwatchService.start(context)
-        } else if (pausedAt > 0) {
-            _state.value = StopwatchState(
-                isRunning = false,
-                pausedAtMs = pausedAt,
-                elapsedTimeMs = pausedAt
-            )
-        }
-    }
-
-    fun start(context: Context) {
-        val currentState = _state.value
-        if (currentState.isRunning) return
-
-        val now = SystemClock.elapsedRealtime()
-        val startTime = if (currentState.pausedAtMs > 0) now - currentState.pausedAtMs else now
-
-        _state.value = StopwatchState(
-            isRunning = true,
-            startTimeMs = startTime,
-            pausedAtMs = 0L,
-            elapsedTimeMs = if (currentState.pausedAtMs > 0) currentState.pausedAtMs else 0L
-        )
-
-        saveState(context)
-        startTicker()
-
-        StopwatchService.start(context)
-
-        AssistantTTS.speak(context, "Stopwatch started")
-        Logger.d(TAG, "Stopwatch started")
-    }
-
-    fun pause(context: Context) {
-        val currentState = _state.value
-        if (!currentState.isRunning) return
-
-        val elapsed = getCurrentElapsed()
-        _state.value = currentState.copy(
-            isRunning = false,
-            pausedAtMs = elapsed,
-            elapsedTimeMs = elapsed
-        )
-
-        stopTicker()
-        saveState(context)
-        StopwatchService.stop(context)
-
-        val timeStr = formatElapsedTime(elapsed)
-        AssistantTTS.speak(context, "Stopwatch paused at $timeStr")
-        Logger.d(TAG, "Stopwatch paused at $timeStr")
-    }
-
-    fun stop(context: Context) {
-        val elapsed = getCurrentElapsed()
-        _state.value = StopwatchState(
-            isRunning = false,
-            elapsedTimeMs = elapsed
-        )
-
-        stopTicker()
-        saveState(context)
-        StopwatchService.stop(context)
-
-        val timeStr = formatElapsedTime(elapsed)
-        AssistantTTS.speak(context, "Stopwatch stopped. Total time: $timeStr")
-        Logger.d(TAG, "Stopwatch stopped at $timeStr")
-    }
-
-    fun reset(context: Context) {
-        _state.value = StopwatchState()
-        stopTicker()
-        saveState(context)
-        StopwatchService.stop(context)
-
-        AssistantTTS.speak(context, "Stopwatch reset")
-        Logger.d(TAG, "Stopwatch reset")
-    }
-
-    fun toggle(context: Context) {
-        if (_state.value.isRunning) pause(context) else start(context)
-    }
-
-    fun getCurrentElapsed(): Long {
-        val currentState = _state.value
-        return if (currentState.isRunning) SystemClock.elapsedRealtime() - currentState.startTimeMs
-        else currentState.elapsedTimeMs
-    }
-
-    fun formatElapsedTime(ms: Long): String {
-        val seconds = (ms / 1000) % 60
-        val minutes = (ms / (1000 * 60)) % 60
-        val hours = (ms / (1000 * 60 * 60))
-
-        return when {
-            hours > 0 -> "%d hours %d minutes %d seconds".format(hours, minutes, seconds)
-            minutes > 0 -> "%d minutes %d seconds".format(minutes, seconds)
-            else -> "%d seconds".format(seconds)
-        }
-    }
-
-    fun formatElapsedTimeShort(ms: Long): String {
-        val seconds = (ms / 1000) % 60
-        val minutes = (ms / (1000 * 60)) % 60
-        val hours = (ms / (1000 * 60 * 60))
-        return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
-        else "%02d:%02d".format(minutes, seconds)
-    }
-
-    private fun startTicker() {
-        if (tickerJob?.isActive == true) return
-
-        tickerJob = scope.launch {
-            while (_state.value.isRunning) {
-                _state.value = _state.value.copy(elapsedTimeMs = getCurrentElapsed())
-                delay(100L)
-            }
-        }
-    }
-
-    private fun stopTicker() {
-        tickerJob?.cancel()
-        tickerJob = null
-    }
-
-    private fun saveState(context: Context) {
-        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-        val s = _state.value
-        prefs.edit().apply {
-            putBoolean(PREF_KEY_IS_RUNNING, s.isRunning)
-            putLong(PREF_KEY_START_TIME, s.startTimeMs)
-            putLong(PREF_KEY_PAUSED_AT, s.pausedAtMs)
-            apply()
-        }
-    }
-}
-//===== FILE: app/src/main/AndroidManifest.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jarvismini">
-
-    <!-- ================= PERMISSIONS ================= -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
-
-    <!-- ================= PACKAGE VISIBILITY ================= -->
-
-    <queries>
-        <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
-        <package android:name="com.google.android.apps.youtube.music" />
-        <package android:name="com.oneplus.deskclock" />
-        <package android:name="com.sec.android.app.clockpackage" />
-        <package android:name="com.apple.android.music" />
-    </queries>
-
-    <!-- ================= APPLICATION ================= -->
-
-    <application
-        android:name="com.jarvismini.CoreApp"
-        android:allowBackup="true"
-        android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMerged"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config">
-
-        <!-- ================= MAIN ACTIVITY ================= -->
-
-        <activity
-            android:name="com.jarvismini.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- ================= NOTIFICATION LISTENER ================= -->
-
-        <service
-            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= SMS RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.SmsReceiver"
-            android:permission="android.permission.BROADCAST_SMS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL STATE RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL SCREENING SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
-            android:permission="android.permission.BIND_SCREENING_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall">
-            <intent-filter>
-                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= ACCESSIBILITY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
-
-        <!-- ================= QUICK SETTINGS TILE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.WorkModeTileService"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= WORK MODE SERVICE ================= -->
-
-        <service
-            android:name=".core.workmode.WorkModeService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- ================= STOPWATCH SERVICE ================= -->
-
-        <service
-            android:name=".core.stopwatch.StopwatchService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
-            android:exported="false" />
-
-    </application>
-
-</manifest>
