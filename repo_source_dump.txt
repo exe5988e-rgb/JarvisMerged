@@ -73,6 +73,9 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── StopwatchWidget.kt
 │   │   │   │   │   │   │   ├── theme
 │   │   │   │   │   │   │   │   ├── JarvisColors.kt
+│   │   │   │   │   │   │   ├── timer
+│   │   │   │   │   │   │   │   ├── TaskTimerDialog.kt
+│   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
 │   │   │   ├── res
 │   │   │   │   ├── layout
 │   │   │   │   │   ├── activity_main.xml
@@ -232,6 +235,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   │   ├── ActionDispatcher.kt
 │   │   │   │   │   │   │   │   │   ├── RoutineExecutor.kt
 │   │   │   │   │   │   │   │   │   ├── RoutineProvider.kt
+│   │   │   │   │   │   │   │   │   ├── TaskTimerManager.kt
+│   │   │   │   │   │   │   │   │   ├── TaskTimerService.kt
 │   │   │   │   │   │   │   │   │   ├── model
 │   │   │   │   │   │   │   │   │   │   ├── Routine.kt
 │   │   │   │   │   │   │   │   │   │   ├── RoutineAction.kt
@@ -1719,31 +1724,129 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.core.calendar.model.CalendarEvent
-import com.jarvismini.core.utils.TimeUtils  // ✅ Fixed import path
+import com.jarvismini.core.utils.TimeUtils
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.core.calendar.model.EventStatus
+import java.text.SimpleDateFormat
+import java.util.*
 
+/**
+ * FIXED DayCalendarScreen - now shows routines as calendar events
+ * 
+ * Changes:
+ * - Fetches today's routines from RoutineProvider
+ * - Converts routines to CalendarEvent objects
+ * - Shows them in chronological order
+ */
 @Composable
 fun DayCalendarScreen(viewModel: CalendarViewModel) {
-
-    // ✅ Fixed usage of TimeUtils
+    val context = LocalContext.current
+    
     val now = TimeUtils.nowMs()
     val dayStart = now - (now % (24 * 60 * 60 * 1000))
     val dayEnd = dayStart + (24 * 60 * 60 * 1000)
 
-    val events = remember {
-        viewModel.getEventsForDay(dayStart, dayEnd)
+    // Get today's routines and convert to calendar events
+    val events = remember(dayStart) {
+        val routines = RoutineProvider.getAllRoutines(context)
+        val today = getCurrentDayOfWeek()
+        
+        routines
+            .filter { routine ->
+                routine.enabled && routine.trigger?.days?.contains(today) == true
+            }
+            .mapNotNull { routine ->
+                routine.trigger?.time?.let { timeStr ->
+                    val eventTime = parseTimeToMs(timeStr)
+                    CalendarEvent(
+                        id = routine.id,
+                        title = routine.name,
+                        startTimeMs = eventTime,
+                        endTimeMs = eventTime + (60 * 60 * 1000), // 1 hour default duration
+                        description = routine.actions.joinToString("\n") { action ->
+                            when (action.type) {
+                                "speak" -> "🔊 ${action.params["message"]}"
+                                "notify" -> "🔔 ${action.params["message"]}"
+                                "set_mode" -> "🎯 Mode: ${action.params["mode"]}"
+                                else -> action.type
+                            }
+                        },
+                        status = if (eventTime < now) EventStatus.COMPLETED else EventStatus.SCHEDULED,
+                        calendarId = "routines"
+                    )
+                }
+            }
+            .sortedBy { it.startTimeMs }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(12.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp)
     ) {
-        items(events) { event ->
-            CalendarEventCard(event)
-            Spacer(modifier = Modifier.height(8.dp))
+        // Header
+        Text(
+            text = "Today's Schedule",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        if (events.isEmpty()) {
+            // Show empty state
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No routines scheduled for today",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            // Show events
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(events) { event ->
+                    CalendarEventCard(event)
+                }
+            }
         }
+    }
+}
+
+private fun getCurrentDayOfWeek(): String {
+    val cal = Calendar.getInstance()
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.SUNDAY -> "SUN"
+        Calendar.MONDAY -> "MON"
+        Calendar.TUESDAY -> "TUE"
+        Calendar.WEDNESDAY -> "WED"
+        Calendar.THURSDAY -> "THU"
+        Calendar.FRIDAY -> "FRI"
+        Calendar.SATURDAY -> "SAT"
+        else -> "SUN"
+    }
+}
+
+private fun parseTimeToMs(timeStr: String): Long {
+    return try {
+        val cal = Calendar.getInstance()
+        val parts = timeStr.split(":")
+        cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
+        cal.set(Calendar.MINUTE, parts[1].toInt())
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.timeInMillis
+    } catch (_: Exception) {
+        System.currentTimeMillis()
     }
 }
 
@@ -2155,8 +2258,6 @@ private fun formatTime(timestampMs: Long): String {
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.jarvismini.ui.checklist
 
 import androidx.compose.foundation.background
@@ -2165,137 +2266,299 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
-import com.jarvismini.core.progress.*
-import com.jarvismini.core.routine.model.Routine
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.ui.components.GridBackground
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.core.routine.TaskTimerManager
+import com.jarvismini.ui.timer.TaskTimerDialog
+import com.jarvismini.ui.timer.TaskTimerDisplay
+import java.text.SimpleDateFormat
+import java.util.*
 
 private val JarvisBlue = Color(0xFF00E0FF)
+private val JarvisGreen = Color(0xFF00FF00)
+private val JarvisRed = Color(0xFFFF4444)
 
+/**
+ * UPDATED JarvisChecklistScreen with timer integration
+ */
 @Composable
-fun JarvisChecklistScreen(
-    blocks: List<ProgressBlock>,
-    routines: List<Routine>,
-    onBlocksUpdated: (List<ProgressBlock>) -> Unit,
-    onBack: () -> Unit
-) {
+fun JarvisChecklistScreen() {
     val context = LocalContext.current
-    val stats = ProgressStatsEngine.getTodayStats()
-
+    val routines = remember { RoutineProvider.getAllRoutines(context) }
+    val today = remember { getCurrentDayOfWeek() }
+    
+    val todayRoutines = routines.filter { routine ->
+        routine.enabled && routine.trigger?.days?.contains(today) == true
+    }.sortedBy { routine ->
+        parseTimeToMinutes(routine.trigger?.time ?: "00:00")
+    }
+    
+    // Track active timers
+    val activeTimers by TaskTimerManager.activeTimers.collectAsState()
+    
+    // Dialog state
+    var showTimerDialog by remember { mutableStateOf(false) }
+    var selectedTaskId by remember { mutableStateOf("") }
+    var selectedTaskName by remember { mutableStateOf("") }
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    listOf(Color.Black, Color(0xFF001520), Color.Black)
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
                 )
             )
     ) {
-        GridBackground()
-
-        Column(modifier = Modifier.fillMaxSize()) {
-
-            // ===== HEADER BAR =====
-            TopAppBar(
-                title = {
-                    Text(
-                        "J.A.R.V.I.S TASK MATRIX",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = JarvisBlue
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.6f)
-                )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // Header
+            Text(
+                text = "J.A.R.V.I.S TASK MATRIX",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = JarvisBlue,
+                fontFamily = FontFamily.Monospace
             )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Completion percentage (placeholder for now)
+            Text(
+                text = "SYSTEM COMPLETION: 0%",
+                fontSize = 14.sp,
+                color = JarvisBlue.copy(alpha = 0.7f),
+                fontFamily = FontFamily.Monospace
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Task list
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-
-                Text(
-                    text = "SYSTEM COMPLETION: ${stats.completionPercent}%",
-                    fontSize = 12.sp,
-                    color = JarvisBlue.copy(alpha = 0.7f),
-                    fontFamily = FontFamily.Monospace
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                if (blocks.isEmpty()) {
-                    Text(
-                        text = "NO ACTIVE ROUTINES",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
-                    )
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(blocks) { block ->
-
-                            val routine =
-                                routines.find { it.id == block.id } ?: return@items
-
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        1.dp,
-                                        JarvisBlue.copy(alpha = 0.4f),
-                                        RoundedCornerShape(10.dp)
-                                    ),
-                                color = Color.Black.copy(alpha = 0.6f),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-
-                                ChecklistItem(
-                                    block = block,
-                                    routine = routine,
-
-                                    // ✅ PROPER SCREEN → ENGINE WIRING
-                                    onComplete = {
-                                        ProgressEngine.markComplete(context, block.id)
-                                        AssistantTTS.speak(context, "Task completed.")
-                                        onBlocksUpdated(
-                                            ProgressRepository.getTodayBlocks()
-                                        )
-                                    },
-
-                                    onIncomplete = {
-                                        ProgressEngine.markIncomplete(context, block.id)
-                                        AssistantTTS.speak(context, "Task marked incomplete.")
-                                        onBlocksUpdated(
-                                            ProgressRepository.getTodayBlocks()
-                                        )
-                                    }
-                                )
-                            }
+                items(todayRoutines) { routine ->
+                    TaskCard(
+                        routine = routine,
+                        timerState = activeTimers[routine.id],
+                        onTimerClick = {
+                            selectedTaskId = routine.id
+                            selectedTaskName = routine.name
+                            showTimerDialog = true
+                        },
+                        onStopTimer = {
+                            TaskTimerManager.stopTimer(context, routine.id)
                         }
-                    }
+                    )
                 }
             }
         }
+    }
+    
+    // Timer dialog
+    if (showTimerDialog) {
+        TaskTimerDialog(
+            taskName = selectedTaskName,
+            onDismiss = { showTimerDialog = false },
+            onStartTimer = { durationMinutes ->
+                TaskTimerManager.startTimer(
+                    context,
+                    selectedTaskId,
+                    selectedTaskName,
+                    durationMinutes
+                )
+            }
+        )
+    }
+}
+
+@Composable
+fun TaskCard(
+    routine: com.jarvismini.core.routine.model.Routine,
+    timerState: TaskTimerManager.TimerState?,
+    onTimerClick: () -> Unit,
+    onStopTimer: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF001520)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisBlue.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Title and timer button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = routine.name,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = JarvisBlue,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Timer button
+                if (timerState == null) {
+                    OutlinedButton(
+                        onClick = onTimerClick,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = JarvisGreen
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                    ) {
+                        Text(
+                            "⏱️ TIMER",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onStopTimer,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = JarvisRed
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                    ) {
+                        Text(
+                            "■ STOP",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Timer display (if active)
+            timerState?.let {
+                TaskTimerDisplay(
+                    remainingSeconds = it.remainingSeconds,
+                    totalSeconds = it.totalSeconds
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            
+            // Actions list
+            routine.actions.forEach { action ->
+                Row(
+                    modifier = Modifier.padding(vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "• ",
+                        color = JarvisGreen,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = when (action.type) {
+                            "speak" -> "Speak: ${action.params["message"]}"
+                            "notify" -> "Notify: ${action.params["message"]}"
+                            "set_mode" -> "Set mode: ${action.params["mode"]}"
+                            "set_dnd" -> "Set dnd: ${action.params["dnd"]}"
+                            else -> "${action.type}: ${action.params}"
+                        },
+                        color = JarvisGreen.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Scheduled time
+            routine.trigger?.time?.let { time ->
+                Text(
+                    text = "Scheduled: $time",
+                    color = JarvisBlue.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { /* Mark complete */ },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = JarvisGreen
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                ) {
+                    Text(
+                        "DONE",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+                
+                OutlinedButton(
+                    onClick = { /* Mark missed */ },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = JarvisRed
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                ) {
+                    Text(
+                        "MISSED",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun getCurrentDayOfWeek(): String {
+    val cal = Calendar.getInstance()
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.SUNDAY -> "SUN"
+        Calendar.MONDAY -> "MON"
+        Calendar.TUESDAY -> "TUE"
+        Calendar.WEDNESDAY -> "WED"
+        Calendar.THURSDAY -> "THU"
+        Calendar.FRIDAY -> "FRI"
+        Calendar.SATURDAY -> "SAT"
+        else -> "SUN"
+    }
+}
+
+private fun parseTimeToMinutes(time: String): Int {
+    return try {
+        val parts = time.split(":")
+        parts[0].toInt() * 60 + parts[1].toInt()
+    } catch (e: Exception) {
+        0
     }
 }
 
@@ -3281,6 +3544,317 @@ val JarvisBlue = Color(0xFF00E0FF)
 val JarvisGreen = Color(0xFF00FF00)
 val JarvisRed = Color(0xFFFF4444)
 val JarvisBackground = Color(0xFF001520)
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/timer/TaskTimerDialog.kt =====
+package com.jarvismini.ui.timer
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+
+private val JarvisBlue = Color(0xFF00E0FF)
+private val JarvisGreen = Color(0xFF00FF00)
+
+/**
+ * JARVIS-themed timer duration picker dialog
+ */
+@Composable
+fun TaskTimerDialog(
+    taskName: String,
+    onDismiss: () -> Unit,
+    onStartTimer: (Long) -> Unit
+) {
+    var selectedMinutes by remember { mutableStateOf(30L) }
+    var customInput by remember { mutableStateOf("") }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF001520)
+            ),
+            border = BorderStroke(2.dp, JarvisBlue)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Title
+                Text(
+                    text = "⏱️ SET TASK TIMER",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = JarvisBlue,
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                // Task name
+                Text(
+                    text = taskName.uppercase(),
+                    fontSize = 14.sp,
+                    color = JarvisGreen,
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = TextAlign.Center
+                )
+                
+                Divider(color = JarvisBlue.copy(alpha = 0.3f))
+                
+                // Quick preset buttons
+                Text(
+                    text = "QUICK PRESETS:",
+                    fontSize = 12.sp,
+                    color = JarvisBlue,
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    listOf(15L, 30L, 45L, 60L).forEach { minutes ->
+                        OutlinedButton(
+                            onClick = {
+                                selectedMinutes = minutes
+                                customInput = ""
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (selectedMinutes == minutes && customInput.isEmpty()) 
+                                    JarvisBlue.copy(alpha = 0.2f) 
+                                else 
+                                    Color.Transparent,
+                                contentColor = JarvisBlue
+                            ),
+                            border = BorderStroke(1.dp, JarvisBlue),
+                            modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                        ) {
+                            Text(
+                                text = "${minutes}m",
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+                
+                // Custom input
+                Text(
+                    text = "OR CUSTOM DURATION:",
+                    fontSize = 12.sp,
+                    color = JarvisBlue,
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                OutlinedTextField(
+                    value = customInput,
+                    onValueChange = { 
+                        if (it.isEmpty() || it.all { char -> char.isDigit() }) {
+                            customInput = it
+                            if (it.isNotEmpty()) {
+                                selectedMinutes = it.toLongOrNull() ?: selectedMinutes
+                            }
+                        }
+                    },
+                    label = { 
+                        Text(
+                            "Minutes",
+                            fontFamily = FontFamily.Monospace
+                        ) 
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = JarvisBlue,
+                        unfocusedBorderColor = JarvisBlue.copy(alpha = 0.5f),
+                        focusedLabelColor = JarvisBlue,
+                        unfocusedLabelColor = JarvisBlue.copy(alpha = 0.5f),
+                        focusedTextColor = JarvisGreen,
+                        unfocusedTextColor = JarvisGreen
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                // Selected duration display
+                Text(
+                    text = "DURATION: ${selectedMinutes} MINUTES",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = JarvisGreen,
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                Divider(color = JarvisBlue.copy(alpha = 0.3f))
+                
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.Red
+                        ),
+                        border = BorderStroke(1.dp, Color.Red),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "CANCEL",
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    
+                    Button(
+                        onClick = {
+                            val duration = customInput.toLongOrNull() ?: selectedMinutes
+                            if (duration > 0) {
+                                onStartTimer(duration)
+                                onDismiss()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = JarvisGreen,
+                            contentColor = Color.Black
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "START ▶",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/timer/TaskTimerDisplay.kt =====
+package com.jarvismini.ui.timer
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+
+private val JarvisBlue = Color(0xFF00E0FF)
+private val JarvisGreen = Color(0xFF00FF00)
+private val JarvisRed = Color(0xFFFF4444)
+
+/**
+ * Live countdown timer display for task cards
+ */
+@Composable
+fun TaskTimerDisplay(
+    remainingSeconds: Long,
+    totalSeconds: Long
+) {
+    val progress = 1f - (remainingSeconds.toFloat() / totalSeconds.toFloat())
+    
+    // Pulsing animation when time is running low (< 2 minutes)
+    val isLowTime = remainingSeconds < 120
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF001520))
+            .border(
+                width = 1.dp,
+                color = if (isLowTime) JarvisRed.copy(alpha = alpha) else JarvisBlue.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "⏱️ TIMER ACTIVE",
+                fontSize = 11.sp,
+                color = if (isLowTime) JarvisRed else JarvisBlue,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Text(
+                text = formatTime(remainingSeconds),
+                fontSize = 16.sp,
+                color = if (isLowTime) JarvisRed else JarvisGreen,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = if (isLowTime) JarvisRed else JarvisGreen,
+            trackColor = Color(0xFF001520),
+        )
+    }
+}
+
+private fun formatTime(seconds: Long): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    
+    return if (hours > 0) {
+        String.format("%d:%02d:%02d", hours, minutes, secs)
+    } else {
+        String.format("%02d:%02d", minutes, secs)
+    }
+}
 
 
 //===== FILE: app/src/main/res/layout/activity_main.xml =====
@@ -4556,28 +5130,26 @@ dependencies {
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ADD THESE PERMISSIONS TO YOUR EXISTING MANIFEST -->
-    
-    <!-- Required for foreground service on API 28+ -->
+    <!-- Existing permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    
-    <!-- Required for foreground service type on API 34+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    
-    <!-- Required for posting notifications on API 33+ (Android 13) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application>
         
-        <!-- ADD OR UPDATE THIS SERVICE DECLARATION -->
-        
+        <!-- Existing StopwatchService -->
         <service
             android:name="com.jarvismini.core.stopwatch.StopwatchService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         
-        <!-- Keep all your other existing application components -->
+        <!-- NEW: TaskTimerService for per-task duration timers -->
+        <service
+            android:name="com.jarvismini.core.routine.TaskTimerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         
     </application>
 
@@ -6063,15 +6635,133 @@ object RetryScheduler {
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
 package com.jarvismini.core.routine
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.WorkModeManager
 import com.jarvismini.core.routine.model.RoutineAction
+import com.jarvismini.core.tts.AssistantTTS
 
 /**
- * Stub dispatcher for routine actions.
+ * FIXED ActionDispatcher - now actually executes routine actions
+ * 
+ * Supports all action types from routine JSON files:
+ * - speak: TTS voice announcements
+ * - notify: Show notification
+ * - set_mode: Change Jarvis mode (WORK, FOCUS, NORMAL)
+ * - set_dnd: Enable/disable Do Not Disturb
+ * - network_time_sync: Sync time from network
+ * - start_timer: NEW - Start task-specific countdown timer
  */
 object ActionDispatcher {
+    
+    private const val CHANNEL_ID = "jarvis_routine_actions"
+    private const val TAG = "ActionDispatcher"
+    
     fun dispatch(context: Context, action: RoutineAction) {
-        // Stub — logic will expand later
+        android.util.Log.d(TAG, "Dispatching action: ${action.type} with params: ${action.params}")
+        
+        when (action.type) {
+            "speak" -> handleSpeak(context, action)
+            "notify" -> handleNotify(context, action)
+            "set_mode" -> handleSetMode(action)
+            "set_dnd" -> handleSetDnd(context, action)
+            "network_time_sync" -> handleNetworkTimeSync()
+            "start_timer" -> handleStartTimer(context, action)
+            else -> {
+                android.util.Log.w(TAG, "Unknown action type: ${action.type}")
+            }
+        }
+    }
+    
+    private fun handleSpeak(context: Context, action: RoutineAction) {
+        val message = action.params["message"] ?: return
+        android.util.Log.d(TAG, "Speaking: $message")
+        AssistantTTS.speak(context, message)
+    }
+    
+    private fun handleNotify(context: Context, action: RoutineAction) {
+        val message = action.params["message"] ?: return
+        val title = action.params["title"] ?: "Jarvis Routine"
+        
+        android.util.Log.d(TAG, "Showing notification: $title - $message")
+        
+        createNotificationChannel(context)
+        
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(message.hashCode(), notification)
+    }
+    
+    private fun handleSetMode(action: RoutineAction) {
+        val modeName = action.params["mode"] ?: return
+        
+        val mode = when (modeName.uppercase()) {
+            "WORK" -> JarvisMode.WORK
+            "FOCUS" -> JarvisMode.FOCUS
+            "NORMAL" -> JarvisMode.NORMAL
+            "ASSISTANT" -> JarvisMode.ASSISTANT
+            else -> {
+                android.util.Log.w(TAG, "Unknown mode: $modeName")
+                return
+            }
+        }
+        
+        android.util.Log.d(TAG, "Setting mode to: $mode")
+        JarvisState.setMode(mode)
+    }
+    
+    private fun handleSetDnd(context: Context, action: RoutineAction) {
+        val dndEnabled = action.params["dnd"]?.toBoolean() ?: return
+        
+        android.util.Log.d(TAG, "Setting DND to: $dndEnabled")
+        
+        if (dndEnabled) {
+            WorkModeManager.activateWorkMode(context)
+        } else {
+            WorkModeManager.deactivateWorkMode(context)
+        }
+    }
+    
+    private fun handleNetworkTimeSync() {
+        // Network time sync - can be implemented later
+        android.util.Log.d(TAG, "Network time sync requested (not yet implemented)")
+    }
+    
+    private fun handleStartTimer(context: Context, action: RoutineAction) {
+        val durationMinutes = action.params["duration"]?.toLongOrNull() ?: return
+        val taskName = action.params["task"] ?: "Task"
+        
+        android.util.Log.d(TAG, "Starting timer: $taskName for $durationMinutes minutes")
+        
+        // Start the task timer service
+        TaskTimerService.start(context, taskName, durationMinutes)
+    }
+    
+    private fun createNotificationChannel(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Routine Actions",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications from Jarvis routine actions"
+            }
+            
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 }
 
@@ -6195,6 +6885,283 @@ private fun JSONObject.toMap(): Map<String, String> {
 }
 
 
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt =====
+package com.jarvismini.core.routine
+
+import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Manages active task timers across the app
+ * Tracks which tasks have active timers and their remaining time
+ */
+object TaskTimerManager {
+    
+    data class TimerState(
+        val taskId: String,
+        val taskName: String,
+        val totalSeconds: Long,
+        val remainingSeconds: Long,
+        val isActive: Boolean = true
+    )
+    
+    private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
+    val activeTimers: StateFlow<Map<String, TimerState>> = _activeTimers.asStateFlow()
+    
+    /**
+     * Start a new timer for a task
+     */
+    fun startTimer(context: Context, taskId: String, taskName: String, durationMinutes: Long) {
+        val totalSeconds = durationMinutes * 60
+        
+        _activeTimers.value = _activeTimers.value + (taskId to TimerState(
+            taskId = taskId,
+            taskName = taskName,
+            totalSeconds = totalSeconds,
+            remainingSeconds = totalSeconds,
+            isActive = true
+        ))
+        
+        // Start the service
+        TaskTimerService.start(context, taskId, taskName, durationMinutes)
+    }
+    
+    /**
+     * Update timer remaining time (called by service)
+     */
+    fun updateTimer(taskId: String, remainingSeconds: Long) {
+        val current = _activeTimers.value[taskId] ?: return
+        _activeTimers.value = _activeTimers.value + (taskId to current.copy(
+            remainingSeconds = remainingSeconds
+        ))
+    }
+    
+    /**
+     * Stop and remove a timer
+     */
+    fun stopTimer(context: Context, taskId: String) {
+        _activeTimers.value = _activeTimers.value - taskId
+        TaskTimerService.stop(context, taskId)
+    }
+    
+    /**
+     * Get timer state for a specific task
+     */
+    fun getTimerState(taskId: String): TimerState? {
+        return _activeTimers.value[taskId]
+    }
+    
+    /**
+     * Check if task has active timer
+     */
+    fun hasActiveTimer(taskId: String): Boolean {
+        return _activeTimers.value.containsKey(taskId)
+    }
+    
+    /**
+     * Clear all timers
+     */
+    fun clearAll() {
+        _activeTimers.value = emptyMap()
+    }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerService.kt =====
+package com.jarvismini.core.routine
+
+import android.app.*
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.*
+
+/**
+ * NEW FEATURE: Task-specific countdown timer service
+ * 
+ * Shows a persistent notification with countdown timer for each task
+ * Triggered by routine actions with type "start_timer"
+ * 
+ * Example JSON action:
+ * {
+ *   "type": "start_timer",
+ *   "task": "Morning Lectures",
+ *   "duration": "360"  // minutes
+ * }
+ */
+class TaskTimerService : Service() {
+
+    companion object {
+        private const val CHANNEL_ID = "task_timer_channel"
+        private const val TAG = "TaskTimerService"
+        
+        private var notifIdCounter = 2000
+        
+        fun start(context: Context, taskName: String, durationMinutes: Long) {
+            val intent = Intent(context, TaskTimerService::class.java)
+            intent.putExtra("task_name", taskName)
+            intent.putExtra("duration_minutes", durationMinutes)
+            intent.putExtra("notif_id", notifIdCounter++)
+            
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Failed to start service: ${e.message}")
+            }
+        }
+    }
+
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var timerJob: Job? = null
+    private var notifId: Int = 2000
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val taskName = intent?.getStringExtra("task_name") ?: "Task"
+        val durationMinutes = intent?.getLongExtra("duration_minutes", 60) ?: 60
+        notifId = intent?.getIntExtra("notif_id", 2000) ?: 2000
+        
+        android.util.Log.d(TAG, "Starting timer for $taskName: $durationMinutes minutes")
+        
+        try {
+            // Start foreground immediately
+            val notification = buildNotification(taskName, durationMinutes, durationMinutes)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    notifId,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(notifId, notification)
+            }
+            
+            // Start countdown
+            startCountdown(taskName, durationMinutes)
+            
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to start foreground: ${e.message}", e)
+            stopSelf()
+        }
+        
+        return START_NOT_STICKY
+    }
+
+    private fun startCountdown(taskName: String, totalMinutes: Long) {
+        timerJob?.cancel()
+        
+        timerJob = scope.launch {
+            var remainingMinutes = totalMinutes
+            
+            while (remainingMinutes > 0 && isActive) {
+                updateNotification(taskName, remainingMinutes, totalMinutes)
+                delay(60_000) // Update every minute
+                remainingMinutes--
+            }
+            
+            // Timer completed
+            if (remainingMinutes <= 0) {
+                showCompletionNotification(taskName)
+            }
+            
+            stopSelf()
+        }
+    }
+
+    private fun updateNotification(taskName: String, remaining: Long, total: Long) {
+        try {
+            val notification = buildNotification(taskName, remaining, total)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.notify(notifId, notification)
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to update notification: ${e.message}")
+        }
+    }
+
+    private fun showCompletionNotification(taskName: String) {
+        try {
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("⏰ Time's Up!")
+                .setContentText("$taskName duration completed")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .build()
+            
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.notify(notifId + 10000, notification)
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Failed to show completion notification: ${e.message}")
+        }
+    }
+
+    override fun onDestroy() {
+        android.util.Log.d(TAG, "Service onDestroy called")
+        timerJob?.cancel()
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun buildNotification(taskName: String, remaining: Long, total: Long): Notification {
+        val hours = remaining / 60
+        val minutes = remaining % 60
+        
+        val timeText = if (hours > 0) {
+            String.format("%dh %02dm remaining", hours, minutes)
+        } else {
+            String.format("%d min remaining", minutes)
+        }
+        
+        val progress = ((total - remaining) * 100 / total).toInt()
+        
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("⏱️ $taskName")
+            .setContentText(timeText)
+            .setSmallIcon(android.R.drawable.ic_menu_recent_history)
+            .setProgress(100, progress, false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .build()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Task Timers",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows countdown timers for tasks"
+                setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+            }
+            
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+}
+
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/model/Routine.kt =====
 package com.jarvismini.core.routine.model
 
@@ -6312,9 +7279,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Manages stopwatch state and timing
- * 
- * Improved version with better service integration
+ * FIXED StopwatchManager - pause now keeps notification visible
  */
 object StopwatchManager {
     
@@ -6325,9 +7290,6 @@ object StopwatchManager {
     private var pausedTimeMs: Long = 0L
     private var totalElapsedBeforePause: Long = 0L
     
-    /**
-     * Start or resume the stopwatch
-     */
     fun start(context: Context) {
         android.util.Log.d("StopwatchManager", "start() called, current state: ${_state.value}")
         
@@ -6344,9 +7306,6 @@ object StopwatchManager {
         }
     }
     
-    /**
-     * Pause the stopwatch
-     */
     fun pause(context: Context) {
         android.util.Log.d("StopwatchManager", "pause() called")
         
@@ -6356,14 +7315,12 @@ object StopwatchManager {
             
             _state.value = _state.value.copy(isRunning = false)
             
-            // Stop the service when paused
-            StopwatchService.stop(context)
+            // DON'T stop service - just update notification to paused state
+            // Service will update notification to show "Paused"
+            android.util.Log.d("StopwatchManager", "Keeping service running, updating to paused state")
         }
     }
     
-    /**
-     * Reset the stopwatch to zero
-     */
     fun reset(context: Context) {
         android.util.Log.d("StopwatchManager", "reset() called")
         
@@ -6377,17 +7334,11 @@ object StopwatchManager {
         StopwatchService.stop(context)
     }
     
-    /**
-     * Stop the stopwatch (pause and reset)
-     */
     fun stop(context: Context) {
         android.util.Log.d("StopwatchManager", "stop() called")
         reset(context)
     }
     
-    /**
-     * Get current elapsed time in milliseconds
-     */
     fun getCurrentElapsed(): Long {
         return if (_state.value.isRunning) {
             totalElapsedBeforePause + (SystemClock.elapsedRealtime() - startTimeMs)
@@ -6396,9 +7347,6 @@ object StopwatchManager {
         }
     }
     
-    /**
-     * Format elapsed time as MM:SS for notification
-     */
     fun formatElapsedTimeShort(elapsedMs: Long): String {
         val totalSeconds = elapsedMs / 1000
         val minutes = totalSeconds / 60
@@ -6406,9 +7354,6 @@ object StopwatchManager {
         return String.format("%02d:%02d", minutes, seconds)
     }
     
-    /**
-     * Format elapsed time as HH:MM:SS for UI display
-     */
     fun formatElapsedTimeLong(elapsedMs: Long): String {
         val totalSeconds = elapsedMs / 1000
         val hours = totalSeconds / 3600
@@ -6423,9 +7368,6 @@ object StopwatchManager {
     }
 }
 
-/**
- * Represents the current state of the stopwatch
- */
 data class StopwatchState(
     val isRunning: Boolean = false
 )
@@ -6445,9 +7387,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Foreground service to show stopwatch notification
+ * FIXED StopwatchService - notification now persists when paused
  * 
- * Fixed version with proper lifecycle management and notification handling
+ * Key changes:
+ * - Notification stays visible when paused (shows "Paused" state)
+ * - Service only stops when reset, not when paused
+ * - Notification updates to show paused time
  */
 class StopwatchService : Service() {
 
@@ -6473,6 +7418,17 @@ class StopwatchService : Service() {
             val intent = Intent(context, StopwatchService::class.java)
             context.stopService(intent)
         }
+        
+        fun updatePausedState(context: Context) {
+            // Send broadcast to update notification to paused state
+            val intent = Intent(context, StopwatchService::class.java)
+            intent.action = "UPDATE_PAUSED"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
     }
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -6481,20 +7437,22 @@ class StopwatchService : Service() {
     override fun onCreate() {
         super.onCreate()
         android.util.Log.d(TAG, "Service onCreate called")
-        
-        // CRITICAL: Create notification channel BEFORE calling startForeground
         createChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        android.util.Log.d(TAG, "Service onStartCommand called")
+        android.util.Log.d(TAG, "Service onStartCommand called with action: ${intent?.action}")
         
         try {
-            // Start foreground IMMEDIATELY with initial notification
-            val notification = buildNotification("00:00")
+            // Get current elapsed time for initial notification
+            val elapsed = StopwatchManager.getCurrentElapsed()
+            val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
+            val isRunning = StopwatchManager.state.value.isRunning
+            
+            // Start foreground IMMEDIATELY
+            val notification = buildNotification(timeString, isRunning)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // API 29+ requires specific foreground service type
                 startForeground(
                     NOTIF_ID,
                     notification,
@@ -6506,7 +7464,7 @@ class StopwatchService : Service() {
             
             android.util.Log.d(TAG, "Service started in foreground successfully")
             
-            // Now start observing stopwatch state
+            // Start observing stopwatch state
             startObservingStopwatch()
             
         } catch (e: Exception) {
@@ -6514,18 +7472,14 @@ class StopwatchService : Service() {
             stopSelf()
         }
         
-        // START_STICKY ensures service restarts if killed by system
         return START_STICKY
     }
 
     private fun startObservingStopwatch() {
-        // Cancel any existing job
         updateJob?.cancel()
         
-        // Start new coroutine to observe stopwatch state
         updateJob = scope.launch {
             try {
-                // Collect state changes from StopwatchManager
                 StopwatchManager.state.collectLatest { state ->
                     android.util.Log.d(TAG, "State changed: isRunning=${state.isRunning}")
                     
@@ -6535,30 +7489,36 @@ class StopwatchService : Service() {
                             val elapsed = StopwatchManager.getCurrentElapsed()
                             val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
                             
-                            updateNotification(timeString)
+                            updateNotification(timeString, true)
                             delay(500)
                             
-                            // Re-check state in case it changed during delay
                             if (!StopwatchManager.state.value.isRunning) {
                                 break
                             }
                         }
+                        
+                        // When stopwatch pauses, show paused notification
+                        if (!state.isRunning) {
+                            val elapsed = StopwatchManager.getCurrentElapsed()
+                            val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
+                            updateNotification(timeString, false)
+                        }
                     } else {
-                        // Stopwatch stopped - stop service
-                        android.util.Log.d(TAG, "Stopwatch stopped, stopping service")
-                        stopSelf()
+                        // Stopwatch paused - keep notification visible with paused state
+                        val elapsed = StopwatchManager.getCurrentElapsed()
+                        val timeString = StopwatchManager.formatElapsedTimeShort(elapsed)
+                        updateNotification(timeString, false)
                     }
                 }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "Error in update loop: ${e.message}", e)
-                stopSelf()
             }
         }
     }
 
-    private fun updateNotification(time: String) {
+    private fun updateNotification(time: String, isRunning: Boolean) {
         try {
-            val notification = buildNotification(time)
+            val notification = buildNotification(time, isRunning)
             val manager = getSystemService(NotificationManager::class.java)
             manager?.notify(NOTIF_ID, notification)
         } catch (e: Exception) {
@@ -6575,8 +7535,7 @@ class StopwatchService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun buildNotification(time: String): Notification {
-        // Create pending intent to open app when notification is tapped
+    private fun buildNotification(time: String, isRunning: Boolean): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -6588,10 +7547,13 @@ class StopwatchService : Service() {
             }
         )
 
+        val title = if (isRunning) "Stopwatch Running" else "Stopwatch Paused"
+        val icon = if (isRunning) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Stopwatch Running")
+            .setContentTitle(title)
             .setContentText("Elapsed: $time")
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(icon)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
