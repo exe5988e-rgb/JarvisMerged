@@ -1,6 +1,7 @@
 package com.jarvismini.core.routine
 
 import android.content.Context
+import android.content.Intent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Tracks which tasks have active timers and their remaining time
  */
 object TaskTimerManager {
-    
+
     data class TimerState(
         val taskId: String,
         val taskName: String,
@@ -18,16 +19,16 @@ object TaskTimerManager {
         val remainingSeconds: Long,
         val isActive: Boolean = true
     )
-    
+
     private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
     val activeTimers: StateFlow<Map<String, TimerState>> = _activeTimers.asStateFlow()
-    
+
     /**
      * Start a new timer for a task
      */
     fun startTimer(context: Context, taskId: String, taskName: String, durationMinutes: Long) {
         val totalSeconds = durationMinutes * 60
-        
+
         _activeTimers.value = _activeTimers.value + (taskId to TimerState(
             taskId = taskId,
             taskName = taskName,
@@ -35,11 +36,11 @@ object TaskTimerManager {
             remainingSeconds = totalSeconds,
             isActive = true
         ))
-        
-        // Start the service
-        TaskTimerService.start(context, taskId, taskName, durationMinutes)
+
+        // Start the service - using the correct signature
+        TaskTimerService.start(context, taskName, durationMinutes)
     }
-    
+
     /**
      * Update timer remaining time (called by service)
      */
@@ -49,29 +50,31 @@ object TaskTimerManager {
             remainingSeconds = remainingSeconds
         ))
     }
-    
+
     /**
      * Stop and remove a timer
      */
     fun stopTimer(context: Context, taskId: String) {
         _activeTimers.value = _activeTimers.value - taskId
-        TaskTimerService.stop(context, taskId)
+        // Stop the service by sending stopService intent
+        val intent = Intent(context, TaskTimerService::class.java)
+        context.stopService(intent)
     }
-    
+
     /**
      * Get timer state for a specific task
      */
     fun getTimerState(taskId: String): TimerState? {
         return _activeTimers.value[taskId]
     }
-    
+
     /**
      * Check if task has active timer
      */
     fun hasActiveTimer(taskId: String): Boolean {
         return _activeTimers.value.containsKey(taskId)
     }
-    
+
     /**
      * Clear all timers
      */
