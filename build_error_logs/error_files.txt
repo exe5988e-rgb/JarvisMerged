@@ -1,12 +1,8 @@
 ==== GRADLE BUILD ERROR REPORT ====
 
 -- COMPILE / RESOURCE ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt:76:20 Unresolved reference: d
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt:100:16 Unresolved reference: d
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt:110:20 Unresolved reference: d
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt:127:16 Unresolved reference: d
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt:147:16 Unresolved reference: d
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt:159:16 Unresolved reference: d
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:27:36 None of the following functions can be called with the arguments supplied: 
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt:28:13 Unresolved reference: TaskTimerStore
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
@@ -14,275 +10,56 @@ BUILD FAILED in 38s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/stopwatch/StopwatchManager.kt =====
-1	package com.jarvismini.core.stopwatch
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
+1	package com.jarvismini.core.progress
 2
 3	import android.content.Context
-4	import android.os.SystemClock
-5	import com.jarvismini.core.JarvisPrefs
-6	import com.jarvismini.core.Logger
-7	import com.jarvismini.core.tts.AssistantTTS
-8	import kotlinx.coroutines.CoroutineScope
-9	import kotlinx.coroutines.Dispatchers
-10	import kotlinx.coroutines.Job
-11	import kotlinx.coroutines.delay
-12	import kotlinx.coroutines.flow.MutableStateFlow
-13	import kotlinx.coroutines.flow.StateFlow
-14	import kotlinx.coroutines.flow.asStateFlow
-15	import kotlinx.coroutines.launch
-16
-17	/**
-18	 * Built-in stopwatch manager - no external clock app needed!
-19	 */
-20	object StopwatchManager {
-21
-22	    private val TAG = "StopwatchManager"
+4	import java.text.SimpleDateFormat
+5	import java.util.*
+6
+7	object ProgressStatsEngine {
+8
+9	    fun getTodayStats(): ProgressStats {
+10	        val blocks = ProgressStore.getTodayBlocks()
+11	        val completed = blocks.count { it.completed }
+12	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+13	        return ProgressStats(today, blocks.size, completed)
+14	    }
+15
+16	    fun getStats(context: Context): StatsWrapper {
+17	        val blocks = ProgressStore.getTodayBlocks()
+18
+19	        val completed = blocks.count { it.completed }
+20	        val missed = blocks.count { it.missedAt != null }
+21	        val pending = blocks.size - completed - missed
+22	        val total = blocks.size.coerceAtLeast(1)
 23
-24	    data class StopwatchState(
-25	        val isRunning: Boolean = false,
-26	        val elapsedTimeMs: Long = 0L,
-27	        val startTimeMs: Long = 0L,
-28	        val pausedAtMs: Long = 0L
-29	    )
+24	        val rate = (completed.toFloat() / total.toFloat()) * 100f
+25
+26	        // ðŸ”¹ NEW: total work time
+>>>>> ERROR HERE
+27	        val totalWorkTime = blocks.sumOf {
+>>>>> ERROR HERE
+28	            TaskTimerStore.getElapsed(context, it.id)
+29	        }
 30
-31	    private val _state = MutableStateFlow(StopwatchState())
-32	    val state: StateFlow<StopwatchState> = _state.asStateFlow()
-33
-34	    private var tickerJob: Job? = null
-35	    private val scope = CoroutineScope(Dispatchers.Default)
-36
-37	    private const val PREF_KEY_START_TIME = "stopwatch_start_time"
-38	    private const val PREF_KEY_PAUSED_AT = "stopwatch_paused_at"
-39	    private const val PREF_KEY_IS_RUNNING = "stopwatch_is_running"
-40
-41	    /**
-42	     * Initialize and restore state from preferences
-43	     */
-44	    fun init(context: Context) {
-45	        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-46	        val isRunning = prefs.getBoolean(PREF_KEY_IS_RUNNING, false)
-47	        val startTime = prefs.getLong(PREF_KEY_START_TIME, 0L)
-48	        val pausedAt = prefs.getLong(PREF_KEY_PAUSED_AT, 0L)
-49
-50	        if (isRunning && startTime > 0) {
-51	            // Resume from saved state
-52	            _state.value = StopwatchState(
-53	                isRunning = true,
-54	                startTimeMs = startTime,
-55	                pausedAtMs = 0L,
-56	                elapsedTimeMs = SystemClock.elapsedRealtime() - startTime
-57	            )
-58	            startTicker()
-59	        } else if (pausedAt > 0) {
-60	            // Restore paused state
-61	            _state.value = StopwatchState(
-62	                isRunning = false,
-63	                pausedAtMs = pausedAt,
-64	                elapsedTimeMs = pausedAt
-65	            )
-66	        }
-67	    }
-68
-69	    /**
-70	     * Start or resume the stopwatch
-71	     */
-72	    fun start(context: Context) {
-73	        val currentState = _state.value
-74
-75	        if (currentState.isRunning) {
->>>>> ERROR HERE
-76	            Logger.d(TAG, "Stopwatch already running")
-77	            return
-78	        }
-79
-80	        val now = SystemClock.elapsedRealtime()
-81	        val startTime = if (currentState.pausedAtMs > 0) {
-82	            // Resume from pause
-83	            now - currentState.pausedAtMs
-84	        } else {
-85	            // Fresh start
-86	            now
-87	        }
-88
-89	        _state.value = StopwatchState(
-90	            isRunning = true,
-91	            startTimeMs = startTime,
-92	            pausedAtMs = 0L,
-93	            elapsedTimeMs = if (currentState.pausedAtMs > 0) currentState.pausedAtMs else 0L
-94	        )
-95
-96	        saveState(context)
-97	        startTicker()
-98
-99	        AssistantTTS.speak(context, "Stopwatch started")
->>>>> ERROR HERE
-100	        Logger.d(TAG, "Stopwatch started")
-101	    }
-102
-103	    /**
-104	     * Pause the stopwatch
-105	     */
-106	    fun pause(context: Context) {
-107	        val currentState = _state.value
-108
-109	        if (!currentState.isRunning) {
->>>>> ERROR HERE
-110	            Logger.d(TAG, "Stopwatch not running")
-111	            return
-112	        }
-113
-114	        val elapsed = getCurrentElapsed()
-115
-116	        _state.value = currentState.copy(
-117	            isRunning = false,
-118	            pausedAtMs = elapsed,
-119	            elapsedTimeMs = elapsed
-120	        )
-121
-122	        stopTicker()
-123	        saveState(context)
-124
-125	        val timeStr = formatElapsedTime(elapsed)
-126	        AssistantTTS.speak(context, "Stopwatch paused at $timeStr")
->>>>> ERROR HERE
-127	        Logger.d(TAG, "Stopwatch paused at $timeStr")
-128	    }
-129
-130	    /**
-131	     * Stop the stopwatch and announce total time
-132	     */
-133	    fun stop(context: Context) {
-134	        val currentState = _state.value
-135	        val elapsed = getCurrentElapsed()
-136
-137	        _state.value = StopwatchState(
-138	            isRunning = false,
-139	            elapsedTimeMs = elapsed
-140	        )
-141
-142	        stopTicker()
-143	        saveState(context)
-144
-145	        val timeStr = formatElapsedTime(elapsed)
-146	        AssistantTTS.speak(context, "Stopwatch stopped. Total time: $timeStr")
->>>>> ERROR HERE
-147	        Logger.d(TAG, "Stopwatch stopped at $timeStr")
-148	    }
-149
-150	    /**
-151	     * Reset the stopwatch to zero
-152	     */
-153	    fun reset(context: Context) {
-154	        _state.value = StopwatchState()
-155	        stopTicker()
-156	        saveState(context)
-157
-158	        AssistantTTS.speak(context, "Stopwatch reset")
->>>>> ERROR HERE
-159	        Logger.d(TAG, "Stopwatch reset")
-160	    }
-161
-162	    /**
-163	     * Toggle between start and pause
-164	     */
-165	    fun toggle(context: Context) {
-166	        if (_state.value.isRunning) {
-167	            pause(context)
-168	        } else {
-169	            start(context)
-170	        }
-171	    }
-172
-173	    /**
-174	     * Get current elapsed time in milliseconds
-175	     */
-176	    fun getCurrentElapsed(): Long {
-177	        val currentState = _state.value
-178	        return if (currentState.isRunning) {
-179	            SystemClock.elapsedRealtime() - currentState.startTimeMs
-180	        } else {
-181	            currentState.elapsedTimeMs
-182	        }
-183	    }
-184
-185	    /**
-186	     * Format elapsed time as HH:MM:SS
-187	     */
-188	    fun formatElapsedTime(ms: Long): String {
-189	        val seconds = (ms / 1000) % 60
-190	        val minutes = (ms / (1000 * 60)) % 60
-191	        val hours = (ms / (1000 * 60 * 60))
-192
-193	        return if (hours > 0) {
-194	            String.format("%d hours %d minutes %d seconds", hours, minutes, seconds)
-195	        } else if (minutes > 0) {
-196	            String.format("%d minutes %d seconds", minutes, seconds)
-197	        } else {
-198	            String.format("%d seconds", seconds)
-199	        }
-200	    }
-201
-202	    /**
-203	     * Format for display (short form)
-204	     */
-205	    fun formatElapsedTimeShort(ms: Long): String {
-206	        val seconds = (ms / 1000) % 60
-207	        val minutes = (ms / (1000 * 60)) % 60
-208	        val hours = (ms / (1000 * 60 * 60))
-209
-210	        return if (hours > 0) {
-211	            String.format("%d:%02d:%02d", hours, minutes, seconds)
-212	        } else {
-213	            String.format("%02d:%02d", minutes, seconds)
-214	        }
-215	    }
-216
-217	    /**
-218	     * Start the ticker to update elapsed time
-219	     */
-220	    private fun startTicker() {
-221	        if (tickerJob?.isActive == true) return
-222
-223	        tickerJob = scope.launch {
-224	            while (_state.value.isRunning) {
-225	                val elapsed = getCurrentElapsed()
-226	                _state.value = _state.value.copy(elapsedTimeMs = elapsed)
-227	                delay(100L) // Update 10 times per second for smooth display
-228	            }
-229	        }
-230	    }
-231
-232	    /**
-233	     * Stop the ticker
-234	     */
-235	    private fun stopTicker() {
-236	        tickerJob?.cancel()
-237	        tickerJob = null
-238	    }
-239
-240	    /**
-241	     * Save state to preferences for persistence across app restarts
-242	     */
-243	    private fun saveState(context: Context) {
-244	        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-245	        val currentState = _state.value
-246
-247	        prefs.edit().apply {
-248	            putBoolean(PREF_KEY_IS_RUNNING, currentState.isRunning)
-249	            putLong(PREF_KEY_START_TIME, currentState.startTimeMs)
-250	            putLong(PREF_KEY_PAUSED_AT, currentState.pausedAtMs)
-251	            apply()
-252	        }
-253	    }
-254
-255	    /**
-256	     * Clear saved state
-257	     */
-258	    fun clearSavedState(context: Context) {
-259	        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-260	        prefs.edit().clear().apply()
-261	    }
-262	}
+31	        return StatsWrapper(
+32	            completedCount = completed,
+33	            pendingCount = pending,
+34	            missedCount = missed,
+35	            completionRate = rate,
+36	            totalWorkTimeMs = totalWorkTime
+37	        )
+38	    }
+39
+40	    data class StatsWrapper(
+41	        val completedCount: Int,
+42	        val pendingCount: Int,
+43	        val missedCount: Int,
+44	        val completionRate: Float,
+45	        val totalWorkTimeMs: Long
+46	    )
+47	}
 
 //===== FILE: modules/smart/src/main/kotlin/com/jarvismini/smart/SmartFilters.kt =====
 1	package com.jarvismini.smart
