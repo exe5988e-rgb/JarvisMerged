@@ -34,8 +34,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── ProgressInitializer.kt
 │   │   │   │   │   │   ├── ProgressReminderService.kt
 │   │   │   │   │   │   ├── core
-│   │   │   │   │   │   │   ├── progress
-│   │   │   │   │   │   │   │   ├── ProgressEngine.kt
 │   │   │   │   │   │   │   ├── workmode
 │   │   │   │   │   │   │   │   ├── WorkModeService.kt
 │   │   │   │   │   │   ├── service
@@ -896,24 +894,6 @@ class ProgressReminderService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
-    }
-}
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressEngine.kt =====
-package com.jarvismini.core.progress
-
-import android.content.Context
-
-object ProgressEngine {
-
-    fun markComplete(context: Context, blockId: String) {
-        ProgressRepository.markComplete(context, blockId)
-    }
-
-    fun markIncomplete(context: Context, blockId: String) {
-        ProgressRepository.markIncomplete(context, blockId)
     }
 }
 
