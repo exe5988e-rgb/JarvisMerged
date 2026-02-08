@@ -10,4 +10,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     
     <!-- Required for posting notifications on API 33+ (Android 13) -->
-    <uses-permission android:na
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        
+        <!-- ADD OR UPDATE THIS SERVICE DECLARATION -->
+        
+        <service
+            android:name="com.jarvismini.core.stopwatch.StopwatchService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        
+        <!-- Keep all your other existing application components -->
+        
+    </application>
+
+</manifest>
