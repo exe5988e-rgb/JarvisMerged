@@ -1,2 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ADD THESE PERMISSIONS TO YOUR EXISTING MANIFEST -->
+    
+    <!-- Required for foreground service on API 28+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- Required for foreground service type on API 34+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    
+    <!-- Required for posting notifications on API 33+ (Android 13) -->
+    <uses-permission android:na

@@ -2,170 +2,125 @@ package com.jarvismini.core.stopwatch
 
 import android.content.Context
 import android.os.SystemClock
-import com.jarvismini.core.Logger
-import com.jarvismini.core.tts.AssistantTTS
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Built-in stopwatch manager
- * Handles start, pause, stop, reset, and persistent notification via StopwatchService
+ * Manages stopwatch state and timing
+ * 
+ * Improved version with better service integration
  */
 object StopwatchManager {
-
-    private val TAG = "StopwatchManager"
-
-    data class StopwatchState(
-        val isRunning: Boolean = false,
-        val elapsedTimeMs: Long = 0L,
-        val startTimeMs: Long = 0L,
-        val pausedAtMs: Long = 0L
-    )
-
+    
     private val _state = MutableStateFlow(StopwatchState())
     val state: StateFlow<StopwatchState> = _state.asStateFlow()
-
-    private const val PREF_KEY_START_TIME = "stopwatch_start_time"
-    private const val PREF_KEY_PAUSED_AT = "stopwatch_paused_at"
-    private const val PREF_KEY_IS_RUNNING = "stopwatch_is_running"
-
+    
+    private var startTimeMs: Long = 0L
+    private var pausedTimeMs: Long = 0L
+    private var totalElapsedBeforePause: Long = 0L
+    
     /**
-     * Initialize state from shared preferences
-     */
-    fun init(context: Context) {
-        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-        val isRunning = prefs.getBoolean(PREF_KEY_IS_RUNNING, false)
-        val startTime = prefs.getLong(PREF_KEY_START_TIME, 0L)
-        val pausedAt = prefs.getLong(PREF_KEY_PAUSED_AT, 0L)
-
-        if (isRunning && startTime > 0) {
-            _state.value = StopwatchState(
-                isRunning = true,
-                startTimeMs = startTime,
-                elapsedTimeMs = SystemClock.elapsedRealtime() - startTime
-            )
-            StopwatchService.start(context)
-        } else if (pausedAt > 0) {
-            _state.value = StopwatchState(
-                isRunning = false,
-                pausedAtMs = pausedAt,
-                elapsedTimeMs = pausedAt
-            )
-        }
-    }
-
-    /**
-     * Start or resume stopwatch
+     * Start or resume the stopwatch
      */
     fun start(context: Context) {
-        val current = _state.value
-        if (current.isRunning) return
-
-        val now = SystemClock.elapsedRealtime()
-        val startTime = if (current.pausedAtMs > 0) now - current.pausedAtMs else now
-        val elapsed = if (current.pausedAtMs > 0) current.pausedAtMs else 0L
-
-        _state.value = StopwatchState(
-            isRunning = true,
-            startTimeMs = startTime,
-            pausedAtMs = 0L,
-            elapsedTimeMs = elapsed
-        )
-
-        saveState(context)
-        StopwatchService.start(context)
-
-        AssistantTTS.speak(context, "Stopwatch started")
-        Logger.d(TAG, "Stopwatch started")
+        android.util.Log.d("StopwatchManager", "start() called, current state: ${_state.value}")
+        
+        if (!_state.value.isRunning) {
+            startTimeMs = SystemClock.elapsedRealtime()
+            
+            // Update state BEFORE starting service
+            _state.value = _state.value.copy(isRunning = true)
+            
+            android.util.Log.d("StopwatchManager", "Starting service...")
+            
+            // Start the foreground service
+            StopwatchService.start(context)
+        }
     }
-
+    
     /**
-     * Pause stopwatch
+     * Pause the stopwatch
      */
     fun pause(context: Context) {
-        val current = _state.value
-        if (!current.isRunning) return
-
-        val elapsed = getCurrentElapsed()
-        _state.value = current.copy(
-            isRunning = false,
-            pausedAtMs = elapsed,
-            elapsedTimeMs = elapsed
-        )
-
-        saveState(context)
-        StopwatchService.stop(context)
-
-        AssistantTTS.speak(context, "Stopwatch paused at ${formatElapsedTime(elapsed)}")
-        Logger.d(TAG, "Stopwatch paused at ${formatElapsedTime(elapsed)}")
+        android.util.Log.d("StopwatchManager", "pause() called")
+        
+        if (_state.value.isRunning) {
+            pausedTimeMs = SystemClock.elapsedRealtime()
+            totalElapsedBeforePause += (pausedTimeMs - startTimeMs)
+            
+            _state.value = _state.value.copy(isRunning = false)
+            
+            // Stop the service when paused
+            StopwatchService.stop(context)
+        }
     }
-
+    
     /**
-     * Stop stopwatch completely
-     */
-    fun stop(context: Context) {
-        val elapsed = getCurrentElapsed()
-        _state.value = StopwatchState(isRunning = false, elapsedTimeMs = elapsed)
-
-        saveState(context)
-        StopwatchService.stop(context)
-
-        AssistantTTS.speak(context, "Stopwatch stopped. Total time: ${formatElapsedTime(elapsed)}")
-        Logger.d(TAG, "Stopwatch stopped at ${formatElapsedTime(elapsed)}")
-    }
-
-    /**
-     * Reset stopwatch
+     * Reset the stopwatch to zero
      */
     fun reset(context: Context) {
-        _state.value = StopwatchState()
-        saveState(context)
+        android.util.Log.d("StopwatchManager", "reset() called")
+        
+        startTimeMs = 0L
+        pausedTimeMs = 0L
+        totalElapsedBeforePause = 0L
+        
+        _state.value = StopwatchState(isRunning = false)
+        
+        // Stop the service when reset
         StopwatchService.stop(context)
-
-        AssistantTTS.speak(context, "Stopwatch reset")
-        Logger.d(TAG, "Stopwatch reset")
     }
-
+    
     /**
-     * Toggle start/pause
+     * Stop the stopwatch (pause and reset)
      */
-    fun toggle(context: Context) {
-        if (_state.value.isRunning) pause(context) else start(context)
+    fun stop(context: Context) {
+        android.util.Log.d("StopwatchManager", "stop() called")
+        reset(context)
     }
-
+    
     /**
-     * Current elapsed time
+     * Get current elapsed time in milliseconds
      */
     fun getCurrentElapsed(): Long {
-        val current = _state.value
-        return if (current.isRunning) SystemClock.elapsedRealtime() - current.startTimeMs else current.elapsedTimeMs
+        return if (_state.value.isRunning) {
+            totalElapsedBeforePause + (SystemClock.elapsedRealtime() - startTimeMs)
+        } else {
+            totalElapsedBeforePause
+        }
     }
-
+    
     /**
-     * Format elapsed time for display HH:MM:SS
+     * Format elapsed time as MM:SS for notification
      */
-    fun formatElapsedTime(ms: Long): String {
-        val sec = (ms / 1000) % 60
-        val min = (ms / 60000) % 60
-        val hrs = ms / 3600000
-        return if (hrs > 0) "%d:%02d:%02d".format(hrs, min, sec)
-        else "%02d:%02d".format(min, sec)
+    fun formatElapsedTimeShort(elapsedMs: Long): String {
+        val totalSeconds = elapsedMs / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format("%02d:%02d", minutes, seconds)
     }
-
+    
     /**
-     * Short format (MM:SS or H:MM:SS)
+     * Format elapsed time as HH:MM:SS for UI display
      */
-    fun formatElapsedTimeShort(ms: Long): String = formatElapsedTime(ms)
-
-    private fun saveState(context: Context) {
-        val prefs = context.getSharedPreferences("jarvis_stopwatch", Context.MODE_PRIVATE)
-        val current = _state.value
-        prefs.edit().apply {
-            putBoolean(PREF_KEY_IS_RUNNING, current.isRunning)
-            putLong(PREF_KEY_START_TIME, current.startTimeMs)
-            putLong(PREF_KEY_PAUSED_AT, current.pausedAtMs)
-            apply()
+    fun formatElapsedTimeLong(elapsedMs: Long): String {
+        val totalSeconds = elapsedMs / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        
+        return if (hours > 0) {
+            String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
         }
     }
 }
+
+/**
+ * Represents the current state of the stopwatch
+ */
+data class StopwatchState(
+    val isRunning: Boolean = false
+)
