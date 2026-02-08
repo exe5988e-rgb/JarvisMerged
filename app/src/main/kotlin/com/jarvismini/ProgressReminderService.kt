@@ -1,50 +1,67 @@
 package com.jarvismini
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
-import android.os.Handler
+import android.os.Build
 import android.os.IBinder
-import android.os.Looper
+import androidx.core.app.NotificationCompat
 import com.jarvismini.core.progress.MissedTaskChecker
-import com.jarvismini.core.progress.ProgressEngine
+import kotlinx.coroutines.*
 
 class ProgressReminderService : Service() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private val reminderInterval = 30 * 60 * 1000L // 30 minutes
-
-    private val reminderRunnable = object : Runnable {
-        override fun run() {
-            // Check for incomplete tasks and remind via TTS
-            val checker = MissedTaskChecker(this@ProgressReminderService)
-            checker.checkAndRemind()
-            
-            // Schedule next check
-            handler.postDelayed(this, reminderInterval)
-        }
-    }
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val CHANNEL_ID = "progress_reminder_channel"
+    private val NOTIFICATION_ID = 101
 
     override fun onCreate() {
         super.onCreate()
-        
-        // Start periodic reminders using ProgressEngine
-        ProgressEngine.startPeriodicReminders(this)
-        
-        // Also use handler-based approach for backup
-        handler.post(reminderRunnable)
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification("Monitoring missed tasks…"))
+
+        serviceScope.launch {
+            while (isActive) {
+                checkMissedTasks()
+                delay(15 * 60 * 1000L) // 15 minutes
+            }
+        }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
+    private suspend fun checkMissedTasks() {
+        val checker = MissedTaskChecker(this)
+        checker.checkAndRemind()
+        // Optional: You could loop through today’s entries and show UI notifications
+        // with a “Remind me in 30 minutes” button, which calls checker.remindLater(entry)
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Progress Reminders",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
     }
 
+    private fun buildNotification(content: String): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Jarvis Mini")
+            .setContentText(content)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .build()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
     override fun onDestroy() {
         super.onDestroy()
-        handler.removeCallbacks(reminderRunnable)
-        ProgressEngine.stopPeriodicReminders()
+        serviceScope.cancel()
     }
 }

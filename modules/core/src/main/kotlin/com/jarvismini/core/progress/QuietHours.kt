@@ -9,7 +9,6 @@ import java.util.Calendar
  */
 object QuietHours {
 
-    // ✅ Existing API (kept)
     fun isQuietNow(config: ProgressConfig): Boolean {
         val nowMinutes = currentMinutes()
 
@@ -21,20 +20,6 @@ object QuietHours {
             nowMinutes in startMinutes until endMinutes
         } else {
             // Overnight window (e.g. 22:00 → 07:00)
-            nowMinutes >= startMinutes || nowMinutes < endMinutes
-        }
-    }
-
-    // 🔧 Compatibility API for ProgressEngine
-    fun isQuietTime(quietStart: String, quietEnd: String): Boolean {
-        val nowMinutes = currentMinutes()
-
-        val startMinutes = parseToMinutes(quietStart)
-        val endMinutes = parseToMinutes(quietEnd)
-
-        return if (startMinutes < endMinutes) {
-            nowMinutes in startMinutes until endMinutes
-        } else {
             nowMinutes >= startMinutes || nowMinutes < endMinutes
         }
     }
