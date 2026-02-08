@@ -437,9 +437,10 @@ dependencies {
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
     <uses-feature
         android:name="android.hardware.telephony"
@@ -563,13 +564,6 @@ dependencies {
 
         <service
             android:name=".core.workmode.WorkModeService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- ================= STOPWATCH SERVICE ================= -->
-
-        <service
-            android:name=".core.stopwatch.StopwatchService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
