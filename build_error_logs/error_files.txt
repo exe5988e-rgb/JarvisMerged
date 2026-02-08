@@ -29,10 +29,19 @@ e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/ja
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:124:25 Unresolved reference: TaskTimerStore
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:150:21 Unresolved reference: TaskTimerStore
 e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt:158:21 Unresolved reference: TaskTimerStore
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:42:23 Unresolved reference: missedAt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:51:23 Unresolved reference: missedAt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:94:51 Unresolved reference: scheduledAt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:100:15 Unresolved reference: completedAt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:102:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:103:53 Unresolved reference: it
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:111:15 Unresolved reference: missedAt
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:112:13 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt:113:46 Unresolved reference: it
 
 -- BUILD FAILURE / EXCEPTIONS --
 FAILURE: Build failed with an exception.
-BUILD FAILED in 1m 10s
+BUILD FAILED in 1m 6s
 
 ==== SOURCE CODE (UNIQUE ERROR FILES) ====
 
@@ -334,6 +343,170 @@ BUILD FAILED in 1m 10s
 175	        String.format("%02d:%02d", minutes, seconds)
 176	    }
 177	}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/ChecklistItem.kt =====
+1	package com.jarvismini.ui.checklist
+2
+3	import androidx.compose.foundation.background
+4	import androidx.compose.foundation.border
+5	import androidx.compose.foundation.layout.*
+6	import androidx.compose.foundation.shape.RoundedCornerShape
+7	import androidx.compose.material3.*
+8	import androidx.compose.runtime.Composable
+9	import androidx.compose.ui.Alignment
+10	import androidx.compose.ui.Modifier
+11	import androidx.compose.ui.graphics.Color
+12	import androidx.compose.ui.text.font.FontFamily
+13	import androidx.compose.ui.text.font.FontWeight
+14	import androidx.compose.ui.unit.dp
+15	import androidx.compose.ui.unit.sp
+16	import com.jarvismini.core.progress.ProgressBlock
+17	import com.jarvismini.core.routine.model.Routine
+18	import com.jarvismini.ui.theme.JarvisBlue
+19	import com.jarvismini.ui.theme.JarvisGreen
+20	import com.jarvismini.ui.theme.JarvisRed
+21	import java.text.SimpleDateFormat
+22	import java.util.*
+23
+24	@Composable
+25	fun ChecklistItem(
+26	block: ProgressBlock,
+27	routine: Routine,
+28	onComplete: () -> Unit,
+29	onIncomplete: () -> Unit
+30	) {
+31	val displayName = routine.name
+32	.replace("_", " ")
+33	.replaceFirstChar { it.uppercaseChar() }
+34
+35	Surface(
+36	    modifier = Modifier
+37	        .fillMaxWidth()
+38	        .padding(vertical = 6.dp)
+39	        .background(
+40	            color = when {
+41	                block.completed -> JarvisBlue.copy(alpha = 0.1f)
+>>>>> ERROR HERE
+42	                block.missedAt != null -> JarvisRed.copy(alpha = 0.1f)
+43	                else -> Color.Black.copy(alpha = 0.5f)
+44	            },
+45	            shape = RoundedCornerShape(8.dp)
+46	        )
+47	        .border(
+48	            width = 1.dp,
+49	            color = when {
+50	                block.completed -> JarvisBlue.copy(alpha = 0.6f)
+>>>>> ERROR HERE
+51	                block.missedAt != null -> JarvisRed.copy(alpha = 0.6f)
+52	                else -> JarvisBlue.copy(alpha = 0.3f)
+53	            },
+54	            shape = RoundedCornerShape(8.dp)
+55	        ),
+56	    color = Color.Transparent
+57	) {
+58	    Column(
+59	        modifier = Modifier
+60	            .padding(16.dp)
+61	            .fillMaxWidth()
+62	    ) {
+63
+64	        Text(
+65	            text = displayName,
+66	            fontSize = 16.sp,
+67	            fontWeight = FontWeight.Bold,
+68	            color = JarvisBlue
+69	        )
+70
+71	        Spacer(modifier = Modifier.height(8.dp))
+72
+73	        Column(modifier = Modifier.padding(start = 4.dp)) {
+74	            routine.actions.forEach { action ->
+75	                val displayText = buildString {
+76	                    append(action.type.replace("_", " ").replaceFirstChar { it.uppercaseChar() })
+77	                    if (action.params.isNotEmpty()) {
+78	                        append(": ")
+79	                        append(action.params.entries.joinToString { "${it.key}=${it.value}" })
+80	                    }
+81	                }
+82	                Text(
+83	                    text = "• $displayText",
+84	                    fontSize = 12.sp,
+85	                    color = JarvisBlue.copy(alpha = 0.7f),
+86	                    fontFamily = FontFamily.Monospace
+87	                )
+88	            }
+89	        }
+90
+91	        Spacer(modifier = Modifier.height(8.dp))
+92
+93	        Text(
+>>>>> ERROR HERE
+94	            text = "Scheduled: ${formatTime(block.scheduledAt)}",
+95	            fontSize = 11.sp,
+96	            color = JarvisBlue.copy(alpha = 0.6f),
+97	            fontFamily = FontFamily.Monospace
+98	        )
+99
+>>>>> ERROR HERE
+100	        block.completedAt?.let {
+101	            if (block.completed) {
+>>>>> ERROR HERE
+102	                Text(
+>>>>> ERROR HERE
+103	                    text = "Completed: ${formatTime(it)}",
+104	                    fontSize = 11.sp,
+105	                    color = JarvisGreen.copy(alpha = 0.8f),
+106	                    fontFamily = FontFamily.Monospace
+107	                )
+108	            }
+109	        }
+110
+>>>>> ERROR HERE
+111	        block.missedAt?.let {
+>>>>> ERROR HERE
+112	            Text(
+>>>>> ERROR HERE
+113	                text = "Missed: ${formatTime(it)}",
+114	                fontSize = 11.sp,
+115	                color = JarvisRed,
+116	                fontFamily = FontFamily.Monospace
+117	            )
+118	        }
+119
+120	        Spacer(modifier = Modifier.height(12.dp))
+121
+122	        Row(
+123	            modifier = Modifier.fillMaxWidth(),
+124	            horizontalArrangement = Arrangement.End,
+125	            verticalAlignment = Alignment.CenterVertically
+126	        ) {
+127	            if (!block.completed) {
+128	                TextButton(onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisGreen)) {
+129	                    Text("DONE", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+130	                }
+131	                Spacer(modifier = Modifier.width(8.dp))
+132	                TextButton(onClick = onIncomplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisRed)) {
+133	                    Text("MISSED", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+134	                }
+135	            } else {
+136	                Text(
+137	                    text = "✅ COMPLETED",
+138	                    fontSize = 12.sp,
+139	                    color = JarvisGreen,
+140	                    fontWeight = FontWeight.Bold,
+141	                    fontFamily = FontFamily.Monospace
+142	                )
+143	            }
+144	        }
+145	    }
+146	}
+147
+148	}
+149
+150	private fun formatTime(timestampMs: Long): String {
+151	val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+152	return formatter.format(Date(timestampMs))
+153	}
 
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AutomationEngine.kt =====
 1	package com.jarvismini.automation
@@ -707,54 +880,6 @@ BUILD FAILED in 1m 10s
 28	        )
 29	    }
 30	}
-
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/progress/ProgressStatsEngine.kt =====
-1	package com.jarvismini.core.progress
-2
-3	import android.content.Context
-4	import java.text.SimpleDateFormat
-5	import java.util.*
-6
-7	object ProgressStatsEngine {
-8
-9	    fun getTodayStats(): ProgressStats {
-10	        val blocks = ProgressStore.getTodayBlocks()
-11	        val completed = blocks.count { it.completed }
-12	        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-13	        return ProgressStats(today, blocks.size, completed)
-14	    }
-15
->>>>> ERROR HERE
-16	    fun getStats(context: Context): StatsWrapper {
-17	        val blocks = ProgressStore.getTodayBlocks()
-18
-19	        val completed = blocks.count { it.completed }
-20	        val missed = blocks.count { it.missedAt != null }
-21	        val pending = blocks.size - completed - missed
-22	        val total = blocks.size.coerceAtLeast(1)
-23
-24	        val rate = (completed.toFloat() / total.toFloat()) * 100f
-25
-26	        // total work time removed (TaskTimerStore deleted)
-27	        val totalWorkTime: Long = 0L
-28
-29	        return StatsWrapper(
-30	            completedCount = completed,
-31	            pendingCount = pending,
-32	            missedCount = missed,
-33	            completionRate = rate,
-34	            totalWorkTimeMs = totalWorkTime
-35	        )
-36	    }
-37
-38	    data class StatsWrapper(
-39	        val completedCount: Int,
-40	        val pendingCount: Int,
-41	        val missedCount: Int,
-42	        val completionRate: Float,
-43	        val totalWorkTimeMs: Long
-44	    )
-45	}
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
 1	package com.jarvismini.core.routine
