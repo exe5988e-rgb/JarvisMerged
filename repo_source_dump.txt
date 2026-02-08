@@ -44,6 +44,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   ├── WorkModeTileService.kt
 │   │   │   │   │   │   ├── ui
 │   │   │   │   │   │   │   ├── ChatMessage.kt
+│   │   │   │   │   │   │   ├── ChecklistItem.kt
 │   │   │   │   │   │   │   ├── JarvisChatScreen.kt
 │   │   │   │   │   │   │   ├── boot
 │   │   │   │   │   │   │   │   ├── BootScreen.kt
@@ -439,9 +440,7 @@ dependencies {
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CALL_SCREENING" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    
+
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
@@ -559,11 +558,7 @@ dependencies {
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
-        <!-- ================= workModeservice ================= -->
-        <service
-    android:name=".core.workmode.WorkModeService"
-    android:exported="false"
-    android:foregroundServiceType="dataSync" />
+
         <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
 
         <receiver
@@ -831,49 +826,71 @@ object ProgressInitializer {
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ProgressReminderService.kt =====
-//===== FILE: app/src/main/kotlin/com/jarvismini/service/ProgressReminderService.kt =====
-package com.jarvismini.service
+package com.jarvismini
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
-import android.os.Handler
+import android.os.Build
 import android.os.IBinder
-import android.os.Looper
-import com.jarvismini.core.progress.ProgressStore
+import androidx.core.app.NotificationCompat
+import com.jarvismini.core.progress.MissedTaskChecker
+import kotlinx.coroutines.*
 
 class ProgressReminderService : Service() {
 
-    private val handler = Handler(Looper.getMainLooper())
-
-    private val reminderRunnable = object : Runnable {
-        override fun run() {
-            checkForReminders()
-            handler.postDelayed(this, 60_000) // check every minute
-        }
-    }
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val CHANNEL_ID = "progress_reminder_channel"
+    private val NOTIFICATION_ID = 101
 
     override fun onCreate() {
         super.onCreate()
-        handler.post(reminderRunnable)
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification("Monitoring missed tasks…"))
+
+        serviceScope.launch {
+            while (isActive) {
+                checkMissedTasks()
+                delay(15 * 60 * 1000L) // 15 minutes
+            }
+        }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        handler.removeCallbacks(reminderRunnable)
+    private suspend fun checkMissedTasks() {
+        val checker = MissedTaskChecker(this)
+        checker.checkAndRemind()
+        // Optional: You could loop through today’s entries and show UI notifications
+        // with a “Remind me in 30 minutes” button, which calls checker.remindLater(entry)
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Progress Reminders",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(content: String): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Jarvis Mini")
+            .setContentText(content)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .build()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    private fun checkForReminders() {
-        val blocks = ProgressStore.getTodayBlocks()
-        val now = System.currentTimeMillis()
-
-        blocks.forEach { block ->
-            // If block is not completed and scheduled time passed
-            if (!block.completed && block.missedAt == null && now > block.scheduledAt) {
-                ProgressStore.markMissed(block.id, now)
-            }
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
     }
 }
 
@@ -1049,30 +1066,18 @@ class CallAutoReplyService : Service() {
 //===== FILE: app/src/main/kotlin/com/jarvismini/service/WorkModeTileService.kt =====
 package com.jarvismini.service
 
-import android.content.Intent
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
-import com.jarvismini.core.workmode.WorkModeService
 
 class WorkModeTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
 
-        val isNowOn = WorkModeManager.toggle(this)
-
-        if (isNowOn) {
-            ContextCompat.startForegroundService(
-                this,
-                Intent(this, WorkModeService::class.java)
-            )
-        } else {
-            stopService(Intent(this, WorkModeService::class.java))
-        }
+        WorkModeManager.toggle(this)
 
         qsTile.state =
             if (JarvisState.currentMode == JarvisMode.WORK)
@@ -1094,13 +1099,98 @@ data class ChatMessage(
 )
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ChecklistItem.kt =====
+package com.jarvismini.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.jarvismini.core.progress.ProgressBlock
+import com.jarvismini.core.routine.model.Routine
+import java.text.SimpleDateFormat
+import java.util.*
+
+@Composable
+fun ChecklistItem(
+    block: ProgressBlock,
+    routine: Routine,
+    onComplete: () -> Unit,
+    onIncomplete: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                block.completed -> MaterialTheme.colorScheme.primaryContainer
+                block.missedAt != null -> MaterialTheme.colorScheme.errorContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth()
+        ) {
+
+            Text(
+                text = routine.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            block.completedAt?.let {
+                Text(
+                    text = "Completed: ${formatTime(it)}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onComplete,
+                    enabled = !block.completed
+                ) {
+                    Text("Done")
+                }
+
+                OutlinedButton(
+                    onClick = onIncomplete
+                ) {
+                    Text("Later")
+                }
+            }
+        }
+    }
+}
+
+private fun formatTime(ms: Long): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/JarvisChatScreen.kt =====
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.jarvismini.ui
 
 import android.app.Activity
-import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1124,7 +1214,6 @@ import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
-import com.jarvismini.core.workmode.WorkModeService
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
 import com.jarvismini.ui.components.GridBackground
@@ -1242,22 +1331,9 @@ fun JarvisChatScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ===== WORK MODE TOGGLE =====
             Button(
                 onClick = {
-                    val isNowOn = WorkModeManager.toggle(context)
-
-                    if (isNowOn) {
-                        ContextCompat.startForegroundService(
-                            context,
-                            Intent(context, WorkModeService::class.java)
-                        )
-                    } else {
-                        context.stopService(
-                            Intent(context, WorkModeService::class.java)
-                        )
-                    }
-
+                    WorkModeManager.toggle(context)
                     currentMode = JarvisState.currentMode
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
@@ -1930,133 +2006,132 @@ import java.util.*
 
 @Composable
 fun ChecklistItem(
-block: ProgressBlock,
-routine: Routine,
-onComplete: () -> Unit,
-onIncomplete: () -> Unit
+    block: ProgressBlock,
+    routine: Routine,
+    onComplete: () -> Unit,
+    onIncomplete: () -> Unit
 ) {
-val displayName = routine.name
-.replace("_", " ")
-.replaceFirstChar { it.uppercaseChar() }
+    val displayName = routine.name
+        .replace("_", " ")
+        .replaceFirstChar { it.uppercaseChar() }
 
-Surface(  
-    modifier = Modifier  
-        .fillMaxWidth()  
-        .padding(vertical = 6.dp)  
-        .background(  
-            color = when {  
-                block.completed -> JarvisBlue.copy(alpha = 0.1f)  
-                block.missedAt != null -> JarvisRed.copy(alpha = 0.1f)  
-                else -> Color.Black.copy(alpha = 0.5f)  
-            },  
-            shape = RoundedCornerShape(8.dp)  
-        )  
-        .border(  
-            width = 1.dp,  
-            color = when {  
-                block.completed -> JarvisBlue.copy(alpha = 0.6f)  
-                block.missedAt != null -> JarvisRed.copy(alpha = 0.6f)  
-                else -> JarvisBlue.copy(alpha = 0.3f)  
-            },  
-            shape = RoundedCornerShape(8.dp)  
-        ),  
-    color = Color.Transparent  
-) {  
-    Column(  
-        modifier = Modifier  
-            .padding(16.dp)  
-            .fillMaxWidth()  
-    ) {  
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .background(
+                color = when {
+                    block.completed -> JarvisBlue.copy(alpha = 0.1f)
+                    block.missedAt != null -> JarvisRed.copy(alpha = 0.1f)
+                    else -> Color.Black.copy(alpha = 0.5f)
+                },
+                shape = RoundedCornerShape(8.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = when {
+                    block.completed -> JarvisBlue.copy(alpha = 0.6f)
+                    block.missedAt != null -> JarvisRed.copy(alpha = 0.6f)
+                    else -> JarvisBlue.copy(alpha = 0.3f)
+                },
+                shape = RoundedCornerShape(8.dp)
+            ),
+        color = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
 
-        Text(  
-            text = displayName,  
-            fontSize = 16.sp,  
-            fontWeight = FontWeight.Bold,  
-            color = JarvisBlue  
-        )  
+            Text(
+                text = displayName,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = JarvisBlue
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))  
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Column(modifier = Modifier.padding(start = 4.dp)) {  
-            routine.actions.forEach { action ->  
-                val displayText = buildString {  
-                    append(action.type.replace("_", " ").replaceFirstChar { it.uppercaseChar() })  
-                    if (action.params.isNotEmpty()) {  
-                        append(": ")  
-                        append(action.params.entries.joinToString { "${it.key}=${it.value}" })  
-                    }  
-                }  
-                Text(  
-                    text = "• $displayText",  
-                    fontSize = 12.sp,  
-                    color = JarvisBlue.copy(alpha = 0.7f),  
-                    fontFamily = FontFamily.Monospace  
-                )  
-            }  
-        }  
+            Column(modifier = Modifier.padding(start = 4.dp)) {
+                routine.actions.forEach { action ->
+                    val displayText = buildString {
+                        append(action.type.replace("_", " ").replaceFirstChar { it.uppercaseChar() })
+                        if (action.params.isNotEmpty()) {
+                            append(": ")
+                            append(action.params.entries.joinToString { "${it.key}=${it.value}" })
+                        }
+                    }
+                    Text(
+                        text = "• $displayText",
+                        fontSize = 12.sp,
+                        color = JarvisBlue.copy(alpha = 0.7f),
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
 
-        Spacer(modifier = Modifier.height(8.dp))  
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Text(  
-            text = "Scheduled: ${formatTime(block.scheduledAt)}",  
-            fontSize = 11.sp,  
-            color = JarvisBlue.copy(alpha = 0.6f),  
-            fontFamily = FontFamily.Monospace  
-        )  
+            Text(
+                text = "Scheduled: ${formatTime(block.scheduledAt)}",
+                fontSize = 11.sp,
+                color = JarvisBlue.copy(alpha = 0.6f),
+                fontFamily = FontFamily.Monospace
+            )
 
-        block.completedAt?.let {  
-            if (block.completed) {  
-                Text(  
-                    text = "Completed: ${formatTime(it)}",  
-                    fontSize = 11.sp,  
-                    color = JarvisGreen.copy(alpha = 0.8f),  
-                    fontFamily = FontFamily.Monospace  
-                )  
-            }  
-        }  
+            block.completedAt?.let {
+                if (block.completed) {
+                    Text(
+                        text = "Completed: ${formatTime(it)}",
+                        fontSize = 11.sp,
+                        color = JarvisGreen.copy(alpha = 0.8f),
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
 
-        block.missedAt?.let {  
-            Text(  
-                text = "Missed: ${formatTime(it)}",  
-                fontSize = 11.sp,  
-                color = JarvisRed,  
-                fontFamily = FontFamily.Monospace  
-            )  
-        }  
+            block.missedAt?.let {
+                Text(
+                    text = "Missed: ${formatTime(it)}",
+                    fontSize = 11.sp,
+                    color = JarvisRed,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
 
-        Spacer(modifier = Modifier.height(12.dp))  
+            Spacer(modifier = Modifier.height(12.dp))
 
-        Row(  
-            modifier = Modifier.fillMaxWidth(),  
-            horizontalArrangement = Arrangement.End,  
-            verticalAlignment = Alignment.CenterVertically  
-        ) {  
-            if (!block.completed) {  
-                TextButton(onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisGreen)) {  
-                    Text("DONE", fontFamily = FontFamily.Monospace, fontSize = 12.sp)  
-                }  
-                Spacer(modifier = Modifier.width(8.dp))  
-                TextButton(onClick = onIncomplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisRed)) {  
-                    Text("MISSED", fontFamily = FontFamily.Monospace, fontSize = 12.sp)  
-                }  
-            } else {  
-                Text(  
-                    text = "✅ COMPLETED",  
-                    fontSize = 12.sp,  
-                    color = JarvisGreen,  
-                    fontWeight = FontWeight.Bold,  
-                    fontFamily = FontFamily.Monospace  
-                )  
-            }  
-        }  
-    }  
-}
-
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!block.completed) {
+                    TextButton(onClick = onComplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisGreen)) {
+                        Text("DONE", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = onIncomplete, colors = ButtonDefaults.textButtonColors(contentColor = JarvisRed)) {
+                        Text("MISSED", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    }
+                } else {
+                    Text(
+                        text = "✅ COMPLETED",
+                        fontSize = 12.sp,
+                        color = JarvisGreen,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
 }
 
 private fun formatTime(timestampMs: Long): String {
-val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-return formatter.format(Date(timestampMs))
+    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+    return formatter.format(Date(timestampMs))
 }
 
 
@@ -5240,28 +5315,9 @@ object JarvisState {
 package com.jarvismini.core
 
 object Logger {
-
-fun i(tag: String, msg: String?) {
-android.util.Log.i(tag, msg ?: "")
-}
-
-// 🔧 Added methods (non-breaking)
-fun d(tag: String, msg: String?) {
-android.util.Log.d(tag, msg ?: "")
-}
-
-fun w(tag: String, msg: String?) {
-android.util.Log.w(tag, msg ?: "")
-}
-
-fun e(tag: String, msg: String?, tr: Throwable? = null) {
-if (tr != null) {
-android.util.Log.e(tag, msg ?: "", tr)
-} else {
-android.util.Log.e(tag, msg ?: "")
-}
-}
-
+    fun i(tag: String, msg: String?) {
+        android.util.Log.i(tag, msg ?: "")
+    }
 }
 
 
@@ -5356,26 +5412,15 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.jarvismini.core.stopwatch.StopwatchManager
 
 object WorkModeManager {
 
-    fun toggle(context: Context): Boolean {
-        return if (JarvisState.currentMode == JarvisMode.WORK) {
+    fun toggle(context: Context) {
+        if (JarvisState.currentMode == JarvisMode.WORK) {
             deactivate(context)
-            false
         } else {
             activate(context)
-            true
         }
-    }
-
-    fun enable(context: Context) {
-        activate(context)
-    }
-
-    fun disable(context: Context) {
-        deactivate(context)
     }
 
     fun activate(context: Context) {
@@ -5386,14 +5431,16 @@ object WorkModeManager {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
         }
 
-        // Launch productivity apps
         launchApp(context, "xyz.penpencil.physicswala")
         launchApp(context, "com.pittvandewitt.wavelet")
         launchApp(context, "com.google.android.apps.youtube.music")
         launchApp(context, "com.apple.android.music")
 
-        // Auto-start built-in stopwatch when work mode is activated
-        StopwatchManager.start(context)
+        // ⏱ Open OnePlus Clock (user navigates to Stopwatch tab)
+        launchApp(context, "com.oneplus.deskclock")
+
+        // Samsung clock (safe)
+        launchApp(context, "com.sec.android.app.clockpackage")
     }
 
     fun deactivate(context: Context) {
@@ -5404,8 +5451,8 @@ object WorkModeManager {
             nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
         }
 
-        // Stop built-in stopwatch when work mode is deactivated
-        StopwatchManager.stop(context)
+        // ⏹ Open Clock so Accessibility can click Pause if needed
+        launchApp(context, "com.oneplus.deskclock")
     }
 
     private fun launchApp(context: Context, pkg: String) {
@@ -5666,11 +5713,11 @@ class MissedTaskChecker(private val context: Context) {
 package com.jarvismini.core.progress
 
 data class ProgressBlock(
-val id: String,
-val completed: Boolean,
-val scheduledAt: Long,
-val completedAt: Long? = null,
-val missedAt: Long? = null
+    val id: String,
+    val completed: Boolean,
+    val scheduledAt: Long,
+    val completedAt: Long? = null,
+    val missedAt: Long? = null
 )
 
 
@@ -5678,13 +5725,13 @@ val missedAt: Long? = null
 package com.jarvismini.core.progress
 
 data class ProgressConfig(
-val enabled: Boolean,
-val retryEnabled: Boolean,
-val retryDelayMs: Long,
-val ttsEnabled: Boolean,
-val ttsRepeat: Boolean,
-val quietStart: String,
-val quietEnd: String
+    val enabled: Boolean,
+    val retryEnabled: Boolean,
+    val retryDelayMs: Long,
+    val ttsEnabled: Boolean,
+    val ttsRepeat: Boolean,
+    val quietStart: String,
+    val quietEnd: String
 )
 
 
@@ -5696,30 +5743,29 @@ import org.json.JSONObject
 
 object ProgressConfigLoader {
 
-fun load(context: Context): ProgressConfig {  
-    val json = context.assets  
-        .open("routines/progress_config.json")  
-        .bufferedReader()  
-        .use { it.readText() }  
+    fun load(context: Context): ProgressConfig {
+        val json = context.assets
+            .open("routines/progress_config.json")
+            .bufferedReader()
+            .use { it.readText() }
 
-    val root = JSONObject(json)  
-    val p = root.getJSONObject("progressTracking")  
+        val root = JSONObject(json)
+        val p = root.getJSONObject("progressTracking")
 
-    val retry = p.getJSONObject("retryPolicy")  
-    val tts = p.getJSONObject("tts")  
-    val quiet = p.getJSONObject("quietHours")  
+        val retry = p.getJSONObject("retryPolicy")
+        val tts = p.getJSONObject("tts")
+        val quiet = p.getJSONObject("quietHours")
 
-    return ProgressConfig(  
-        enabled = p.getBoolean("enabled"),  
-        retryEnabled = retry.getBoolean("retryOnIncomplete"),  
-        retryDelayMs = retry.getLong("retryDelayMinutes") * 60_000,  
-        ttsEnabled = tts.getBoolean("enabled"),  
-        ttsRepeat = tts.getBoolean("repeatOnRetry"),  
-        quietStart = quiet.getString("start"),  
-        quietEnd = quiet.getString("end")  
-    )  
-}
-
+        return ProgressConfig(
+            enabled = p.getBoolean("enabled"),
+            retryEnabled = retry.getBoolean("retryOnIncomplete"),
+            retryDelayMs = retry.getLong("retryDelayMinutes") * 60_000,
+            ttsEnabled = tts.getBoolean("enabled"),
+            ttsRepeat = tts.getBoolean("repeatOnRetry"),
+            quietStart = quiet.getString("start"),
+            quietEnd = quiet.getString("end")
+        )
+    }
 }
 
 
@@ -5730,14 +5776,13 @@ import android.content.Context
 
 object ProgressEngine {
 
-fun markComplete(context: Context, blockId: String) {  
-    ProgressRepository.markComplete(context, blockId)  
-}  
+    fun markComplete(context: Context, blockId: String) {
+        ProgressRepository.markComplete(context, blockId)
+    }
 
-fun markIncomplete(context: Context, blockId: String) {  
-    ProgressRepository.markIncomplete(context, blockId)  
-}
-
+    fun markIncomplete(context: Context, blockId: String) {
+        ProgressRepository.markIncomplete(context, blockId)
+    }
 }
 
 
@@ -5745,12 +5790,12 @@ fun markIncomplete(context: Context, blockId: String) {
 package com.jarvismini.core.progress
 
 data class ProgressEntry(
-val routineId: String,
-val blockId: String,
-val scheduledAt: Long,
-val state: ProgressState = ProgressState.PENDING,
-val completedAt: Long? = null,
-val missedAt: Long? = null
+    val routineId: String,
+    val blockId: String,
+    val scheduledAt: Long,
+    val state: ProgressState = ProgressState.PENDING,
+    val completedAt: Long? = null,
+    val missedAt: Long? = null
 )
 
 
@@ -5898,13 +5943,12 @@ import java.util.*
 
 object ProgressStatsEngine {
 
-fun getTodayStats(): ProgressStats {  
-    val blocks = ProgressStore.getTodayBlocks()  
-    val completed = blocks.count { it.completed }  
-    val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())  
-    return ProgressStats(today, blocks.size, completed)  
-}
-
+    fun getTodayStats(): ProgressStats {
+        val blocks = ProgressStore.getTodayBlocks()
+        val completed = blocks.count { it.completed }
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        return ProgressStats(today, blocks.size, completed)
+    }
 }
 
 
@@ -6046,60 +6090,41 @@ package com.jarvismini.core.progress
 import java.util.Calendar
 
 /**
-
-Quiet-hours evaluator.
-
-Replaces java.time.LocalTime (API 26+) with Calendar (API 1).
-*/
+ * Quiet-hours evaluator.
+ *
+ * Replaces java.time.LocalTime (API 26+) with Calendar (API 1).
+ */
 object QuietHours {
 
-// ✅ Existing API (kept)
-fun isQuietNow(config: ProgressConfig): Boolean {
-val nowMinutes = currentMinutes()
+    fun isQuietNow(config: ProgressConfig): Boolean {
+        val nowMinutes = currentMinutes()
 
-val startMinutes = parseToMinutes(config.quietStart)
-val endMinutes = parseToMinutes(config.quietEnd)
+        val startMinutes = parseToMinutes(config.quietStart)
+        val endMinutes = parseToMinutes(config.quietEnd)
 
-return if (startMinutes < endMinutes) {
-// Same-day window (e.g. 13:00 → 18:00)
-nowMinutes in startMinutes until endMinutes
-} else {
-// Overnight window (e.g. 22:00 → 07:00)
-nowMinutes >= startMinutes || nowMinutes < endMinutes
-}
+        return if (startMinutes < endMinutes) {
+            // Same-day window (e.g. 13:00 → 18:00)
+            nowMinutes in startMinutes until endMinutes
+        } else {
+            // Overnight window (e.g. 22:00 → 07:00)
+            nowMinutes >= startMinutes || nowMinutes < endMinutes
+        }
+    }
 
-}
+    private fun currentMinutes(): Int {
+        val cal = Calendar.getInstance()
+        return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+    }
 
-// 🔧 Compatibility API for ProgressEngine
-fun isQuietTime(quietStart: String, quietEnd: String): Boolean {
-val nowMinutes = currentMinutes()
-
-val startMinutes = parseToMinutes(quietStart)
-val endMinutes = parseToMinutes(quietEnd)
-
-return if (startMinutes < endMinutes) {
-nowMinutes in startMinutes until endMinutes
-} else {
-nowMinutes >= startMinutes || nowMinutes < endMinutes
-}
-
-}
-
-private fun currentMinutes(): Int {
-val cal = Calendar.getInstance()
-return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-}
-
-/**
-
-Parses "HH:mm" into minutes since midnight.
-*/
-private fun parseToMinutes(time: String): Int {
-val parts = time.split(":")
-val hour = parts.getOrNull(0)?.toIntOrNull() ?: 0
-val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
-return hour * 60 + minute
-}
+    /**
+     * Parses "HH:mm" into minutes since midnight.
+     */
+    private fun parseToMinutes(time: String): Int {
+        val parts = time.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 0
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        return hour * 60 + minute
+    }
 }
 
 
@@ -6143,170 +6168,14 @@ object RetryScheduler {
 package com.jarvismini.core.routine
 
 import android.content.Context
-import android.content.Intent
-import com.jarvismini.core.JarvisMode
-import com.jarvismini.core.JarvisState
-import com.jarvismini.core.Logger
-import com.jarvismini.core.WorkModeManager
 import com.jarvismini.core.routine.model.RoutineAction
-import com.jarvismini.core.tts.AssistantTTS
-import com.jarvismini.core.stopwatch.StopwatchManager
 
 /**
- * Dispatcher for routine actions with full TTS, stopwatch, and mode management support.
- * Uses built-in StopwatchManager - no external clock app needed!
+ * Stub dispatcher for routine actions.
  */
 object ActionDispatcher {
-
-    private val TAG = "ActionDispatcher"
-
     fun dispatch(context: Context, action: RoutineAction) {
-        Logger.d(TAG, "Dispatching action: ${action.type}")
-        
-        when (action.type) {
-            "speak" -> handleSpeak(context, action)
-            "notify" -> handleNotify(context, action)
-            "set_mode" -> handleSetMode(context, action)
-            "set_dnd" -> handleSetDnd(context, action)
-            "start_stopwatch" -> handleStartStopwatch(context)
-            "stop_stopwatch" -> handleStopStopwatch(context)
-            "pause_stopwatch" -> handlePauseStopwatch(context)
-            "reset_stopwatch" -> handleResetStopwatch(context)
-            "network_time_sync" -> handleNetworkTimeSync(context)
-            "launch_app" -> handleLaunchApp(context, action)
-            else -> Logger.w(TAG, "Unknown action type: ${action.type}")
-        }
-    }
-
-    /**
-     * Handle TTS speak action from routine JSON
-     */
-    private fun handleSpeak(context: Context, action: RoutineAction) {
-        val message = action.params["message"] ?: return
-        AssistantTTS.speak(context, message)
-        Logger.d(TAG, "TTS spoke: $message")
-    }
-
-    /**
-     * Handle notification action
-     */
-    private fun handleNotify(context: Context, action: RoutineAction) {
-        val message = action.params["message"] ?: return
-        val title = action.params["title"] ?: "Jarvis Routine"
-        
-        try {
-            val notificationIntent = Intent("com.jarvismini.ACTION_ROUTINE_NOTIFY")
-            notificationIntent.putExtra("message", message)
-            notificationIntent.putExtra("title", title)
-            context.sendBroadcast(notificationIntent)
-            
-            Logger.d(TAG, "Notification sent: $message")
-        } catch (e: Exception) {
-            Logger.e(TAG, "Failed to send notification", e)
-        }
-    }
-
-    /**
-     * Handle mode change (WORK, FOCUS -> WORK, NORMAL, SLEEP)
-     */
-    private fun handleSetMode(context: Context, action: RoutineAction) {
-        val modeStr = action.params["mode"] ?: return
-        
-        try {
-            val mode = when (modeStr.uppercase()) {
-                "WORK", "FOCUS" -> JarvisMode.WORK
-                "NORMAL" -> JarvisMode.NORMAL
-                "SLEEP" -> JarvisMode.SLEEP
-                else -> JarvisMode.NORMAL
-            }
-            
-            if (mode == JarvisMode.WORK) {
-                WorkModeManager.activate(context)
-            } else {
-                WorkModeManager.deactivate(context)
-            }
-            
-            Logger.d(TAG, "Mode changed to: $mode")
-        } catch (e: Exception) {
-            Logger.e(TAG, "Failed to set mode", e)
-        }
-    }
-
-    /**
-     * Handle Do Not Disturb setting
-     */
-    private fun handleSetDnd(context: Context, action: RoutineAction) {
-        val dnd = action.params["dnd"]?.toBoolean() ?: return
-        Logger.d(TAG, "DND setting: $dnd (handled by WorkModeManager)")
-    }
-
-    /**
-     * Start stopwatch using built-in StopwatchManager
-     */
-    private fun handleStartStopwatch(context: Context) {
-        StopwatchManager.start(context)
-        Logger.d(TAG, "Stopwatch started via StopwatchManager")
-    }
-
-    /**
-     * Stop stopwatch using built-in StopwatchManager
-     */
-    private fun handleStopStopwatch(context: Context) {
-        StopwatchManager.stop(context)
-        Logger.d(TAG, "Stopwatch stopped via StopwatchManager")
-    }
-
-    /**
-     * Pause stopwatch using built-in StopwatchManager
-     */
-    private fun handlePauseStopwatch(context: Context) {
-        StopwatchManager.pause(context)
-        Logger.d(TAG, "Stopwatch paused via StopwatchManager")
-    }
-
-    /**
-     * Reset stopwatch using built-in StopwatchManager
-     */
-    private fun handleResetStopwatch(context: Context) {
-        StopwatchManager.reset(context)
-        Logger.d(TAG, "Stopwatch reset via StopwatchManager")
-    }
-
-    /**
-     * Get elapsed time from StopwatchManager
-     */
-    fun getElapsedTime(): Long {
-        return StopwatchManager.getCurrentElapsed()
-    }
-
-    /**
-     * Check if stopwatch is running
-     */
-    fun isStopwatchRunning(): Boolean {
-        return StopwatchManager.state.value.isRunning
-    }
-
-    /**
-     * Handle network time sync
-     */
-    private fun handleNetworkTimeSync(context: Context) {
-        Logger.d(TAG, "Network time sync requested (stub)")
-    }
-
-    /**
-     * Handle app launch
-     */
-    private fun handleLaunchApp(context: Context, action: RoutineAction) {
-        val packageName = action.params["package"] ?: return
-        
-        try {
-            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-            intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            intent?.let { context.startActivity(it) }
-            Logger.d(TAG, "Launched app: $packageName")
-        } catch (e: Exception) {
-            Logger.e(TAG, "Failed to launch app: $packageName", e)
-        }
+        // Stub — logic will expand later
     }
 }
 
