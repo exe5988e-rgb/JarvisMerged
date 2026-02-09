@@ -41,11 +41,13 @@ bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads)
         return false;
     }
     
-    // New sampler API
+    // Simplified sampler chain - using only available functions
     auto sparams = llama_sampler_chain_default_params();
     sampler_ = llama_sampler_chain_init(sparams);
+    
+    // Add samplers with correct signatures
     llama_sampler_chain_add(sampler_, llama_sampler_init_top_k(40));
-    llama_sampler_chain_add(sampler_, llama_sampler_init_top_p(0.95f, 1));
+    llama_sampler_chain_add(sampler_, llama_sampler_init_top_p(0.95f, 1));  // min_keep = 1
     llama_sampler_chain_add(sampler_, llama_sampler_init_temp(0.7f));
     llama_sampler_chain_add(sampler_, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
     
@@ -59,54 +61,89 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
         return "";
     }
     
-    // Tokenize
+    // Tokenize with proper buffer handling
     std::vector<llama_token> tokens;
-    tokens.resize(prompt.size() + 16);
-    int n_tokens = llama_tokenize(model_, prompt.c_str(), prompt.size(), 
-                                   tokens.data(), tokens.size(), true, true);
-    if (n_tokens < 0) {
-        tokens.resize(-n_tokens);
-        n_tokens = llama_tokenize(model_, prompt.c_str(), prompt.size(),
-                                 tokens.data(), tokens.size(), true, true);
-    }
-    tokens.resize(n_tokens);
+    tokens.resize(prompt.size() + 128);  // Generous buffer
     
-    // Create batch
+    int n_tokens = llama_tokenize(
+        model_, 
+        prompt.c_str(), 
+        prompt.size(), 
+        tokens.data(), 
+        tokens.size(), 
+        true,   // add_special
+        true    // parse_special
+    );
+    
+    if (n_tokens < 0) {
+        LOGE("Tokenization failed or buffer too small");
+        tokens.resize(-n_tokens);
+        n_tokens = llama_tokenize(
+            model_, 
+            prompt.c_str(), 
+            prompt.size(),
+            tokens.data(), 
+            tokens.size(), 
+            true, 
+            true
+        );
+    }
+    
+    if (n_tokens <= 0) {
+        LOGE("Tokenization produced no tokens");
+        return "";
+    }
+    
+    tokens.resize(n_tokens);
+    LOGI("Tokenized prompt into %d tokens", n_tokens);
+    
+    // Evaluate prompt tokens
     llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
     
-    // Decode prompt
     if (llama_decode(ctx_, batch) != 0) {
         LOGE("Failed to decode prompt");
         return "";
     }
     
     std::string result;
-    int n_cur = n_tokens;
     
-    // Generate tokens
+    // Generate new tokens
     for (int i = 0; i < max_tokens; i++) {
+        // Sample next token
         llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
         
+        // Check for end of generation
         if (llama_token_is_eog(model_, new_token)) {
+            LOGI("End of generation at token %d", i);
             break;
         }
         
-        // Convert token to text
+        // Decode token to text
         char buf[256];
-        int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, true);
+        int n = llama_token_to_piece(
+            model_, 
+            new_token, 
+            buf, 
+            sizeof(buf), 
+            0,      // lstrip
+            true    // special
+        );
+        
         if (n > 0) {
             result.append(buf, n);
         }
         
-        // Prepare next iteration
+        // Prepare next batch with single token
         batch = llama_batch_get_one(&new_token, 1);
-        n_cur++;
         
+        // Decode for next iteration
         if (llama_decode(ctx_, batch) != 0) {
+            LOGE("Decode failed at token %d", i);
             break;
         }
     }
     
+    LOGI("Generated %zu bytes of text", result.size());
     return result;
 }
 
@@ -123,4 +160,5 @@ void LlamaContext::unload() {
         llama_free_model(model_);
         model_ = nullptr;
     }
+    LOGI("Context unloaded");
 }
