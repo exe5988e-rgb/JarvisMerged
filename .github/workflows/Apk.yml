@@ -50,7 +50,7 @@ jobs:
         run: |
           chmod +x ./gradlew
           mkdir -p build_error_logs
-          ./gradlew assembleDebug lintDebug --no-daemon \
+          ./gradlew assembleDebug --no-daemon --stacktrace --info \
             2>&1 | tee build_error_logs/build_output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
@@ -63,8 +63,8 @@ jobs:
           name: jarvis-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      # ---------------- ERROR + SOURCE EXTRACTION ----------------
-      - name: Extract errors + source (highlighted)
+      # ---------------- ENHANCED ERROR EXTRACTION ----------------
+      - name: Extract errors (enhanced for native builds)
         if: steps.gradle_build.outputs.exit_code != '0'
         run: |
           mkdir -p build_error_logs
@@ -72,37 +72,51 @@ jobs:
           {
             echo "==== GRADLE BUILD ERROR REPORT ===="
             echo
-            echo "-- COMPILE / RESOURCE ERRORS --"
-            grep -E "(\.kt|\.java|\.xml|\.gradle|\.properties):[0-9]+: error|^e: " build_error_logs/build_output.txt || true
+            echo "-- CMAKE CONFIGURATION ERRORS --"
+            grep -A 5 "CMake Error" build_error_logs/build_output.txt || echo "No CMake errors"
             echo
-            echo "-- BUILD FAILURE / EXCEPTIONS --"
-            grep -E "(BUILD FAILED|FAILURE:|Exception|Caused by:)" build_error_logs/build_output.txt || true
+            echo "-- NINJA BUILD ERRORS --"
+            grep -B 3 -A 3 "ninja: build stopped" build_error_logs/build_output.txt || echo "No ninja errors"
             echo
-            echo "==== SOURCE CODE (UNIQUE ERROR FILES) ===="
-          } > build_error_logs/error_files.txt
+            echo "-- C++ COMPILATION ERRORS --"
+            grep -E "error: |undefined reference|fatal error:" build_error_logs/build_output.txt | head -50 || echo "No C++ errors"
+            echo
+            echo "-- MISSING HEADERS/LIBRARIES --"
+            grep -E "No such file|cannot find|ld returned" build_error_logs/build_output.txt || echo "No missing deps"
+            echo
+            echo "-- KOTLIN/JAVA ERRORS --"
+            grep -E "\.kt:[0-9]+: error|\.java:[0-9]+: error|^e: " build_error_logs/build_output.txt || echo "No Kotlin/Java errors"
+            echo
+            echo "-- BUILD TASK FAILURES --"
+            grep -E "BUILD FAILED|FAILURE: Build failed|Task.*FAILED" build_error_logs/build_output.txt || echo "No task failures"
+            echo
+            echo "-- EXCEPTION STACK TRACES --"
+            grep -A 10 "Exception" build_error_logs/build_output.txt | head -100 || echo "No exceptions"
+            echo
+            echo "-- NATIVE BUILD LOG (last 100 lines) --"
+            grep -E "(Building CXX|Linking CXX|CMake|ninja)" build_error_logs/build_output.txt | tail -100 || echo "No native build log"
+          } > build_error_logs/error_summary.txt
 
-          grep -Eo "([a-zA-Z0-9_/.-]+\.(kt|java|xml|gradle|properties)):[0-9]+" build_error_logs/build_output.txt \
-            | grep -v ":.*warning" | sort -u > build_error_logs/error_locations.txt || true
+          echo "==== ERROR SUMMARY ===="
+          cat build_error_logs/error_summary.txt
 
-          cut -d: -f1 build_error_logs/error_locations.txt | sort -u | while read -r file; do
-            if [ -f "$file" ]; then
-              REL_PATH=$(realpath --relative-to="$GITHUB_WORKSPACE" "$file")
-              echo "" >> build_error_logs/error_files.txt
-              echo "//===== FILE: $REL_PATH =====" >> build_error_logs/error_files.txt
+          # Also save full log (truncated)
+          tail -1000 build_error_logs/build_output.txt > build_error_logs/build_tail.txt
 
-              grep "^$file:" build_error_logs/error_locations.txt \
-                | cut -d: -f2 | sort -n | uniq > build_error_logs/_lines.tmp
+      # ---------------- COMMIT ERROR REPORT ----------------
+      - name: Commit & push error report
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          git config user.name "build-error-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add build_error_logs/
+          git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})" || echo "No changes"
+          git push origin main || true
 
-              nl -ba "$file" | while read -r line; do
-                LINE_NO=$(echo "$line" | awk '{print $1}')
-                if grep -qx "$LINE_NO" build_error_logs/_lines.tmp; then
-                  echo ">>>>> ERROR HERE" >> build_error_logs/error_files.txt
-                fi
-                echo "$line" >> build_error_logs/error_files.txt
-              done
-            fi
-          done
-
-          rm -f build_error_logs/_lines.tmp build_error_logs/error_locations.txt
-          cat build_error_logs/error_files.txt
-        
+      # ---------------- FAIL THE JOB ----------------
+      - name: Mark build as failed
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          echo "::error::Build failed with exit code ${{ steps.gradle_build.outputs.exit_code }}"
+          echo "Check build_error_logs/error_summary.txt for details"
+          exit 1
