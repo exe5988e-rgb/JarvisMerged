@@ -3,7 +3,6 @@
 
 #include "llama.h"
 #include <string>
-#include <memory>
 
 class LlamaContext {
 public:
@@ -19,7 +18,7 @@ public:
 private:
     llama_model* model_ = nullptr;
     llama_context* ctx_ = nullptr;
-    llama_sampling_context* sampling_ = nullptr;
+    llama_sampler* sampler_ = nullptr;
 };
 
 #endif

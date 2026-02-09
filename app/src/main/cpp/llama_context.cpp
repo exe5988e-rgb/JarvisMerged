@@ -41,11 +41,13 @@ bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads)
         return false;
     }
     
-    llama_sampling_params sampling_params = llama_sampling_default_params();
-    sampling_params.temp = 0.7f;
-    sampling_params.top_k = 40;
-    sampling_params.top_p = 0.95f;
-    sampling_ = llama_sampling_init(sampling_params);
+    // New sampler API
+    auto sparams = llama_sampler_chain_default_params();
+    sampler_ = llama_sampler_chain_init(sparams);
+    llama_sampler_chain_add(sampler_, llama_sampler_init_top_k(40));
+    llama_sampler_chain_add(sampler_, llama_sampler_init_top_p(0.95f, 1));
+    llama_sampler_chain_add(sampler_, llama_sampler_init_temp(0.7f));
+    llama_sampler_chain_add(sampler_, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
     
     LOGI("Model loaded successfully");
     return true;
@@ -57,51 +59,61 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
         return "";
     }
     
-    std::vector<llama_token> tokens = llama_tokenize(ctx_, prompt, true, true);
-    
-    llama_batch batch = llama_batch_init(tokens.size(), 0, 1);
-    for (size_t i = 0; i < tokens.size(); i++) {
-        llama_batch_add(batch, tokens[i], i, {0}, false);
+    // Tokenize
+    std::vector<llama_token> tokens;
+    tokens.resize(prompt.size() + 16);
+    int n_tokens = llama_tokenize(model_, prompt.c_str(), prompt.size(), 
+                                   tokens.data(), tokens.size(), true, true);
+    if (n_tokens < 0) {
+        tokens.resize(-n_tokens);
+        n_tokens = llama_tokenize(model_, prompt.c_str(), prompt.size(),
+                                 tokens.data(), tokens.size(), true, true);
     }
-    batch.logits[batch.n_tokens - 1] = true;
+    tokens.resize(n_tokens);
     
+    // Create batch
+    llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
+    
+    // Decode prompt
     if (llama_decode(ctx_, batch) != 0) {
         LOGE("Failed to decode prompt");
-        llama_batch_free(batch);
         return "";
     }
     
     std::string result;
+    int n_cur = n_tokens;
+    
+    // Generate tokens
     for (int i = 0; i < max_tokens; i++) {
-        llama_token new_token = llama_sampling_sample(sampling_, ctx_, nullptr);
-        llama_sampling_accept(sampling_, ctx_, new_token, true);
+        llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
         
         if (llama_token_is_eog(model_, new_token)) {
             break;
         }
         
+        // Convert token to text
         char buf[256];
-        int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, false);
+        int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, true);
         if (n > 0) {
             result.append(buf, n);
         }
         
-        batch.n_tokens = 0;
-        llama_batch_add(batch, new_token, tokens.size() + i, {0}, true);
+        // Prepare next iteration
+        batch = llama_batch_get_one(&new_token, 1);
+        n_cur++;
         
         if (llama_decode(ctx_, batch) != 0) {
             break;
         }
     }
     
-    llama_batch_free(batch);
     return result;
 }
 
 void LlamaContext::unload() {
-    if (sampling_) {
-        llama_sampling_free(sampling_);
-        sampling_ = nullptr;
+    if (sampler_) {
+        llama_sampler_free(sampler_);
+        sampler_ = nullptr;
     }
     if (ctx_) {
         llama_free(ctx_);
