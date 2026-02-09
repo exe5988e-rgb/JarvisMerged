@@ -41,13 +41,9 @@ bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads)
         return false;
     }
     
-    // Simplified sampler chain - using only available functions
+    // Minimal sampler chain - temperature + greedy
     auto sparams = llama_sampler_chain_default_params();
     sampler_ = llama_sampler_chain_init(sparams);
-    
-    // Add samplers with correct signatures
-    llama_sampler_chain_add(sampler_, llama_sampler_init_top_k(40));
-    llama_sampler_chain_add(sampler_, llama_sampler_init_top_p(0.95f, 1));  // min_keep = 1
     llama_sampler_chain_add(sampler_, llama_sampler_init_temp(0.7f));
     llama_sampler_chain_add(sampler_, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
     
@@ -61,9 +57,9 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
         return "";
     }
     
-    // Tokenize with proper buffer handling
+    // Tokenize
     std::vector<llama_token> tokens;
-    tokens.resize(prompt.size() + 128);  // Generous buffer
+    tokens.resize(prompt.size() + 128);
     
     int n_tokens = llama_tokenize(
         model_, 
@@ -71,12 +67,11 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
         prompt.size(), 
         tokens.data(), 
         tokens.size(), 
-        true,   // add_special
-        true    // parse_special
+        true, 
+        true
     );
     
     if (n_tokens < 0) {
-        LOGE("Tokenization failed or buffer too small");
         tokens.resize(-n_tokens);
         n_tokens = llama_tokenize(
             model_, 
@@ -90,14 +85,14 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
     }
     
     if (n_tokens <= 0) {
-        LOGE("Tokenization produced no tokens");
+        LOGE("Tokenization failed");
         return "";
     }
     
     tokens.resize(n_tokens);
-    LOGI("Tokenized prompt into %d tokens", n_tokens);
+    LOGI("Tokenized: %d tokens", n_tokens);
     
-    // Evaluate prompt tokens
+    // Decode prompt
     llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
     
     if (llama_decode(ctx_, batch) != 0) {
@@ -107,43 +102,28 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
     
     std::string result;
     
-    // Generate new tokens
+    // Generate tokens
     for (int i = 0; i < max_tokens; i++) {
-        // Sample next token
         llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
         
-        // Check for end of generation
         if (llama_token_is_eog(model_, new_token)) {
-            LOGI("End of generation at token %d", i);
             break;
         }
         
-        // Decode token to text
         char buf[256];
-        int n = llama_token_to_piece(
-            model_, 
-            new_token, 
-            buf, 
-            sizeof(buf), 
-            0,      // lstrip
-            true    // special
-        );
-        
+        int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, true);
         if (n > 0) {
             result.append(buf, n);
         }
         
-        // Prepare next batch with single token
         batch = llama_batch_get_one(&new_token, 1);
         
-        // Decode for next iteration
         if (llama_decode(ctx_, batch) != 0) {
-            LOGE("Decode failed at token %d", i);
             break;
         }
     }
     
-    LOGI("Generated %zu bytes of text", result.size());
+    LOGI("Generated %zu bytes", result.size());
     return result;
 }
 
@@ -160,5 +140,4 @@ void LlamaContext::unload() {
         llama_free_model(model_);
         model_ = nullptr;
     }
-    LOGI("Context unloaded");
 }
