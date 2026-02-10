@@ -1,77 +1,323 @@
-//===== FILE: app/src/main/res/values/attrs.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Custom attributes for theme -->
-    <attr name="colorBackground" format="color" />
-</resources>
+//===== FILE: app/src/main/kotlin/com/jarvismini/ChatAdapter.kt =====
+package com.jarvismini
 
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
 
-//===== FILE: app/src/main/res/values/themes.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+/**
+ * Adapter for displaying chat messages in RecyclerView
+ */
+class ChatAdapter(
+    private val messages: List<ChatMessage>
+) : RecyclerView.Adapter<ChatAdapter.MessageViewHolder>() {
 
-    <style name="Theme.JarvisMerged" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
+    companion object {
+        private const val VIEW_TYPE_USER = 1
+        private const val VIEW_TYPE_ASSISTANT = 2
+    }
+
+    override fun getItemViewType(position: Int): Int {
+        return if (messages[position].isUser) VIEW_TYPE_USER else VIEW_TYPE_ASSISTANT
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
+        val layoutId = if (viewType == VIEW_TYPE_USER) {
+            android.R.layout.simple_list_item_1
+        } else {
+            android.R.layout.simple_list_item_2
+        }
         
-        <!-- Define custom colorBackground attribute -->
-        <item name="colorBackground">?attr/colorSurface</item>
-    </style>
+        val view = LayoutInflater.from(parent.context).inflate(layoutId, parent, false)
+        return MessageViewHolder(view)
+    }
 
-</resources>
+    override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
+        holder.bind(messages[position])
+    }
 
+    override fun getItemCount(): Int = messages.size
 
-//===== FILE: app/src/main/res/drawable/ic_arrow_back.xml =====
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="?attr/colorOnPrimary">
-    <path
-        android:fillColor="@android:color/white"
-        android:pathData="M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z"/>
-</vector>
+    class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val textView: TextView = itemView.findViewById(android.R.id.text1)
 
-
-//===== FILE: app/src/main/res/drawable/ic_settings.xml =====
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="?attr/colorOnPrimary">
-    <path
-        android:fillColor="@android:color/white"
-        android:pathData="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"/>
-</vector>
+        fun bind(message: ChatMessage) {
+            textView.text = message.text
+            
+            // Style differently for user vs assistant
+            if (message.isUser) {
+                textView.setPadding(48, 16, 16, 16)
+                textView.setBackgroundColor(0xFF1E3A8A.toInt()) // Blue background for user
+                textView.setTextColor(0xFFFFFFFF.toInt()) // White text
+            } else {
+                textView.setPadding(16, 16, 48, 16)
+                textView.setBackgroundColor(0xFF1F2937.toInt()) // Dark gray for assistant
+                textView.setTextColor(0xFF06B6D4.toInt()) // Cyan text (matches your theme)
+            }
+        }
+    }
+}
 
 
-//===== FILE: app/src/main/res/drawable/ic_send.xml =====
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="?attr/colorPrimary"
-    android:autoMirrored="true">
-    <path
-        android:fillColor="@android:color/white"
-        android:pathData="M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z"/>
-</vector>
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ModelStatus.kt =====
+package com.jarvismini.engine
+
+/**
+ * Data class representing the status of loaded AI models
+ */
+data class ModelStatus(
+    val isLoading: Boolean = false,
+    val chatReady: Boolean = false,
+    val codeReady: Boolean = false,
+    val errorMessage: String? = null
+)
 
 
-//===== FILE: app/src/main/res/drawable/bg_input.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.util.Log
+import com.jarvismini.engine.ai.AIService
+import com.jarvismini.engine.ai.ModelConfig
+import com.jarvismini.engine.ai.ModelType
+import kotlinx.coroutines.*
+import java.io.File
+
+/**
+ * UPDATED VERSION - Added model selector support
+ * 
+ * NEW ADDITIONS:
+ * 1. isLoading property for UI feedback
+ * 2. selectedModel property for user preference
+ * 3. getModelStatus() method for real-time status updates
+ */
+object LlamaLLMEngine : LLMEngine {
     
-    <solid android:color="?attr/colorSurfaceVariant" />
+    private const val TAG = "LlamaLLMEngine"
+    private var chatService: AIService? = null
+    private var codeService: AIService? = null
+    private var isInitialized = false
+    private var appContext: Context? = null
     
-    <corners android:radius="24dp" />
+    // ✅ NEW: Track loading state
+    var isLoading: Boolean = false
+        private set
     
-    <stroke
-        android:width="1dp"
-        android:color="?attr/colorOutline" />
+    // ✅ NEW: User's selected model preference
+    var selectedModel: String = "auto"
     
-</shape>
+    private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    
+    private fun getModelsDir(): File {
+        val externalStorage = Environment.getExternalStorageDirectory()
+        return File(externalStorage, "JarvisModels")
+    }
+    
+    private val chatModelConfig = ModelConfig(
+        type = ModelType.CHAT,
+        name = "Phi-2",
+        filename = "phi-2.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+    
+    private val codeModelConfig = ModelConfig(
+        type = ModelType.CODE,
+        name = "DeepSeek Coder",
+        filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+
+    override fun init(context: Context) {
+        if (isInitialized) {
+            Log.d(TAG, "Already initialized")
+            return
+        }
+        
+        appContext = context.applicationContext
+        isInitialized = true
+        
+        val modelsDir = getModelsDir()
+        
+        Log.d(TAG, "=== INITIALIZING JARVIS LLM ENGINE ===")
+        Log.d(TAG, "Models directory: ${modelsDir.absolutePath}")
+        Log.d(TAG, "Directory exists: ${modelsDir.exists()}")
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val hasPermission = Environment.isExternalStorageManager()
+            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE: $hasPermission")
+            if (!hasPermission) {
+                Log.e(TAG, "❌ NO PERMISSION - Please grant file access in settings")
+                return
+            }
+        }
+        
+        // Load models asynchronously
+        engineScope.launch {
+            loadModels(modelsDir)
+        }
+    }
+    
+    // ✅ NEW: Get current model status for UI
+    fun getModelStatus(): ModelStatus {
+        return ModelStatus(
+            isLoading = isLoading,
+            chatReady = chatService != null,
+            codeReady = codeService != null
+        )
+    }
+    
+    private suspend fun loadModels(modelsDir: File) = withContext(Dispatchers.IO) {
+        try {
+            isLoading = true
+            
+            // Load chat model
+            val chatModelPath = File(modelsDir, chatModelConfig.filename)
+            if (chatModelPath.exists() && chatModelPath.canRead()) {
+                try {
+                    Log.i(TAG, "Loading chat model...")
+                    val service = AIService(appContext!!)
+                    
+                    val success = service.initializeWithPath(
+                        chatModelPath.absolutePath,
+                        chatModelConfig.contextSize,
+                        chatModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        chatService = service
+                        Log.i(TAG, "✅ Chat model loaded successfully")
+                    } else {
+                        Log.e(TAG, "❌ Chat model failed to load")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Chat model error: ${e.message}", e)
+                }
+            } else {
+                Log.w(TAG, "Chat model not found: ${chatModelPath.absolutePath}")
+            }
+            
+            // Small delay between loading models
+            delay(1000)
+            
+            // Load code model
+            val codeModelPath = File(modelsDir, codeModelConfig.filename)
+            if (codeModelPath.exists() && codeModelPath.canRead()) {
+                try {
+                    Log.i(TAG, "Loading code model...")
+                    val service = AIService(appContext!!)
+                    
+                    val success = service.initializeWithPath(
+                        codeModelPath.absolutePath,
+                        codeModelConfig.contextSize,
+                        codeModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        codeService = service
+                        Log.i(TAG, "✅ Code model loaded successfully")
+                    } else {
+                        Log.e(TAG, "❌ Code model failed to load")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Code model error: ${e.message}", e)
+                }
+            } else {
+                Log.w(TAG, "Code model not found: ${codeModelPath.absolutePath}")
+            }
+            
+            isLoading = false
+            
+            Log.d(TAG, "=== LOADING COMPLETE ===")
+            Log.d(TAG, "Chat: ${chatService != null}, Code: ${codeService != null}")
+            
+            if (chatService == null && codeService == null) {
+                Log.e(TAG, "⚠️ No models loaded. Please place .gguf files in ${modelsDir.absolutePath}")
+            }
+            Unit
+            
+        } catch (e: Exception) {
+            isLoading = false
+            Log.e(TAG, "❌ Fatal error during model loading", e)
+        }
+    }
+
+    override suspend fun generateReply(prompt: String): String {
+        if (!isInitialized) {
+            Log.w(TAG, "Engine not initialized yet")
+            return "AI engine is initializing... Please wait a moment."
+        }
+        
+        if (chatService == null && codeService == null) {
+            Log.e(TAG, "No models available")
+            val modelsDir = getModelsDir()
+            return "No AI models loaded. Please place model files in:\n${modelsDir.absolutePath}"
+        }
+        
+        // ✅ NEW: Use selected model preference
+        val shouldUseCode = when (selectedModel) {
+            "code" -> true
+            "chat" -> false
+            else -> isCodeRelated(prompt) // "auto" mode
+        }
+        
+        return withContext(Dispatchers.IO) {
+            try {
+                withTimeout(30000L) {
+                    when {
+                        shouldUseCode && codeService != null -> {
+                            Log.d(TAG, "Using code model for generation")
+                            val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
+                            codeService!!.generate(formattedPrompt, maxTokens = 256, temperature = 0.2f)
+                        }
+                        chatService != null -> {
+                            Log.d(TAG, "Using chat model for generation")
+                            chatService!!.generate(prompt, maxTokens = 128, temperature = 0.7f)
+                        }
+                        else -> {
+                            "Models are still loading... Please wait a few more seconds."
+                        }
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Generation timeout after 30 seconds")
+                "Request timed out. Try a shorter prompt or wait for the model to warm up."
+            } catch (e: CancellationException) {
+                Log.w(TAG, "Generation cancelled")
+                "Request cancelled."
+            } catch (e: Exception) {
+                Log.e(TAG, "Generation error: ${e.message}", e)
+                "Error generating response: ${e.message ?: "Unknown error"}"
+            }
+        }
+    }
+    
+    private fun isCodeRelated(prompt: String): Boolean {
+        val codeKeywords = listOf(
+            "code", "program", "function", "class", "method",
+            "python", "java", "kotlin", "javascript", "c++",
+            "algorithm", "implement", "debug", "fix", "refactor"
+        )
+        return codeKeywords.any { prompt.lowercase().contains(it) }
+    }
+    
+    fun release() {
+        try {
+            chatService?.release()
+            codeService?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Release error", e)
+        }
+        chatService = null
+        codeService = null
+        isInitialized = false
+        appContext = null
+        isLoading = false
+    }
+}
