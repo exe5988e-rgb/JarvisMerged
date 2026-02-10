@@ -1,12 +1,101 @@
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/AIService.kt =====
+package com.jarvismini.engine.ai
+
+import android.util.Log
+import com.jarvis.ai.native.LlamaNative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+class AIService {
+    private var handle: Long = 0
+    private var isInitialized = false
+
+    suspend fun initialize(modelPath: String, nCtx: Int = 2048, nThreads: Int = 4): Boolean = 
+        withContext(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "Initializing AIService")
+                handle = LlamaNative.nativeInit()
+                
+                if (handle == 0L) {
+                    Log.e(TAG, "Failed to create native context")
+                    return@withContext false
+                }
+                
+                Log.d(TAG, "Loading model: $modelPath")
+                val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
+                
+                if (loaded) {
+                    isInitialized = true
+                    Log.d(TAG, "Model loaded successfully")
+                } else {
+                    Log.e(TAG, "Failed to load model")
+                    LlamaNative.nativeRelease(handle)
+                    handle = 0
+                }
+                
+                loaded
+            } catch (e: Exception) {
+                Log.e(TAG, "Error initializing AIService", e)
+                false
+            }
+        }
+
+    suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
+        withContext(Dispatchers.IO) {
+            if (!isInitialized || handle == 0L) {
+                Log.e(TAG, "Service not initialized")
+                return@withContext ""
+            }
+            
+            try {
+                Log.d(TAG, "Generating response for prompt: ${prompt.take(50)}...")
+                LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating response", e)
+                ""
+            }
+        }
+
+    fun release() {
+        if (handle != 0L) {
+            Log.d(TAG, "Releasing AIService")
+            LlamaNative.nativeRelease(handle)
+            handle = 0
+            isInitialized = false
+        }
+    }
+
+    companion object {
+        private const val TAG = "AIService"
+    }
+}
+
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/ModelConfig.kt =====
+package com.jarvismini.engine.ai
+
+enum class ModelType {
+    CHAT, CODE
+}
+
+data class ModelConfig(
+    val type: ModelType,
+    val name: String,
+    val filename: String,
+    val contextSize: Int = 2048,
+    val threads: Int = 4
+)
+
+
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
 import android.os.Environment
 import android.util.Log
-import com.jarvis.ai.engine.AIService
-import com.jarvis.ai.engine.ModelConfig
-import com.jarvis.ai.engine.ModelType
+import com.jarvismini.engine.ai.AIService
+import com.jarvismini.engine.ai.ModelConfig
+import com.jarvismini.engine.ai.ModelType
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -159,324 +248,3 @@ object LlamaLLMEngine : LLMEngine {
         Log.d(TAG, "Released all models")
     }
 }
-
-
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
-package com.jarvismini.engine
-
-import android.content.Context
-
-object EngineProvider {
-
-    private lateinit var appContext: Context
-
-    // ---------------- COMMAND ENGINES ----------------
-
-    private lateinit var workModeCommandEngine: CommandEngine
-    private lateinit var schedulerCommandEngine: CommandEngine
-    private lateinit var stubCommandEngine: CommandEngine
-
-    private lateinit var engines: List<CommandEngine>
-
-    // ---------------- LLM ENGINE ----------------
-    
-    // ✅ CHANGED: Use LlamaLLMEngine instead of StubLLMEngine
-    private val llmEngineInstance: LLMEngine = LlamaLLMEngine
-
-    /**
-     * Must be called once from Application.onCreate()
-     */
-    fun init(context: Context) {
-        appContext = context.applicationContext
-
-        // ✔ Correct constructors (verified)
-        workModeCommandEngine = WorkModeCommandEngine(appContext)
-        schedulerCommandEngine = SchedulerCommandEngine()
-        stubCommandEngine = StubCommandEngine()
-
-        engines = listOf(
-            workModeCommandEngine,
-            schedulerCommandEngine,
-            stubCommandEngine
-        )
-
-        // ✅ Initialize Llama engine
-        llmEngineInstance.init(appContext)
-    }
-
-    /**
-     * Aggregated CommandEngine
-     */
-    val commandEngine: CommandEngine
-        get() {
-            check(::engines.isInitialized) {
-                "EngineProvider.init(context) was not called"
-            }
-
-            return object : CommandEngine {
-                override fun canHandle(input: String): Boolean =
-                    engines.any { it.canHandle(input) }
-
-                override fun handle(input: String): EngineResult =
-                    engines.firstOrNull { it.canHandle(input) }?.handle(input)
-                        ?: EngineResult.Unhandled
-            }
-        }
-
-    /**
-     * LLM engine accessor
-     */
-    val llmEngine: LLMEngine
-        get() = llmEngineInstance
-}
-
-
-//===== FILE: app/src/main/AndroidManifest.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jarvismini">
-
-    <!-- ================= PERMISSIONS ================= -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
-    
-    <!-- ✅ NEW: Storage permissions for model access -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
-
-    <!-- ================= PACKAGE VISIBILITY ================= -->
-
-    <queries>
-        <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
-        <package android:name="com.google.android.apps.youtube.music" />
-        <package android:name="com.oneplus.deskclock" />
-        <package android:name="com.sec.android.app.clockpackage" />
-        <package android:name="com.apple.android.music" />
-    </queries>
-
-    <!-- ================= APPLICATION ================= -->
-
-    <application
-        android:name="com.jarvismini.CoreApp"
-        android:allowBackup="true"
-        android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMerged"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:requestLegacyExternalStorage="true">
-
-        <!-- ================= MAIN ACTIVITY ================= -->
-
-        <activity
-            android:name="com.jarvismini.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- ================= NOTIFICATION LISTENER ================= -->
-
-        <service
-            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= SMS RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.SmsReceiver"
-            android:permission="android.permission.BROADCAST_SMS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL STATE RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL SCREENING SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
-            android:permission="android.permission.BIND_SCREENING_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall">
-            <intent-filter>
-                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= ACCESSIBILITY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
-
-        <!-- ================= QUICK SETTINGS TILE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.WorkModeTileService"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= WORK MODE SERVICE ================= -->
-
-        <service
-            android:name=".core.workmode.WorkModeService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
-            android:exported="false" />
-
-    </application>
-
-</manifest>
-
-
-//===== FILE: app/src/main/java/com/jarvis/ai/engine/AIService.kt =====
-package com.jarvis.ai.engine
-
-import android.util.Log
-import com.jarvis.ai.native.LlamaNative
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-class AIService {
-    private var handle: Long = 0
-    private var isInitialized = false
-
-    suspend fun initialize(modelPath: String, nCtx: Int = 2048, nThreads: Int = 4): Boolean = 
-        withContext(Dispatchers.IO) {
-            try {
-                Log.d(TAG, "Initializing AIService")
-                handle = LlamaNative.nativeInit()
-                
-                if (handle == 0L) {
-                    Log.e(TAG, "Failed to create native context")
-                    return@withContext false
-                }
-                
-                Log.d(TAG, "Loading model: $modelPath")
-                val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
-                
-                if (loaded) {
-                    isInitialized = true
-                    Log.d(TAG, "Model loaded successfully")
-                } else {
-                    Log.e(TAG, "Failed to load model")
-                    LlamaNative.nativeRelease(handle)
-                    handle = 0
-                }
-                
-                loaded
-            } catch (e: Exception) {
-                Log.e(TAG, "Error initializing AIService", e)
-                false
-            }
-        }
-
-    suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
-        withContext(Dispatchers.IO) {
-            if (!isInitialized || handle == 0L) {
-                Log.e(TAG, "Service not initialized")
-                return@withContext ""
-            }
-            
-            try {
-                Log.d(TAG, "Generating response for prompt: ${prompt.take(50)}...")
-                LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error generating response", e)
-                ""
-            }
-        }
-
-    fun release() {
-        if (handle != 0L) {
-            Log.d(TAG, "Releasing AIService")
-            LlamaNative.nativeRelease(handle)
-            handle = 0
-            isInitialized = false
-        }
-    }
-
-    companion object {
-        private const val TAG = "AIService"
-    }
-}
-
-
-//===== FILE: app/src/main/java/com/jarvis/ai/engine/ModelConfig.kt =====
-package com.jarvis.ai.engine
-
-enum class ModelType {
-    CHAT, CODE
-}
-
-data class ModelConfig(
-    val type: ModelType,
-    val name: String,
-    val filename: String,
-    val contextSize: Int = 2048,
-    val threads: Int = 4
-)
