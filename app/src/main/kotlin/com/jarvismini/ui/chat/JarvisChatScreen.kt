@@ -3,7 +3,6 @@ package com.jarvismini.ui.chat
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.util.Log
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -23,18 +22,32 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.jarvismini.core.workmode.WorkModeManager
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
-import com.jarvismini.state.JarvisMode
-import com.jarvismini.state.JarvisState
-import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.components.GridBackground
-import com.jarvismini.ui.theme.JarvisBlue
 import kotlinx.coroutines.*
 
+// UI Constants
+private val JarvisBlue = Color(0xFF00E0FF)
 private const val TAG = "JarvisChatScreen"
 
+// ChatMessage data class (if not already defined elsewhere)
+data class ChatMessage(
+    val text: String,
+    val isUser: Boolean
+)
+
+/**
+ * Main chat screen for interacting with J.A.R.V.I.S.
+ * 
+ * ✅ FIXED: Input clearing moved to AFTER successful processing
+ * ✅ FIXED: Added 30-second timeout protection
+ * ✅ FIXED: Enhanced logging for debugging
+ * ✅ FIXED: Input preserved on error for retry
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JarvisChatScreen(
