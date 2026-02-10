@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.jarvismini">
 
     <!-- ================= PERMISSIONS ================= -->
@@ -31,6 +32,11 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
         android:maxSdkVersion="32" />
+    
+    <!-- ================= CRITICAL FIX: ALL FILES ACCESS (Android 11+) ================= -->
+    <!-- This permission is REQUIRED to access /storage/emulated/0/JarvisModels/ on Android 11+ -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
+        tools:ignore="ScopedStorage" />
 
     <uses-feature
         android:name="android.hardware.telephony"
@@ -59,7 +65,8 @@
         android:theme="@style/Theme.JarvisMerged"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:preserveLegacyExternalStorage="true">
 
         <!-- ================= MAIN ACTIVITY ================= -->
 
@@ -114,6 +121,68 @@
                 <action android:name="android.telecom.CallScreeningService" />
             </intent-filter>
         </service>
+
+        <!-- ================= CALL ACCESSIBILITY SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/call_accessibility_config" />
+        </service>
+
+        <!-- ================= APP AUTOMATION SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.automation.AppAutomationService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service" />
+        </service>
+
+        <!-- ================= WORK MODE SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.core.workmode.WorkModeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- ================= WORK MODE TILE SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.service.WorkModeTileService"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Work Mode"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= CALL AUTO REPLY SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <!-- ================= PROGRESS REMINDER SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.ProgressReminderService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 
