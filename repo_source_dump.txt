@@ -11316,8 +11316,35 @@ jobs:
           echo "==== ERROR SUMMARY ===="
           cat build_error_logs/error_summary.txt
 
-          # Also save full log (truncated)
+          # Save tail of full log
           tail -1000 build_error_logs/build_output.txt > build_error_logs/build_tail.txt
+
+      # ---------------- EXTRACT ERROR SOURCE FILES ----------------
+      - name: Extract source code of error files
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          ERROR_LOG=build_error_logs/build_output.txt
+          OUTPUT=build_error_logs/error_files.txt
+
+          echo "==== SOURCE CODE (ERROR FILES) ====" > $OUTPUT
+          echo >> $OUTPUT
+
+          # Extract file paths from Kotlin, Java, and C/C++ errors
+          grep -Eo '([a-zA-Z0-9_./-]+\.(kt|java|cpp|c|h|hpp)):[0-9]+' $ERROR_LOG \
+            | cut -d: -f1 \
+            | sort -u > build_error_logs/error_file_list.txt
+
+          echo "Detected error files:"
+          cat build_error_logs/error_file_list.txt || echo "No files detected"
+
+          # Dump file contents
+          while read -r FILE; do
+            if [ -f "$FILE" ]; then
+              echo "===== FILE: $FILE =====" >> $OUTPUT
+              cat "$FILE" >> $OUTPUT
+              echo -e "\n\n" >> $OUTPUT
+            fi
+          done < build_error_logs/error_file_list.txt
 
       # ---------------- COMMIT ERROR REPORT ----------------
       - name: Commit & push error report
