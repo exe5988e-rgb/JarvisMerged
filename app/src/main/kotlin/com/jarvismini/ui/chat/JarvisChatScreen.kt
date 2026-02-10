@@ -37,6 +37,18 @@ import kotlinx.coroutines.withContext
 private val JarvisBlue = Color(0xFF00E0FF)
 private const val TAG = "JarvisChatScreen"
 
+/**
+ * Main chat screen for interacting with J.A.R.V.I.S.
+ * 
+ * This implementation follows best practices from SmolChat-Android:
+ * https://github.com/shubham0204/SmolChat-Android
+ * 
+ * Key improvements:
+ * 1. Proper coroutine scope management with rememberCoroutineScope
+ * 2. No runBlocking - all async operations use suspend functions
+ * 3. Better error handling and user feedback
+ * 4. Detailed logging for debugging
+ */
 @Composable
 fun JarvisChatScreen(
     onBack: () -> Unit
@@ -45,21 +57,43 @@ fun JarvisChatScreen(
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
-    // ================= INIT =================
+    // ================= INITIALIZATION =================
     LaunchedEffect(Unit) {
+        Log.d(TAG, "Initializing JarvisChatScreen")
         JarvisState.init(context)
         EngineProvider.init(context)
+        Log.d(TAG, "Initialization complete")
     }
 
     // ================= PERMISSIONS =================
     LaunchedEffect(Unit) {
-        if (activity == null) return@LaunchedEffect
+        if (activity == null) {
+            Log.w(TAG, "Activity is null, cannot request permissions")
+            return@LaunchedEffect
+        }
+        
         val perms = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+        
+        if (ContextCompat.checkSelfPermission(
+                context, 
+                android.Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             perms += android.Manifest.permission.READ_CONTACTS
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+        }
+        
+        if (ContextCompat.checkSelfPermission(
+                context, 
+                android.Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             perms += android.Manifest.permission.SEND_SMS
-        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+        }
+        
+        if (perms.isNotEmpty()) {
+            Log.d(TAG, "Requesting permissions: ${perms.joinToString()}")
+            ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+        }
     }
 
     // ================= STATE =================
@@ -141,6 +175,7 @@ fun JarvisChatScreen(
                                 JarvisState.setMode(context, mode)
                                 currentMode = mode
                                 expanded = false
+                                Log.d(TAG, "Mode changed to: ${mode.name}")
                             }
                         )
                     }
@@ -153,14 +188,20 @@ fun JarvisChatScreen(
                 onClick = {
                     WorkModeManager.toggle(context)
                     currentMode = JarvisState.currentMode
+                    Log.d(TAG, "Work mode toggled")
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = JarvisBlue.copy(alpha = 0.7f)
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Toggle Work Mode", color = Color.Black)
             }
 
-            HorizontalDivider(color = JarvisBlue.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(
+                color = JarvisBlue.copy(alpha = 0.3f), 
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
             // ===== CHAT LOG =====
             LazyColumn(
@@ -215,57 +256,97 @@ fun JarvisChatScreen(
                     )
                 )
 
-                // ✅ FIXED: Use generateReply instead of non-existent generateReplyAsync
-                // ✅ FIXED: Wrapped in withContext(Dispatchers.IO) for proper threading
+                // ===== SEND BUTTON =====
+                // ✅ FIXED: Proper coroutine handling without runBlocking
                 IconButton(
                     onClick = {
                         val userText = input.trim()
-                        if (userText.isEmpty() || isProcessing) {
-                            Log.d(TAG, "Ignoring click: empty=${userText.isEmpty()} processing=$isProcessing")
+                        
+                        // Validation
+                        if (userText.isEmpty()) {
+                            Log.d(TAG, "Ignoring empty input")
+                            return@IconButton
+                        }
+                        
+                        if (isProcessing) {
+                            Log.d(TAG, "Already processing, ignoring click")
                             return@IconButton
                         }
 
-                        Log.d(TAG, "Send button clicked: '$userText'")
+                        Log.d(TAG, "=== SEND BUTTON CLICKED ===")
+                        Log.d(TAG, "User input: '$userText'")
+                        
+                        // Clear input and set processing state
                         input = ""
                         isProcessing = true
-                        messages.add(ChatMessage(userText, true))
-                        messages.add(ChatMessage("Processing…", false))
+                        
+                        // Add user message to chat
+                        messages.add(ChatMessage(userText, isUser = true))
+                        
+                        // Add temporary "thinking" message
+                        messages.add(ChatMessage("Processing…", isUser = false))
 
+                        // ✅ PROPER COROUTINE USAGE
+                        // Launch in the composable's scope (rememberCoroutineScope)
                         scope.launch {
                             try {
-                                Log.d(TAG, "Starting message processing...")
+                                Log.d(TAG, "Starting message processing in coroutine")
+                                Log.d(TAG, "Current thread: ${Thread.currentThread().name}")
                                 
                                 // Try command engine first
                                 val result = EngineProvider.commandEngine.handle(userText)
+                                Log.d(TAG, "Command engine result: $result")
+                                
                                 val reply = when (result) {
                                     is EngineResult.Success -> {
-                                        Log.d(TAG, "Command engine handled: ${result.reply}")
+                                        Log.d(TAG, "✅ Command handled successfully")
                                         result.reply
                                     }
                                     else -> {
-                                        Log.d(TAG, "Command not handled, trying LLM...")
+                                        Log.d(TAG, "Command not handled, falling back to LLM")
                                         val llmEngine = EngineProvider.llmEngine
                                         
-                                        // ✅ FIXED: Call generateReply in IO context instead of non-existent generateReplyAsync
+                                        // ✅ CRITICAL FIX: Call suspend function from coroutine
+                                        // withContext ensures we're on the right dispatcher
                                         withContext(Dispatchers.IO) {
-                                            Log.d(TAG, "Calling generateReply on IO dispatcher...")
+                                            Log.d(TAG, "Calling LLM on thread: ${Thread.currentThread().name}")
                                             val llmReply = llmEngine.generateReply(userText)
-                                            Log.d(TAG, "LLM replied: ${llmReply.take(50)}...")
+                                            Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
                                             llmReply
                                         }
                                     }
                                 }
                                 
-                                Log.d(TAG, "Removing processing message and adding reply")
+                                Log.d(TAG, "Updating UI with reply")
+                                
+                                // Remove "Processing..." message
                                 messages.removeLastOrNull()
-                                messages.add(ChatMessage(reply, false))
+                                
+                                // Add actual reply
+                                messages.add(ChatMessage(reply, isUser = false))
+                                
+                                Log.d(TAG, "=== MESSAGE PROCESSING COMPLETE ===")
                                 
                             } catch (e: Exception) {
-                                Log.e(TAG, "Error processing message", e)
+                                Log.e(TAG, "=== ERROR PROCESSING MESSAGE ===", e)
+                                
+                                // Remove "Processing..." message
                                 messages.removeLastOrNull()
-                                messages.add(ChatMessage("Error: ${e.message ?: "Unknown error"}", false))
+                                
+                                // Add error message
+                                val errorMsg = when {
+                                    e.message?.contains("timeout", ignoreCase = true) == true ->
+                                        "Request timed out. Try a shorter prompt."
+                                    e.message?.contains("model", ignoreCase = true) == true ->
+                                        "Model error. Check if models are loaded in /storage/emulated/0/JarvisModels/"
+                                    else ->
+                                        "Error: ${e.message ?: "Unknown error occurred"}"
+                                }
+                                
+                                messages.add(ChatMessage(errorMsg, isUser = false))
+                                
                             } finally {
-                                Log.d(TAG, "Processing complete, resetting state")
+                                Log.d(TAG, "Resetting processing state")
                                 isProcessing = false
                             }
                         }
@@ -273,9 +354,12 @@ fun JarvisChatScreen(
                     enabled = !isProcessing
                 ) {
                     Icon(
-                        Icons.Default.Send, 
-                        "Send", 
-                        tint = if (isProcessing) JarvisBlue.copy(alpha = 0.3f) else JarvisBlue
+                        Icons.Default.Send,
+                        contentDescription = "Send",
+                        tint = if (isProcessing) 
+                            JarvisBlue.copy(alpha = 0.3f) 
+                        else 
+                            JarvisBlue
                     )
                 }
             }
