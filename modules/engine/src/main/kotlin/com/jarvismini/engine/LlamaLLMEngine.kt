@@ -2,11 +2,11 @@
 package com.jarvismini.engine
 
 import android.content.Context
-import android.os.Environment
 import android.util.Log
 import com.jarvismini.engine.ai.AIService
 import com.jarvismini.engine.ai.ModelConfig
 import com.jarvismini.engine.ai.ModelType
+import com.jarvismini.engine.storage.ModelPathManager
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -17,8 +17,6 @@ object LlamaLLMEngine : LLMEngine {
     private var codeService: AIService? = null
     private var isInitialized = false
     private var appContext: Context? = null
-    
-    private val modelsDir = File(Environment.getExternalStorageDirectory(), "JarvisModels")
     
     // Model configurations
     private val chatModelConfig = ModelConfig(
@@ -46,7 +44,11 @@ object LlamaLLMEngine : LLMEngine {
         // Store application context
         appContext = context.applicationContext
         
+        // Get correct models directory using ModelPathManager
+        val modelsDir = ModelPathManager.getModelsDirectory(appContext!!)
+        
         Log.d(TAG, "Initializing LlamaLLMEngine")
+        Log.d(TAG, "Models directory: ${modelsDir.absolutePath}")
         
         // Load models asynchronously
         runBlocking {
@@ -127,7 +129,7 @@ object LlamaLLMEngine : LLMEngine {
                 } else {
                     // Fallback to stub response
                     Log.w(TAG, "No model available for generation")
-                    "I'm Jarvis. My AI models are not loaded. Please ensure models are in /sdcard/JarvisModels/"
+                    "I'm Jarvis. My AI models are not loaded. Please ensure models are in the correct JarvisModels folder."
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error generating reply", e)
