@@ -598,6 +598,222 @@ dependencies {
 </manifest>
 
 
+//===== FILE: app/src/main/cpp/llama_context.cpp =====
+#include "llama_context.h"
+#include <android/log.h>
+#include <vector>
+
+#define TAG "LlamaContext"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+LlamaContext::LlamaContext() {
+    llama_backend_init();
+    llama_numa_init(GGML_NUMA_STRATEGY_DISABLED);
+}
+
+LlamaContext::~LlamaContext() {
+    unload();
+    llama_backend_free();
+}
+
+bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads) {
+    LOGI("Loading model: %s", model_path.c_str());
+    
+    llama_model_params model_params = llama_model_default_params();
+    model_params.n_gpu_layers = 0;
+    
+    model_ = llama_load_model_from_file(model_path.c_str(), model_params);
+    if (!model_) {
+        LOGE("Failed to load model");
+        return false;
+    }
+    
+    llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.n_ctx = n_ctx;
+    ctx_params.n_threads = n_threads;
+    ctx_params.n_threads_batch = n_threads;
+    
+    ctx_ = llama_new_context_with_model(model_, ctx_params);
+    if (!ctx_) {
+        LOGE("Failed to create context");
+        llama_free_model(model_);
+        model_ = nullptr;
+        return false;
+    }
+    
+    // Minimal sampler chain - temperature + greedy
+    auto sparams = llama_sampler_chain_default_params();
+    sampler_ = llama_sampler_chain_init(sparams);
+    llama_sampler_chain_add(sampler_, llama_sampler_init_temp(0.7f));
+    llama_sampler_chain_add(sampler_, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+    
+    LOGI("Model loaded successfully");
+    return true;
+}
+
+std::string LlamaContext::generate(const std::string& prompt, int max_tokens, float temp) {
+    if (!ctx_) {
+        LOGE("Context not loaded");
+        return "";
+    }
+    
+    // Tokenize
+    std::vector<llama_token> tokens;
+    tokens.resize(prompt.size() + 128);
+    
+    int n_tokens = llama_tokenize(
+        model_, 
+        prompt.c_str(), 
+        prompt.size(), 
+        tokens.data(), 
+        tokens.size(), 
+        true, 
+        true
+    );
+    
+    if (n_tokens < 0) {
+        tokens.resize(-n_tokens);
+        n_tokens = llama_tokenize(
+            model_, 
+            prompt.c_str(), 
+            prompt.size(),
+            tokens.data(), 
+            tokens.size(), 
+            true, 
+            true
+        );
+    }
+    
+    if (n_tokens <= 0) {
+        LOGE("Tokenization failed");
+        return "";
+    }
+    
+    tokens.resize(n_tokens);
+    LOGI("Tokenized: %d tokens", n_tokens);
+    
+    // Decode prompt
+    llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
+    
+    if (llama_decode(ctx_, batch) != 0) {
+        LOGE("Failed to decode prompt");
+        return "";
+    }
+    
+    std::string result;
+    
+    // Generate tokens
+    for (int i = 0; i < max_tokens; i++) {
+        llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
+        
+        if (llama_token_is_eog(model_, new_token)) {
+            break;
+        }
+        
+        char buf[256];
+        int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, true);
+        if (n > 0) {
+            result.append(buf, n);
+        }
+        
+        batch = llama_batch_get_one(&new_token, 1);
+        
+        if (llama_decode(ctx_, batch) != 0) {
+            break;
+        }
+    }
+    
+    LOGI("Generated %zu bytes", result.size());
+    return result;
+}
+
+void LlamaContext::unload() {
+    if (sampler_) {
+        llama_sampler_free(sampler_);
+        sampler_ = nullptr;
+    }
+    if (ctx_) {
+        llama_free(ctx_);
+        ctx_ = nullptr;
+    }
+    if (model_) {
+        llama_free_model(model_);
+        model_ = nullptr;
+    }
+}
+
+
+//===== FILE: app/src/main/cpp/llama_context.h =====
+#ifndef LLAMA_CONTEXT_H
+#define LLAMA_CONTEXT_H
+
+#include "llama.h"
+#include <string>
+
+class LlamaContext {
+public:
+    LlamaContext();
+    ~LlamaContext();
+    
+    bool load(const std::string& model_path, int n_ctx = 2048, int n_threads = 4);
+    std::string generate(const std::string& prompt, int max_tokens = 256, float temp = 0.7f);
+    void unload();
+    
+    bool isLoaded() const { return ctx_ != nullptr; }
+
+private:
+    llama_model* model_ = nullptr;
+    llama_context* ctx_ = nullptr;
+    llama_sampler* sampler_ = nullptr;
+};
+
+#endif
+
+
+//===== FILE: app/src/main/cpp/native_bridge.cpp =====
+#include <jni.h>
+#include "llama_context.h"
+#include <android/log.h>
+
+#define TAG "JarvisNative"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_jarvis_ai_native_LlamaNative_nativeInit(JNIEnv*, jobject) {
+    auto* ctx = new LlamaContext();
+    return reinterpret_cast<jlong>(ctx);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jarvis_ai_native_LlamaNative_nativeLoad(
+    JNIEnv* env, jobject, jlong handle, jstring modelPath, jint nCtx, jint nThreads
+) {
+    auto* ctx = reinterpret_cast<LlamaContext*>(handle);
+    const char* path = env->GetStringUTFChars(modelPath, nullptr);
+    bool result = ctx->load(path, nCtx, nThreads);
+    env->ReleaseStringUTFChars(modelPath, path);
+    return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_jarvis_ai_native_LlamaNative_nativeGenerate(
+    JNIEnv* env, jobject, jlong handle, jstring prompt, jint maxTokens, jfloat temp
+) {
+    auto* ctx = reinterpret_cast<LlamaContext*>(handle);
+    const char* prompt_str = env->GetStringUTFChars(prompt, nullptr);
+    std::string result = ctx->generate(prompt_str, maxTokens, temp);
+    env->ReleaseStringUTFChars(prompt, prompt_str);
+    return env->NewStringUTF(result.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_jarvis_ai_native_LlamaNative_nativeRelease(JNIEnv*, jobject, jlong handle) {
+    auto* ctx = reinterpret_cast<LlamaContext*>(handle);
+    delete ctx;
+}
+
+
 //===== FILE: app/src/main/java/com/jarvis/ai/native/LlamaNative.kt =====
 package com.jarvis.ai.native
 
@@ -9037,7 +9253,7 @@ INCLUDE_EXTENSIONS = {
     ".gradle", ".kts",
     ".properties", ".json",
     ".yml", ".yaml",
-    ".md", ".txt", ".pro" , ".py"
+    ".md", ".txt", ".pro" , ".py", ".cpp", ".h"
 }
 
 # ❌ Always excluded
