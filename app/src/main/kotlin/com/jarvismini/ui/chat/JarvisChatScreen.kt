@@ -216,6 +216,7 @@ fun JarvisChatScreen(
                 )
 
                 // ✅ FIXED: Use generateReply instead of non-existent generateReplyAsync
+                // ✅ FIXED: Wrapped in withContext(Dispatchers.IO) for proper threading
                 IconButton(
                     onClick = {
                         val userText = input.trim()
