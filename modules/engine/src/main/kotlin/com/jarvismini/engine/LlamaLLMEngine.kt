@@ -11,14 +11,12 @@ import kotlinx.coroutines.*
 import java.io.File
 
 /**
- * FIXED VERSION - Proper coroutine handling to prevent UI blocking and crashes
+ * UPDATED VERSION - Added model selector support
  * 
- * KEY FIXES:
- * 1. Changed generateReply to be a suspend function
- * 2. Removed runBlocking that was freezing the UI thread
- * 3. Proper timeout handling
- * 4. Better error messages for debugging
- * 5. FIXED: Line 144 - Added Unit return to ensure if statement is not used as expression
+ * NEW ADDITIONS:
+ * 1. isLoading property for UI feedback
+ * 2. selectedModel property for user preference
+ * 3. getModelStatus() method for real-time status updates
  */
 object LlamaLLMEngine : LLMEngine {
     
@@ -27,6 +25,13 @@ object LlamaLLMEngine : LLMEngine {
     private var codeService: AIService? = null
     private var isInitialized = false
     private var appContext: Context? = null
+    
+    // ✅ NEW: Track loading state
+    var isLoading: Boolean = false
+        private set
+    
+    // ✅ NEW: User's selected model preference
+    var selectedModel: String = "auto"
     
     private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
@@ -81,8 +86,19 @@ object LlamaLLMEngine : LLMEngine {
         }
     }
     
+    // ✅ NEW: Get current model status for UI
+    fun getModelStatus(): ModelStatus {
+        return ModelStatus(
+            isLoading = isLoading,
+            chatReady = chatService != null,
+            codeReady = codeService != null
+        )
+    }
+    
     private suspend fun loadModels(modelsDir: File) = withContext(Dispatchers.IO) {
         try {
+            isLoading = true
+            
             // Load chat model
             val chatModelPath = File(modelsDir, chatModelConfig.filename)
             if (chatModelPath.exists() && chatModelPath.canRead()) {
@@ -138,24 +154,22 @@ object LlamaLLMEngine : LLMEngine {
                 Log.w(TAG, "Code model not found: ${codeModelPath.absolutePath}")
             }
             
+            isLoading = false
+            
             Log.d(TAG, "=== LOADING COMPLETE ===")
             Log.d(TAG, "Chat: ${chatService != null}, Code: ${codeService != null}")
             
-            // ✅ FIX: Explicitly ensure this is a statement, not an expression
             if (chatService == null && codeService == null) {
                 Log.e(TAG, "⚠️ No models loaded. Please place .gguf files in ${modelsDir.absolutePath}")
             }
-            Unit  // ✅ Explicitly return Unit to make withContext return type clear
+            Unit
             
         } catch (e: Exception) {
+            isLoading = false
             Log.e(TAG, "❌ Fatal error during model loading", e)
         }
     }
 
-    /**
-     * ✅ FIXED: Changed to suspend function instead of blocking
-     * This prevents UI freezing and crashes
-     */
     override suspend fun generateReply(prompt: String): String {
         if (!isInitialized) {
             Log.w(TAG, "Engine not initialized yet")
@@ -168,14 +182,18 @@ object LlamaLLMEngine : LLMEngine {
             return "No AI models loaded. Please place model files in:\n${modelsDir.absolutePath}"
         }
         
-        val isCodeRequest = isCodeRelated(prompt)
+        // ✅ NEW: Use selected model preference
+        val shouldUseCode = when (selectedModel) {
+            "code" -> true
+            "chat" -> false
+            else -> isCodeRelated(prompt) // "auto" mode
+        }
         
         return withContext(Dispatchers.IO) {
             try {
-                // ✅ FIXED: Using when expression which always has all branches covered
                 withTimeout(30000L) {
                     when {
-                        isCodeRequest && codeService != null -> {
+                        shouldUseCode && codeService != null -> {
                             Log.d(TAG, "Using code model for generation")
                             val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
                             codeService!!.generate(formattedPrompt, maxTokens = 256, temperature = 0.2f)
@@ -222,5 +240,6 @@ object LlamaLLMEngine : LLMEngine {
         codeService = null
         isInitialized = false
         appContext = null
+        isLoading = false
     }
 }
