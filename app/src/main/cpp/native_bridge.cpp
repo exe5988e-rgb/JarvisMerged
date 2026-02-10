@@ -5,6 +5,20 @@
 #define TAG "JarvisNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
+// ✅ Backend init/free are now separate from instance creation
+extern "C" JNIEXPORT void JNICALL
+Java_com_jarvismini_engine_ai_LlamaNative_nativeBackendInit(JNIEnv*, jobject) {
+    LOGI("Initializing llama backend (global)");
+    llama_backend_init();
+    llama_numa_init(GGML_NUMA_STRATEGY_DISABLED);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_jarvismini_engine_ai_LlamaNative_nativeBackendFree(JNIEnv*, jobject) {
+    LOGI("Freeing llama backend (global)");
+    llama_backend_free();
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_jarvismini_engine_ai_LlamaNative_nativeInit(JNIEnv*, jobject) {
     auto* ctx = new LlamaContext();
@@ -31,6 +45,12 @@ Java_com_jarvismini_engine_ai_LlamaNative_nativeGenerate(
     std::string result = ctx->generate(prompt_str, maxTokens, temp);
     env->ReleaseStringUTFChars(prompt, prompt_str);
     return env->NewStringUTF(result.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_jarvismini_engine_ai_LlamaNative_nativeStopGeneration(JNIEnv*, jobject, jlong handle) {
+    auto* ctx = reinterpret_cast<LlamaContext*>(handle);
+    ctx->stopGeneration();
 }
 
 extern "C" JNIEXPORT void JNICALL

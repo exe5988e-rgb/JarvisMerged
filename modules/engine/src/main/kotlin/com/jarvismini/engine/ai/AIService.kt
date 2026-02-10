@@ -11,86 +11,49 @@ class AIService(private val context: Context) {
     private var isInitialized = false
     private var currentModelPath: String? = null
 
-    /**
-     * Initialize with automatic model detection
-     */
-    suspend fun initialize(
-        modelName: String? = null,
-        nCtx: Int = 2048, 
-        nThreads: Int = 4
-    ): Boolean = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "Initializing AIService")
-            
-            // Check if models exist
-            if (!ModelPathManager.hasModels(context)) {
-                Log.e(TAG, ModelPathManager.getNoModelsErrorMessage(context))
-                return@withContext false
-            }
-            
-            // Get model file
-            val modelFile = if (modelName != null) {
-                ModelPathManager.findModel(context, modelName)
-            } else {
-                ModelPathManager.getDefaultModel(context)
-            }
-            
-            if (modelFile == null || !modelFile.exists()) {
-                Log.e(TAG, "Model file not found: $modelName")
-                Log.e(TAG, "Available models: ${ModelPathManager.listModelFiles(context).joinToString { it.name }}")
-                return@withContext false
-            }
-            
-            return@withContext initializeWithPath(modelFile.absolutePath, nCtx, nThreads)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error initializing AIService", e)
-            false
-        }
+    companion object {
+        private const val TAG = "AIService"
     }
     
-    /**
-     * Initialize with explicit model path (for advanced use)
-     */
     suspend fun initializeWithPath(
         modelPath: String,
         nCtx: Int = 2048,
         nThreads: Int = 4
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Initializing AIService with path: $modelPath")
+            Log.d(TAG, "Initializing with: $modelPath")
             
-            // Verify file exists
             val modelFile = File(modelPath)
             if (!modelFile.exists()) {
-                Log.e(TAG, "Model file does not exist: $modelPath")
+                Log.e(TAG, "Model not found: $modelPath")
                 return@withContext false
             }
             
-            Log.d(TAG, "Model file size: ${modelFile.length() / 1024 / 1024}MB")
+            Log.d(TAG, "Model size: ${modelFile.length() / (1024 * 1024)} MB")
             
             handle = LlamaNative.nativeInit()
             
             if (handle == 0L) {
-                Log.e(TAG, "Failed to create native context")
+                Log.e(TAG, "Failed to create context")
                 return@withContext false
             }
             
-            Log.d(TAG, "Loading model: $modelPath (ctx=$nCtx, threads=$nThreads)")
+            Log.d(TAG, "Loading model (ctx=$nCtx, threads=$nThreads)...")
             val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
             
             if (loaded) {
                 isInitialized = true
                 currentModelPath = modelPath
-                Log.d(TAG, "Model loaded successfully: ${modelFile.name}")
+                Log.i(TAG, "✅ Model loaded: ${modelFile.name}")
             } else {
-                Log.e(TAG, "Failed to load model")
+                Log.e(TAG, "❌ Load failed")
                 LlamaNative.nativeRelease(handle)
                 handle = 0
             }
             
             loaded
         } catch (e: Exception) {
-            Log.e(TAG, "Error initializing AIService", e)
+            Log.e(TAG, "Error: ${e.message}", e)
             false
         }
     }
@@ -98,22 +61,28 @@ class AIService(private val context: Context) {
     suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
         withContext(Dispatchers.IO) {
             if (!isInitialized || handle == 0L) {
-                Log.e(TAG, "Service not initialized")
+                Log.e(TAG, "Not initialized")
                 return@withContext ""
             }
             
             try {
-                Log.d(TAG, "Generating response for prompt: ${prompt.take(50)}...")
+                Log.d(TAG, "Generating (${prompt.take(30)}...)")
                 LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
             } catch (e: Exception) {
-                Log.e(TAG, "Error generating response", e)
+                Log.e(TAG, "Generation error: ${e.message}", e)
                 ""
             }
         }
+    
+    fun stopGeneration() {
+        if (handle != 0L) {
+            LlamaNative.nativeStopGeneration(handle)
+        }
+    }
 
     fun release() {
         if (handle != 0L) {
-            Log.d(TAG, "Releasing AIService")
+            Log.d(TAG, "Releasing model")
             LlamaNative.nativeRelease(handle)
             handle = 0
             isInitialized = false
@@ -122,10 +91,5 @@ class AIService(private val context: Context) {
     }
     
     fun isReady(): Boolean = isInitialized && handle != 0L
-    
     fun getCurrentModel(): String? = currentModelPath
-
-    companion object {
-        private const val TAG = "AIService"
-    }
 }
