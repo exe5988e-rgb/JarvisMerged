@@ -1,25 +1,27 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.jarvismini.ui.chat
+package com.jarvismini.ui
 
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
@@ -27,88 +29,111 @@ import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
-import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.components.GridBackground
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val JarvisBlue = Color(0xFF00E0FF)
+private const val TAG = "JarvisChatScreen"
 
 @Composable
-fun JarvisChatScreen() {
+fun JarvisChatScreen(
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
+    // ================= INIT =================
     LaunchedEffect(Unit) {
         JarvisState.init(context)
         EngineProvider.init(context)
     }
 
+    // ================= PERMISSIONS =================
     LaunchedEffect(Unit) {
         if (activity == null) return@LaunchedEffect
         val perms = mutableListOf<String>()
-
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
             perms += android.Manifest.permission.READ_CONTACTS
-
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
             perms += android.Manifest.permission.SEND_SMS
-
-        if (perms.isNotEmpty())
-            ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
     }
 
+    // ================= STATE =================
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var input by remember { mutableStateOf("") }
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
     var expanded by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
     val modes = JarvisMode.values().toList()
 
+    // ================= UI =================
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                    listOf(Color.Black, Color(0xFF001520), Color.Black)
                 )
             )
     ) {
         GridBackground()
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
 
-            // HEADER
-            Text(
-                text = "JARVIS CORE INTERFACE",
-                fontSize = 22.sp,
-                color = JarvisBlue,
-                fontFamily = FontFamily.Monospace
+            // ===== HEADER =====
+            TopAppBar(
+                title = {
+                    Text(
+                        "J.A.R.V.I.S CHAT",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.6f)
+                )
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // MODE PANEL
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+            // ===== MODE SELECTOR =====
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
+            ) {
                 TextField(
                     value = currentMode.name,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("OPERATION MODE", color = JarvisBlue) },
+                    label = { Text("Select Mode", color = JarvisBlue) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedTextColor = JarvisBlue,
+                        unfocusedTextColor = JarvisBlue,
+                        cursorColor = JarvisBlue,
+                        focusedIndicatorColor = JarvisBlue,
+                        unfocusedIndicatorColor = JarvisBlue
+                    ),
                     modifier = Modifier
                         .menuAnchor()
-                        .fillMaxWidth(),
-                    colors = TextFieldDefaults.textFieldColors(
-                        containerColor = Color.Black,
-                        focusedTextColor = JarvisBlue,
-                        unfocusedTextColor = JarvisBlue
-                    )
+                        .fillMaxWidth()
                 )
 
-                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
                     modes.forEach { mode ->
                         DropdownMenuItem(
                             text = { Text(mode.name, color = JarvisBlue) },
@@ -122,84 +147,135 @@ fun JarvisChatScreen() {
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            TextButton(onClick = {
-                WorkModeManager.toggle(context)
-                currentMode = JarvisState.currentMode
-            }) {
-                Text("TOGGLE WORK MODE", color = JarvisBlue, fontFamily = FontFamily.Monospace)
+            Button(
+                onClick = {
+                    WorkModeManager.toggle(context)
+                    currentMode = JarvisState.currentMode
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Toggle Work Mode", color = Color.Black)
             }
 
-            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = JarvisBlue.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
 
-            // CHAT PANEL
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .border(1.dp, JarvisBlue.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
-                color = Color.Black.copy(alpha = 0.6f),
-                shape = RoundedCornerShape(10.dp)
+            // ===== CHAT LOG =====
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                reverseLayout = true
             ) {
-                LazyColumn(
-                    reverseLayout = true,
-                    modifier = Modifier.padding(12.dp)
-                ) {
-                    items(messages.reversed()) { msg ->
-                        Text(
-                            text = if (msg.isUser) "YOU > ${msg.text}" else "JARVIS > ${msg.text}",
-                            color = if (msg.isUser) Color.White else JarvisBlue,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    }
+                items(messages.reversed()) { msg ->
+                    Text(
+                        text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(6.dp)
+                    )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-
-            // INPUT PANEL
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // ===== INPUT BAR =====
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        JarvisBlue.copy(alpha = 0.4f),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 TextField(
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("COMMAND INPUT...", color = JarvisBlue.copy(alpha = 0.5f)) },
-                    colors = TextFieldDefaults.textFieldColors(
-                        containerColor = Color.Black,
+                    enabled = !isProcessing,
+                    placeholder = {
+                        Text(
+                            if (isProcessing) "Processing..." else "Command input…",
+                            fontFamily = FontFamily.Monospace,
+                            color = JarvisBlue.copy(alpha = 0.7f)
+                        )
+                    },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
                         focusedTextColor = JarvisBlue,
-                        unfocusedTextColor = JarvisBlue
+                        unfocusedTextColor = JarvisBlue,
+                        disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
+                        cursorColor = JarvisBlue,
+                        focusedIndicatorColor = JarvisBlue,
+                        unfocusedIndicatorColor = JarvisBlue,
+                        disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
                     )
                 )
 
-                Spacer(Modifier.width(10.dp))
-
-                Button(
+                // ✅ FIXED: Use generateReply instead of non-existent generateReplyAsync
+                IconButton(
                     onClick = {
                         val userText = input.trim()
-                        if (userText.isEmpty()) return@Button
+                        if (userText.isEmpty() || isProcessing) {
+                            Log.d(TAG, "Ignoring click: empty=${userText.isEmpty()} processing=$isProcessing")
+                            return@IconButton
+                        }
 
+                        Log.d(TAG, "Send button clicked: '$userText'")
                         input = ""
+                        isProcessing = true
                         messages.add(ChatMessage(userText, true))
-                        messages.add(ChatMessage("PROCESSING...", false))
+                        messages.add(ChatMessage("Processing…", false))
 
                         scope.launch {
-                            val result = EngineProvider.commandEngine.handle(userText)
-                            val reply = when (result) {
-                                is EngineResult.Success -> result.reply
-                                is EngineResult.Unhandled -> EngineProvider.llmEngine.generateReply(userText)
-                                else -> EngineProvider.llmEngine.generateReply(userText)
+                            try {
+                                Log.d(TAG, "Starting message processing...")
+                                
+                                // Try command engine first
+                                val result = EngineProvider.commandEngine.handle(userText)
+                                val reply = when (result) {
+                                    is EngineResult.Success -> {
+                                        Log.d(TAG, "Command engine handled: ${result.reply}")
+                                        result.reply
+                                    }
+                                    else -> {
+                                        Log.d(TAG, "Command not handled, trying LLM...")
+                                        val llmEngine = EngineProvider.llmEngine
+                                        
+                                        // ✅ FIXED: Call generateReply in IO context instead of non-existent generateReplyAsync
+                                        withContext(Dispatchers.IO) {
+                                            Log.d(TAG, "Calling generateReply on IO dispatcher...")
+                                            val llmReply = llmEngine.generateReply(userText)
+                                            Log.d(TAG, "LLM replied: ${llmReply.take(50)}...")
+                                            llmReply
+                                        }
+                                    }
+                                }
+                                
+                                Log.d(TAG, "Removing processing message and adding reply")
+                                messages.removeLastOrNull()
+                                messages.add(ChatMessage(reply, false))
+                                
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error processing message", e)
+                                messages.removeLastOrNull()
+                                messages.add(ChatMessage("Error: ${e.message ?: "Unknown error"}", false))
+                            } finally {
+                                Log.d(TAG, "Processing complete, resetting state")
+                                isProcessing = false
                             }
-
-                            messages.removeLast()
-                            messages.add(ChatMessage(reply, false))
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue)
+                    enabled = !isProcessing
                 ) {
-                    Text("SEND", color = Color.Black, fontFamily = FontFamily.Monospace)
+                    Icon(
+                        Icons.Default.Send, 
+                        "Send", 
+                        tint = if (isProcessing) JarvisBlue.copy(alpha = 0.3f) else JarvisBlue
+                    )
                 }
             }
         }
