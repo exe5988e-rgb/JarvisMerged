@@ -1,6 +1,7 @@
 #include "llama_context.h"
 #include <android/log.h>
 #include <vector>
+#include <cstring>
 
 #define TAG "LlamaContext"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -41,7 +42,7 @@ bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads)
         return false;
     }
     
-    // Minimal sampler chain - temperature + greedy
+    // Minimal sampler chain
     auto sparams = llama_sampler_chain_default_params();
     sampler_ = llama_sampler_chain_init(sparams);
     llama_sampler_chain_add(sampler_, llama_sampler_init_temp(0.7f));
@@ -57,36 +58,39 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
         return "";
     }
     
-    // Tokenize - Updated API
-    std::vector<llama_token> tokens;
-    tokens.resize(prompt.size() + 128);
+    // Allocate buffer for tokens
+    std::vector<llama_token> tokens(prompt.size() + 128);
     
-    // New API: llama_tokenize(model, text, text_len, tokens, n_tokens_max, add_special, parse_special)
-    int n_tokens = llama_tokenize(
-        model_, 
+    // Try tokenization with different possible signatures
+    int n_tokens = -1;
+    
+    // Attempt 1: Modern API (text, text_len, tokens, n_tokens_max, add_special, parse_special)
+    n_tokens = llama_tokenize(
+        model_,
         prompt.c_str(),
-        (int)prompt.length(),  // text_len
+        static_cast<int>(prompt.length()),
         tokens.data(),
-        (int)tokens.size(),     // n_tokens_max
-        true,                   // add_special (add BOS)
-        true                    // parse_special
+        static_cast<int>(tokens.size()),
+        true,  // add_special
+        true   // parse_special
     );
     
+    // If buffer too small, resize and retry
     if (n_tokens < 0) {
         tokens.resize(-n_tokens);
         n_tokens = llama_tokenize(
-            model_, 
+            model_,
             prompt.c_str(),
-            (int)prompt.length(),
+            static_cast<int>(prompt.length()),
             tokens.data(),
-            (int)tokens.size(),
+            static_cast<int>(tokens.size()),
             true,
             true
         );
     }
     
     if (n_tokens <= 0) {
-        LOGE("Tokenization failed");
+        LOGE("Tokenization failed with n_tokens=%d", n_tokens);
         return "";
     }
     
@@ -102,26 +106,58 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
     }
     
     std::string result;
+    result.reserve(max_tokens * 4); // Pre-allocate space
     
     // Generate tokens
     for (int i = 0; i < max_tokens; i++) {
         llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
         
-        // Check for EOS/EOG token
-        if (llama_token_is_eog(model_, new_token)) {
+        // Check for end-of-generation token
+        // Try different API variants
+        bool is_eog = false;
+        
+        // Method 1: Try llama_token_is_eog with model
+        is_eog = llama_token_is_eog(model_, new_token);
+        
+        if (is_eog) {
+            LOGI("EOG token detected at position %d", i);
             break;
         }
         
-        // Updated API: llama_token_to_piece signature changed
+        // Convert token to text
         char buf[256];
-        int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, true);
-        if (n > 0) {
-            result.append(buf, n);
+        int piece_len = llama_token_to_piece(
+            model_,
+            new_token,
+            buf,
+            sizeof(buf),
+            0,     // lstrip
+            true   // special
+        );
+        
+        if (piece_len > 0) {
+            result.append(buf, piece_len);
+        } else if (piece_len < 0) {
+            // Buffer too small, try again with exact size
+            std::vector<char> large_buf(-piece_len);
+            piece_len = llama_token_to_piece(
+                model_,
+                new_token,
+                large_buf.data(),
+                large_buf.size(),
+                0,
+                true
+            );
+            if (piece_len > 0) {
+                result.append(large_buf.data(), piece_len);
+            }
         }
         
+        // Prepare next decode
         batch = llama_batch_get_one(&new_token, 1);
         
         if (llama_decode(ctx_, batch) != 0) {
+            LOGE("Decode failed at token %d", i);
             break;
         }
     }
