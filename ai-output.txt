@@ -1,225 +1,689 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
-package com.jarvismini.engine
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/AIService.kt =====
+package com.jarvismini.engine.ai
 
 import android.content.Context
-import android.os.Build
-import android.os.Environment
 import android.util.Log
-import com.jarvismini.engine.ai.AIService
-import com.jarvismini.engine.ai.ModelConfig
-import com.jarvismini.engine.ai.ModelType
 import kotlinx.coroutines.*
 import java.io.File
 
-/**
- * FIXED VERSION - Proper coroutine handling to prevent UI blocking and crashes
- * 
- * KEY FIXES:
- * 1. Changed generateReply to be a suspend function
- * 2. Removed runBlocking that was freezing the UI thread
- * 3. Proper timeout handling
- * 4. Better error messages for debugging
- * 5. FIXED: 'if' expression now has proper else branch (line 144 error)
- */
-object LlamaLLMEngine : LLMEngine {
-    
-    private const val TAG = "LlamaLLMEngine"
-    private var chatService: AIService? = null
-    private var codeService: AIService? = null
+class AIService(private val context: Context) {
+    private var handle: Long = 0
     private var isInitialized = false
-    private var appContext: Context? = null
-    
-    private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    
-    private fun getModelsDir(): File {
-        val externalStorage = Environment.getExternalStorageDirectory()
-        return File(externalStorage, "JarvisModels")
-    }
-    
-    private val chatModelConfig = ModelConfig(
-        type = ModelType.CHAT,
-        name = "Phi-2",
-        filename = "phi-2.Q4_K_M.gguf",
-        contextSize = 2048,
-        threads = 4
-    )
-    
-    private val codeModelConfig = ModelConfig(
-        type = ModelType.CODE,
-        name = "DeepSeek Coder",
-        filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
-        contextSize = 2048,
-        threads = 4
-    )
+    private var currentModelPath: String? = null
 
-    override fun init(context: Context) {
-        if (isInitialized) {
-            Log.d(TAG, "Already initialized")
-            return
-        }
-        
-        appContext = context.applicationContext
-        isInitialized = true
-        
-        val modelsDir = getModelsDir()
-        
-        Log.d(TAG, "=== INITIALIZING JARVIS LLM ENGINE ===")
-        Log.d(TAG, "Models directory: ${modelsDir.absolutePath}")
-        Log.d(TAG, "Directory exists: ${modelsDir.exists()}")
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val hasPermission = Environment.isExternalStorageManager()
-            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE: $hasPermission")
-            if (!hasPermission) {
-                Log.e(TAG, "❌ NO PERMISSION - Please grant file access in settings")
-                return
-            }
-        }
-        
-        // Load models asynchronously
-        engineScope.launch {
-            loadModels(modelsDir)
-        }
+    companion object {
+        private const val TAG = "AIService"
     }
     
-    private suspend fun loadModels(modelsDir: File) = withContext(Dispatchers.IO) {
+    suspend fun initializeWithPath(
+        modelPath: String,
+        nCtx: Int = 2048,
+        nThreads: Int = 4
+    ): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Load chat model
-            val chatModelPath = File(modelsDir, chatModelConfig.filename)
-            if (chatModelPath.exists() && chatModelPath.canRead()) {
-                try {
-                    Log.i(TAG, "Loading chat model...")
-                    val service = AIService(appContext!!)
-                    
-                    val success = service.initializeWithPath(
-                        chatModelPath.absolutePath,
-                        chatModelConfig.contextSize,
-                        chatModelConfig.threads
-                    )
-                    
-                    if (success) {
-                        chatService = service
-                        Log.i(TAG, "✅ Chat model loaded successfully")
-                    } else {
-                        Log.e(TAG, "❌ Chat model failed to load")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ Chat model error: ${e.message}", e)
-                }
+            Log.d(TAG, "Initializing with: $modelPath")
+            
+            val modelFile = File(modelPath)
+            if (!modelFile.exists()) {
+                Log.e(TAG, "Model not found: $modelPath")
+                return@withContext false
+            }
+            
+            Log.d(TAG, "Model size: ${modelFile.length() / (1024 * 1024)} MB")
+            
+            handle = LlamaNative.nativeInit()
+            
+            if (handle == 0L) {
+                Log.e(TAG, "Failed to create context")
+                return@withContext false
+            }
+            
+            Log.d(TAG, "Loading model (ctx=$nCtx, threads=$nThreads)...")
+            
+            // ✅ NEW: Add timeout to model loading
+            val loaded = withTimeout(120000L) {  // 2 minutes max for loading
+                LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
+            }
+            
+            if (loaded) {
+                isInitialized = true
+                currentModelPath = modelPath
+                Log.i(TAG, "✅ Model loaded: ${modelFile.name}")
             } else {
-                Log.w(TAG, "Chat model not found: ${chatModelPath.absolutePath}")
+                Log.e(TAG, "❌ Load failed")
+                LlamaNative.nativeRelease(handle)
+                handle = 0
             }
             
-            // Small delay between loading models
-            delay(1000)
-            
-            // Load code model
-            val codeModelPath = File(modelsDir, codeModelConfig.filename)
-            if (codeModelPath.exists() && codeModelPath.canRead()) {
-                try {
-                    Log.i(TAG, "Loading code model...")
-                    val service = AIService(appContext!!)
-                    
-                    val success = service.initializeWithPath(
-                        codeModelPath.absolutePath,
-                        codeModelConfig.contextSize,
-                        codeModelConfig.threads
-                    )
-                    
-                    if (success) {
-                        codeService = service
-                        Log.i(TAG, "✅ Code model loaded successfully")
-                    } else {
-                        Log.e(TAG, "❌ Code model failed to load")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ Code model error: ${e.message}", e)
-                }
-            } else {
-                Log.w(TAG, "Code model not found: ${codeModelPath.absolutePath}")
+            loaded
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "❌ Model loading timeout (2 min)")
+            if (handle != 0L) {
+                LlamaNative.nativeRelease(handle)
+                handle = 0
             }
-            
-            Log.d(TAG, "=== LOADING COMPLETE ===")
-            Log.d(TAG, "Chat: ${chatService != null}, Code: ${codeService != null}")
-            
-            if (chatService == null && codeService == null) {
-                Log.e(TAG, "⚠️ No models loaded. Please place .gguf files in ${modelsDir.absolutePath}")
-            }
-            
+            false
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Fatal error during model loading", e)
+            Log.e(TAG, "Error: ${e.message}", e)
+            if (handle != 0L) {
+                LlamaNative.nativeRelease(handle)
+                handle = 0
+            }
+            false
         }
     }
 
     /**
-     * ✅ FIXED: Changed to suspend function instead of blocking
-     * This prevents UI freezing and crashes
+     * ✅ IMPROVED: Better timeout handling for generation
      */
-    override suspend fun generateReply(prompt: String): String {
-        if (!isInitialized) {
-            Log.w(TAG, "Engine not initialized yet")
-            return "AI engine is initializing... Please wait a moment."
-        }
-        
-        if (chatService == null && codeService == null) {
-            Log.e(TAG, "No models available")
-            val modelsDir = getModelsDir()
-            return "No AI models loaded. Please place model files in:\n${modelsDir.absolutePath}"
-        }
-        
-        val isCodeRequest = isCodeRelated(prompt)
-        
-        return withContext(Dispatchers.IO) {
+    suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
+        withContext(Dispatchers.IO) {
+            if (!isInitialized || handle == 0L) {
+                Log.e(TAG, "Not initialized")
+                return@withContext ""
+            }
+            
             try {
-                // ✅ FIXED: Properly handle the if expression with all branches
-                withTimeout(30000L) {
-                    when {
-                        isCodeRequest && codeService != null -> {
-                            Log.d(TAG, "Using code model for generation")
-                            val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
-                            codeService!!.generate(formattedPrompt, maxTokens = 256, temperature = 0.2f)
-                        }
-                        chatService != null -> {
-                            Log.d(TAG, "Using chat model for generation")
-                            chatService!!.generate(prompt, maxTokens = 128, temperature = 0.7f)
-                        }
-                        else -> {
-                            "Models are still loading... Please wait a few more seconds."
-                        }
-                    }
+                Log.d(TAG, "Generating (${prompt.take(30)}...)")
+                
+                // ✅ IMPROVED: Timeout wraps native call
+                // Note: This may not interrupt native code, but prevents infinite Kotlin wait
+                withTimeout(45000L) {  // 45 seconds for generation
+                    val result = LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+                    Log.d(TAG, "Generation complete (${result.length} chars)")
+                    result
                 }
             } catch (e: TimeoutCancellationException) {
-                Log.e(TAG, "Generation timeout after 30 seconds")
-                "Request timed out. Try a shorter prompt or wait for the model to warm up."
-            } catch (e: CancellationException) {
-                Log.w(TAG, "Generation cancelled")
-                "Request cancelled."
+                Log.e(TAG, "⏱️ Generation timeout - native call may still be running")
+                // Attempt to stop generation
+                try {
+                    LlamaNative.nativeStopGeneration(handle)
+                } catch (stopError: Exception) {
+                    Log.e(TAG, "Failed to stop generation: ${stopError.message}")
+                }
+                ""
             } catch (e: Exception) {
                 Log.e(TAG, "Generation error: ${e.message}", e)
-                "Error generating response: ${e.message ?: "Unknown error"}"
+                ""
+            }
+        }
+    
+    fun stopGeneration() {
+        if (handle != 0L) {
+            try {
+                LlamaNative.nativeStopGeneration(handle)
+                Log.d(TAG, "Stop signal sent")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop: ${e.message}")
             }
         }
     }
-    
-    private fun isCodeRelated(prompt: String): Boolean {
-        val codeKeywords = listOf(
-            "code", "program", "function", "class", "method",
-            "python", "java", "kotlin", "javascript", "c++",
-            "algorithm", "implement", "debug", "fix", "refactor"
-        )
-        return codeKeywords.any { prompt.lowercase().contains(it) }
+
+    fun release() {
+        if (handle != 0L) {
+            Log.d(TAG, "Releasing model")
+            LlamaNative.nativeRelease(handle)
+            handle = 0
+            isInitialized = false
+            currentModelPath = null
+        }
     }
     
-    fun release() {
-        try {
-            chatService?.release()
-            codeService?.release()
-        } catch (e: Exception) {
-            Log.e(TAG, "Release error", e)
+    fun isReady(): Boolean = isInitialized && handle != 0L
+    fun getCurrentModel(): String? = currentModelPath
+}
+
+
+//===== FILE: app/src/main/res/layout/view_model_selector.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="?attr/colorSurface"
+    android:elevation="4dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvModelSelectorTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="AI Model"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/tvModelStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ready"
+            android:textSize="12sp"
+            android:textColor="?attr/colorPrimary"
+            android:paddingStart="8dp"
+            android:paddingEnd="0dp" />
+
+    </LinearLayout>
+
+    <!-- Model Selection Spinner/Dropdown -->
+    <Spinner
+        android:id="@+id/spinnerModelSelect"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackground"
+        android:spinnerMode="dropdown" />
+
+    <!-- Loading Progress (hidden when ready) -->
+    <LinearLayout
+        android:id="@+id/layoutLoading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="8dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/progressModelLoading"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:indeterminate="true" />
+
+        <TextView
+            android:id="@+id/tvLoadingMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="Loading models..."
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+    </LinearLayout>
+
+    <!-- Model Info (expandable) -->
+    <TextView
+        android:id="@+id/tvModelInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="11sp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:text="Auto: Smart selection based on your prompt"
+        android:paddingTop="4dp" />
+
+</LinearLayout>
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ModelSelectorView.kt =====
+package com.jarvismini.ui
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.*
+import androidx.constraintlayout.widget.ConstraintLayout
+import com.jarvismini.R
+import com.jarvismini.engine.LlamaLLMEngine
+import com.jarvismini.engine.ModelStatus
+import kotlinx.coroutines.*
+
+/**
+ * ✅ NEW: Model selector UI component
+ * Allows users to choose between Auto, Chat, and Code models
+ */
+class ModelSelectorView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : ConstraintLayout(context, attrs, defStyleAttr) {
+
+    private val tvStatus: TextView
+    private val spinnerModelSelect: Spinner
+    private val layoutLoading: View
+    private val progressLoading: ProgressBar
+    private val tvLoadingMessage: TextView
+    private val tvModelInfo: TextView
+
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var statusCheckJob: Job? = null
+
+    private val modelOptions = mutableListOf<ModelOption>()
+    private var adapter: ModelAdapter? = null
+
+    init {
+        LayoutInflater.from(context).inflate(R.layout.view_model_selector, this, true)
+
+        tvStatus = findViewById(R.id.tvModelStatus)
+        spinnerModelSelect = findViewById(R.id.spinnerModelSelect)
+        layoutLoading = findViewById(R.id.layoutLoading)
+        progressLoading = findViewById(R.id.progressModelLoading)
+        tvLoadingMessage = findViewById(R.id.tvLoadingMessage)
+        tvModelInfo = findViewById(R.id.tvModelInfo)
+
+        setupSpinner()
+        startStatusMonitoring()
+    }
+
+    private fun setupSpinner() {
+        adapter = ModelAdapter(context, modelOptions)
+        spinnerModelSelect.adapter = adapter
+
+        spinnerModelSelect.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selected = modelOptions.getOrNull(position) ?: return
+                LlamaLLMEngine.selectedModel = selected.id
+                updateModelInfo(selected)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
-        chatService = null
-        codeService = null
-        isInitialized = false
-        appContext = null
+    }
+
+    private fun startStatusMonitoring() {
+        statusCheckJob = scope.launch {
+            while (isActive) {
+                updateStatus()
+                delay(1000)  // Check every second
+            }
+        }
+    }
+
+    private suspend fun updateStatus() {
+        val status = withContext(Dispatchers.IO) {
+            LlamaLLMEngine.getModelStatus()
+        }
+
+        updateUI(status)
+    }
+
+    private fun updateUI(status: ModelStatus) {
+        // Update loading indicator
+        if (status.isLoading) {
+            layoutLoading.visibility = View.VISIBLE
+            tvStatus.text = "Loading..."
+            tvStatus.setTextColor(context.getColor(android.R.color.holo_orange_light))
+            spinnerModelSelect.isEnabled = false
+        } else {
+            layoutLoading.visibility = View.GONE
+            spinnerModelSelect.isEnabled = true
+
+            val readyCount = listOf(status.chatReady, status.codeReady).count { it }
+            tvStatus.text = when {
+                readyCount == 0 -> "No models"
+                readyCount == 1 -> "1 model ready"
+                else -> "$readyCount models ready"
+            }
+            tvStatus.setTextColor(
+                if (readyCount > 0) context.getColor(android.R.color.holo_green_light)
+                else context.getColor(android.R.color.holo_red_light)
+            )
+        }
+
+        // Update available models
+        updateAvailableModels(status)
+    }
+
+    private fun updateAvailableModels(status: ModelStatus) {
+        val newOptions = mutableListOf<ModelOption>()
+
+        // Always add Auto option
+        newOptions.add(ModelOption("auto", "Auto", "Smart selection based on prompt"))
+
+        // Add available models
+        if (status.chatReady) {
+            newOptions.add(ModelOption("chat", "Chat (Phi-2)", "General conversation & questions"))
+        }
+        if (status.codeReady) {
+            newOptions.add(ModelOption("code", "Code (DeepSeek)", "Programming & code generation"))
+        }
+
+        // Only update if changed
+        if (newOptions != modelOptions) {
+            modelOptions.clear()
+            modelOptions.addAll(newOptions)
+            adapter?.notifyDataSetChanged()
+
+            // Restore selection if possible
+            val currentSelection = LlamaLLMEngine.selectedModel
+            val index = modelOptions.indexOfFirst { it.id == currentSelection }
+            if (index >= 0) {
+                spinnerModelSelect.setSelection(index)
+            }
+        }
+    }
+
+    private fun updateModelInfo(option: ModelOption) {
+        tvModelInfo.text = option.description
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        statusCheckJob?.cancel()
+        scope.cancel()
+    }
+
+    private data class ModelOption(
+        val id: String,
+        val name: String,
+        val description: String
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is ModelOption) return false
+            return id == other.id
+        }
+
+        override fun hashCode(): Int = id.hashCode()
+    }
+
+    private class ModelAdapter(
+        context: Context,
+        private val options: List<ModelOption>
+    ) : ArrayAdapter<ModelOption>(context, android.R.layout.simple_spinner_item, options) {
+
+        init {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+
+        override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+            val view = super.getView(position, convertView, parent)
+            (view as? TextView)?.text = options[position].name
+            return view
+        }
+
+        override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+            val view = super.getDropDownView(position, convertView, parent)
+            (view as? TextView)?.text = options[position].name
+            return view
+        }
     }
 }
+
+
+//===== FILE: app/src/main/res/layout/activity_chat.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorBackground">
+
+    <!-- Header with Model Selector -->
+    <LinearLayout
+        android:id="@+id/headerLayout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Title Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?attr/colorPrimary"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <ImageView
+                android:id="@+id/btnBack"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_arrow_back"
+                android:contentDescription="Back"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="J.A.R.V.I.S CHAT"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnPrimary"
+                android:layout_marginStart="8dp" />
+
+            <ImageView
+                android:id="@+id/btnSettings"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_settings"
+                android:contentDescription="Settings" />
+
+        </LinearLayout>
+
+        <!-- Model Selector -->
+        <com.jarvismini.ui.ModelSelectorView
+            android:id="@+id/modelSelector"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </LinearLayout>
+
+    <!-- Messages RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvMessages"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@id/headerLayout"
+        app:layout_constraintBottom_toTopOf="@id/inputLayout"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:listitem="@layout/item_message" />
+
+    <!-- Input Layout -->
+    <LinearLayout
+        android:id="@+id/inputLayout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:gravity="center_vertical"
+        android:background="?attr/colorSurface"
+        android:elevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <EditText
+            android:id="@+id/etMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Processing..."
+            android:textSize="16sp"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:minHeight="48dp"
+            android:maxLines="4"
+            android:inputType="textMultiLine|textCapSentences" />
+
+        <ImageButton
+            android:id="@+id/btnSend"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_send"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Send"
+            android:tint="?attr/colorPrimary" />
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
+package com.jarvismini
+
+import android.os.Bundle
+import android.view.View
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.jarvismini.engine.LlamaLLMEngine
+import com.jarvismini.ui.ModelSelectorView
+import kotlinx.coroutines.launch
+
+/**
+ * ✅ UPDATED: Chat activity with model selector integration
+ */
+class ChatActivity : AppCompatActivity() {
+
+    private lateinit var rvMessages: RecyclerView
+    private lateinit var etMessage: EditText
+    private lateinit var btnSend: ImageButton
+    private lateinit var modelSelector: ModelSelectorView
+
+    private val messages = mutableListOf<ChatMessage>()
+    private lateinit var adapter: ChatAdapter
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_chat)
+
+        initViews()
+        setupRecyclerView()
+        setupListeners()
+    }
+
+    private fun initViews() {
+        rvMessages = findViewById(R.id.rvMessages)
+        etMessage = findViewById(R.id.etMessage)
+        btnSend = findViewById(R.id.btnSend)
+        modelSelector = findViewById(R.id.modelSelector)
+    }
+
+    private fun setupRecyclerView() {
+        adapter = ChatAdapter(messages)
+        rvMessages.adapter = adapter
+        rvMessages.layoutManager = LinearLayoutManager(this).apply {
+            stackFromEnd = true
+        }
+    }
+
+    private fun setupListeners() {
+        btnSend.setOnClickListener {
+            sendMessage()
+        }
+
+        etMessage.setOnEditorActionListener { _, _, _ ->
+            sendMessage()
+            true
+        }
+    }
+
+    private fun sendMessage() {
+        val text = etMessage.text.toString().trim()
+        if (text.isEmpty()) return
+
+        // ✅ NEW: Check if models are still loading
+        if (LlamaLLMEngine.isLoading) {
+            Toast.makeText(
+                this,
+                "⏳ Models are still loading... Please wait a moment.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        // Add user message
+        val userMessage = ChatMessage(text, isUser = true)
+        messages.add(userMessage)
+        adapter.notifyItemInserted(messages.size - 1)
+        rvMessages.scrollToPosition(messages.size - 1)
+
+        // Clear input
+        etMessage.text.clear()
+
+        // Disable input while processing
+        etMessage.isEnabled = false
+        btnSend.isEnabled = false
+        etMessage.hint = "Processing..."
+
+        // Add "thinking" indicator
+        val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
+        messages.add(thinkingMessage)
+        val thinkingIndex = messages.size - 1
+        adapter.notifyItemInserted(thinkingIndex)
+        rvMessages.scrollToPosition(thinkingIndex)
+
+        // Generate reply
+        lifecycleScope.launch {
+            try {
+                val reply = LlamaLLMEngine.generateReply(text)
+
+                // Remove thinking indicator
+                messages.removeAt(thinkingIndex)
+                adapter.notifyItemRemoved(thinkingIndex)
+
+                // Add actual reply
+                val replyMessage = ChatMessage(reply, isUser = false)
+                messages.add(replyMessage)
+                adapter.notifyItemInserted(messages.size - 1)
+                rvMessages.scrollToPosition(messages.size - 1)
+
+            } catch (e: Exception) {
+                // Remove thinking indicator
+                messages.removeAt(thinkingIndex)
+                adapter.notifyItemRemoved(thinkingIndex)
+
+                // Show error
+                val errorMessage = ChatMessage(
+                    "❌ Error: ${e.message}",
+                    isUser = false
+                )
+                messages.add(errorMessage)
+                adapter.notifyItemInserted(messages.size - 1)
+                rvMessages.scrollToPosition(messages.size - 1)
+
+            } finally {
+                // Re-enable input
+                etMessage.isEnabled = true
+                btnSend.isEnabled = true
+                etMessage.hint = "Type a message..."
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Release resources if this is the last activity
+        if (isFinishing) {
+            // Note: Only release if app is actually closing
+            // LlamaLLMEngine.release()
+        }
+    }
+}
+
+data class ChatMessage(
+    val text: String,
+    val isUser: Boolean,
+    val isThinking: Boolean = false
+)
+
