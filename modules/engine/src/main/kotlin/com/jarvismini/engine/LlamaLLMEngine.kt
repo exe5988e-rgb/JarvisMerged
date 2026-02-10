@@ -3,9 +3,9 @@ package com.jarvismini.engine
 import android.content.Context
 import android.os.Environment
 import android.util.Log
-import com.jarvis.ai.engine.AIService
-import com.jarvis.ai.engine.ModelConfig
-import com.jarvis.ai.engine.ModelType
+import com.jarvismini.engine.ai.AIService
+import com.jarvismini.engine.ai.ModelConfig
+import com.jarvismini.engine.ai.ModelType
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
