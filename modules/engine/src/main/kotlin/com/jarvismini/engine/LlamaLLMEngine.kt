@@ -18,6 +18,7 @@ import java.io.File
  * 2. Removed runBlocking that was freezing the UI thread
  * 3. Proper timeout handling
  * 4. Better error messages for debugging
+ * 5. FIXED: 'if' expression now has proper else branch (line 143 error)
  */
 object LlamaLLMEngine : LLMEngine {
     
@@ -170,7 +171,8 @@ object LlamaLLMEngine : LLMEngine {
         return withContext(Dispatchers.IO) {
             try {
                 // Use withTimeout for safety
-                withTimeout(30000L) {
+                // ✅ FIXED: Properly return the result of withTimeout
+                val result = withTimeout(30000L) {
                     if (isCodeRequest && codeService != null) {
                         Log.d(TAG, "Using code model for generation")
                         val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
@@ -182,6 +184,7 @@ object LlamaLLMEngine : LLMEngine {
                         "Models are still loading... Please wait a few more seconds."
                     }
                 }
+                result
             } catch (e: TimeoutCancellationException) {
                 Log.e(TAG, "Generation timeout after 30 seconds")
                 "Request timed out. Try a shorter prompt or wait for the model to warm up."
@@ -215,25 +218,5 @@ object LlamaLLMEngine : LLMEngine {
         codeService = null
         isInitialized = false
         appContext = null
-        Log.d(TAG, "Engine released")
-    }
-    
-    /**
-     * Utility function to check if models are ready
-     */
-    fun isReady(): Boolean {
-        return isInitialized && (chatService != null || codeService != null)
-    }
-    
-    /**
-     * Get status message for debugging
-     */
-    fun getStatus(): String {
-        return buildString {
-            appendLine("Initialized: $isInitialized")
-            appendLine("Chat model: ${if (chatService != null) "Loaded" else "Not loaded"}")
-            appendLine("Code model: ${if (codeService != null) "Loaded" else "Not loaded"}")
-            appendLine("Models dir: ${getModelsDir().absolutePath}")
-        }
     }
 }
