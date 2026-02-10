@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.22.1)
 project(jarvis_ai)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -fno-exceptions")
+
+# ✅ CHANGED: -fno-exceptions → -fexceptions
+# llama.cpp now requires exceptions for try/catch/throw
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -fexceptions")
 
 # llama.cpp configuration
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
