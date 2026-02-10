@@ -30,6 +30,9 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   ├── com
 │   │   │   │   │   ├── jarvis
 │   │   │   │   │   │   ├── ai
+│   │   │   │   │   │   │   ├── engine
+│   │   │   │   │   │   │   │   ├── AIService.kt
+│   │   │   │   │   │   │   │   ├── ModelConfig.kt
 │   │   │   │   │   │   │   ├── native
 │   │   │   │   │   │   │   │   ├── LlamaNative.kt
 │   │   │   │   │   ├── jarvismini
@@ -282,6 +285,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── IntentParser.kt
 │   │   │   │   │   │   │   │   ├── JarvisReplyGenerator.kt
 │   │   │   │   │   │   │   │   ├── LLMEngine.kt
+│   │   │   │   │   │   │   │   ├── LlamaLLMEngine.kt
 │   │   │   │   │   │   │   │   ├── LocalRuleLLMEngine.kt
 │   │   │   │   │   │   │   │   ├── ReplyReason.kt
 │   │   │   │   │   │   │   │   ├── ReplyToneResolver.kt
@@ -461,6 +465,12 @@ dependencies {
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    
+    <!-- ✅ NEW: Storage permissions for model access -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <uses-feature
         android:name="android.hardware.telephony"
@@ -488,7 +498,8 @@ dependencies {
         android:supportsRtl="true"
         android:theme="@style/Theme.JarvisMerged"
         android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config">
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true">
 
         <!-- ================= MAIN ACTIVITY ================= -->
 
@@ -827,6 +838,95 @@ Java_com_jarvis_ai_native_LlamaNative_nativeRelease(JNIEnv*, jobject, jlong hand
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
     delete ctx;
 }
+
+
+//===== FILE: app/src/main/java/com/jarvis/ai/engine/AIService.kt =====
+package com.jarvis.ai.engine
+
+import android.util.Log
+import com.jarvis.ai.native.LlamaNative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+class AIService {
+    private var handle: Long = 0
+    private var isInitialized = false
+
+    suspend fun initialize(modelPath: String, nCtx: Int = 2048, nThreads: Int = 4): Boolean = 
+        withContext(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "Initializing AIService")
+                handle = LlamaNative.nativeInit()
+                
+                if (handle == 0L) {
+                    Log.e(TAG, "Failed to create native context")
+                    return@withContext false
+                }
+                
+                Log.d(TAG, "Loading model: $modelPath")
+                val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
+                
+                if (loaded) {
+                    isInitialized = true
+                    Log.d(TAG, "Model loaded successfully")
+                } else {
+                    Log.e(TAG, "Failed to load model")
+                    LlamaNative.nativeRelease(handle)
+                    handle = 0
+                }
+                
+                loaded
+            } catch (e: Exception) {
+                Log.e(TAG, "Error initializing AIService", e)
+                false
+            }
+        }
+
+    suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
+        withContext(Dispatchers.IO) {
+            if (!isInitialized || handle == 0L) {
+                Log.e(TAG, "Service not initialized")
+                return@withContext ""
+            }
+            
+            try {
+                Log.d(TAG, "Generating response for prompt: ${prompt.take(50)}...")
+                LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating response", e)
+                ""
+            }
+        }
+
+    fun release() {
+        if (handle != 0L) {
+            Log.d(TAG, "Releasing AIService")
+            LlamaNative.nativeRelease(handle)
+            handle = 0
+            isInitialized = false
+        }
+    }
+
+    companion object {
+        private const val TAG = "AIService"
+    }
+}
+
+
+//===== FILE: app/src/main/java/com/jarvis/ai/engine/ModelConfig.kt =====
+package com.jarvis.ai.engine
+
+enum class ModelType {
+    CHAT, CODE
+}
+
+data class ModelConfig(
+    val type: ModelType,
+    val name: String,
+    val filename: String,
+    val contextSize: Int = 2048,
+    val threads: Int = 4
+)
 
 
 //===== FILE: app/src/main/java/com/jarvis/ai/native/LlamaNative.kt =====
@@ -8203,8 +8303,9 @@ object EngineProvider {
     private lateinit var engines: List<CommandEngine>
 
     // ---------------- LLM ENGINE ----------------
-
-    private val llmEngineInstance: LLMEngine = StubLLMEngine
+    
+    // ✅ CHANGED: Use LlamaLLMEngine instead of StubLLMEngine
+    private val llmEngineInstance: LLMEngine = LlamaLLMEngine
 
     /**
      * Must be called once from Application.onCreate()
@@ -8223,6 +8324,7 @@ object EngineProvider {
             stubCommandEngine
         )
 
+        // ✅ Initialize Llama engine
         llmEngineInstance.init(appContext)
     }
 
@@ -8340,6 +8442,169 @@ import android.content.Context
 interface LLMEngine {
     fun init(context: Context)
     fun generateReply(prompt: String): String
+}
+
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+import android.os.Environment
+import android.util.Log
+import com.jarvis.ai.engine.AIService
+import com.jarvis.ai.engine.ModelConfig
+import com.jarvis.ai.engine.ModelType
+import kotlinx.coroutines.runBlocking
+import java.io.File
+
+object LlamaLLMEngine : LLMEngine {
+    
+    private const val TAG = "LlamaLLMEngine"
+    private var chatService: AIService? = null
+    private var codeService: AIService? = null
+    private var isInitialized = false
+    
+    private val modelsDir = File(Environment.getExternalStorageDirectory(), "JarvisModels")
+    
+    // Model configurations
+    private val chatModelConfig = ModelConfig(
+        type = ModelType.CHAT,
+        name = "Phi-2",
+        filename = "phi-2.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+    
+    private val codeModelConfig = ModelConfig(
+        type = ModelType.CODE,
+        name = "DeepSeek Coder",
+        filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+
+    override fun init(context: Context) {
+        if (isInitialized) {
+            Log.d(TAG, "Already initialized")
+            return
+        }
+        
+        Log.d(TAG, "Initializing LlamaLLMEngine")
+        
+        // Load models asynchronously
+        runBlocking {
+            // Try to load chat model
+            val chatModelPath = File(modelsDir, chatModelConfig.filename)
+            if (chatModelPath.exists() && chatModelPath.canRead()) {
+                try {
+                    val service = AIService()
+                    val success = service.initialize(
+                        chatModelPath.absolutePath,
+                        chatModelConfig.contextSize,
+                        chatModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        chatService = service
+                        Log.i(TAG, "Chat model loaded: ${chatModelConfig.name}")
+                    } else {
+                        Log.e(TAG, "Failed to load chat model")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading chat model", e)
+                }
+            } else {
+                Log.w(TAG, "Chat model not found at: ${chatModelPath.absolutePath}")
+            }
+            
+            // Try to load code model
+            val codeModelPath = File(modelsDir, codeModelConfig.filename)
+            if (codeModelPath.exists() && codeModelPath.canRead()) {
+                try {
+                    val service = AIService()
+                    val success = service.initialize(
+                        codeModelPath.absolutePath,
+                        codeModelConfig.contextSize,
+                        codeModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        codeService = service
+                        Log.i(TAG, "Code model loaded: ${codeModelConfig.name}")
+                    } else {
+                        Log.e(TAG, "Failed to load code model")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading code model", e)
+                }
+            } else {
+                Log.w(TAG, "Code model not found at: ${codeModelPath.absolutePath}")
+            }
+        }
+        
+        isInitialized = true
+        
+        if (chatService == null && codeService == null) {
+            Log.w(TAG, "No models loaded. Place models in: ${modelsDir.absolutePath}")
+        }
+    }
+
+    override fun generateReply(prompt: String): String {
+        if (!isInitialized) {
+            Log.e(TAG, "Not initialized")
+            return "AI is initializing. Please try again."
+        }
+        
+        // Determine if this is a code request
+        val isCodeRequest = isCodeRelated(prompt)
+        
+        return runBlocking {
+            try {
+                if (isCodeRequest && codeService != null) {
+                    Log.d(TAG, "Using code model for: ${prompt.take(50)}...")
+                    val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
+                    codeService!!.generate(formattedPrompt, maxTokens = 512, temperature = 0.2f)
+                } else if (chatService != null) {
+                    Log.d(TAG, "Using chat model for: ${prompt.take(50)}...")
+                    chatService!!.generate(prompt, maxTokens = 256, temperature = 0.7f)
+                } else {
+                    // Fallback to stub response
+                    Log.w(TAG, "No model available for generation")
+                    "I'm Jarvis. My AI models are not loaded. Please ensure models are in /sdcard/JarvisModels/"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating reply", e)
+                "Error generating response: ${e.message}"
+            }
+        }
+    }
+    
+    /**
+     * Detect if the prompt is code-related
+     */
+    private fun isCodeRelated(prompt: String): Boolean {
+        val codeKeywords = listOf(
+            "code", "program", "function", "class", "method",
+            "python", "java", "kotlin", "javascript", "c++",
+            "algorithm", "implement", "debug", "fix", "refactor",
+            "write code", "create a", "develop"
+        )
+        
+        val lowerPrompt = prompt.lowercase()
+        return codeKeywords.any { lowerPrompt.contains(it) }
+    }
+    
+    /**
+     * Release models
+     */
+    fun release() {
+        chatService?.release()
+        codeService?.release()
+        chatService = null
+        codeService = null
+        isInitialized = false
+        Log.d(TAG, "Released all models")
+    }
 }
 
 
