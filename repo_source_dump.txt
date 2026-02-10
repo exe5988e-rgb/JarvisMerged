@@ -28,10 +28,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   ├── native_bridge.cpp
 │   │   │   ├── java
 │   │   │   │   ├── com
-│   │   │   │   │   ├── jarvis
-│   │   │   │   │   │   ├── ai
-│   │   │   │   │   │   │   ├── native
-│   │   │   │   │   │   │   │   ├── LlamaNative.kt
 │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   ├── automation
 │   │   │   │   │   │   │   ├── WhatsAppNotificationListener.kt
@@ -837,21 +833,6 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_jarvis_ai_native_LlamaNative_nativeRelease(JNIEnv*, jobject, jlong handle) {
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
     delete ctx;
-}
-
-
-//===== FILE: app/src/main/java/com/jarvis/ai/native/LlamaNative.kt =====
-package com.jarvis.ai.native
-
-object LlamaNative {
-    init {
-        System.loadLibrary("jarvis_native")
-    }
-
-    external fun nativeInit(): Long
-    external fun nativeLoad(handle: Long, modelPath: String, nCtx: Int, nThreads: Int): Boolean
-    external fun nativeGenerate(handle: Long, prompt: String, maxTokens: Int, temp: Float): String
-    external fun nativeRelease(handle: Long)
 }
 
 
