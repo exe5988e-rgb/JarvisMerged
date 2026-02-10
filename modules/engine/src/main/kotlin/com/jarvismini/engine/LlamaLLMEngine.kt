@@ -2,137 +2,123 @@ package com.jarvismini.engine
 
 import android.content.Context
 import android.util.Log
+import com.jarvismini.engine.ai.AIService
 import com.jarvismini.engine.ai.ModelPathManager
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
-class LlamaLLMEngine(private val context: Context) {
+object LlamaLLMEngine : LLMEngine {
 
-    companion object {
-        private const val TAG = "LlamaLLMEngine"
+    private const val TAG = "LlamaLLMEngine"
 
-        // Model name hints
-        private const val CHAT_MODEL_HINT = "chat"
-        private const val CODE_MODEL_HINT = "code"
-    }
+    private var chatService: AIService? = null
+    private var codeService: AIService? = null
+    private var isInitialized = false
+    private var appContext: Context? = null
 
-    private var chatModel: LlamaModel? = null
-    private var codeModel: LlamaModel? = null
+    override fun init(context: Context) {
+        if (isInitialized) {
+            Log.d(TAG, "Already initialized")
+            return
+        }
 
-    /**
-     * Initialize both models if available
-     */
-    fun initialize() {
-        try {
-            val models = ModelPathManager.listModelFiles(context)
+        appContext = context.applicationContext
+        Log.d(TAG, "Initializing LlamaLLMEngine")
 
-            if (models.isEmpty()) {
-                Log.e(TAG, "No models found.")
-                return
+        runBlocking {
+            val modelFiles = ModelPathManager.listModelFiles(appContext!!)
+
+            if (modelFiles.isEmpty()) {
+                Log.w(TAG, ModelPathManager.getNoModelsErrorMessage(appContext!!))
+                return@runBlocking
             }
 
-            var chatModelFile: File? = null
-            var codeModelFile: File? = null
+            // Load first model as chat model
+            try {
+                val chatModel = modelFiles[0]
+                val service = AIService(appContext!!)
+                val success = service.initialize(chatModel.absolutePath)
 
-            for (model in models) {
-                val name = model.name.lowercase()
+                if (success) {
+                    chatService = service
+                    Log.i(TAG, "Chat model loaded: ${chatModel.name}")
+                } else {
+                    Log.e(TAG, "Failed to load chat model")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading chat model", e)
+            }
 
-                if (name.contains(CHAT_MODEL_HINT) && chatModelFile == null) {
-                    chatModelFile = model
-                } else if (name.contains(CODE_MODEL_HINT) && codeModelFile == null) {
-                    codeModelFile = model
+            // Load second model (if present) as code model
+            if (modelFiles.size > 1) {
+                try {
+                    val codeModel = modelFiles[1]
+                    val service = AIService(appContext!!)
+                    val success = service.initialize(codeModel.absolutePath)
+
+                    if (success) {
+                        codeService = service
+                        Log.i(TAG, "Code model loaded: ${codeModel.name}")
+                    } else {
+                        Log.e(TAG, "Failed to load code model")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading code model", e)
                 }
             }
+        }
 
-            // Fallback logic
-            if (chatModelFile == null && models.isNotEmpty()) {
-                chatModelFile = models[0]
-            }
+        isInitialized = true
 
-            if (codeModelFile == null && models.size > 1) {
-                codeModelFile = models[1]
-            }
-
-            // Load chat model
-            chatModelFile?.let {
-                Log.d(TAG, "Loading chat model: ${it.name}")
-                chatModel = LlamaModel(
-                    modelPath = it.absolutePath
-                )
-            }
-
-            // Load code model
-            codeModelFile?.let {
-                Log.d(TAG, "Loading code model: ${it.name}")
-                codeModel = LlamaModel(
-                    modelPath = it.absolutePath
-                )
-            }
-
-            Log.d(TAG, "Models initialized successfully")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Model initialization failed", e)
+        if (chatService == null && codeService == null) {
+            Log.w(TAG, "No models loaded.")
         }
     }
 
-    /**
-     * Generate response using appropriate model
-     */
-    fun generate(prompt: String): String {
-        val model = selectModel(prompt)
-
-        if (model == null) {
-            Log.e(TAG, "No model available for generation")
-            return "Model not loaded."
+    override fun generateReply(prompt: String): String {
+        if (!isInitialized) {
+            Log.e(TAG, "Not initialized")
+            return "AI is initializing. Please try again."
         }
 
-        return try {
-            model.generate(prompt)
-        } catch (e: Exception) {
-            Log.e(TAG, "Generation failed", e)
-            "Error generating response."
+        val isCodeRequest = isCodeRelated(prompt)
+
+        return runBlocking {
+            try {
+                if (isCodeRequest && codeService != null) {
+                    Log.d(TAG, "Using code model")
+                    codeService!!.generate(prompt)
+                } else if (chatService != null) {
+                    Log.d(TAG, "Using chat model")
+                    chatService!!.generate(prompt)
+                } else {
+                    Log.w(TAG, "No model available")
+                    "AI models not loaded."
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating reply", e)
+                "Error: ${e.message}"
+            }
         }
     }
 
-    /**
-     * Select chat or code model automatically
-     */
-    private fun selectModel(prompt: String): LlamaModel? {
+    private fun isCodeRelated(prompt: String): Boolean {
+        val codeKeywords = listOf(
+            "code", "program", "function", "class", "method",
+            "python", "java", "kotlin", "javascript", "c++",
+            "algorithm", "implement", "debug", "fix", "refactor"
+        )
         val lower = prompt.lowercase()
-
-        val looksLikeCode = lower.contains("class ")
-                || lower.contains("function ")
-                || lower.contains("def ")
-                || lower.contains("import ")
-                || lower.contains("val ")
-                || lower.contains("var ")
-                || lower.contains("public ")
-                || lower.contains("private ")
-                || lower.contains("fun ")
-
-        return if (looksLikeCode && codeModel != null) {
-            codeModel
-        } else {
-            chatModel ?: codeModel
-        }
+        return codeKeywords.any { lower.contains(it) }
     }
 
-    /**
-     * Check if at least one model is loaded
-     */
-    fun isReady(): Boolean {
-        return chatModel != null || codeModel != null
-    }
-
-    /**
-     * Release resources
-     */
     fun release() {
-        try {
-            chatModel?.close()
-            codeModel?.close()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error releasing models", e)
-        }
+        chatService?.release()
+        codeService?.release()
+        chatService = null
+        codeService = null
+        isInitialized = false
+        appContext = null
+        Log.d(TAG, "Released all models")
     }
 }
