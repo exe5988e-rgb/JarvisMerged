@@ -2,432 +2,523 @@
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
 
-// ❌ ERRORS IN THIS FILE (16 error(s)):
-// Line 26: Unresolved reference: WorkModeManager
-// Line 29: Unresolved reference: state
-// Line 30: Unresolved reference: state
-// Line 50: Unresolved reference: JarvisState
-// Line 89: Not enough information to infer type variable T
-// Line 89: Property delegate must have a 'getValue(Nothing?, KProperty<*>)' method. None of the following functions is suitable:
-// Line 89: Unresolved reference: JarvisState
-// Line 92: Unresolved reference: JarvisMode
-// Line 138: @Composable invocations can only happen from the context of a @Composable function
-// Line 139: @Composable invocations can only happen from the context of a @Composable function
-// Line 158: Cannot infer a type for this parameter. Please specify it explicitly.
-// Line 158: Overload resolution ambiguity:
-// Line 159: @Composable invocations can only happen from the context of a @Composable function
-// Line 162: Unresolved reference: JarvisState
-// Line 176: Unresolved reference: WorkModeManager
-// Line 177: Unresolved reference: JarvisState
+// ❌ ERRORS IN THIS FILE (75 error(s)):
+// Line 33: Expecting a top level declaration
+// Line 54: Unresolved reference: TAG
+// Line 57: Unresolved reference: TAG
+// Line 63: Unresolved reference: TAG
+// Line 86: Unresolved reference: TAG
+// Line 92: Not enough information to infer type variable T
+// Line 92: Unresolved reference: ChatMessage
+// Line 118: Unresolved reference: JarvisBlue
+// Line 124: Unresolved reference: JarvisBlue
+// Line 143: Unresolved reference: JarvisBlue
+// Line 148: Unresolved reference: JarvisBlue
+// Line 149: Unresolved reference: JarvisBlue
+// Line 150: Unresolved reference: JarvisBlue
+// Line 151: Unresolved reference: JarvisBlue
+// Line 152: Unresolved reference: JarvisBlue
+// Line 165: Unresolved reference: JarvisBlue
+// Line 170: Unresolved reference: TAG
+// Line 183: Unresolved reference: TAG
+// Line 186: Unresolved reference: JarvisBlue
+// Line 194: Unresolved reference: JarvisBlue
+// Line 205: Unresolved reference: isUser
+// Line 205: Unresolved reference: text
+// Line 206: Unresolved reference: JarvisBlue
+// Line 219: Unresolved reference: JarvisBlue
+// Line 234: Unresolved reference: JarvisBlue
+// Line 241: Unresolved reference: JarvisBlue
+// Line 242: Unresolved reference: JarvisBlue
+// Line 243: Unresolved reference: JarvisBlue
+// Line 244: Unresolved reference: JarvisBlue
+// Line 245: Unresolved reference: JarvisBlue
+// Line 246: Unresolved reference: JarvisBlue
+// Line 247: Unresolved reference: JarvisBlue
+// Line 259: Unresolved reference: TAG
+// Line 264: Unresolved reference: TAG
+// Line 268: Unresolved reference: TAG
+// Line 269: Unresolved reference: TAG
+// Line 270: Unresolved reference: TAG
+// Line 276: Unresolved reference: ChatMessage
+// Line 277: Unresolved reference: ChatMessage
+// Line 285: Unresolved reference: TAG
+// Line 290: Unresolved reference: getModelStatus
+// Line 292: Unresolved reference: TAG
+// Line 297: Unresolved reference: chatReady
+// Line 297: Unresolved reference: codeReady
+// Line 298: Unresolved reference: TAG
+// Line 300: Unresolved reference: ChatMessage
+// Line 311: Unresolved reference: isLoading
+// Line 312: Unresolved reference: TAG
+// Line 314: Unresolved reference: ChatMessage
+// Line 323: Unresolved reference: TAG
+// Line 323: Unresolved reference: chatReady
+// Line 323: Unresolved reference: codeReady
+// Line 329: Unresolved reference: TAG
+// Line 331: Unresolved reference: ChatMessage
+// Line 351: Unresolved reference: TAG
+// Line 353: Unresolved reference: TAG
+// Line 357: Unresolved reference: TAG
+// Line 361: Unresolved reference: TAG
+// Line 366: Unresolved reference: TAG
+// Line 368: Unresolved reference: TAG
+// Line 371: Unresolved reference: TAG
+// Line 381: Unresolved reference: TAG
+// Line 383: Unresolved reference: ChatMessage
+// Line 385: Unresolved reference: TAG
+// Line 389: Unresolved reference: TAG
+// Line 392: Unresolved reference: TAG
+// Line 396: Unresolved reference: ChatMessage
+// Line 408: Unresolved reference: TAG
+// Line 411: Unresolved reference: TAG
+// Line 413: Unresolved reference: ChatMessage
+// Line 421: Unresolved reference: TAG
+// Line 423: Unresolved reference: TAG
+// Line 429: None of the following functions can be called with the arguments supplied:
+// Line 433: Unresolved reference: JarvisBlue
+// Line 435: Unresolved reference: JarvisBlue
 
    1    package com.jarvismini.ui.chat
    2    
    3    import android.app.Activity
    4    import android.content.pm.PackageManager
    5    import android.util.Log
-   6    import androidx.activity.compose.BackHandler
-   7    import androidx.compose.foundation.background
-   8    import androidx.compose.foundation.border
-   9    import androidx.compose.foundation.layout.*
-  10    import androidx.compose.foundation.lazy.LazyColumn
-  11    import androidx.compose.foundation.lazy.items
-  12    import androidx.compose.foundation.shape.RoundedCornerShape
-  13    import androidx.compose.material.icons.Icons
-  14    import androidx.compose.material.icons.filled.ArrowBack
-  15    import androidx.compose.material.icons.filled.Send
-  16    import androidx.compose.material3.*
-  17    import androidx.compose.runtime.*
-  18    import androidx.compose.ui.Modifier
-  19    import androidx.compose.ui.graphics.Brush
-  20    import androidx.compose.ui.graphics.Color
-  21    import androidx.compose.ui.platform.LocalContext
-  22    import androidx.compose.ui.text.font.FontFamily
-  23    import androidx.compose.ui.unit.dp
-  24    import androidx.core.app.ActivityCompat
-  25    import androidx.core.content.ContextCompat
-  26 ❌ import com.jarvismini.core.workmode.WorkModeManager
-  27    import com.jarvismini.engine.EngineProvider
-  28    import com.jarvismini.engine.EngineResult
-  29 ❌ import com.jarvismini.state.JarvisMode
-  30 ❌ import com.jarvismini.state.JarvisState
-  31    import com.jarvismini.ui.ChatMessage
-  32    import com.jarvismini.ui.components.GridBackground
-  33    import com.jarvismini.ui.theme.JarvisBlue
-  34    import kotlinx.coroutines.*
-  35    
-  36    private const val TAG = "JarvisChatScreen"
-  37    
-  38    @OptIn(ExperimentalMaterial3Api::class)
-  39    @Composable
-  40    fun JarvisChatScreen(
-  41        onBack: () -> Unit
-  42    ) {
-  43        val context = LocalContext.current
-  44        val activity = context as? Activity
-  45        val scope = rememberCoroutineScope()
-  46    
-  47        // ================= INITIALIZATION =================
-  48        LaunchedEffect(Unit) {
-  49            Log.d(TAG, "Initializing JarvisChatScreen")
-  50 ❌         JarvisState.init(context)
-  51            EngineProvider.init(context)
-  52            Log.d(TAG, "Initialization complete")
-  53        }
-  54    
-  55        // ================= PERMISSIONS =================
-  56        LaunchedEffect(Unit) {
-  57            if (activity == null) {
-  58                Log.w(TAG, "Activity is null, cannot request permissions")
-  59                return@LaunchedEffect
-  60            }
-  61            
-  62            val perms = mutableListOf<String>()
-  63            
-  64            if (ContextCompat.checkSelfPermission(
-  65                    context, 
-  66                    android.Manifest.permission.READ_CONTACTS
-  67                ) != PackageManager.PERMISSION_GRANTED
-  68            ) {
-  69                perms += android.Manifest.permission.READ_CONTACTS
-  70            }
-  71            
-  72            if (ContextCompat.checkSelfPermission(
-  73                    context, 
-  74                    android.Manifest.permission.SEND_SMS
-  75                ) != PackageManager.PERMISSION_GRANTED
-  76            ) {
-  77                perms += android.Manifest.permission.SEND_SMS
-  78            }
-  79            
-  80            if (perms.isNotEmpty()) {
-  81                Log.d(TAG, "Requesting permissions: ${perms.joinToString()}")
-  82                ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+   6    import androidx.compose.foundation.background
+   7    import androidx.compose.foundation.border
+   8    import androidx.compose.foundation.layout.*
+   9    import androidx.compose.foundation.lazy.LazyColumn
+  10    import androidx.compose.foundation.lazy.items
+  11    import androidx.compose.foundation.shape.RoundedCornerShape
+  12    import androidx.compose.material.icons.Icons
+  13    import androidx.compose.material.icons.filled.ArrowBack
+  14    import androidx.compose.material.icons.filled.Send
+  15    import androidx.compose.material3.*
+  16    import androidx.compose.runtime.*
+  17    import androidx.compose.ui.Modifier
+  18    import androidx.compose.ui.graphics.Brush
+  19    import androidx.compose.ui.graphics.Color
+  20    import androidx.compose.ui.platform.LocalContext
+  21    import androidx.compose.ui.text.font.FontFamily
+  22    import androidx.compose.ui.unit.dp
+  23    import androidx.core.app.ActivityCompat
+  24    import androidx.core.content.ContextCompat
+  25    import com.jarvismini.core.JarvisMode
+  26    import com.jarvismini.core.JarvisState
+  27    import com.jarvismini.core.WorkModeManager
+  28    import com.jarvismini.engine.EngineProvider
+  29    import com.jarvismini.engine.EngineResult
+  30    import com.jarvismini.ui.components.GridBackground
+  31    import kotlinx.coroutines.*
+  32    
+  33 ❌ )
+  34    
+  35    /**
+  36     * Main chat screen for interacting with J.A.R.V.I.S.
+  37     * 
+  38     * ✅ FIXED: Input clearing moved to AFTER successful processing
+  39     * ✅ FIXED: Added 30-second timeout protection
+  40     * ✅ FIXED: Enhanced logging for debugging
+  41     * ✅ FIXED: Input preserved on error for retry
+  42     */
+  43    @OptIn(ExperimentalMaterial3Api::class)
+  44    @Composable
+  45    fun JarvisChatScreen(
+  46        onBack: () -> Unit
+  47    ) {
+  48        val context = LocalContext.current
+  49        val activity = context as? Activity
+  50        val scope = rememberCoroutineScope()
+  51    
+  52        // ================= INITIALIZATION =================
+  53        LaunchedEffect(Unit) {
+  54 ❌         Log.d(TAG, "Initializing JarvisChatScreen")
+  55            JarvisState.init(context)
+  56            EngineProvider.init(context)
+  57 ❌         Log.d(TAG, "Initialization complete")
+  58        }
+  59    
+  60        // ================= PERMISSIONS =================
+  61        LaunchedEffect(Unit) {
+  62            if (activity == null) {
+  63 ❌             Log.w(TAG, "Activity is null, cannot request permissions")
+  64                return@LaunchedEffect
+  65            }
+  66            
+  67            val perms = mutableListOf<String>()
+  68            
+  69            if (ContextCompat.checkSelfPermission(
+  70                    context, 
+  71                    android.Manifest.permission.READ_CONTACTS
+  72                ) != PackageManager.PERMISSION_GRANTED
+  73            ) {
+  74                perms += android.Manifest.permission.READ_CONTACTS
+  75            }
+  76            
+  77            if (ContextCompat.checkSelfPermission(
+  78                    context, 
+  79                    android.Manifest.permission.SEND_SMS
+  80                ) != PackageManager.PERMISSION_GRANTED
+  81            ) {
+  82                perms += android.Manifest.permission.SEND_SMS
   83            }
-  84        }
-  85    
-  86        // ================= STATE =================
-  87        val messages = remember { mutableStateListOf<ChatMessage>() }
-  88        var input by remember { mutableStateOf("") }
-  89 ❌     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
-  90        var expanded by remember { mutableStateOf(false) }
-  91        var isProcessing by remember { mutableStateOf(false) }
-  92 ❌     val modes = JarvisMode.values().toList()
-  93    
-  94        // ================= UI =================
-  95        Box(
-  96            modifier = Modifier
-  97                .fillMaxSize()
-  98                .background(
-  99                    Brush.radialGradient(
- 100                        listOf(Color.Black, Color(0xFF001520), Color.Black)
- 101                    )
- 102                )
- 103        ) {
- 104            GridBackground()
- 105    
- 106            Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
- 107    
- 108                // ===== HEADER =====
- 109                TopAppBar(
- 110                    title = {
- 111                        Text(
- 112                            "J.A.R.V.I.S CHAT",
- 113                            color = JarvisBlue,
- 114                            fontFamily = FontFamily.Monospace
- 115                        )
- 116                    },
- 117                    navigationIcon = {
- 118                        IconButton(onClick = onBack) {
- 119                            Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
- 120                        }
+  84            
+  85            if (perms.isNotEmpty()) {
+  86 ❌             Log.d(TAG, "Requesting permissions: ${perms.joinToString()}")
+  87                ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+  88            }
+  89        }
+  90    
+  91        // ================= STATE =================
+  92 ❌     val messages = remember { mutableStateListOf<ChatMessage>() }
+  93        var input by remember { mutableStateOf("") }
+  94        var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+  95        var expanded by remember { mutableStateOf(false) }
+  96        var isProcessing by remember { mutableStateOf(false) }
+  97        val modes = JarvisMode.values().toList()
+  98    
+  99        // ================= UI =================
+ 100        Box(
+ 101            modifier = Modifier
+ 102                .fillMaxSize()
+ 103                .background(
+ 104                    Brush.radialGradient(
+ 105                        listOf(Color.Black, Color(0xFF001520), Color.Black)
+ 106                    )
+ 107                )
+ 108        ) {
+ 109            GridBackground()
+ 110    
+ 111            Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+ 112    
+ 113                // ===== HEADER =====
+ 114                TopAppBar(
+ 115                    title = {
+ 116                        Text(
+ 117                            "J.A.R.V.I.S CHAT",
+ 118 ❌                         color = JarvisBlue,
+ 119                            fontFamily = FontFamily.Monospace
+ 120                        )
  121                    },
- 122                    colors = TopAppBarDefaults.topAppBarColors(
- 123                        containerColor = Color.Black.copy(alpha = 0.6f)
- 124                    )
- 125                )
- 126    
- 127                Spacer(modifier = Modifier.height(12.dp))
- 128    
- 129                // ===== MODE SELECTOR =====
- 130                ExposedDropdownMenuBox(
- 131                    expanded = expanded,
- 132                    onExpandedChange = { expanded = !expanded }
- 133                ) {
- 134                    TextField(
- 135                        value = currentMode.name,
- 136                        onValueChange = {},
- 137                        readOnly = true,
- 138 ❌                     label = { Text("Select Mode", color = JarvisBlue) },
- 139 ❌                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
- 140                        colors = TextFieldDefaults.colors(
- 141                            focusedContainerColor = Color.Transparent,
- 142                            unfocusedContainerColor = Color.Transparent,
- 143                            focusedTextColor = JarvisBlue,
- 144                            unfocusedTextColor = JarvisBlue,
- 145                            cursorColor = JarvisBlue,
- 146                            focusedIndicatorColor = JarvisBlue,
- 147                            unfocusedIndicatorColor = JarvisBlue
- 148                        ),
- 149                        modifier = Modifier
- 150                            .menuAnchor()
- 151                            .fillMaxWidth()
- 152                    )
- 153    
- 154                    ExposedDropdownMenu(
- 155                        expanded = expanded,
- 156                        onDismissRequest = { expanded = false }
- 157                    ) {
- 158 ❌                     modes.forEach { mode ->
- 159 ❌                         DropdownMenuItem(
- 160                                text = { Text(mode.name, color = JarvisBlue) },
- 161                                onClick = {
- 162 ❌                                 JarvisState.setMode(context, mode)
- 163                                    currentMode = mode
- 164                                    expanded = false
- 165                                    Log.d(TAG, "Mode changed to: ${mode.name}")
- 166                                }
- 167                            )
- 168                        }
- 169                    }
- 170                }
- 171    
- 172                Spacer(modifier = Modifier.height(8.dp))
- 173    
- 174                Button(
- 175                    onClick = {
- 176 ❌                     WorkModeManager.toggle(context)
- 177 ❌                     currentMode = JarvisState.currentMode
- 178                        Log.d(TAG, "Work mode toggled")
- 179                    },
- 180                    colors = ButtonDefaults.buttonColors(
- 181                        containerColor = JarvisBlue.copy(alpha = 0.7f)
- 182                    ),
- 183                    modifier = Modifier.fillMaxWidth()
- 184                ) {
- 185                    Text("Toggle Work Mode", color = Color.Black)
- 186                }
- 187    
- 188                HorizontalDivider(
- 189                    color = JarvisBlue.copy(alpha = 0.3f), 
- 190                    modifier = Modifier.padding(vertical = 8.dp)
- 191                )
+ 122                    navigationIcon = {
+ 123                        IconButton(onClick = onBack) {
+ 124 ❌                         Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+ 125                        }
+ 126                    },
+ 127                    colors = TopAppBarDefaults.topAppBarColors(
+ 128                        containerColor = Color.Black.copy(alpha = 0.6f)
+ 129                    )
+ 130                )
+ 131    
+ 132                Spacer(modifier = Modifier.height(12.dp))
+ 133    
+ 134                // ===== MODE SELECTOR =====
+ 135                ExposedDropdownMenuBox(
+ 136                    expanded = expanded,
+ 137                    onExpandedChange = { expanded = !expanded }
+ 138                ) {
+ 139                    TextField(
+ 140                        value = currentMode.name,
+ 141                        onValueChange = {},
+ 142                        readOnly = true,
+ 143 ❌                     label = { Text("Select Mode", color = JarvisBlue) },
+ 144                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+ 145                        colors = TextFieldDefaults.colors(
+ 146                            focusedContainerColor = Color.Transparent,
+ 147                            unfocusedContainerColor = Color.Transparent,
+ 148 ❌                         focusedTextColor = JarvisBlue,
+ 149 ❌                         unfocusedTextColor = JarvisBlue,
+ 150 ❌                         cursorColor = JarvisBlue,
+ 151 ❌                         focusedIndicatorColor = JarvisBlue,
+ 152 ❌                         unfocusedIndicatorColor = JarvisBlue
+ 153                        ),
+ 154                        modifier = Modifier
+ 155                            .menuAnchor()
+ 156                            .fillMaxWidth()
+ 157                    )
+ 158    
+ 159                    ExposedDropdownMenu(
+ 160                        expanded = expanded,
+ 161                        onDismissRequest = { expanded = false }
+ 162                    ) {
+ 163                        modes.forEach { mode ->
+ 164                            DropdownMenuItem(
+ 165 ❌                             text = { Text(mode.name, color = JarvisBlue) },
+ 166                                onClick = {
+ 167                                    JarvisState.setMode(context, mode)
+ 168                                    currentMode = mode
+ 169                                    expanded = false
+ 170 ❌                                 Log.d(TAG, "Mode changed to: ${mode.name}")
+ 171                                }
+ 172                            )
+ 173                        }
+ 174                    }
+ 175                }
+ 176    
+ 177                Spacer(modifier = Modifier.height(8.dp))
+ 178    
+ 179                Button(
+ 180                    onClick = {
+ 181                        WorkModeManager.toggle(context)
+ 182                        currentMode = JarvisState.currentMode
+ 183 ❌                     Log.d(TAG, "Work mode toggled")
+ 184                    },
+ 185                    colors = ButtonDefaults.buttonColors(
+ 186 ❌                     containerColor = JarvisBlue.copy(alpha = 0.7f)
+ 187                    ),
+ 188                    modifier = Modifier.fillMaxWidth()
+ 189                ) {
+ 190                    Text("Toggle Work Mode", color = Color.Black)
+ 191                }
  192    
- 193                // ===== CHAT LOG =====
- 194                LazyColumn(
- 195                    modifier = Modifier.weight(1f),
- 196                    reverseLayout = true
- 197                ) {
- 198                    items(messages.reversed()) { msg ->
- 199                        Text(
- 200                            text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
- 201                            color = JarvisBlue,
- 202                            fontFamily = FontFamily.Monospace,
- 203                            modifier = Modifier.padding(6.dp)
- 204                        )
- 205                    }
- 206                }
- 207    
- 208                // ===== INPUT BAR =====
- 209                Row(
- 210                    modifier = Modifier
- 211                        .fillMaxWidth()
- 212                        .border(
- 213                            1.dp,
- 214                            JarvisBlue.copy(alpha = 0.4f),
- 215                            RoundedCornerShape(10.dp)
- 216                        )
- 217                        .padding(6.dp),
- 218                    horizontalArrangement = Arrangement.spacedBy(6.dp)
- 219                ) {
- 220                    TextField(
- 221                        value = input,
- 222                        onValueChange = { input = it },
- 223                        modifier = Modifier.weight(1f),
- 224                        enabled = !isProcessing,
- 225                        placeholder = {
- 226                            Text(
- 227                                if (isProcessing) "Processing..." else "Command input…",
- 228                                fontFamily = FontFamily.Monospace,
- 229                                color = JarvisBlue.copy(alpha = 0.7f)
- 230                            )
- 231                        },
- 232                        colors = TextFieldDefaults.colors(
- 233                            focusedContainerColor = Color.Transparent,
- 234                            unfocusedContainerColor = Color.Transparent,
- 235                            disabledContainerColor = Color.Transparent,
- 236                            focusedTextColor = JarvisBlue,
- 237                            unfocusedTextColor = JarvisBlue,
- 238                            disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
- 239                            cursorColor = JarvisBlue,
- 240                            focusedIndicatorColor = JarvisBlue,
- 241                            unfocusedIndicatorColor = JarvisBlue,
- 242                            disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
- 243                        )
- 244                    )
- 245    
- 246                    // ===== SEND BUTTON =====
- 247                    // ✅ FIXED: Input cleared AFTER success, with timeout protection
- 248                    IconButton(
- 249                        onClick = {
- 250                            val userText = input.trim()
- 251                            
- 252                            // Validation
- 253                            if (userText.isEmpty()) {
- 254                                Log.d(TAG, "❌ Ignoring empty input")
- 255                                return@IconButton
- 256                            }
- 257                            
- 258                            if (isProcessing) {
- 259                                Log.d(TAG, "⚠️ Already processing, ignoring click")
+ 193                HorizontalDivider(
+ 194 ❌                 color = JarvisBlue.copy(alpha = 0.3f), 
+ 195                    modifier = Modifier.padding(vertical = 8.dp)
+ 196                )
+ 197    
+ 198                // ===== CHAT LOG =====
+ 199                LazyColumn(
+ 200                    modifier = Modifier.weight(1f),
+ 201                    reverseLayout = true
+ 202                ) {
+ 203                    items(messages.reversed()) { msg ->
+ 204                        Text(
+ 205 ❌                         text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+ 206 ❌                         color = JarvisBlue,
+ 207                            fontFamily = FontFamily.Monospace,
+ 208                            modifier = Modifier.padding(6.dp)
+ 209                        )
+ 210                    }
+ 211                }
+ 212    
+ 213                // ===== INPUT BAR =====
+ 214                Row(
+ 215                    modifier = Modifier
+ 216                        .fillMaxWidth()
+ 217                        .border(
+ 218                            1.dp,
+ 219 ❌                         JarvisBlue.copy(alpha = 0.4f),
+ 220                            RoundedCornerShape(10.dp)
+ 221                        )
+ 222                        .padding(6.dp),
+ 223                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+ 224                ) {
+ 225                    TextField(
+ 226                        value = input,
+ 227                        onValueChange = { input = it },
+ 228                        modifier = Modifier.weight(1f),
+ 229                        enabled = !isProcessing,
+ 230                        placeholder = {
+ 231                            Text(
+ 232                                if (isProcessing) "Processing..." else "Command input…",
+ 233                                fontFamily = FontFamily.Monospace,
+ 234 ❌                             color = JarvisBlue.copy(alpha = 0.7f)
+ 235                            )
+ 236                        },
+ 237                        colors = TextFieldDefaults.colors(
+ 238                            focusedContainerColor = Color.Transparent,
+ 239                            unfocusedContainerColor = Color.Transparent,
+ 240                            disabledContainerColor = Color.Transparent,
+ 241 ❌                         focusedTextColor = JarvisBlue,
+ 242 ❌                         unfocusedTextColor = JarvisBlue,
+ 243 ❌                         disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
+ 244 ❌                         cursorColor = JarvisBlue,
+ 245 ❌                         focusedIndicatorColor = JarvisBlue,
+ 246 ❌                         unfocusedIndicatorColor = JarvisBlue,
+ 247 ❌                         disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
+ 248                        )
+ 249                    )
+ 250    
+ 251                    // ===== SEND BUTTON =====
+ 252                    // ✅ FIXED: Input cleared AFTER success, with timeout protection
+ 253                    IconButton(
+ 254                        onClick = {
+ 255                            val userText = input.trim()
+ 256                            
+ 257                            // Validation
+ 258                            if (userText.isEmpty()) {
+ 259 ❌                             Log.d(TAG, "❌ Ignoring empty input")
  260                                return@IconButton
  261                            }
- 262    
- 263                            Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
- 264                            Log.d(TAG, "🚀 SEND BUTTON CLICKED")
- 265                            Log.d(TAG, "📝 User input: '$userText'")
- 266                            Log.d(TAG, "🧵 Main thread: ${Thread.currentThread().name}")
- 267                            
- 268                            // ✅ FIX: Set processing state but DON'T clear input yet
- 269                            // Input stays visible (disabled) during processing
- 270                            isProcessing = true
+ 262                            
+ 263                            if (isProcessing) {
+ 264 ❌                             Log.d(TAG, "⚠️ Already processing, ignoring click")
+ 265                                return@IconButton
+ 266                            }
+ 267    
+ 268 ❌                         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+ 269 ❌                         Log.d(TAG, "🚀 SEND BUTTON CLICKED")
+ 270 ❌                         Log.d(TAG, "📝 User input: '$userText'")
  271                            
- 272                            // Add user message to chat
- 273                            messages.add(ChatMessage(userText, isUser = true))
+ 272                            // Set processing state
+ 273                            isProcessing = true
  274                            
- 275                            // Add temporary "thinking" message
- 276                            messages.add(ChatMessage("Processing…", isUser = false))
- 277    
- 278                            // Launch coroutine with proper error handling and timeout
- 279                            scope.launch {
- 280                                try {
- 281                                    Log.d(TAG, "⏳ Starting message processing in coroutine")
- 282                                    Log.d(TAG, "🧵 Coroutine thread: ${Thread.currentThread().name}")
- 283                                    
- 284                                    // ✅ FIX: Add 30-second timeout to prevent infinite hang
- 285                                    val reply = withTimeout(30000L) {
- 286                                        // Try command engine first
- 287                                        val result = EngineProvider.commandEngine.handle(userText)
- 288                                        Log.d(TAG, "🎯 Command engine result: $result")
- 289                                        
- 290                                        when (result) {
- 291                                            is EngineResult.Success -> {
- 292                                                Log.d(TAG, "✅ Command handled successfully")
- 293                                                result.reply
- 294                                            }
- 295                                            else -> {
- 296                                                Log.d(TAG, "🔄 Command not handled, calling LLM")
- 297                                                
- 298                                                // Call LLM on IO dispatcher
- 299                                                withContext(Dispatchers.IO) {
- 300                                                    Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
- 301                                                    val llmReply = EngineProvider.llmEngine.generateReply(userText)
- 302                                                    Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
- 303                                                    llmReply
- 304                                                }
- 305                                            }
- 306                                        }
- 307                                    }
- 308                                    
- 309                                    Log.d(TAG, "🔄 Updating UI with reply")
+ 275                            // Add user message
+ 276 ❌                         messages.add(ChatMessage(userText, isUser = true))
+ 277 ❌                         messages.add(ChatMessage("Processing…", isUser = false))
+ 278    
+ 279                            // Launch with timeout watcher
+ 280                            scope.launch {
+ 281                                var timeoutJob: Job? = null
+ 282                                var processingJob: Job? = null
+ 283                                
+ 284                                try {
+ 285 ❌                                 Log.d(TAG, "⏳ Starting message processing")
+ 286                                    
+ 287                                    // ✅ FIX: Pre-check engine state BEFORE calling native code
+ 288                                    val llmEngine = EngineProvider.llmEngine
+ 289                                    val modelStatus = try {
+ 290 ❌                                     llmEngine.getModelStatus()
+ 291                                    } catch (e: Exception) {
+ 292 ❌                                     Log.e(TAG, "❌ Failed to get model status", e)
+ 293                                        null
+ 294                                    }
+ 295                                    
+ 296                                    // Check if models are actually ready
+ 297 ❌                                 if (modelStatus == null || (!modelStatus.chatReady && !modelStatus.codeReady)) {
+ 298 ❌                                     Log.w(TAG, "⚠️ No models ready - returning early")
+ 299                                        messages.removeLastOrNull()
+ 300 ❌                                     messages.add(ChatMessage(
+ 301                                            "🤖 No AI models found.\n\n" +
+ 302                                            "To use AI features, place .gguf model files in:\n" +
+ 303                                            "/storage/emulated/0/JarvisModels/\n\n" +
+ 304                                            "Download models from Hugging Face and restart the app.",
+ 305                                            isUser = false
+ 306                                        ))
+ 307                                        input = ""
+ 308                                        return@launch
+ 309                                    }
  310                                    
- 311                                    // Remove "Processing..." message
- 312                                    messages.removeLastOrNull()
- 313                                    
- 314                                    // Add actual reply
- 315                                    messages.add(ChatMessage(reply, isUser = false))
- 316                                    
- 317                                    // ✅ FIX: Clear input only AFTER successful processing
- 318                                    input = ""
- 319                                    
- 320                                    Log.d(TAG, "✅ MESSAGE PROCESSING COMPLETE")
- 321                                    Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+ 311 ❌                                 if (modelStatus.isLoading) {
+ 312 ❌                                     Log.w(TAG, "⚠️ Models still loading")
+ 313                                        messages.removeLastOrNull()
+ 314 ❌                                     messages.add(ChatMessage(
+ 315                                            "🤖 AI models are loading...\n\n" +
+ 316                                            "This can take 1-2 minutes on first launch.\n" +
+ 317                                            "Please wait and try again in a moment.",
+ 318                                            isUser = false
+ 319                                        ))
+ 320                                        return@launch
+ 321                                    }
  322                                    
- 323                                } catch (e: TimeoutCancellationException) {
- 324                                    Log.e(TAG, "⏱️ TIMEOUT: Operation took longer than 30 seconds")
- 325                                    
- 326                                    // Remove "Processing..." message
- 327                                    messages.removeLastOrNull()
- 328                                    
- 329                                    // Add timeout message
- 330                                    messages.add(ChatMessage(
- 331                                        "⏱️ Request timed out after 30 seconds. The model may be loading or the prompt is too complex. Try:\n" +
- 332                                        "• A shorter message\n" +
- 333                                        "• Checking if models are in /storage/emulated/0/JarvisModels/\n" +
- 334                                        "• Restarting the app",
- 335                                        isUser = false
- 336                                    ))
- 337                                    
- 338                                    // ✅ FIX: Keep input on timeout so user can retry or modify
- 339                                    Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
- 340                                    
- 341                                } catch (e: CancellationException) {
- 342                                    Log.e(TAG, "🚫 CANCELLED: Coroutine was cancelled")
- 343                                    
- 344                                    // Remove "Processing..." message
- 345                                    messages.removeLastOrNull()
- 346                                    
- 347                                    // Add cancellation message
- 348                                    messages.add(ChatMessage(
- 349                                        "🚫 Processing cancelled. Try again.",
- 350                                        isUser = false
- 351                                    ))
- 352                                    
- 353                                    // Re-throw to properly handle cancellation
- 354                                    throw e
- 355                                    
- 356                                } catch (e: Exception) {
- 357                                    Log.e(TAG, "❌ ERROR PROCESSING MESSAGE", e)
- 358                                    Log.e(TAG, "Error type: ${e.javaClass.simpleName}")
- 359                                    Log.e(TAG, "Error message: ${e.message}")
- 360                                    
- 361                                    // Remove "Processing..." message
- 362                                    messages.removeLastOrNull()
- 363                                    
- 364                                    // Add detailed error message
- 365                                    val errorMsg = when {
- 366                                        e.message?.contains("timeout", ignoreCase = true) == true ->
- 367                                            "⏱️ Timeout. The request took too long. Try a shorter prompt."
- 368                                            
- 369                                        e.message?.contains("model", ignoreCase = true) == true ->
- 370                                            "🤖 Model error. Check if .gguf models are in:\n/storage/emulated/0/JarvisModels/"
- 371                                            
- 372                                        e.message?.contains("permission", ignoreCase = true) == true ->
- 373                                            "🔒 Permission error. Grant storage access in Settings."
- 374                                            
- 375                                        e.message?.contains("memory", ignoreCase = true) == true ->
- 376                                            "💾 Memory error. Try a smaller model or restart the app."
+ 323 ❌                                 Log.d(TAG, "✅ Models ready: chat=${modelStatus.chatReady}, code=${modelStatus.codeReady}")
+ 324                                    
+ 325                                    // ✅ FIX: Create timeout watcher BEFORE calling native code
+ 326                                    timeoutJob = launch {
+ 327                                        delay(30000L) // 30 seconds
+ 328                                        if (isProcessing) {
+ 329 ❌                                         Log.e(TAG, "⏱️ TIMEOUT WATCHER: 30 seconds elapsed!")
+ 330                                            messages.removeLastOrNull()
+ 331 ❌                                         messages.add(ChatMessage(
+ 332                                                "⏱️ Request timed out after 30 seconds.\n\n" +
+ 333                                                "The model may be:\n" +
+ 334                                                "• Processing a very complex request\n" +
+ 335                                                "• Loading for the first time\n" +
+ 336                                                "• Stuck on corrupted model files\n\n" +
+ 337                                                "Try:\n" +
+ 338                                                "• A shorter, simpler message\n" +
+ 339                                                "• Restarting the app\n" +
+ 340                                                "• Checking model files in /storage/emulated/0/JarvisModels/",
+ 341                                                isUser = false
+ 342                                            ))
+ 343                                            processingJob?.cancel()
+ 344                                            isProcessing = false
+ 345                                        }
+ 346                                    }
+ 347                                    
+ 348                                    // ✅ FIX: Launch actual processing in separate job
+ 349                                    processingJob = launch {
+ 350                                        try {
+ 351 ❌                                         Log.d(TAG, "🔄 Trying command engine first")
+ 352                                            val result = EngineProvider.commandEngine.handle(userText)
+ 353 ❌                                         Log.d(TAG, "🎯 Command result: $result")
+ 354                                            
+ 355                                            val reply = when (result) {
+ 356                                                is EngineResult.Success -> {
+ 357 ❌                                                 Log.d(TAG, "✅ Command handled")
+ 358                                                    result.reply
+ 359                                                }
+ 360                                                else -> {
+ 361 ❌                                                 Log.d(TAG, "🔄 Calling LLM (this may take time)")
+ 362                                                    
+ 363                                                    // Call LLM on IO thread
+ 364                                                    withContext(Dispatchers.IO) {
+ 365                                                        try {
+ 366 ❌                                                         Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
+ 367                                                            val llmReply = llmEngine.generateReply(userText)
+ 368 ❌                                                         Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
+ 369                                                            llmReply
+ 370                                                        } catch (e: Exception) {
+ 371 ❌                                                         Log.e(TAG, "❌ LLM error", e)
+ 372                                                            "❌ Error: ${e.message ?: "Unknown error"}"
+ 373                                                        }
+ 374                                                    }
+ 375                                                }
+ 376                                            }
  377                                            
- 378                                        else ->
- 379                                            "❌ Error: ${e.message ?: "Unknown error occurred"}\n\nCheck logs for details."
- 380                                    }
- 381                                    
- 382                                    messages.add(ChatMessage(errorMsg, isUser = false))
- 383                                    
- 384                                    // ✅ FIX: Keep input on error so user can retry
- 385                                    Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
- 386                                    
- 387                                } finally {
- 388                                    Log.d(TAG, "🔄 Resetting processing state")
- 389                                    Log.d(TAG, "isProcessing: true -> false")
- 390                                    isProcessing = false
- 391                                    Log.d(TAG, "✅ Processing state reset complete")
- 392                                }
- 393                            }
- 394                        },
- 395                        enabled = !isProcessing
- 396                    ) {
- 397                        Icon(
- 398                            Icons.Default.Send,
- 399                            contentDescription = "Send",
- 400                            tint = if (isProcessing) 
- 401                                JarvisBlue.copy(alpha = 0.3f) 
- 402                            else 
- 403                                JarvisBlue
- 404                        )
- 405                    }
- 406                }
- 407            }
- 408        }
- 409    }
+ 378                                            // Success - cancel timeout and update UI
+ 379                                            if (isProcessing) { // Only update if not timed out
+ 380                                                timeoutJob?.cancel()
+ 381 ❌                                             Log.d(TAG, "🔄 Updating UI with reply")
+ 382                                                messages.removeLastOrNull()
+ 383 ❌                                             messages.add(ChatMessage(reply, isUser = false))
+ 384                                                input = "" // Clear input only on success
+ 385 ❌                                             Log.d(TAG, "✅ PROCESSING COMPLETE")
+ 386                                            }
+ 387                                            
+ 388                                        } catch (e: CancellationException) {
+ 389 ❌                                         Log.w(TAG, "🚫 Processing cancelled (likely timeout)")
+ 390                                            throw e
+ 391                                        } catch (e: Exception) {
+ 392 ❌                                         Log.e(TAG, "❌ Processing error", e)
+ 393                                            if (isProcessing) {
+ 394                                                timeoutJob?.cancel()
+ 395                                                messages.removeLastOrNull()
+ 396 ❌                                             messages.add(ChatMessage(
+ 397                                                    "❌ Error: ${e.message ?: "Unknown error occurred"}",
+ 398                                                    isUser = false
+ 399                                                ))
+ 400                                            }
+ 401                                        }
+ 402                                    }
+ 403                                    
+ 404                                    // Wait for processing to complete (or timeout to trigger)
+ 405                                    processingJob?.join()
+ 406                                    
+ 407                                } catch (e: CancellationException) {
+ 408 ❌                                 Log.w(TAG, "🚫 Main coroutine cancelled")
+ 409                                    // Don't rethrow - just clean up
+ 410                                } catch (e: Exception) {
+ 411 ❌                                 Log.e(TAG, "❌ Unexpected error", e)
+ 412                                    messages.removeLastOrNull()
+ 413 ❌                                 messages.add(ChatMessage(
+ 414                                        "❌ Unexpected error: ${e.message}",
+ 415                                        isUser = false
+ 416                                    ))
+ 417                                } finally {
+ 418                                    // Always clean up
+ 419                                    timeoutJob?.cancel()
+ 420                                    processingJob?.cancel()
+ 421 ❌                                 Log.d(TAG, "🔄 Resetting processing state")
+ 422                                    isProcessing = false
+ 423 ❌                                 Log.d(TAG, "✅ Cleanup complete")
+ 424                                }
+ 425                            }
+ 426                        },
+ 427                        enabled = !isProcessing
+ 428                    ) {
+ 429 ❌                     Icon(
+ 430                            Icons.Default.Send,
+ 431                            contentDescription = "Send",
+ 432                            tint = if (isProcessing) 
+ 433 ❌                             JarvisBlue.copy(alpha = 0.3f) 
+ 434                            else 
+ 435 ❌                             JarvisBlue
+ 436                        )
+ 437                    }
+ 438                }
+ 439            }
+ 440        }
+ 441    }
 
 
