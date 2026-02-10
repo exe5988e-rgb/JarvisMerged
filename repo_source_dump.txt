@@ -658,22 +658,22 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
         return "";
     }
     
-    // ✅ Get vocab from model (NEW API requirement)
+    // Get vocab from model
     const struct llama_vocab* vocab = llama_model_get_vocab(model_);
     
     // Tokenize
     std::vector<llama_token> tokens;
     tokens.resize(prompt.size() + 128);
     
-    // ✅ CORRECT API: llama_tokenize(vocab, text, text_len, tokens, n_tokens_max, add_special, parse_special)
+    // llama_tokenize(vocab, text, text_len, tokens, n_tokens_max, add_special, parse_special)
     int32_t n_tokens = llama_tokenize(
-        vocab,                                  // vocab (not model!)
-        prompt.c_str(),                         // text
-        static_cast<int32_t>(prompt.length()),  // text_len
-        tokens.data(),                          // tokens
-        static_cast<int32_t>(tokens.size()),    // n_tokens_max
-        true,                                   // add_special
-        true                                    // parse_special
+        vocab,
+        prompt.c_str(),
+        static_cast<int32_t>(prompt.length()),
+        tokens.data(),
+        static_cast<int32_t>(tokens.size()),
+        true,
+        true
     );
     
     if (n_tokens < 0) {
@@ -711,15 +711,16 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
     for (int i = 0; i < max_tokens; i++) {
         llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
         
-        // ✅ CORRECT API: llama_vocab_is_eog(vocab, token)
+        // Check for EOG - use llama_vocab_is_eog
         if (llama_vocab_is_eog(vocab, new_token)) {
             break;
         }
         
-        // ✅ CORRECT API: llama_vocab_token_to_piece(vocab, token, buf, len, lstrip, special)
+        // Token to piece - it's llama_token_to_piece (NOT llama_vocab_token_to_piece!)
+        // But first parameter is vocab, not model
         char buf[256];
-        int32_t n = llama_vocab_token_to_piece(
-            vocab,              // vocab
+        int32_t n = llama_token_to_piece(
+            vocab,              // vocab (not model!)
             new_token,          // token
             buf,                // buf
             sizeof(buf),        // length
