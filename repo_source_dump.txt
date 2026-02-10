@@ -290,6 +290,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── WorkModeCommandEngine.kt
 │   │   │   │   │   │   │   │   ├── ai
 │   │   │   │   │   │   │   │   │   ├── AIService.kt
+│   │   │   │   │   │   │   │   │   ├── LlamaNative.kt
 │   │   │   │   │   │   │   │   │   ├── ModelConfig.kt
 │   │   │   │   │   │   │   │   ├── progress
 │   │   │   │   │   │   │   │   │   ├── AlarmManagerRetry.kt
@@ -802,13 +803,13 @@ private:
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeInit(JNIEnv*, jobject) {
+Java_com_jarvismini_engine_ai_LlamaNative_nativeInit(JNIEnv*, jobject) {
     auto* ctx = new LlamaContext();
     return reinterpret_cast<jlong>(ctx);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeLoad(
+Java_com_jarvismini_engine_ai_LlamaNative_nativeLoad(
     JNIEnv* env, jobject, jlong handle, jstring modelPath, jint nCtx, jint nThreads
 ) {
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
@@ -819,7 +820,7 @@ Java_com_jarvis_ai_native_LlamaNative_nativeLoad(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeGenerate(
+Java_com_jarvismini_engine_ai_LlamaNative_nativeGenerate(
     JNIEnv* env, jobject, jlong handle, jstring prompt, jint maxTokens, jfloat temp
 ) {
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
@@ -830,7 +831,7 @@ Java_com_jarvis_ai_native_LlamaNative_nativeGenerate(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeRelease(JNIEnv*, jobject, jlong handle) {
+Java_com_jarvismini_engine_ai_LlamaNative_nativeRelease(JNIEnv*, jobject, jlong handle) {
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
     delete ctx;
 }
@@ -8126,6 +8127,11 @@ android {
     defaultConfig {
         minSdk = 24
         targetSdk = 34
+        
+        // ✅ NDK Configuration for native library
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     compileOptions {
@@ -8136,10 +8142,19 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    
+    // ✅ CMake Configuration for native code
+    externalNativeBuild {
+        cmake {
+            path = file("../../CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation(project(":modules:core"))
 }
 
@@ -8897,6 +8912,21 @@ class AIService {
     companion object {
         private const val TAG = "AIService"
     }
+}
+
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/LlamaNative.kt =====
+package com.jarvismini.engine.ai
+
+object LlamaNative {
+    init {
+        System.loadLibrary("jarvis_native")
+    }
+
+    external fun nativeInit(): Long
+    external fun nativeLoad(handle: Long, modelPath: String, nCtx: Int, nThreads: Int): Boolean
+    external fun nativeGenerate(handle: Long, prompt: String, maxTokens: Int, temp: Float): String
+    external fun nativeRelease(handle: Long)
 }
 
 
