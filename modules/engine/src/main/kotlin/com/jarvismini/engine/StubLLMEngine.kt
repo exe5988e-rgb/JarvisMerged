@@ -12,6 +12,6 @@ object StubLLMEngine : LLMEngine {
     }
 
     override suspend fun generateReply(prompt: String): String {
-        return "This is Jarvis. Mr. Aamir will respond shortly."
+        return "At your service, sir."
     }
 }
