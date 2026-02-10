@@ -1,3 +1,395 @@
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+/**
+ * Interface for LLM engines that generate text responses.
+ * 
+ * This interface uses suspend functions to properly integrate with Kotlin coroutines,
+ * avoiding the deadlock issues that occur with runBlocking.
+ * 
+ * Inspired by SmolChat-Android's architecture:
+ * https://github.com/shubham0204/SmolChat-Android
+ */
+interface LLMEngine {
+    /**
+     * Initialize the LLM engine with application context.
+     * This should be called once during app startup.
+     * 
+     * @param context Application context for accessing resources and storage
+     */
+    fun init(context: Context)
+    
+    /**
+     * Generate a reply to the given prompt.
+     * 
+     * This is a suspend function that should be called from a coroutine context.
+     * It will execute on an appropriate dispatcher (typically Dispatchers.IO) internally.
+     * 
+     * IMPORTANT: Do NOT call this from runBlocking as it can cause deadlocks.
+     * Instead, call it from a proper coroutine scope:
+     * 
+     * ```kotlin
+     * viewModelScope.launch {
+     *     val reply = llmEngine.generateReply(prompt)
+     *     // Update UI with reply
+     * }
+     * ```
+     * 
+     * @param prompt The user's input prompt
+     * @return The generated text response
+     */
+    suspend fun generateReply(prompt: String): String
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.util.Log
+import com.jarvismini.engine.ai.AIService
+import com.jarvismini.engine.ai.ModelConfig
+import com.jarvismini.engine.ai.ModelType
+import kotlinx.coroutines.*
+import java.io.File
+
+/**
+ * LLM Engine implementation using llama.cpp through JNI.
+ * 
+ * This implementation follows the architecture from SmolChat-Android:
+ * https://github.com/shubham0204/SmolChat-Android
+ * 
+ * Key improvements:
+ * 1. Uses suspend functions instead of runBlocking to avoid deadlocks
+ * 2. Proper coroutine dispatcher management with Dispatchers.IO
+ * 3. Timeout handling with withTimeout
+ * 4. Async model loading to prevent blocking the UI thread
+ */
+object LlamaLLMEngine : LLMEngine {
+    
+    private const val TAG = "LlamaLLMEngine"
+    private var chatService: AIService? = null
+    private var codeService: AIService? = null
+    private var isInitialized = false
+    private var appContext: Context? = null
+    
+    // Supervisor job for managing model loading coroutines
+    private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    
+    /**
+     * Get the directory where GGUF models are stored.
+     * Uses the standard external storage path: /storage/emulated/0/JarvisModels
+     */
+    private fun getModelsDir(): File {
+        val externalStorage = Environment.getExternalStorageDirectory()
+        return File(externalStorage, "JarvisModels")
+    }
+    
+    // Model configurations
+    // These can be adjusted based on your specific models and device capabilities
+    private val chatModelConfig = ModelConfig(
+        type = ModelType.CHAT,
+        name = "Phi-2",
+        filename = "phi-2.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+    
+    private val codeModelConfig = ModelConfig(
+        type = ModelType.CODE,
+        name = "DeepSeek Coder",
+        filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+
+    /**
+     * Initialize the engine and start loading models asynchronously.
+     * 
+     * This method returns immediately and loads models in the background.
+     * The engine will return "Models loading..." responses until models are ready.
+     */
+    override fun init(context: Context) {
+        if (isInitialized) {
+            Log.d(TAG, "Already initialized")
+            return
+        }
+        
+        appContext = context.applicationContext
+        isInitialized = true
+        
+        val modelsDir = getModelsDir()
+        
+        Log.d(TAG, "=== INITIALIZING JARVIS LLM ENGINE ===")
+        Log.d(TAG, "Models directory: ${modelsDir.absolutePath}")
+        Log.d(TAG, "Directory exists: ${modelsDir.exists()}")
+        
+        // Check storage permissions on Android 11+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val hasPermission = Environment.isExternalStorageManager()
+            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE: $hasPermission")
+            if (!hasPermission) {
+                Log.e(TAG, "❌ NO STORAGE PERMISSION - Cannot load models")
+                return
+            }
+        }
+        
+        // Load models asynchronously in background
+        engineScope.launch {
+            loadModels(modelsDir)
+        }
+    }
+    
+    /**
+     * Load both chat and code models from disk.
+     * 
+     * This runs on Dispatchers.IO to avoid blocking the main thread.
+     * Models are loaded sequentially with a small delay between them
+     * to avoid resource contention.
+     */
+    private suspend fun loadModels(modelsDir: File) = withContext(Dispatchers.IO) {
+        try {
+            // Load chat model
+            val chatModelPath = File(modelsDir, chatModelConfig.filename)
+            if (chatModelPath.exists() && chatModelPath.canRead()) {
+                try {
+                    Log.i(TAG, "Loading chat model: ${chatModelPath.name}")
+                    val service = AIService(appContext!!)
+                    
+                    val success = service.initializeWithPath(
+                        chatModelPath.absolutePath,
+                        chatModelConfig.contextSize,
+                        chatModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        chatService = service
+                        Log.i(TAG, "✅ Chat model loaded successfully")
+                    } else {
+                        Log.e(TAG, "❌ Chat model failed to load")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Chat model error: ${e.message}", e)
+                }
+            } else {
+                Log.w(TAG, "Chat model not found: ${chatModelPath.absolutePath}")
+            }
+            
+            // Small delay between loading models to reduce memory pressure
+            delay(1000)
+            
+            // Load code model
+            val codeModelPath = File(modelsDir, codeModelConfig.filename)
+            if (codeModelPath.exists() && codeModelPath.canRead()) {
+                try {
+                    Log.i(TAG, "Loading code model: ${codeModelPath.name}")
+                    val service = AIService(appContext!!)
+                    
+                    val success = service.initializeWithPath(
+                        codeModelPath.absolutePath,
+                        codeModelConfig.contextSize,
+                        codeModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        codeService = service
+                        Log.i(TAG, "✅ Code model loaded successfully")
+                    } else {
+                        Log.e(TAG, "❌ Code model failed to load")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Code model error: ${e.message}", e)
+                }
+            } else {
+                Log.w(TAG, "Code model not found: ${codeModelPath.absolutePath}")
+            }
+            
+            Log.d(TAG, "=== MODEL LOADING COMPLETE ===")
+            Log.d(TAG, "Chat service ready: ${chatService?.isReady() == true}")
+            Log.d(TAG, "Code service ready: ${codeService?.isReady() == true}")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Fatal error during model loading", e)
+        }
+    }
+
+    /**
+     * Generate a reply to the given prompt.
+     * 
+     * This is a suspend function that properly integrates with Kotlin coroutines.
+     * It should be called from a coroutine scope, NOT from runBlocking.
+     * 
+     * Pattern from SmolChat-Android:
+     * - Use withContext(Dispatchers.IO) for the blocking native calls
+     * - Use withTimeout to prevent hanging
+     * - Proper error handling with try-catch
+     * 
+     * Example usage:
+     * ```kotlin
+     * scope.launch {
+     *     try {
+     *         val reply = llmEngine.generateReply(prompt)
+     *         // Update UI with reply
+     *     } catch (e: Exception) {
+     *         // Handle error
+     *     }
+     * }
+     * ```
+     */
+    override suspend fun generateReply(prompt: String): String {
+        if (!isInitialized) {
+            return "Engine initializing... Please wait."
+        }
+        
+        // Check if models are loaded
+        if (chatService == null && codeService == null) {
+            return "Models loading... Please try again in a few moments."
+        }
+        
+        // Determine which model to use based on the prompt
+        val isCodeRequest = isCodeRelated(prompt)
+        
+        // ✅ FIXED: Use withContext directly instead of runBlocking
+        // This allows the coroutine dispatcher to manage the thread properly
+        return withContext(Dispatchers.IO) {
+            try {
+                // Set a 30 second timeout for generation
+                withTimeout(30000L) {
+                    if (isCodeRequest && codeService != null) {
+                        Log.d(TAG, "Using code model for request")
+                        // Format prompt for code model
+                        val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
+                        // AIService.generate is already a suspend function
+                        codeService!!.generate(
+                            formattedPrompt, 
+                            maxTokens = 256, 
+                            temperature = 0.2f
+                        )
+                    } else if (chatService != null) {
+                        Log.d(TAG, "Using chat model for request")
+                        // AIService.generate is already a suspend function
+                        chatService!!.generate(
+                            prompt, 
+                            maxTokens = 128, 
+                            temperature = 0.7f
+                        )
+                    } else {
+                        "No models available. Please check model files in /storage/emulated/0/JarvisModels/"
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Generation timed out after 30 seconds")
+                "Request timed out. Try a shorter prompt or simpler question."
+            } catch (e: CancellationException) {
+                Log.e(TAG, "Generation was cancelled")
+                "Generation cancelled."
+            } catch (e: Exception) {
+                Log.e(TAG, "Generation error: ${e.message}", e)
+                "Error generating response: ${e.message ?: "Unknown error"}"
+            }
+        }
+    }
+    
+    /**
+     * Determine if a prompt is code-related based on keywords.
+     * 
+     * This helps select the appropriate model (code vs chat).
+     */
+    private fun isCodeRelated(prompt: String): Boolean {
+        val codeKeywords = listOf(
+            "code", "program", "function", "class", "method",
+            "python", "java", "kotlin", "javascript", "c++",
+            "algorithm", "implement", "debug", "fix", "refactor",
+            "compile", "syntax", "variable", "loop", "array"
+        )
+        val lowerPrompt = prompt.lowercase()
+        return codeKeywords.any { lowerPrompt.contains(it) }
+    }
+    
+    /**
+     * Release resources and cleanup.
+     * 
+     * This should be called when the engine is no longer needed,
+     * typically in Application.onTerminate() or Activity.onDestroy().
+     */
+    fun release() {
+        try {
+            Log.d(TAG, "Releasing LLM engine resources")
+            chatService?.release()
+            codeService?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during release", e)
+        }
+        
+        chatService = null
+        codeService = null
+        isInitialized = false
+        appContext = null
+        
+        Log.d(TAG, "LLM engine released")
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LocalRuleLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+/**
+ * Simple rule-based LLM engine for testing and fallback.
+ * 
+ * This implementation doesn't use actual AI models but provides
+ * rule-based responses. Useful for:
+ * - Testing the UI without loading large models
+ * - Fallback when models fail to load
+ * - Quick prototyping
+ */
+object LocalRuleLLMEngine : LLMEngine {
+
+    override fun init(context: Context) {
+        // No initialization needed for rule-based engine
+    }
+
+    /**
+     * Generate a simple rule-based response.
+     * 
+     * This is a suspend function to match the interface,
+     * but it returns immediately since no heavy computation is done.
+     */
+    override suspend fun generateReply(prompt: String): String {
+        return "Processing: $prompt"
+    }
+}
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/StubLLMEngine.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+/**
+ * Stub LLM engine for testing without actual model loading.
+ * 
+ * Returns simple echo responses. Useful for:
+ * - Testing the UI flow without models
+ * - Debugging coroutine handling
+ * - Quick development iterations
+ */
+object StubLLMEngine : LLMEngine {
+
+    override fun init(context: Context) {
+        // No initialization needed
+    }
+
+    /**
+     * Generate a stub response that echoes the prompt.
+     * 
+     * This is a suspend function to match the interface.
+     */
+    override suspend fun generateReply(prompt: String): String {
+        // Simple echo response
+        return "Stub response for: $prompt"
+    }
+}
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
 @file:OptIn(ExperimentalMaterial3Api::class)
 
@@ -38,6 +430,18 @@ import kotlinx.coroutines.withContext
 private val JarvisBlue = Color(0xFF00E0FF)
 private const val TAG = "JarvisChatScreen"
 
+/**
+ * Main chat screen for interacting with J.A.R.V.I.S.
+ * 
+ * This implementation follows best practices from SmolChat-Android:
+ * https://github.com/shubham0204/SmolChat-Android
+ * 
+ * Key improvements:
+ * 1. Proper coroutine scope management with rememberCoroutineScope
+ * 2. No runBlocking - all async operations use suspend functions
+ * 3. Better error handling and user feedback
+ * 4. Detailed logging for debugging
+ */
 @Composable
 fun JarvisChatScreen(
     onBack: () -> Unit
@@ -46,21 +450,43 @@ fun JarvisChatScreen(
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
-    // ================= INIT =================
+    // ================= INITIALIZATION =================
     LaunchedEffect(Unit) {
+        Log.d(TAG, "Initializing JarvisChatScreen")
         JarvisState.init(context)
         EngineProvider.init(context)
+        Log.d(TAG, "Initialization complete")
     }
 
     // ================= PERMISSIONS =================
     LaunchedEffect(Unit) {
-        if (activity == null) return@LaunchedEffect
+        if (activity == null) {
+            Log.w(TAG, "Activity is null, cannot request permissions")
+            return@LaunchedEffect
+        }
+        
         val perms = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+        
+        if (ContextCompat.checkSelfPermission(
+                context, 
+                android.Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             perms += android.Manifest.permission.READ_CONTACTS
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+        }
+        
+        if (ContextCompat.checkSelfPermission(
+                context, 
+                android.Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             perms += android.Manifest.permission.SEND_SMS
-        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+        }
+        
+        if (perms.isNotEmpty()) {
+            Log.d(TAG, "Requesting permissions: ${perms.joinToString()}")
+            ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+        }
     }
 
     // ================= STATE =================
@@ -142,6 +568,7 @@ fun JarvisChatScreen(
                                 JarvisState.setMode(context, mode)
                                 currentMode = mode
                                 expanded = false
+                                Log.d(TAG, "Mode changed to: ${mode.name}")
                             }
                         )
                     }
@@ -154,14 +581,20 @@ fun JarvisChatScreen(
                 onClick = {
                     WorkModeManager.toggle(context)
                     currentMode = JarvisState.currentMode
+                    Log.d(TAG, "Work mode toggled")
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = JarvisBlue.copy(alpha = 0.7f)
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Toggle Work Mode", color = Color.Black)
             }
 
-            HorizontalDivider(color = JarvisBlue.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(
+                color = JarvisBlue.copy(alpha = 0.3f), 
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
             // ===== CHAT LOG =====
             LazyColumn(
@@ -216,57 +649,97 @@ fun JarvisChatScreen(
                     )
                 )
 
-                // ✅ FIXED: Use generateReply instead of non-existent generateReplyAsync
-                // ✅ FIXED: Wrapped in withContext(Dispatchers.IO) for proper threading
+                // ===== SEND BUTTON =====
+                // ✅ FIXED: Proper coroutine handling without runBlocking
                 IconButton(
                     onClick = {
                         val userText = input.trim()
-                        if (userText.isEmpty() || isProcessing) {
-                            Log.d(TAG, "Ignoring click: empty=${userText.isEmpty()} processing=$isProcessing")
+                        
+                        // Validation
+                        if (userText.isEmpty()) {
+                            Log.d(TAG, "Ignoring empty input")
+                            return@IconButton
+                        }
+                        
+                        if (isProcessing) {
+                            Log.d(TAG, "Already processing, ignoring click")
                             return@IconButton
                         }
 
-                        Log.d(TAG, "Send button clicked: '$userText'")
+                        Log.d(TAG, "=== SEND BUTTON CLICKED ===")
+                        Log.d(TAG, "User input: '$userText'")
+                        
+                        // Clear input and set processing state
                         input = ""
                         isProcessing = true
-                        messages.add(ChatMessage(userText, true))
-                        messages.add(ChatMessage("Processing…", false))
+                        
+                        // Add user message to chat
+                        messages.add(ChatMessage(userText, isUser = true))
+                        
+                        // Add temporary "thinking" message
+                        messages.add(ChatMessage("Processing…", isUser = false))
 
+                        // ✅ PROPER COROUTINE USAGE
+                        // Launch in the composable's scope (rememberCoroutineScope)
                         scope.launch {
                             try {
-                                Log.d(TAG, "Starting message processing...")
+                                Log.d(TAG, "Starting message processing in coroutine")
+                                Log.d(TAG, "Current thread: ${Thread.currentThread().name}")
                                 
                                 // Try command engine first
                                 val result = EngineProvider.commandEngine.handle(userText)
+                                Log.d(TAG, "Command engine result: $result")
+                                
                                 val reply = when (result) {
                                     is EngineResult.Success -> {
-                                        Log.d(TAG, "Command engine handled: ${result.reply}")
+                                        Log.d(TAG, "✅ Command handled successfully")
                                         result.reply
                                     }
                                     else -> {
-                                        Log.d(TAG, "Command not handled, trying LLM...")
+                                        Log.d(TAG, "Command not handled, falling back to LLM")
                                         val llmEngine = EngineProvider.llmEngine
                                         
-                                        // ✅ FIXED: Call generateReply in IO context instead of non-existent generateReplyAsync
+                                        // ✅ CRITICAL FIX: Call suspend function from coroutine
+                                        // withContext ensures we're on the right dispatcher
                                         withContext(Dispatchers.IO) {
-                                            Log.d(TAG, "Calling generateReply on IO dispatcher...")
+                                            Log.d(TAG, "Calling LLM on thread: ${Thread.currentThread().name}")
                                             val llmReply = llmEngine.generateReply(userText)
-                                            Log.d(TAG, "LLM replied: ${llmReply.take(50)}...")
+                                            Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
                                             llmReply
                                         }
                                     }
                                 }
                                 
-                                Log.d(TAG, "Removing processing message and adding reply")
+                                Log.d(TAG, "Updating UI with reply")
+                                
+                                // Remove "Processing..." message
                                 messages.removeLastOrNull()
-                                messages.add(ChatMessage(reply, false))
+                                
+                                // Add actual reply
+                                messages.add(ChatMessage(reply, isUser = false))
+                                
+                                Log.d(TAG, "=== MESSAGE PROCESSING COMPLETE ===")
                                 
                             } catch (e: Exception) {
-                                Log.e(TAG, "Error processing message", e)
+                                Log.e(TAG, "=== ERROR PROCESSING MESSAGE ===", e)
+                                
+                                // Remove "Processing..." message
                                 messages.removeLastOrNull()
-                                messages.add(ChatMessage("Error: ${e.message ?: "Unknown error"}", false))
+                                
+                                // Add error message
+                                val errorMsg = when {
+                                    e.message?.contains("timeout", ignoreCase = true) == true ->
+                                        "Request timed out. Try a shorter prompt."
+                                    e.message?.contains("model", ignoreCase = true) == true ->
+                                        "Model error. Check if models are loaded in /storage/emulated/0/JarvisModels/"
+                                    else ->
+                                        "Error: ${e.message ?: "Unknown error occurred"}"
+                                }
+                                
+                                messages.add(ChatMessage(errorMsg, isUser = false))
+                                
                             } finally {
-                                Log.d(TAG, "Processing complete, resetting state")
+                                Log.d(TAG, "Resetting processing state")
                                 isProcessing = false
                             }
                         }
@@ -274,9 +747,12 @@ fun JarvisChatScreen(
                     enabled = !isProcessing
                 ) {
                     Icon(
-                        Icons.Default.Send, 
-                        "Send", 
-                        tint = if (isProcessing) JarvisBlue.copy(alpha = 0.3f) else JarvisBlue
+                        Icons.Default.Send,
+                        contentDescription = "Send",
+                        tint = if (isProcessing) 
+                            JarvisBlue.copy(alpha = 0.3f) 
+                        else 
+                            JarvisBlue
                     )
                 }
             }
