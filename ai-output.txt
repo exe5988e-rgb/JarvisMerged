@@ -1,298 +1,238 @@
-//===== FILE: app/src/main/AndroidManifest.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jarvismini">
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/ModelPathManager.kt =====
+package com.jarvismini.engine.ai
 
-    <!-- ================= PERMISSIONS ================= -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
-    
-    <!-- ================= STORAGE PERMISSIONS (Android 13+) ================= -->
-    <!-- For reading images -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    
-    <!-- For reading videos -->
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    
-    <!-- For reading audio files -->
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    
-    <!-- Legacy storage for Android 12 and below -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
-
-    <!-- ================= PACKAGE VISIBILITY ================= -->
-
-    <queries>
-        <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
-        <package android:name="com.google.android.apps.youtube.music" />
-        <package android:name="com.oneplus.deskclock" />
-        <package android:name="com.sec.android.app.clockpackage" />
-        <package android:name="com.apple.android.music" />
-    </queries>
-
-    <!-- ================= APPLICATION ================= -->
-
-    <application
-        android:name="com.jarvismini.CoreApp"
-        android:allowBackup="true"
-        android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMerged"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:requestLegacyExternalStorage="true">
-
-        <!-- ================= MAIN ACTIVITY ================= -->
-
-        <activity
-            android:name="com.jarvismini.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- ================= NOTIFICATION LISTENER ================= -->
-
-        <service
-            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= SMS RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.SmsReceiver"
-            android:permission="android.permission.BROADCAST_SMS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL STATE RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL SCREENING SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
-            android:permission="android.permission.BIND_SCREENING_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
-    </application>
-
-</manifest>
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/core/StoragePermissionHelper.kt =====
-package com.jarvismini.core
-
-import android.Manifest
-import android.app.Activity
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import android.os.Environment
+import android.util.Log
+import java.io.File
 
-object StoragePermissionHelper {
-    
-    const val STORAGE_PERMISSION_REQUEST_CODE = 100
+object ModelPathManager {
+    private const val TAG = "ModelPathManager"
+    private const val MODELS_FOLDER_NAME = "JarvisModels"
     
     /**
-     * Get the appropriate storage permissions based on Android version
+     * Get the correct models directory path using Android's proper APIs
+     * This works across all Android versions and handles symlinks correctly
      */
-    fun getStoragePermissions(): Array<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ (API 33+)
-            arrayOf(
-                Manifest.permission.READ_MEDIA_IMAGES,
-                Manifest.permission.READ_MEDIA_VIDEO,
-                Manifest.permission.READ_MEDIA_AUDIO
-            )
-        } else {
-            // Android 12 and below
-            arrayOf(
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            )
+    fun getModelsDirectory(context: Context): File {
+        // Use Environment.getExternalStorageDirectory() which properly resolves to /storage/emulated/0
+        val externalStorage = Environment.getExternalStorageDirectory()
+        val modelsDir = File(externalStorage, MODELS_FOLDER_NAME)
+        
+        Log.d(TAG, "Models directory path: ${modelsDir.absolutePath}")
+        
+        // Create directory if it doesn't exist
+        if (!modelsDir.exists()) {
+            val created = modelsDir.mkdirs()
+            Log.d(TAG, "Models directory created: $created")
+        }
+        
+        return modelsDir
+    }
+    
+    /**
+     * List all .gguf model files in the models directory
+     */
+    fun listModelFiles(context: Context): List<File> {
+        val modelsDir = getModelsDirectory(context)
+        
+        if (!modelsDir.exists() || !modelsDir.isDirectory) {
+            Log.w(TAG, "Models directory does not exist: ${modelsDir.absolutePath}")
+            return emptyList()
+        }
+        
+        val modelFiles = modelsDir.listFiles { file ->
+            file.isFile && file.extension.equals("gguf", ignoreCase = true)
+        }?.toList() ?: emptyList()
+        
+        Log.d(TAG, "Found ${modelFiles.size} model files")
+        modelFiles.forEach { 
+            Log.d(TAG, "  - ${it.name} (${it.length() / 1024 / 1024}MB)")
+        }
+        
+        return modelFiles
+    }
+    
+    /**
+     * Find a specific model file by name (case-insensitive)
+     */
+    fun findModel(context: Context, modelName: String): File? {
+        val models = listModelFiles(context)
+        return models.find { 
+            it.nameWithoutExtension.equals(modelName, ignoreCase = true)
         }
     }
     
     /**
-     * Check if all required storage permissions are granted
+     * Get the default model (first .gguf file found, or a specific preferred model)
      */
-    fun hasStoragePermissions(context: Context): Boolean {
-        return getStoragePermissions().all { permission ->
-            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    fun getDefaultModel(context: Context, preferredName: String? = null): File? {
+        val models = listModelFiles(context)
+        
+        if (models.isEmpty()) {
+            Log.w(TAG, "No models found in ${getModelsDirectory(context).absolutePath}")
+            return null
         }
-    }
-    
-    /**
-     * Request storage permissions
-     */
-    fun requestStoragePermissions(activity: Activity) {
-        val permissions = getStoragePermissions()
-        ActivityCompat.requestPermissions(
-            activity,
-            permissions,
-            STORAGE_PERMISSION_REQUEST_CODE
-        )
-    }
-    
-    /**
-     * Check if we should show permission rationale
-     */
-    fun shouldShowRationale(activity: Activity): Boolean {
-        return getStoragePermissions().any { permission ->
-            ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
-        }
-    }
-    
-    /**
-     * Handle permission request result
-     */
-    fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-        onGranted: () -> Unit,
-        onDenied: () -> Unit
-    ) {
-        if (requestCode == STORAGE_PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                onGranted()
-            } else {
-                onDenied()
+        
+        // Try to find preferred model first
+        preferredName?.let { name ->
+            models.find { it.nameWithoutExtension.equals(name, ignoreCase = true) }?.let {
+                Log.d(TAG, "Using preferred model: ${it.name}")
+                return it
             }
         }
+        
+        // Return first model as default
+        Log.d(TAG, "Using default model: ${models[0].name}")
+        return models[0]
+    }
+    
+    /**
+     * Check if models directory exists and has at least one model
+     */
+    fun hasModels(context: Context): Boolean {
+        return listModelFiles(context).isNotEmpty()
+    }
+    
+    /**
+     * Get a user-friendly error message if no models are found
+     */
+    fun getNoModelsErrorMessage(context: Context): String {
+        val path = getModelsDirectory(context).absolutePath
+        return "No AI models found. Please place .gguf model files in:\n$path"
     }
 }
 
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
-package com.jarvismini
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/AIService.kt =====
+package com.jarvismini.engine.ai
 
-import android.os.Bundle
-import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import com.jarvismini.core.JarvisState
-import com.jarvismini.core.StoragePermissionHelper
-import com.jarvismini.core.stopwatch.NotificationPermissionHelper
-import com.jarvismini.engine.EngineProvider
-import com.jarvismini.ui.main.MainScreen
+import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+class AIService(private val context: Context) {
+    private var handle: Long = 0
+    private var isInitialized = false
+    private var currentModelPath: String? = null
 
-        JarvisState.init(applicationContext)
-        EngineProvider.init(applicationContext)
-
-        ProgressInitializer.registerAllBlocks(this)
-
-        // Request notification permission on startup if needed (Android 13+)
-        if (NotificationPermissionHelper.shouldRequestPermission(this)) {
-            NotificationPermissionHelper.requestPermission(this)
-        }
-
-        // Request storage permissions if not granted
-        if (!StoragePermissionHelper.hasStoragePermissions(this)) {
-            StoragePermissionHelper.requestStoragePermissions(this)
-        }
-
-        setContent {
-            MaterialTheme {
-                Surface {
-                    MainScreen()
-                }
+    /**
+     * Initialize with automatic model detection
+     */
+    suspend fun initialize(
+        modelName: String? = null,
+        nCtx: Int = 2048, 
+        nThreads: Int = 4
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Initializing AIService")
+            
+            // Check if models exist
+            if (!ModelPathManager.hasModels(context)) {
+                Log.e(TAG, ModelPathManager.getNoModelsErrorMessage(context))
+                return@withContext false
             }
+            
+            // Get model file
+            val modelFile = if (modelName != null) {
+                ModelPathManager.findModel(context, modelName)
+            } else {
+                ModelPathManager.getDefaultModel(context)
+            }
+            
+            if (modelFile == null || !modelFile.exists()) {
+                Log.e(TAG, "Model file not found: $modelName")
+                Log.e(TAG, "Available models: ${ModelPathManager.listModelFiles(context).joinToString { it.name }}")
+                return@withContext false
+            }
+            
+            return@withContext initializeWithPath(modelFile.absolutePath, nCtx, nThreads)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing AIService", e)
+            false
+        }
+    }
+    
+    /**
+     * Initialize with explicit model path (for advanced use)
+     */
+    suspend fun initializeWithPath(
+        modelPath: String,
+        nCtx: Int = 2048,
+        nThreads: Int = 4
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Initializing AIService with path: $modelPath")
+            
+            // Verify file exists
+            val modelFile = File(modelPath)
+            if (!modelFile.exists()) {
+                Log.e(TAG, "Model file does not exist: $modelPath")
+                return@withContext false
+            }
+            
+            Log.d(TAG, "Model file size: ${modelFile.length() / 1024 / 1024}MB")
+            
+            handle = LlamaNative.nativeInit()
+            
+            if (handle == 0L) {
+                Log.e(TAG, "Failed to create native context")
+                return@withContext false
+            }
+            
+            Log.d(TAG, "Loading model: $modelPath (ctx=$nCtx, threads=$nThreads)")
+            val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
+            
+            if (loaded) {
+                isInitialized = true
+                currentModelPath = modelPath
+                Log.d(TAG, "Model loaded successfully: ${modelFile.name}")
+            } else {
+                Log.e(TAG, "Failed to load model")
+                LlamaNative.nativeRelease(handle)
+                handle = 0
+            }
+            
+            loaded
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing AIService", e)
+            false
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        // Handle notification permission
-        if (requestCode == NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS) {
-            if (NotificationPermissionHelper.isPermissionGranted(this)) {
-                Toast.makeText(
-                    this,
-                    "Notification permission granted! Stopwatch will work in background.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                Toast.makeText(
-                    this,
-                    "Notification permission denied. Stopwatch notifications won't be visible.",
-                    Toast.LENGTH_LONG
-                ).show()
+    suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
+        withContext(Dispatchers.IO) {
+            if (!isInitialized || handle == 0L) {
+                Log.e(TAG, "Service not initialized")
+                return@withContext ""
+            }
+            
+            try {
+                Log.d(TAG, "Generating response for prompt: ${prompt.take(50)}...")
+                LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating response", e)
+                ""
             }
         }
 
-        // Handle storage permission
-        StoragePermissionHelper.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults,
-            onGranted = {
-                Toast.makeText(
-                    this,
-                    "Storage permission granted!",
-                    Toast.LENGTH_SHORT
-                ).show()
-            },
-            onDenied = {
-                Toast.makeText(
-                    this,
-                    "Storage permission denied. Some features may not work.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        )
+    fun release() {
+        if (handle != 0L) {
+            Log.d(TAG, "Releasing AIService")
+            LlamaNative.nativeRelease(handle)
+            handle = 0
+            isInitialized = false
+            currentModelPath = null
+        }
+    }
+    
+    fun isReady(): Boolean = isInitialized && handle != 0L
+    
+    fun getCurrentModel(): String? = currentModelPath
+
+    companion object {
+        private const val TAG = "AIService"
     }
 }
