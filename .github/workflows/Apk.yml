@@ -26,9 +26,6 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install NDK and CMake
         run: |
           echo "y" | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125"
@@ -85,7 +82,7 @@ jobs:
             grep -E "No such file|cannot find|ld returned" build_error_logs/build_output.txt || echo "No missing deps"
             echo
             echo "-- KOTLIN/JAVA ERRORS --"
-            grep -E "\.kt:[0-9]+: error|\.java:[0-9]+: error|^e: " build_error_logs/build_output.txt || echo "No Kotlin/Java errors"
+            grep -E "\.kt:[0-9]+:[0-9]+ error|\.java:[0-9]+: error|^e: " build_error_logs/build_output.txt || echo "No Kotlin/Java errors"
             echo
             echo "-- XML RESOURCE ERRORS --"
             grep -E "\.xml:[0-9]+:" build_error_logs/build_output.txt || echo "No XML errors"
@@ -106,46 +103,99 @@ jobs:
           # Save tail of full log
           tail -1000 build_error_logs/build_output.txt > build_error_logs/build_tail.txt
 
-      # ---------------- EXTRACT ERROR SOURCE FILES ----------------
-      - name: Extract source code of error files
+      # ---------------- EXTRACT ERROR SOURCE FILES WITH LINE HIGHLIGHTING ----------------
+      - name: Extract source code of error files with highlighted error lines
         if: steps.gradle_build.outputs.exit_code != '0'
         run: |
           ERROR_LOG=build_error_logs/build_output.txt
           OUTPUT=build_error_logs/error_files.txt
           REPO_ROOT=$(pwd)
 
-          echo "==== SOURCE CODE (ERROR FILES) ====" > $OUTPUT
+          echo "==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====" > $OUTPUT
           echo >> $OUTPUT
 
+          # Create a comprehensive error map file->line->error
+          ERROR_MAP=$(mktemp)
+
           {
-            # Kotlin errors
-            grep -E '^e: .*\.kt:[0-9]+: error' "$ERROR_LOG" \
-              | sed -E 's/^e: (file:)?(\/\/+)?([^:]+):[0-9]+: error.*/\3/'
+            # Kotlin errors with line numbers
+            grep -E '^e: (file:\/\/)?.*\.kt:[0-9]+:[0-9]+ ' "$ERROR_LOG" \
+              | sed -E 's|^e: (file://)?(/+)?([^:]+):([0-9]+):([0-9]+) (.*)|\3|\4|\6|' \
+              | while IFS='|' read -r file line msg; do
+                  echo "$file|$line|$msg"
+                done
 
             # Java errors
             grep -E '\.java:[0-9]+: error' "$ERROR_LOG" \
-              | sed -E 's/^.*([a-zA-Z0-9_./-]+\.java):[0-9]+: error.*/\1/'
+              | sed -E 's|^.*([a-zA-Z0-9_./-]+\.java):([0-9]+): error: (.*)|\1|\2|\3|' \
+              | while IFS='|' read -r file line msg; do
+                  echo "$file|$line|$msg"
+                done
 
             # XML resource errors
-            grep -E '\.xml:[0-9]+:' "$ERROR_LOG" \
-              | sed -E 's/^.*([a-zA-Z0-9_./-]+\.xml):[0-9]+:.*/\1/'
+            grep -E '\.xml:[0-9]+:[0-9]+:' "$ERROR_LOG" \
+              | sed -E 's|^.*([a-zA-Z0-9_./-]+\.xml):([0-9]+):[0-9]+: (.*)|\1|\2|\3|' \
+              | while IFS='|' read -r file line msg; do
+                  echo "$file|$line|$msg"
+                done
 
             # C/C++ compile errors
-            grep -E '\.(cpp|c|h|hpp):[0-9]+: error' "$ERROR_LOG" \
-              | sed -E 's/^.*([a-zA-Z0-9_./-]+\.(cpp|c|h|hpp)):[0-9]+: error.*/\1/'
-          } | sort -u > build_error_logs/error_file_list.txt
+            grep -E '\.(cpp|c|h|hpp):[0-9]+:[0-9]+: error' "$ERROR_LOG" \
+              | sed -E 's|^.*([a-zA-Z0-9_./-]+\.(cpp|c|h|hpp)):([0-9]+):[0-9]+: error: (.*)|\1|\3|\4|' \
+              | while IFS='|' read -r file line msg; do
+                  echo "$file|$line|$msg"
+                done
+          } | sort -u > $ERROR_MAP
+
+          # Get unique files
+          cut -d'|' -f1 $ERROR_MAP | sort -u > build_error_logs/error_file_list.txt
 
           echo "Detected error files:"
           cat build_error_logs/error_file_list.txt || echo "No files detected"
 
+          # Process each file
           while read -r FILE; do
+            # Clean up file path
+            FILE=$(echo "$FILE" | sed 's|^file://||' | sed 's|^//*|/|')
+            
             if [ -f "$FILE" ]; then
               RELATIVE_PATH="${FILE#$REPO_ROOT/}"
               echo "//===== FILE: $RELATIVE_PATH =====" >> $OUTPUT
-              cat "$FILE" >> $OUTPUT
+              echo >> $OUTPUT
+              
+              # Get all error lines for this file
+              ERROR_LINES=$(grep "^${FILE}|" $ERROR_MAP | cut -d'|' -f2 | sort -n)
+              
+              if [ -n "$ERROR_LINES" ]; then
+                echo "// ❌ ERRORS IN THIS FILE:" >> $OUTPUT
+                while read -r ERRLINE; do
+                  ERROR_MSG=$(grep "^${FILE}|${ERRLINE}|" $ERROR_MAP | cut -d'|' -f3 | head -1)
+                  echo "// Line $ERRLINE: $ERROR_MSG" >> $OUTPUT
+                done <<< "$ERROR_LINES"
+                echo >> $OUTPUT
+              fi
+              
+              # Output file with line numbers and error markers
+              awk -v errors="$ERROR_LINES" '
+                BEGIN {
+                  split(errors, err_arr, "\n")
+                  for (i in err_arr) err_lines[err_arr[i]] = 1
+                }
+                {
+                  line_num = NR
+                  if (line_num in err_lines) {
+                    printf "%4d ❌ %s\n", line_num, $0
+                  } else {
+                    printf "%4d    %s\n", line_num, $0
+                  }
+                }
+              ' "$FILE" >> $OUTPUT
+              
               echo -e "\n" >> $OUTPUT
             fi
           done < build_error_logs/error_file_list.txt
+
+          rm -f $ERROR_MAP
 
       # ---------------- COMMIT ERROR REPORT ----------------
       - name: Commit & push error report
@@ -164,3 +214,4 @@ jobs:
           echo "::error::Build failed with exit code ${{ steps.gradle_build.outputs.exit_code }}"
           echo "Check build_error_logs/error_summary.txt for details"
           exit 1
+          
