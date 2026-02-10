@@ -11303,6 +11303,9 @@ jobs:
             echo "-- KOTLIN/JAVA ERRORS --"
             grep -E "\.kt:[0-9]+: error|\.java:[0-9]+: error|^e: " build_error_logs/build_output.txt || echo "No Kotlin/Java errors"
             echo
+            echo "-- XML RESOURCE ERRORS --"
+            grep -E "\.xml:[0-9]+:" build_error_logs/build_output.txt || echo "No XML errors"
+            echo
             echo "-- BUILD TASK FAILURES --"
             grep -E "BUILD FAILED|FAILURE: Build failed|Task.*FAILED" build_error_logs/build_output.txt || echo "No task failures"
             echo
@@ -11325,24 +11328,38 @@ jobs:
         run: |
           ERROR_LOG=build_error_logs/build_output.txt
           OUTPUT=build_error_logs/error_files.txt
+          REPO_ROOT=$(pwd)
 
           echo "==== SOURCE CODE (ERROR FILES) ====" > $OUTPUT
           echo >> $OUTPUT
 
-          # Extract file paths from Kotlin, Java, and C/C++ errors
-          grep -Eo '([a-zA-Z0-9_./-]+\.(kt|java|cpp|c|h|hpp)):[0-9]+' $ERROR_LOG \
-            | cut -d: -f1 \
-            | sort -u > build_error_logs/error_file_list.txt
+          {
+            # Kotlin errors
+            grep -E '^e: .*\.kt:[0-9]+: error' "$ERROR_LOG" \
+              | sed -E 's/^e: (file:)?(\/\/+)?([^:]+):[0-9]+: error.*/\3/'
+
+            # Java errors
+            grep -E '\.java:[0-9]+: error' "$ERROR_LOG" \
+              | sed -E 's/^.*([a-zA-Z0-9_./-]+\.java):[0-9]+: error.*/\1/'
+
+            # XML resource errors
+            grep -E '\.xml:[0-9]+:' "$ERROR_LOG" \
+              | sed -E 's/^.*([a-zA-Z0-9_./-]+\.xml):[0-9]+:.*/\1/'
+
+            # C/C++ compile errors
+            grep -E '\.(cpp|c|h|hpp):[0-9]+: error' "$ERROR_LOG" \
+              | sed -E 's/^.*([a-zA-Z0-9_./-]+\.(cpp|c|h|hpp)):[0-9]+: error.*/\1/'
+          } | sort -u > build_error_logs/error_file_list.txt
 
           echo "Detected error files:"
           cat build_error_logs/error_file_list.txt || echo "No files detected"
 
-          # Dump file contents
           while read -r FILE; do
             if [ -f "$FILE" ]; then
-              echo "===== FILE: $FILE =====" >> $OUTPUT
+              RELATIVE_PATH="${FILE#$REPO_ROOT/}"
+              echo "//===== FILE: $RELATIVE_PATH =====" >> $OUTPUT
               cat "$FILE" >> $OUTPUT
-              echo -e "\n\n" >> $OUTPUT
+              echo -e "\n" >> $OUTPUT
             fi
           done < build_error_logs/error_file_list.txt
 
