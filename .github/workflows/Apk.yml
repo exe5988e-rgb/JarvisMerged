@@ -103,109 +103,185 @@ jobs:
           # Save tail of full log
           tail -1000 build_error_logs/build_output.txt > build_error_logs/build_tail.txt
 
-      # ---------------- EXTRACT ERROR SOURCE FILES WITH LINE HIGHLIGHTING ----------------
+      # ---------------- EXTRACT ERROR SOURCE FILES WITH PYTHON ----------------
       - name: Extract source code of error files with highlighted error lines
         if: steps.gradle_build.outputs.exit_code != '0'
         run: |
-          ERROR_LOG=build_error_logs/build_output.txt
-          OUTPUT=build_error_logs/error_files.txt
-          REPO_ROOT=$(pwd)
+          python3 << 'PYTHON_SCRIPT'
+          import re
+          import os
+          from pathlib import Path
+          from collections import defaultdict
 
-          echo "==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====" > $OUTPUT
-          echo >> $OUTPUT
+          ERROR_LOG = "build_error_logs/build_output.txt"
+          OUTPUT = "build_error_logs/error_files.txt"
+          REPO_ROOT = os.getcwd()
 
-          # Create a comprehensive error map file->line->error
-          ERROR_MAP=$(mktemp)
+          # Read error log
+          with open(ERROR_LOG, 'r', encoding='utf-8', errors='ignore') as f:
+              error_log = f.read()
 
-          {
-            # Kotlin errors with line numbers
-            grep -E '^e: (file:\/\/)?.*\.kt:[0-9]+:[0-9]+ ' "$ERROR_LOG" \
-              | sed -E 's|^e: (file://)?(/+)?([^:]+):([0-9]+):([0-9]+) (.*)|\3|\4|\6|' \
-              | while IFS='|' read -r file line msg; do
-                  echo "$file|$line|$msg"
-                done
+          # Dictionary to store file -> [(line_num, error_msg)]
+          error_map = defaultdict(list)
 
-            # Java errors
-            grep -E '\.java:[0-9]+: error' "$ERROR_LOG" \
-              | sed -E 's|^.*([a-zA-Z0-9_./-]+\.java):([0-9]+): error: (.*)|\1|\2|\3|' \
-              | while IFS='|' read -r file line msg; do
-                  echo "$file|$line|$msg"
-                done
+          # Pattern for Kotlin errors: e: file:///path/to/file.kt:line:col error message
+          kt_pattern = r'e:\s+(?:file://)?(?:/+)?([^:]+\.kt):(\d+):(\d+)\s+(.+)'
+          for match in re.finditer(kt_pattern, error_log):
+              filepath = match.group(1)
+              line_num = int(match.group(2))
+              error_msg = match.group(4)
+              error_map[filepath].append((line_num, error_msg))
 
-            # XML resource errors
-            grep -E '\.xml:[0-9]+:[0-9]+:' "$ERROR_LOG" \
-              | sed -E 's|^.*([a-zA-Z0-9_./-]+\.xml):([0-9]+):[0-9]+: (.*)|\1|\2|\3|' \
-              | while IFS='|' read -r file line msg; do
-                  echo "$file|$line|$msg"
-                done
+          # Pattern for Java errors
+          java_pattern = r'([a-zA-Z0-9_./\-]+\.java):(\d+):\s+error:\s+(.+)'
+          for match in re.finditer(java_pattern, error_log):
+              filepath = match.group(1)
+              line_num = int(match.group(2))
+              error_msg = match.group(3)
+              error_map[filepath].append((line_num, error_msg))
 
-            # C/C++ compile errors
-            grep -E '\.(cpp|c|h|hpp):[0-9]+:[0-9]+: error' "$ERROR_LOG" \
-              | sed -E 's|^.*([a-zA-Z0-9_./-]+\.(cpp|c|h|hpp)):([0-9]+):[0-9]+: error: (.*)|\1|\3|\4|' \
-              | while IFS='|' read -r file line msg; do
-                  echo "$file|$line|$msg"
-                done
-          } | sort -u > $ERROR_MAP
+          # Pattern for XML errors
+          xml_pattern = r'([a-zA-Z0-9_./\-]+\.xml):(\d+):(\d+):\s+(.+)'
+          for match in re.finditer(xml_pattern, error_log):
+              filepath = match.group(1)
+              line_num = int(match.group(2))
+              error_msg = match.group(4)
+              error_map[filepath].append((line_num, error_msg))
 
-          # Get unique files
-          cut -d'|' -f1 $ERROR_MAP | sort -u > build_error_logs/error_file_list.txt
+          # Pattern for C++ errors
+          cpp_pattern = r'([a-zA-Z0-9_./\-]+\.(cpp|c|h|hpp)):(\d+):(\d+):\s+error:\s+(.+)'
+          for match in re.finditer(cpp_pattern, error_log):
+              filepath = match.group(1)
+              line_num = int(match.group(3))
+              error_msg = match.group(5)
+              error_map[filepath].append((line_num, error_msg))
 
-          echo "Detected error files:"
-          cat build_error_logs/error_file_list.txt || echo "No files detected"
-
-          # Process each file
-          while read -r FILE; do
-            # Clean up file path
-            FILE=$(echo "$FILE" | sed 's|^file://||' | sed 's|^//*|/|')
-            
-            if [ -f "$FILE" ]; then
-              RELATIVE_PATH="${FILE#$REPO_ROOT/}"
-              echo "//===== FILE: $RELATIVE_PATH =====" >> $OUTPUT
-              echo >> $OUTPUT
+          # Write output
+          with open(OUTPUT, 'w', encoding='utf-8') as out:
+              out.write("==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====\n\n")
               
-              # Get all error lines for this file
-              ERROR_LINES=$(grep "^${FILE}|" $ERROR_MAP | cut -d'|' -f2 | sort -n)
-              
-              if [ -n "$ERROR_LINES" ]; then
-                echo "// ❌ ERRORS IN THIS FILE:" >> $OUTPUT
-                while read -r ERRLINE; do
-                  ERROR_MSG=$(grep "^${FILE}|${ERRLINE}|" $ERROR_MAP | cut -d'|' -f3 | head -1)
-                  echo "// Line $ERRLINE: $ERROR_MSG" >> $OUTPUT
-                done <<< "$ERROR_LINES"
-                echo >> $OUTPUT
-              fi
-              
-              # Output file with line numbers and error markers
-              awk -v errors="$ERROR_LINES" '
-                BEGIN {
-                  split(errors, err_arr, "\n")
-                  for (i in err_arr) err_lines[err_arr[i]] = 1
-                }
-                {
-                  line_num = NR
-                  if (line_num in err_lines) {
-                    printf "%4d ❌ %s\n", line_num, $0
-                  } else {
-                    printf "%4d    %s\n", line_num, $0
-                  }
-                }
-              ' "$FILE" >> $OUTPUT
-              
-              echo -e "\n" >> $OUTPUT
-            fi
-          done < build_error_logs/error_file_list.txt
+              if not error_map:
+                  out.write("No error files detected\n")
+              else:
+                  for filepath in sorted(error_map.keys()):
+                      # Try to find the file
+                      if os.path.isfile(filepath):
+                          actual_path = filepath
+                      else:
+                          # Try relative to repo root
+                          possible_path = os.path.join(REPO_ROOT, filepath.lstrip('/'))
+                          if os.path.isfile(possible_path):
+                              actual_path = possible_path
+                          else:
+                              out.write(f"//===== FILE: {filepath} (NOT FOUND) =====\n\n")
+                              continue
+                      
+                      relative_path = os.path.relpath(actual_path, REPO_ROOT)
+                      out.write(f"//===== FILE: {relative_path} =====\n\n")
+                      
+                      # Write error summary
+                      errors = sorted(set(error_map[filepath]))
+                      out.write(f"// ❌ ERRORS IN THIS FILE ({len(errors)} error(s)):\n")
+                      for line_num, msg in errors:
+                          out.write(f"// Line {line_num}: {msg}\n")
+                      out.write("\n")
+                      
+                      # Create set of error lines for quick lookup
+                      error_lines = {line_num for line_num, _ in errors}
+                      
+                      # Write file content with line numbers and markers
+                      try:
+                          with open(actual_path, 'r', encoding='utf-8', errors='ignore') as f:
+                              for line_num, line in enumerate(f, 1):
+                                  if line_num in error_lines:
+                                      out.write(f"{line_num:4d} ❌ {line}")
+                                  else:
+                                      out.write(f"{line_num:4d}    {line}")
+                      except Exception as e:
+                          out.write(f"// Error reading file: {e}\n")
+                      
+                      out.write("\n\n")
 
-          rm -f $ERROR_MAP
+          # Save list of error files
+          with open("build_error_logs/error_file_list.txt", 'w') as f:
+              for filepath in sorted(error_map.keys()):
+                  f.write(f"{filepath}\n")
 
-      # ---------------- COMMIT ERROR REPORT ----------------
-      - name: Commit & push error report
+          print(f"Detected {len(error_map)} error file(s)")
+          for filepath in sorted(error_map.keys()):
+              print(f"  - {filepath} ({len(error_map[filepath])} error(s))")
+
+          PYTHON_SCRIPT
+
+      # ---------------- COMMIT ERROR REPORT WITH CONFLICT HANDLING ----------------
+      - name: Commit & push error report (with conflict resolution)
         if: steps.gradle_build.outputs.exit_code != '0'
         run: |
           git config user.name "build-error-bot"
           git config user.email "bot@users.noreply.github.com"
+          
+          # Add changes
           git add build_error_logs/
-          git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})" || echo "No changes"
-          git push origin main || true
+          
+          # Try to commit
+          if git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})"; then
+            echo "Changes committed successfully"
+            
+            # Try to push with retry logic
+            MAX_RETRIES=3
+            RETRY_COUNT=0
+            PUSH_SUCCESS=false
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if git push origin main; then
+                echo "✅ Push successful"
+                PUSH_SUCCESS=true
+                break
+              else
+                echo "⚠️ Push failed, attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "Pulling latest changes and retrying..."
+                  
+                  # Stash our commit temporarily
+                  git reset --soft HEAD^
+                  git stash
+                  
+                  # Pull with rebase
+                  git pull --rebase origin main || {
+                    echo "Pull failed, trying merge strategy"
+                    git rebase --abort 2>/dev/null || true
+                    git pull origin main
+                  }
+                  
+                  # Restore our changes
+                  git stash pop || true
+                  git add build_error_logs/
+                  git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})" || true
+                  
+                  # Wait a bit before retry
+                  sleep 2
+                fi
+              fi
+            done
+            
+            if [ "$PUSH_SUCCESS" = false ]; then
+              echo "⚠️ Push failed after $MAX_RETRIES attempts, but continuing anyway"
+              echo "Error logs are still available in the job artifacts"
+            fi
+          else
+            echo "No changes to commit or commit failed"
+          fi
+
+      # ---------------- UPLOAD ERROR LOGS AS ARTIFACT (FALLBACK) ----------------
+      - name: Upload error logs as artifact
+        if: steps.gradle_build.outputs.exit_code != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-logs
+          path: build_error_logs/
+          retention-days: 30
 
       # ---------------- FAIL THE JOB ----------------
       - name: Mark build as failed
@@ -213,5 +289,5 @@ jobs:
         run: |
           echo "::error::Build failed with exit code ${{ steps.gradle_build.outputs.exit_code }}"
           echo "Check build_error_logs/error_summary.txt for details"
+          echo "Error logs also available as workflow artifact: build-error-logs"
           exit 1
-          
