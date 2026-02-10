@@ -15,8 +15,9 @@ object EngineProvider {
     private lateinit var engines: List<CommandEngine>
 
     // ---------------- LLM ENGINE ----------------
-
-    private val llmEngineInstance: LLMEngine = StubLLMEngine
+    
+    // ✅ CHANGED: Use LlamaLLMEngine instead of StubLLMEngine
+    private val llmEngineInstance: LLMEngine = LlamaLLMEngine
 
     /**
      * Must be called once from Application.onCreate()
@@ -35,6 +36,7 @@ object EngineProvider {
             stubCommandEngine
         )
 
+        // ✅ Initialize Llama engine
         llmEngineInstance.init(appContext)
     }
 
