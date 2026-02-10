@@ -2820,13 +2820,12 @@ fun ChatScreen() {
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
-@file:OptIn(ExperimentalMaterial3Api::class)
-
-package com.jarvismini.ui
+package com.jarvismini.ui.chat
 
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -2846,31 +2845,19 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.jarvismini.core.JarvisMode
-import com.jarvismini.core.JarvisState
-import com.jarvismini.core.WorkModeManager
+import com.jarvismini.core.workmode.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
+import com.jarvismini.state.JarvisMode
+import com.jarvismini.state.JarvisState
+import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.components.GridBackground
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.jarvismini.ui.theme.JarvisBlue
+import kotlinx.coroutines.*
 
-private val JarvisBlue = Color(0xFF00E0FF)
 private const val TAG = "JarvisChatScreen"
 
-/**
- * Main chat screen for interacting with J.A.R.V.I.S.
- * 
- * This implementation follows best practices from SmolChat-Android:
- * https://github.com/shubham0204/SmolChat-Android
- * 
- * Key improvements:
- * 1. Proper coroutine scope management with rememberCoroutineScope
- * 2. No runBlocking - all async operations use suspend functions
- * 3. Better error handling and user feedback
- * 4. Detailed logging for debugging
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JarvisChatScreen(
     onBack: () -> Unit
@@ -3079,27 +3066,29 @@ fun JarvisChatScreen(
                 )
 
                 // ===== SEND BUTTON =====
-                // ✅ FIXED: Proper coroutine handling without runBlocking
+                // ✅ FIXED: Input cleared AFTER success, with timeout protection
                 IconButton(
                     onClick = {
                         val userText = input.trim()
                         
                         // Validation
                         if (userText.isEmpty()) {
-                            Log.d(TAG, "Ignoring empty input")
+                            Log.d(TAG, "❌ Ignoring empty input")
                             return@IconButton
                         }
                         
                         if (isProcessing) {
-                            Log.d(TAG, "Already processing, ignoring click")
+                            Log.d(TAG, "⚠️ Already processing, ignoring click")
                             return@IconButton
                         }
 
-                        Log.d(TAG, "=== SEND BUTTON CLICKED ===")
-                        Log.d(TAG, "User input: '$userText'")
+                        Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                        Log.d(TAG, "🚀 SEND BUTTON CLICKED")
+                        Log.d(TAG, "📝 User input: '$userText'")
+                        Log.d(TAG, "🧵 Main thread: ${Thread.currentThread().name}")
                         
-                        // Clear input and set processing state
-                        input = ""
+                        // ✅ FIX: Set processing state but DON'T clear input yet
+                        // Input stays visible (disabled) during processing
                         isProcessing = true
                         
                         // Add user message to chat
@@ -3108,38 +3097,38 @@ fun JarvisChatScreen(
                         // Add temporary "thinking" message
                         messages.add(ChatMessage("Processing…", isUser = false))
 
-                        // ✅ PROPER COROUTINE USAGE
-                        // Launch in the composable's scope (rememberCoroutineScope)
+                        // Launch coroutine with proper error handling and timeout
                         scope.launch {
                             try {
-                                Log.d(TAG, "Starting message processing in coroutine")
-                                Log.d(TAG, "Current thread: ${Thread.currentThread().name}")
+                                Log.d(TAG, "⏳ Starting message processing in coroutine")
+                                Log.d(TAG, "🧵 Coroutine thread: ${Thread.currentThread().name}")
                                 
-                                // Try command engine first
-                                val result = EngineProvider.commandEngine.handle(userText)
-                                Log.d(TAG, "Command engine result: $result")
-                                
-                                val reply = when (result) {
-                                    is EngineResult.Success -> {
-                                        Log.d(TAG, "✅ Command handled successfully")
-                                        result.reply
-                                    }
-                                    else -> {
-                                        Log.d(TAG, "Command not handled, falling back to LLM")
-                                        val llmEngine = EngineProvider.llmEngine
-                                        
-                                        // ✅ CRITICAL FIX: Call suspend function from coroutine
-                                        // withContext ensures we're on the right dispatcher
-                                        withContext(Dispatchers.IO) {
-                                            Log.d(TAG, "Calling LLM on thread: ${Thread.currentThread().name}")
-                                            val llmReply = llmEngine.generateReply(userText)
-                                            Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
-                                            llmReply
+                                // ✅ FIX: Add 30-second timeout to prevent infinite hang
+                                val reply = withTimeout(30000L) {
+                                    // Try command engine first
+                                    val result = EngineProvider.commandEngine.handle(userText)
+                                    Log.d(TAG, "🎯 Command engine result: $result")
+                                    
+                                    when (result) {
+                                        is EngineResult.Success -> {
+                                            Log.d(TAG, "✅ Command handled successfully")
+                                            result.reply
+                                        }
+                                        else -> {
+                                            Log.d(TAG, "🔄 Command not handled, calling LLM")
+                                            
+                                            // Call LLM on IO dispatcher
+                                            withContext(Dispatchers.IO) {
+                                                Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
+                                                val llmReply = EngineProvider.llmEngine.generateReply(userText)
+                                                Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
+                                                llmReply
+                                            }
                                         }
                                     }
                                 }
                                 
-                                Log.d(TAG, "Updating UI with reply")
+                                Log.d(TAG, "🔄 Updating UI with reply")
                                 
                                 // Remove "Processing..." message
                                 messages.removeLastOrNull()
@@ -3147,29 +3136,81 @@ fun JarvisChatScreen(
                                 // Add actual reply
                                 messages.add(ChatMessage(reply, isUser = false))
                                 
-                                Log.d(TAG, "=== MESSAGE PROCESSING COMPLETE ===")
+                                // ✅ FIX: Clear input only AFTER successful processing
+                                input = ""
                                 
-                            } catch (e: Exception) {
-                                Log.e(TAG, "=== ERROR PROCESSING MESSAGE ===", e)
+                                Log.d(TAG, "✅ MESSAGE PROCESSING COMPLETE")
+                                Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                
+                            } catch (e: TimeoutCancellationException) {
+                                Log.e(TAG, "⏱️ TIMEOUT: Operation took longer than 30 seconds")
                                 
                                 // Remove "Processing..." message
                                 messages.removeLastOrNull()
                                 
-                                // Add error message
+                                // Add timeout message
+                                messages.add(ChatMessage(
+                                    "⏱️ Request timed out after 30 seconds. The model may be loading or the prompt is too complex. Try:\n" +
+                                    "• A shorter message\n" +
+                                    "• Checking if models are in /storage/emulated/0/JarvisModels/\n" +
+                                    "• Restarting the app",
+                                    isUser = false
+                                ))
+                                
+                                // ✅ FIX: Keep input on timeout so user can retry or modify
+                                Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
+                                
+                            } catch (e: CancellationException) {
+                                Log.e(TAG, "🚫 CANCELLED: Coroutine was cancelled")
+                                
+                                // Remove "Processing..." message
+                                messages.removeLastOrNull()
+                                
+                                // Add cancellation message
+                                messages.add(ChatMessage(
+                                    "🚫 Processing cancelled. Try again.",
+                                    isUser = false
+                                ))
+                                
+                                // Re-throw to properly handle cancellation
+                                throw e
+                                
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ ERROR PROCESSING MESSAGE", e)
+                                Log.e(TAG, "Error type: ${e.javaClass.simpleName}")
+                                Log.e(TAG, "Error message: ${e.message}")
+                                
+                                // Remove "Processing..." message
+                                messages.removeLastOrNull()
+                                
+                                // Add detailed error message
                                 val errorMsg = when {
                                     e.message?.contains("timeout", ignoreCase = true) == true ->
-                                        "Request timed out. Try a shorter prompt."
+                                        "⏱️ Timeout. The request took too long. Try a shorter prompt."
+                                        
                                     e.message?.contains("model", ignoreCase = true) == true ->
-                                        "Model error. Check if models are loaded in /storage/emulated/0/JarvisModels/"
+                                        "🤖 Model error. Check if .gguf models are in:\n/storage/emulated/0/JarvisModels/"
+                                        
+                                    e.message?.contains("permission", ignoreCase = true) == true ->
+                                        "🔒 Permission error. Grant storage access in Settings."
+                                        
+                                    e.message?.contains("memory", ignoreCase = true) == true ->
+                                        "💾 Memory error. Try a smaller model or restart the app."
+                                        
                                     else ->
-                                        "Error: ${e.message ?: "Unknown error occurred"}"
+                                        "❌ Error: ${e.message ?: "Unknown error occurred"}\n\nCheck logs for details."
                                 }
                                 
                                 messages.add(ChatMessage(errorMsg, isUser = false))
                                 
+                                // ✅ FIX: Keep input on error so user can retry
+                                Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
+                                
                             } finally {
-                                Log.d(TAG, "Resetting processing state")
+                                Log.d(TAG, "🔄 Resetting processing state")
+                                Log.d(TAG, "isProcessing: true -> false")
                                 isProcessing = false
+                                Log.d(TAG, "✅ Processing state reset complete")
                             }
                         }
                     },
