@@ -1,6 +1,7 @@
 package com.jarvismini.engine
 
 import android.content.Context
+import android.os.Build
 import android.os.Environment
 import android.util.Log
 import com.jarvismini.engine.ai.AIService
@@ -17,7 +18,13 @@ object LlamaLLMEngine : LLMEngine {
     private var isInitialized = false
     private var appContext: Context? = null
     
-    private val modelsDir = File(Environment.getExternalStorageDirectory(), "JarvisModels")
+    // ✅ CRITICAL FIX: Use function instead of val so path is evaluated with current permissions
+    // This was the main bug - modelsDir was initialized before permissions were granted!
+    private fun getModelsDir(): File {
+        val externalStorage = Environment.getExternalStorageDirectory()
+        val dir = File(externalStorage, "JarvisModels")
+        return dir
+    }
     
     // Model configurations
     private val chatModelConfig = ModelConfig(
@@ -45,16 +52,56 @@ object LlamaLLMEngine : LLMEngine {
         // Store application context
         appContext = context.applicationContext
         
+        val modelsDir = getModelsDir()  // Get it fresh each time with current permissions
+        
+        Log.d(TAG, "=== INITIALIZING JARVIS LLM ENGINE ===")
+        Log.d(TAG, "External storage: ${Environment.getExternalStorageDirectory().absolutePath}")
+        Log.d(TAG, "Models directory: ${modelsDir.absolutePath}")
+        Log.d(TAG, "Directory exists: ${modelsDir.exists()}")
+        Log.d(TAG, "Directory readable: ${modelsDir.canRead()}")
+        
+        // Check permissions on Android 11+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val hasPermission = Environment.isExternalStorageManager()
+            Log.d(TAG, "Android ${Build.VERSION.SDK_INT} - MANAGE_EXTERNAL_STORAGE: $hasPermission")
+            if (!hasPermission) {
+                Log.e(TAG, "❌ PERMISSION NOT GRANTED! Cannot access models.")
+                Log.e(TAG, "Please grant 'All Files Access' in Settings → Apps → Jarvis")
+                isInitialized = true
+                return
+            }
+        }
+        
+        // List files for debugging
+        if (modelsDir.exists() && modelsDir.isDirectory) {
+            val files = modelsDir.listFiles()
+            if (files != null && files.isNotEmpty()) {
+                Log.d(TAG, "Found ${files.size} files in models directory:")
+                files.forEach { file ->
+                    val sizeMB = file.length() / (1024.0 * 1024.0)
+                    Log.d(TAG, "  - ${file.name} (%.2f MB) readable=${file.canRead()}".format(sizeMB))
+                }
+            } else {
+                Log.w(TAG, "Models directory is empty or not readable")
+            }
+        } else {
+            Log.e(TAG, "Models directory does not exist!")
+        }
+        
         Log.d(TAG, "Initializing LlamaLLMEngine")
         
         // Load models asynchronously
         runBlocking {
             // Try to load chat model
             val chatModelPath = File(modelsDir, chatModelConfig.filename)
+            Log.d(TAG, "Looking for chat model: ${chatModelPath.absolutePath}")
+            Log.d(TAG, "  exists=${chatModelPath.exists()}, readable=${chatModelPath.canRead()}, size=${chatModelPath.length()}")
+            
             if (chatModelPath.exists() && chatModelPath.canRead()) {
                 try {
+                    Log.i(TAG, "Loading chat model: ${chatModelConfig.name}")
                     val service = AIService(appContext!!)
-                    val success = service.initialize(
+                    val success = service.initializeWithPath(
                         chatModelPath.absolutePath,
                         chatModelConfig.contextSize,
                         chatModelConfig.threads
@@ -62,23 +109,27 @@ object LlamaLLMEngine : LLMEngine {
                     
                     if (success) {
                         chatService = service
-                        Log.i(TAG, "Chat model loaded: ${chatModelConfig.name}")
+                        Log.i(TAG, "✅ Chat model loaded: ${chatModelConfig.name}")
                     } else {
-                        Log.e(TAG, "Failed to load chat model")
+                        Log.e(TAG, "❌ Failed to load chat model")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error loading chat model", e)
+                    Log.e(TAG, "❌ Error loading chat model: ${e.message}", e)
                 }
             } else {
-                Log.w(TAG, "Chat model not found at: ${chatModelPath.absolutePath}")
+                Log.w(TAG, "❌ Chat model not found: ${chatModelPath.absolutePath}")
             }
             
             // Try to load code model
             val codeModelPath = File(modelsDir, codeModelConfig.filename)
+            Log.d(TAG, "Looking for code model: ${codeModelPath.absolutePath}")
+            Log.d(TAG, "  exists=${codeModelPath.exists()}, readable=${codeModelPath.canRead()}, size=${codeModelPath.length()}")
+            
             if (codeModelPath.exists() && codeModelPath.canRead()) {
                 try {
+                    Log.i(TAG, "Loading code model: ${codeModelConfig.name}")
                     val service = AIService(appContext!!)
-                    val success = service.initialize(
+                    val success = service.initializeWithPath(
                         codeModelPath.absolutePath,
                         codeModelConfig.contextSize,
                         codeModelConfig.threads
@@ -86,22 +137,28 @@ object LlamaLLMEngine : LLMEngine {
                     
                     if (success) {
                         codeService = service
-                        Log.i(TAG, "Code model loaded: ${codeModelConfig.name}")
+                        Log.i(TAG, "✅ Code model loaded: ${codeModelConfig.name}")
                     } else {
-                        Log.e(TAG, "Failed to load code model")
+                        Log.e(TAG, "❌ Failed to load code model")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error loading code model", e)
+                    Log.e(TAG, "❌ Error loading code model: ${e.message}", e)
                 }
             } else {
-                Log.w(TAG, "Code model not found at: ${codeModelPath.absolutePath}")
+                Log.w(TAG, "❌ Code model not found: ${codeModelPath.absolutePath}")
             }
         }
         
         isInitialized = true
         
+        Log.d(TAG, "=== INITIALIZATION COMPLETE ===")
+        Log.d(TAG, "Chat service: ${if (chatService != null) "LOADED ✅" else "NOT LOADED ❌"}")
+        Log.d(TAG, "Code service: ${if (codeService != null) "LOADED ✅" else "NOT LOADED ❌"}")
+        
         if (chatService == null && codeService == null) {
-            Log.w(TAG, "No models loaded. Place models in: ${modelsDir.absolutePath}")
+            Log.e(TAG, "❌❌❌ NO MODELS LOADED! ❌❌❌")
+            Log.e(TAG, "Expected location: ${modelsDir.absolutePath}")
+            Log.e(TAG, "Expected files: ${chatModelConfig.filename}, ${codeModelConfig.filename}")
         }
     }
 
