@@ -57,29 +57,30 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
         return "";
     }
     
-    // Tokenize
+    // Tokenize - Updated API
     std::vector<llama_token> tokens;
     tokens.resize(prompt.size() + 128);
     
+    // New API: llama_tokenize(model, text, text_len, tokens, n_tokens_max, add_special, parse_special)
     int n_tokens = llama_tokenize(
         model_, 
-        prompt.c_str(), 
-        prompt.size(), 
-        tokens.data(), 
-        tokens.size(), 
-        true, 
-        true
+        prompt.c_str(),
+        (int)prompt.length(),  // text_len
+        tokens.data(),
+        (int)tokens.size(),     // n_tokens_max
+        true,                   // add_special (add BOS)
+        true                    // parse_special
     );
     
     if (n_tokens < 0) {
         tokens.resize(-n_tokens);
         n_tokens = llama_tokenize(
             model_, 
-            prompt.c_str(), 
-            prompt.size(),
-            tokens.data(), 
-            tokens.size(), 
-            true, 
+            prompt.c_str(),
+            (int)prompt.length(),
+            tokens.data(),
+            (int)tokens.size(),
+            true,
             true
         );
     }
@@ -106,10 +107,12 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
     for (int i = 0; i < max_tokens; i++) {
         llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
         
+        // Check for EOS/EOG token
         if (llama_token_is_eog(model_, new_token)) {
             break;
         }
         
+        // Updated API: llama_token_to_piece signature changed
         char buf[256];
         int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, true);
         if (n > 0) {
