@@ -18,7 +18,7 @@ import java.io.File
  * 2. Removed runBlocking that was freezing the UI thread
  * 3. Proper timeout handling
  * 4. Better error messages for debugging
- * 5. FIXED: 'if' expression now has proper else branch (line 143 error)
+ * 5. FIXED: 'if' expression now has proper else branch (line 144 error)
  */
 object LlamaLLMEngine : LLMEngine {
     
@@ -170,21 +170,23 @@ object LlamaLLMEngine : LLMEngine {
         
         return withContext(Dispatchers.IO) {
             try {
-                // Use withTimeout for safety
-                // ✅ FIXED: Properly return the result of withTimeout
-                val result = withTimeout(30000L) {
-                    if (isCodeRequest && codeService != null) {
-                        Log.d(TAG, "Using code model for generation")
-                        val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
-                        codeService!!.generate(formattedPrompt, maxTokens = 256, temperature = 0.2f)
-                    } else if (chatService != null) {
-                        Log.d(TAG, "Using chat model for generation")
-                        chatService!!.generate(prompt, maxTokens = 128, temperature = 0.7f)
-                    } else {
-                        "Models are still loading... Please wait a few more seconds."
+                // ✅ FIXED: Properly handle the if expression with all branches
+                withTimeout(30000L) {
+                    when {
+                        isCodeRequest && codeService != null -> {
+                            Log.d(TAG, "Using code model for generation")
+                            val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
+                            codeService!!.generate(formattedPrompt, maxTokens = 256, temperature = 0.2f)
+                        }
+                        chatService != null -> {
+                            Log.d(TAG, "Using chat model for generation")
+                            chatService!!.generate(prompt, maxTokens = 128, temperature = 0.7f)
+                        }
+                        else -> {
+                            "Models are still loading... Please wait a few more seconds."
+                        }
                     }
                 }
-                result
             } catch (e: TimeoutCancellationException) {
                 Log.e(TAG, "Generation timeout after 30 seconds")
                 "Request timed out. Try a shorter prompt or wait for the model to warm up."
