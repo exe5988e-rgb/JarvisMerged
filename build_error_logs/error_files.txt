@@ -1,359 +1,524 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
 
-// ❌ ERRORS IN THIS FILE (3 error(s)):
-// Line 27: Unresolved reference: ChatAdapter
-// Line 46: Unresolved reference: ChatAdapter
-// Line 69: Unresolved reference: isLoading
+// ❌ ERRORS IN THIS FILE (16 error(s)):
+// Line 26: Unresolved reference: WorkModeManager
+// Line 29: Unresolved reference: state
+// Line 30: Unresolved reference: state
+// Line 50: Unresolved reference: JarvisState
+// Line 89: Not enough information to infer type variable T
+// Line 89: Property delegate must have a 'getValue(Nothing?, KProperty<*>)' method. None of the following functions is suitable:
+// Line 89: Unresolved reference: JarvisState
+// Line 92: Unresolved reference: JarvisMode
+// Line 138: @Composable invocations can only happen from the context of a @Composable function
+// Line 139: @Composable invocations can only happen from the context of a @Composable function
+// Line 158: Cannot infer a type for this parameter. Please specify it explicitly.
+// Line 158: Overload resolution ambiguity:
+// Line 159: @Composable invocations can only happen from the context of a @Composable function
+// Line 162: Unresolved reference: JarvisState
+// Line 176: Unresolved reference: WorkModeManager
+// Line 177: Unresolved reference: JarvisState
 
-   1    package com.jarvismini
+   1    package com.jarvismini.ui.chat
    2    
-   3    import android.os.Bundle
-   4    import android.view.View
-   5    import android.widget.EditText
-   6    import android.widget.ImageButton
-   7    import android.widget.Toast
-   8    import androidx.appcompat.app.AppCompatActivity
-   9    import androidx.lifecycle.lifecycleScope
-  10    import androidx.recyclerview.widget.LinearLayoutManager
-  11    import androidx.recyclerview.widget.RecyclerView
-  12    import com.jarvismini.engine.LlamaLLMEngine
-  13    import com.jarvismini.ui.ModelSelectorView
-  14    import kotlinx.coroutines.launch
-  15    
-  16    /**
-  17     * ✅ UPDATED: Chat activity with model selector integration
-  18     */
-  19    class ChatActivity : AppCompatActivity() {
-  20    
-  21        private lateinit var rvMessages: RecyclerView
-  22        private lateinit var etMessage: EditText
-  23        private lateinit var btnSend: ImageButton
-  24        private lateinit var modelSelector: ModelSelectorView
-  25    
-  26        private val messages = mutableListOf<ChatMessage>()
-  27 ❌     private lateinit var adapter: ChatAdapter
-  28    
-  29        override fun onCreate(savedInstanceState: Bundle?) {
-  30            super.onCreate(savedInstanceState)
-  31            setContentView(R.layout.activity_chat)
-  32    
-  33            initViews()
-  34            setupRecyclerView()
-  35            setupListeners()
-  36        }
+   3    import android.app.Activity
+   4    import android.content.pm.PackageManager
+   5    import android.util.Log
+   6    import androidx.activity.compose.BackHandler
+   7    import androidx.compose.foundation.background
+   8    import androidx.compose.foundation.border
+   9    import androidx.compose.foundation.layout.*
+  10    import androidx.compose.foundation.lazy.LazyColumn
+  11    import androidx.compose.foundation.lazy.items
+  12    import androidx.compose.foundation.shape.RoundedCornerShape
+  13    import androidx.compose.material.icons.Icons
+  14    import androidx.compose.material.icons.filled.ArrowBack
+  15    import androidx.compose.material.icons.filled.Send
+  16    import androidx.compose.material3.*
+  17    import androidx.compose.runtime.*
+  18    import androidx.compose.ui.Modifier
+  19    import androidx.compose.ui.graphics.Brush
+  20    import androidx.compose.ui.graphics.Color
+  21    import androidx.compose.ui.platform.LocalContext
+  22    import androidx.compose.ui.text.font.FontFamily
+  23    import androidx.compose.ui.unit.dp
+  24    import androidx.core.app.ActivityCompat
+  25    import androidx.core.content.ContextCompat
+  26 ❌ import com.jarvismini.core.workmode.WorkModeManager
+  27    import com.jarvismini.engine.EngineProvider
+  28    import com.jarvismini.engine.EngineResult
+  29 ❌ import com.jarvismini.state.JarvisMode
+  30 ❌ import com.jarvismini.state.JarvisState
+  31    import com.jarvismini.ui.ChatMessage
+  32    import com.jarvismini.ui.components.GridBackground
+  33    import com.jarvismini.ui.theme.JarvisBlue
+  34    import kotlinx.coroutines.*
+  35    
+  36    private const val TAG = "JarvisChatScreen"
   37    
-  38        private fun initViews() {
-  39            rvMessages = findViewById(R.id.rvMessages)
-  40            etMessage = findViewById(R.id.etMessage)
-  41            btnSend = findViewById(R.id.btnSend)
-  42            modelSelector = findViewById(R.id.modelSelector)
-  43        }
-  44    
-  45        private fun setupRecyclerView() {
-  46 ❌         adapter = ChatAdapter(messages)
-  47            rvMessages.adapter = adapter
-  48            rvMessages.layoutManager = LinearLayoutManager(this).apply {
-  49                stackFromEnd = true
-  50            }
-  51        }
-  52    
-  53        private fun setupListeners() {
-  54            btnSend.setOnClickListener {
-  55                sendMessage()
-  56            }
-  57    
-  58            etMessage.setOnEditorActionListener { _, _, _ ->
-  59                sendMessage()
-  60                true
-  61            }
-  62        }
-  63    
-  64        private fun sendMessage() {
-  65            val text = etMessage.text.toString().trim()
-  66            if (text.isEmpty()) return
-  67    
-  68            // ✅ NEW: Check if models are still loading
-  69 ❌         if (LlamaLLMEngine.isLoading) {
-  70                Toast.makeText(
-  71                    this,
-  72                    "⏳ Models are still loading... Please wait a moment.",
-  73                    Toast.LENGTH_SHORT
-  74                ).show()
-  75                return
-  76            }
-  77    
-  78            // Add user message
-  79            val userMessage = ChatMessage(text, isUser = true)
-  80            messages.add(userMessage)
-  81            adapter.notifyItemInserted(messages.size - 1)
-  82            rvMessages.scrollToPosition(messages.size - 1)
-  83    
-  84            // Clear input
-  85            etMessage.text.clear()
-  86    
-  87            // Disable input while processing
-  88            etMessage.isEnabled = false
-  89            btnSend.isEnabled = false
-  90            etMessage.hint = "Processing..."
-  91    
-  92            // Add "thinking" indicator
-  93            val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
-  94            messages.add(thinkingMessage)
-  95            val thinkingIndex = messages.size - 1
-  96            adapter.notifyItemInserted(thinkingIndex)
-  97            rvMessages.scrollToPosition(thinkingIndex)
-  98    
-  99            // Generate reply
- 100            lifecycleScope.launch {
- 101                try {
- 102                    val reply = LlamaLLMEngine.generateReply(text)
- 103    
- 104                    // Remove thinking indicator
- 105                    messages.removeAt(thinkingIndex)
- 106                    adapter.notifyItemRemoved(thinkingIndex)
- 107    
- 108                    // Add actual reply
- 109                    val replyMessage = ChatMessage(reply, isUser = false)
- 110                    messages.add(replyMessage)
- 111                    adapter.notifyItemInserted(messages.size - 1)
- 112                    rvMessages.scrollToPosition(messages.size - 1)
- 113    
- 114                } catch (e: Exception) {
- 115                    // Remove thinking indicator
- 116                    messages.removeAt(thinkingIndex)
- 117                    adapter.notifyItemRemoved(thinkingIndex)
- 118    
- 119                    // Show error
- 120                    val errorMessage = ChatMessage(
- 121                        "❌ Error: ${e.message}",
- 122                        isUser = false
- 123                    )
- 124                    messages.add(errorMessage)
- 125                    adapter.notifyItemInserted(messages.size - 1)
- 126                    rvMessages.scrollToPosition(messages.size - 1)
- 127    
- 128                } finally {
- 129                    // Re-enable input
- 130                    etMessage.isEnabled = true
- 131                    btnSend.isEnabled = true
- 132                    etMessage.hint = "Type a message..."
- 133                }
- 134            }
- 135        }
- 136    
- 137        override fun onDestroy() {
- 138            super.onDestroy()
- 139            // Release resources if this is the last activity
- 140            if (isFinishing) {
- 141                // Note: Only release if app is actually closing
- 142                // LlamaLLMEngine.release()
- 143            }
- 144        }
- 145    }
- 146    
- 147    data class ChatMessage(
- 148        val text: String,
- 149        val isUser: Boolean,
- 150        val isThinking: Boolean = false
- 151    )
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ModelSelectorView.kt =====
-
-// ❌ ERRORS IN THIS FILE (7 error(s)):
-// Line 11: Unresolved reference: ModelStatus
-// Line 58: Unresolved reference: selectedModel
-// Line 77: Unresolved reference: getModelStatus
-// Line 83: Unresolved reference: ModelStatus
-// Line 94: Unresolved reference: it
-// Line 110: Unresolved reference: ModelStatus
-// Line 131: Unresolved reference: selectedModel
-
-   1    package com.jarvismini.ui
-   2    
-   3    import android.content.Context
-   4    import android.util.AttributeSet
-   5    import android.view.LayoutInflater
-   6    import android.view.View
-   7    import android.widget.*
-   8    import androidx.constraintlayout.widget.ConstraintLayout
-   9    import com.jarvismini.R
-  10    import com.jarvismini.engine.LlamaLLMEngine
-  11 ❌ import com.jarvismini.engine.ModelStatus
-  12    import kotlinx.coroutines.*
-  13    
-  14    /**
-  15     * ✅ NEW: Model selector UI component
-  16     * Allows users to choose between Auto, Chat, and Code models
-  17     */
-  18    class ModelSelectorView @JvmOverloads constructor(
-  19        context: Context,
-  20        attrs: AttributeSet? = null,
-  21        defStyleAttr: Int = 0
-  22    ) : ConstraintLayout(context, attrs, defStyleAttr) {
-  23    
-  24        private val tvStatus: TextView
-  25        private val spinnerModelSelect: Spinner
-  26        private val layoutLoading: View
-  27        private val progressLoading: ProgressBar
-  28        private val tvLoadingMessage: TextView
-  29        private val tvModelInfo: TextView
-  30    
-  31        private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-  32        private var statusCheckJob: Job? = null
-  33    
-  34        private val modelOptions = mutableListOf<ModelOption>()
-  35        private var adapter: ModelAdapter? = null
-  36    
-  37        init {
-  38            LayoutInflater.from(context).inflate(R.layout.view_model_selector, this, true)
-  39    
-  40            tvStatus = findViewById(R.id.tvModelStatus)
-  41            spinnerModelSelect = findViewById(R.id.spinnerModelSelect)
-  42            layoutLoading = findViewById(R.id.layoutLoading)
-  43            progressLoading = findViewById(R.id.progressModelLoading)
-  44            tvLoadingMessage = findViewById(R.id.tvLoadingMessage)
-  45            tvModelInfo = findViewById(R.id.tvModelInfo)
+  38    @OptIn(ExperimentalMaterial3Api::class)
+  39    @Composable
+  40    fun JarvisChatScreen(
+  41        onBack: () -> Unit
+  42    ) {
+  43        val context = LocalContext.current
+  44        val activity = context as? Activity
+  45        val scope = rememberCoroutineScope()
   46    
-  47            setupSpinner()
-  48            startStatusMonitoring()
-  49        }
-  50    
-  51        private fun setupSpinner() {
-  52            adapter = ModelAdapter(context, modelOptions)
-  53            spinnerModelSelect.adapter = adapter
+  47        // ================= INITIALIZATION =================
+  48        LaunchedEffect(Unit) {
+  49            Log.d(TAG, "Initializing JarvisChatScreen")
+  50 ❌         JarvisState.init(context)
+  51            EngineProvider.init(context)
+  52            Log.d(TAG, "Initialization complete")
+  53        }
   54    
-  55            spinnerModelSelect.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-  56                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-  57                    val selected = modelOptions.getOrNull(position) ?: return
-  58 ❌                 LlamaLLMEngine.selectedModel = selected.id
-  59                    updateModelInfo(selected)
-  60                }
-  61    
-  62                override fun onNothingSelected(parent: AdapterView<*>?) {}
-  63            }
-  64        }
-  65    
-  66        private fun startStatusMonitoring() {
-  67            statusCheckJob = scope.launch {
-  68                while (isActive) {
-  69                    updateStatus()
-  70                    delay(1000)  // Check every second
-  71                }
-  72            }
-  73        }
-  74    
-  75        private suspend fun updateStatus() {
-  76            val status = withContext(Dispatchers.IO) {
-  77 ❌             LlamaLLMEngine.getModelStatus()
+  55        // ================= PERMISSIONS =================
+  56        LaunchedEffect(Unit) {
+  57            if (activity == null) {
+  58                Log.w(TAG, "Activity is null, cannot request permissions")
+  59                return@LaunchedEffect
+  60            }
+  61            
+  62            val perms = mutableListOf<String>()
+  63            
+  64            if (ContextCompat.checkSelfPermission(
+  65                    context, 
+  66                    android.Manifest.permission.READ_CONTACTS
+  67                ) != PackageManager.PERMISSION_GRANTED
+  68            ) {
+  69                perms += android.Manifest.permission.READ_CONTACTS
+  70            }
+  71            
+  72            if (ContextCompat.checkSelfPermission(
+  73                    context, 
+  74                    android.Manifest.permission.SEND_SMS
+  75                ) != PackageManager.PERMISSION_GRANTED
+  76            ) {
+  77                perms += android.Manifest.permission.SEND_SMS
   78            }
-  79    
-  80            updateUI(status)
-  81        }
-  82    
-  83 ❌     private fun updateUI(status: ModelStatus) {
-  84            // Update loading indicator
-  85            if (status.isLoading) {
-  86                layoutLoading.visibility = View.VISIBLE
-  87                tvStatus.text = "Loading..."
-  88                tvStatus.setTextColor(context.getColor(android.R.color.holo_orange_light))
-  89                spinnerModelSelect.isEnabled = false
-  90            } else {
-  91                layoutLoading.visibility = View.GONE
-  92                spinnerModelSelect.isEnabled = true
+  79            
+  80            if (perms.isNotEmpty()) {
+  81                Log.d(TAG, "Requesting permissions: ${perms.joinToString()}")
+  82                ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
+  83            }
+  84        }
+  85    
+  86        // ================= STATE =================
+  87        val messages = remember { mutableStateListOf<ChatMessage>() }
+  88        var input by remember { mutableStateOf("") }
+  89 ❌     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+  90        var expanded by remember { mutableStateOf(false) }
+  91        var isProcessing by remember { mutableStateOf(false) }
+  92 ❌     val modes = JarvisMode.values().toList()
   93    
-  94 ❌             val readyCount = listOf(status.chatReady, status.codeReady).count { it }
-  95                tvStatus.text = when {
-  96                    readyCount == 0 -> "No models"
-  97                    readyCount == 1 -> "1 model ready"
-  98                    else -> "$readyCount models ready"
-  99                }
- 100                tvStatus.setTextColor(
- 101                    if (readyCount > 0) context.getColor(android.R.color.holo_green_light)
- 102                    else context.getColor(android.R.color.holo_red_light)
- 103                )
- 104            }
+  94        // ================= UI =================
+  95        Box(
+  96            modifier = Modifier
+  97                .fillMaxSize()
+  98                .background(
+  99                    Brush.radialGradient(
+ 100                        listOf(Color.Black, Color(0xFF001520), Color.Black)
+ 101                    )
+ 102                )
+ 103        ) {
+ 104            GridBackground()
  105    
- 106            // Update available models
- 107            updateAvailableModels(status)
- 108        }
- 109    
- 110 ❌     private fun updateAvailableModels(status: ModelStatus) {
- 111            val newOptions = mutableListOf<ModelOption>()
- 112    
- 113            // Always add Auto option
- 114            newOptions.add(ModelOption("auto", "Auto", "Smart selection based on prompt"))
- 115    
- 116            // Add available models
- 117            if (status.chatReady) {
- 118                newOptions.add(ModelOption("chat", "Chat (Phi-2)", "General conversation & questions"))
- 119            }
- 120            if (status.codeReady) {
- 121                newOptions.add(ModelOption("code", "Code (DeepSeek)", "Programming & code generation"))
- 122            }
- 123    
- 124            // Only update if changed
- 125            if (newOptions != modelOptions) {
- 126                modelOptions.clear()
- 127                modelOptions.addAll(newOptions)
- 128                adapter?.notifyDataSetChanged()
- 129    
- 130                // Restore selection if possible
- 131 ❌             val currentSelection = LlamaLLMEngine.selectedModel
- 132                val index = modelOptions.indexOfFirst { it.id == currentSelection }
- 133                if (index >= 0) {
- 134                    spinnerModelSelect.setSelection(index)
- 135                }
- 136            }
- 137        }
- 138    
- 139        private fun updateModelInfo(option: ModelOption) {
- 140            tvModelInfo.text = option.description
- 141        }
- 142    
- 143        override fun onDetachedFromWindow() {
- 144            super.onDetachedFromWindow()
- 145            statusCheckJob?.cancel()
- 146            scope.cancel()
- 147        }
- 148    
- 149        private data class ModelOption(
- 150            val id: String,
- 151            val name: String,
- 152            val description: String
- 153        ) {
- 154            override fun equals(other: Any?): Boolean {
- 155                if (this === other) return true
- 156                if (other !is ModelOption) return false
- 157                return id == other.id
- 158            }
- 159    
- 160            override fun hashCode(): Int = id.hashCode()
- 161        }
- 162    
- 163        private class ModelAdapter(
- 164            context: Context,
- 165            private val options: List<ModelOption>
- 166        ) : ArrayAdapter<ModelOption>(context, android.R.layout.simple_spinner_item, options) {
- 167    
- 168            init {
- 169                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
- 170            }
+ 106            Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+ 107    
+ 108                // ===== HEADER =====
+ 109                TopAppBar(
+ 110                    title = {
+ 111                        Text(
+ 112                            "J.A.R.V.I.S CHAT",
+ 113                            color = JarvisBlue,
+ 114                            fontFamily = FontFamily.Monospace
+ 115                        )
+ 116                    },
+ 117                    navigationIcon = {
+ 118                        IconButton(onClick = onBack) {
+ 119                            Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+ 120                        }
+ 121                    },
+ 122                    colors = TopAppBarDefaults.topAppBarColors(
+ 123                        containerColor = Color.Black.copy(alpha = 0.6f)
+ 124                    )
+ 125                )
+ 126    
+ 127                Spacer(modifier = Modifier.height(12.dp))
+ 128    
+ 129                // ===== MODE SELECTOR =====
+ 130                ExposedDropdownMenuBox(
+ 131                    expanded = expanded,
+ 132                    onExpandedChange = { expanded = !expanded }
+ 133                ) {
+ 134                    TextField(
+ 135                        value = currentMode.name,
+ 136                        onValueChange = {},
+ 137                        readOnly = true,
+ 138 ❌                     label = { Text("Select Mode", color = JarvisBlue) },
+ 139 ❌                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+ 140                        colors = TextFieldDefaults.colors(
+ 141                            focusedContainerColor = Color.Transparent,
+ 142                            unfocusedContainerColor = Color.Transparent,
+ 143                            focusedTextColor = JarvisBlue,
+ 144                            unfocusedTextColor = JarvisBlue,
+ 145                            cursorColor = JarvisBlue,
+ 146                            focusedIndicatorColor = JarvisBlue,
+ 147                            unfocusedIndicatorColor = JarvisBlue
+ 148                        ),
+ 149                        modifier = Modifier
+ 150                            .menuAnchor()
+ 151                            .fillMaxWidth()
+ 152                    )
+ 153    
+ 154                    ExposedDropdownMenu(
+ 155                        expanded = expanded,
+ 156                        onDismissRequest = { expanded = false }
+ 157                    ) {
+ 158 ❌                     modes.forEach { mode ->
+ 159 ❌                         DropdownMenuItem(
+ 160                                text = { Text(mode.name, color = JarvisBlue) },
+ 161                                onClick = {
+ 162 ❌                                 JarvisState.setMode(context, mode)
+ 163                                    currentMode = mode
+ 164                                    expanded = false
+ 165                                    Log.d(TAG, "Mode changed to: ${mode.name}")
+ 166                                }
+ 167                            )
+ 168                        }
+ 169                    }
+ 170                }
  171    
- 172            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
- 173                val view = super.getView(position, convertView, parent)
- 174                (view as? TextView)?.text = options[position].name
- 175                return view
- 176            }
- 177    
- 178            override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
- 179                val view = super.getDropDownView(position, convertView, parent)
- 180                (view as? TextView)?.text = options[position].name
- 181                return view
- 182            }
- 183        }
- 184    }
+ 172                Spacer(modifier = Modifier.height(8.dp))
+ 173    
+ 174                Button(
+ 175                    onClick = {
+ 176 ❌                     WorkModeManager.toggle(context)
+ 177 ❌                     currentMode = JarvisState.currentMode
+ 178                        Log.d(TAG, "Work mode toggled")
+ 179                    },
+ 180                    colors = ButtonDefaults.buttonColors(
+ 181                        containerColor = JarvisBlue.copy(alpha = 0.7f)
+ 182                    ),
+ 183                    modifier = Modifier.fillMaxWidth()
+ 184                ) {
+ 185                    Text("Toggle Work Mode", color = Color.Black)
+ 186                }
+ 187    
+ 188                HorizontalDivider(
+ 189                    color = JarvisBlue.copy(alpha = 0.3f), 
+ 190                    modifier = Modifier.padding(vertical = 8.dp)
+ 191                )
+ 192    
+ 193                // ===== CHAT LOG =====
+ 194                LazyColumn(
+ 195                    modifier = Modifier.weight(1f),
+ 196                    reverseLayout = true
+ 197                ) {
+ 198                    items(messages.reversed()) { msg ->
+ 199                        Text(
+ 200                            text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+ 201                            color = JarvisBlue,
+ 202                            fontFamily = FontFamily.Monospace,
+ 203                            modifier = Modifier.padding(6.dp)
+ 204                        )
+ 205                    }
+ 206                }
+ 207    
+ 208                // ===== INPUT BAR =====
+ 209                Row(
+ 210                    modifier = Modifier
+ 211                        .fillMaxWidth()
+ 212                        .border(
+ 213                            1.dp,
+ 214                            JarvisBlue.copy(alpha = 0.4f),
+ 215                            RoundedCornerShape(10.dp)
+ 216                        )
+ 217                        .padding(6.dp),
+ 218                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+ 219                ) {
+ 220                    TextField(
+ 221                        value = input,
+ 222                        onValueChange = { input = it },
+ 223                        modifier = Modifier.weight(1f),
+ 224                        enabled = !isProcessing,
+ 225                        placeholder = {
+ 226                            Text(
+ 227                                if (isProcessing) "Processing..." else "Command input…",
+ 228                                fontFamily = FontFamily.Monospace,
+ 229                                color = JarvisBlue.copy(alpha = 0.7f)
+ 230                            )
+ 231                        },
+ 232                        colors = TextFieldDefaults.colors(
+ 233                            focusedContainerColor = Color.Transparent,
+ 234                            unfocusedContainerColor = Color.Transparent,
+ 235                            disabledContainerColor = Color.Transparent,
+ 236                            focusedTextColor = JarvisBlue,
+ 237                            unfocusedTextColor = JarvisBlue,
+ 238                            disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
+ 239                            cursorColor = JarvisBlue,
+ 240                            focusedIndicatorColor = JarvisBlue,
+ 241                            unfocusedIndicatorColor = JarvisBlue,
+ 242                            disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
+ 243                        )
+ 244                    )
+ 245    
+ 246                    // ===== SEND BUTTON =====
+ 247                    // ✅ FIXED: Input cleared AFTER success, with timeout protection
+ 248                    IconButton(
+ 249                        onClick = {
+ 250                            val userText = input.trim()
+ 251                            
+ 252                            // Validation
+ 253                            if (userText.isEmpty()) {
+ 254                                Log.d(TAG, "❌ Ignoring empty input")
+ 255                                return@IconButton
+ 256                            }
+ 257                            
+ 258                            if (isProcessing) {
+ 259                                Log.d(TAG, "⚠️ Already processing, ignoring click")
+ 260                                return@IconButton
+ 261                            }
+ 262    
+ 263                            Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+ 264                            Log.d(TAG, "🚀 SEND BUTTON CLICKED")
+ 265                            Log.d(TAG, "📝 User input: '$userText'")
+ 266                            Log.d(TAG, "🧵 Main thread: ${Thread.currentThread().name}")
+ 267                            
+ 268                            // ✅ FIX: Set processing state but DON'T clear input yet
+ 269                            // Input stays visible (disabled) during processing
+ 270                            isProcessing = true
+ 271                            
+ 272                            // Add user message to chat
+ 273                            messages.add(ChatMessage(userText, isUser = true))
+ 274                            
+ 275                            // Add temporary "thinking" message
+ 276                            messages.add(ChatMessage("Processing…", isUser = false))
+ 277    
+ 278                            // Launch coroutine with proper error handling and timeout
+ 279                            scope.launch {
+ 280                                try {
+ 281                                    Log.d(TAG, "⏳ Starting message processing in coroutine")
+ 282                                    Log.d(TAG, "🧵 Coroutine thread: ${Thread.currentThread().name}")
+ 283                                    
+ 284                                    // ✅ FIX: Add 30-second timeout to prevent infinite hang
+ 285                                    val reply = withTimeout(30000L) {
+ 286                                        // Try command engine first
+ 287                                        val result = EngineProvider.commandEngine.handle(userText)
+ 288                                        Log.d(TAG, "🎯 Command engine result: $result")
+ 289                                        
+ 290                                        when (result) {
+ 291                                            is EngineResult.Success -> {
+ 292                                                Log.d(TAG, "✅ Command handled successfully")
+ 293                                                result.reply
+ 294                                            }
+ 295                                            else -> {
+ 296                                                Log.d(TAG, "🔄 Command not handled, calling LLM")
+ 297                                                
+ 298                                                // Call LLM on IO dispatcher
+ 299                                                withContext(Dispatchers.IO) {
+ 300                                                    Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
+ 301                                                    val llmReply = EngineProvider.llmEngine.generateReply(userText)
+ 302                                                    Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
+ 303                                                    llmReply
+ 304                                                }
+ 305                                            }
+ 306                                        }
+ 307                                    }
+ 308                                    
+ 309                                    Log.d(TAG, "🔄 Updating UI with reply")
+ 310                                    
+ 311                                    // Remove "Processing..." message
+ 312                                    messages.removeLastOrNull()
+ 313                                    
+ 314                                    // Add actual reply
+ 315                                    messages.add(ChatMessage(reply, isUser = false))
+ 316                                    
+ 317                                    // ✅ FIX: Clear input only AFTER successful processing
+ 318                                    input = ""
+ 319                                    
+ 320                                    Log.d(TAG, "✅ MESSAGE PROCESSING COMPLETE")
+ 321                                    Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+ 322                                    
+ 323                                } catch (e: TimeoutCancellationException) {
+ 324                                    Log.e(TAG, "⏱️ TIMEOUT: Operation took longer than 30 seconds")
+ 325                                    
+ 326                                    // Remove "Processing..." message
+ 327                                    messages.removeLastOrNull()
+ 328                                    
+ 329                                    // Add timeout message
+ 330                                    messages.add(ChatMessage(
+ 331                                        "⏱️ Request timed out after 30 seconds. The model may be loading or the prompt is too complex. Try:\n" +
+ 332                                        "• A shorter message\n" +
+ 333                                        "• Checking if models are in /storage/emulated/0/JarvisModels/\n" +
+ 334                                        "• Restarting the app",
+ 335                                        isUser = false
+ 336                                    ))
+ 337                                    
+ 338                                    // ✅ FIX: Keep input on timeout so user can retry or modify
+ 339                                    Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
+ 340                                    
+ 341                                } catch (e: CancellationException) {
+ 342                                    Log.e(TAG, "🚫 CANCELLED: Coroutine was cancelled")
+ 343                                    
+ 344                                    // Remove "Processing..." message
+ 345                                    messages.removeLastOrNull()
+ 346                                    
+ 347                                    // Add cancellation message
+ 348                                    messages.add(ChatMessage(
+ 349                                        "🚫 Processing cancelled. Try again.",
+ 350                                        isUser = false
+ 351                                    ))
+ 352                                    
+ 353                                    // Re-throw to properly handle cancellation
+ 354                                    throw e
+ 355                                    
+ 356                                } catch (e: Exception) {
+ 357                                    Log.e(TAG, "❌ ERROR PROCESSING MESSAGE", e)
+ 358                                    Log.e(TAG, "Error type: ${e.javaClass.simpleName}")
+ 359                                    Log.e(TAG, "Error message: ${e.message}")
+ 360                                    
+ 361                                    // Remove "Processing..." message
+ 362                                    messages.removeLastOrNull()
+ 363                                    
+ 364                                    // Add detailed error message
+ 365                                    val errorMsg = when {
+ 366                                        e.message?.contains("timeout", ignoreCase = true) == true ->
+ 367                                            "⏱️ Timeout. The request took too long. Try a shorter prompt."
+ 368                                            
+ 369                                        e.message?.contains("model", ignoreCase = true) == true ->
+ 370                                            "🤖 Model error. Check if .gguf models are in:\n/storage/emulated/0/JarvisModels/"
+ 371                                            
+ 372                                        e.message?.contains("permission", ignoreCase = true) == true ->
+ 373                                            "🔒 Permission error. Grant storage access in Settings."
+ 374                                            
+ 375                                        e.message?.contains("memory", ignoreCase = true) == true ->
+ 376                                            "💾 Memory error. Try a smaller model or restart the app."
+ 377                                            
+ 378                                        else ->
+ 379                                            "❌ Error: ${e.message ?: "Unknown error occurred"}\n\nCheck logs for details."
+ 380                                    }
+ 381                                    
+ 382                                    messages.add(ChatMessage(errorMsg, isUser = false))
+ 383                                    
+ 384                                    // ✅ FIX: Keep input on error so user can retry
+ 385                                    Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
+ 386                                    
+ 387                                } finally {
+ 388                                    Log.d(TAG, "🔄 Resetting processing state")
+ 389                                    Log.d(TAG, "isProcessing: true -> false")
+ 390                                    isProcessing = false
+ 391                                    Log.d(TAG, "✅ Processing state reset complete")
+ 392                                }
+ 393                            }
+ 394                        },
+ 395                        enabled = !isProcessing
+ 396                    ) {
+ 397                        Icon(
+ 398                            Icons.Default.Send,
+ 399                            contentDescription = "Send",
+ 400                            tint = if (isProcessing) 
+ 401                                JarvisBlue.copy(alpha = 0.3f) 
+ 402                            else 
+ 403                                JarvisBlue
+ 404                        )
+ 405                    }
+ 406                }
+ 407            }
+ 408        }
+ 409    }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+
+// ❌ ERRORS IN THIS FILE (2 error(s)):
+// Line 10: Unresolved reference: JarvisChatScreen
+// Line 65: Unresolved reference: JarvisChatScreen
+
+   1    package com.jarvismini.ui.main
+   2    
+   3    import androidx.compose.runtime.*
+   4    import androidx.compose.ui.platform.LocalContext
+   5    import com.jarvismini.ProgressInitializer
+   6    import com.jarvismini.core.progress.*
+   7    import com.jarvismini.core.routine.RoutineProvider
+   8    import com.jarvismini.ui.boot.BootScreen
+   9    import com.jarvismini.ui.home.EnhancedHomeScreen
+  10 ❌ import com.jarvismini.ui.JarvisChatScreen
+  11    import com.jarvismini.ui.calendar.CalendarViewModel
+  12    import com.jarvismini.ui.calendar.DayCalendarScreen
+  13    import com.jarvismini.ui.settings.SettingsScreen
+  14    import com.jarvismini.ui.debug.DebugScreen
+  15    import com.jarvismini.ui.checklist.JarvisChecklistScreen
+  16    
+  17    enum class MainTab {
+  18        Home,
+  19        Chat,
+  20        Calendar,
+  21        Checklist,
+  22        Settings,
+  23        Debug
+  24    }
+  25    
+  26    @Composable
+  27    fun MainScreen() {
+  28        val context = LocalContext.current
+  29    
+  30        var showBoot by remember { mutableStateOf(true) }
+  31        var selectedTab by remember { mutableStateOf(MainTab.Home) }
+  32    
+  33        var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+  34        var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+  35    
+  36        if (showBoot) {
+  37            BootScreen(onBootComplete = { showBoot = false })
+  38            return
+  39        }
+  40    
+  41        LaunchedEffect(Unit) {
+  42            ProgressInitializer.registerAllBlocks(context)
+  43            blocks = ProgressRepository.getTodayBlocks()
+  44            routines = RoutineProvider.getAllRoutines(context)
+  45        }
+  46    
+  47        LaunchedEffect(selectedTab) {
+  48            if (selectedTab == MainTab.Checklist) {
+  49                ProgressInitializer.registerAllBlocks(context)
+  50                blocks = ProgressRepository.getTodayBlocks()
+  51                routines = RoutineProvider.getAllRoutines(context)
+  52            }
+  53        }
+  54    
+  55        when (selectedTab) {
+  56    
+  57            MainTab.Home -> EnhancedHomeScreen(
+  58                onNavigateToChat = { selectedTab = MainTab.Chat },
+  59                onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+  60                onNavigateToChecklist = { selectedTab = MainTab.Checklist },
+  61                onNavigateToSettings = { selectedTab = MainTab.Settings },
+  62                onNavigateToDebug = { selectedTab = MainTab.Debug }
+  63            )
+  64    
+  65 ❌         MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+  66    
+  67            MainTab.Calendar -> {
+  68                val vm = remember { CalendarViewModel(context) }
+  69                DayCalendarScreen(
+  70                    viewModel = vm,
+  71                    onBack = { selectedTab = MainTab.Home }
+  72                )
+  73            }
+  74    
+  75            MainTab.Checklist -> JarvisChecklistScreen(
+  76                onBack = { selectedTab = MainTab.Home }
+  77            )
+  78    
+  79            MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+  80    
+  81            MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+  82        }
+  83    }
 
 
