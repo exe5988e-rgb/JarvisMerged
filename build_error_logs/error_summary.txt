@@ -4,35 +4,35 @@
 No CMake errors
 
 -- NINJA BUILD ERRORS --
+  [5/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o
   [6/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o
-  [7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o
-  [8/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
+  [7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
   ninja: build stopped: subcommand failed.
   
   C++ build system [build] failed while executing:
       /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 --
+[5/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o
 [6/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o
-[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o
-[8/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
+[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
 ninja: build stopped: subcommand failed.
 
 C++ build system [build] failed while executing:
     /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 --
+[5/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o
 [6/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o
-[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o
-[8/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
+[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
 ninja: build stopped: subcommand failed.
 
 C++ build system [build] failed while executing:
     /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 
 -- C++ COMPILATION ERRORS --
-C/C++: /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:109:5: error: use of undeclared identifier 'llama_kv_cache_clear'
-  /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:109:5: error: use of undeclared identifier 'llama_kv_cache_clear'
-/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:109:5: error: use of undeclared identifier 'llama_kv_cache_clear'
-/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:109:5: error: use of undeclared identifier 'llama_kv_cache_clear'
+C/C++: /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:111:5: error: use of undeclared identifier 'llama_kv_cache_seq_rm'
+  /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:111:5: error: use of undeclared identifier 'llama_kv_cache_seq_rm'
+/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:111:5: error: use of undeclared identifier 'llama_kv_cache_seq_rm'
+/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:111:5: error: use of undeclared identifier 'llama_kv_cache_seq_rm'
 
 -- MISSING HEADERS/LIBRARIES --
 No missing deps
@@ -48,15 +48,15 @@ BUILD FAILED in 57s
 -- EXCEPTION STACK TRACES --
 > com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
   [1/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o
-  [2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
-  [3/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
+  [2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
   FAILED: CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o 
   /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android26 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DGGML_USE_CPU -Djarvis_native_EXPORTS -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src/../include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/src/../include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O3 -DNDEBUG -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -MF CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o.d -o CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -c /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp
-  /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:25:14: warning: 'llama_load_model_from_file' is deprecated: use llama_model_load_from_file instead [-Wdeprecated-declarations]
-      model_ = llama_load_model_from_file(model_path.c_str(), model_params);
-               ^
-  /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include/llama.h:442:5: note: 'llama_load_model_from_file' has been explicitly marked deprecated here
-      DEPRECATED(LLAMA_API struct llama_model * llama_load_model_from_file(
+  /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:41:12: warning: 'llama_new_context_with_model' is deprecated: use llama_init_from_model instead [-Wdeprecated-declarations]
+      ctx_ = llama_new_context_with_model(model_, ctx_params);
+             ^
+  /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include/llama.h:474:5: note: 'llama_new_context_with_model' has been explicitly marked deprecated here
+      DEPRECATED(LLAMA_API struct llama_context * llama_new_context_with_model(
+      ^
 --
 * Exception is:
 org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:buildCMakeDebug[arm64-v8a]'.
@@ -82,15 +82,15 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:bui
 --
 Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
 [1/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o
-[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
-[3/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
+[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
 FAILED: CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o 
 /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android26 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DGGML_USE_CPU -Djarvis_native_EXPORTS -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src/../include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/src/../include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O3 -DNDEBUG -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -MF CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o.d -o CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -c /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp
-/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:25:14: warning: 'llama_load_model_from_file' is deprecated: use llama_model_load_from_file instead [-Wdeprecated-declarations]
-    model_ = llama_load_model_from_file(model_path.c_str(), model_params);
-             ^
-/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include/llama.h:442:5: note: 'llama_load_model_from_file' has been explicitly marked deprecated here
-    DEPRECATED(LLAMA_API struct llama_model * llama_load_model_from_file(
+/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:41:12: warning: 'llama_new_context_with_model' is deprecated: use llama_init_from_model instead [-Wdeprecated-declarations]
+    ctx_ = llama_new_context_with_model(model_, ctx_params);
+           ^
+/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include/llama.h:474:5: note: 'llama_new_context_with_model' has been explicitly marked deprecated here
+    DEPRECATED(LLAMA_API struct llama_context * llama_new_context_with_model(
+    ^
 --
 	at org.gradle.internal.UncheckedException.throwAsUncheckedException(UncheckedException.java:68)
 	at org.gradle.internal.UncheckedException.throwAsUncheckedException(UncheckedException.java:41)
@@ -119,15 +119,15 @@ FAILED: CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
 --
 Caused by: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
 [1/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o
-[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
-[3/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
+[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
 FAILED: CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o 
 /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android26 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DGGML_USE_CPU -Djarvis_native_EXPORTS -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src/../include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/src/../include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O3 -DNDEBUG -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -MF CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o.d -o CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -c /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp
-/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:25:14: warning: 'llama_load_model_from_file' is deprecated: use llama_model_load_from_file instead [-Wdeprecated-declarations]
-    model_ = llama_load_model_from_file(model_path.c_str(), model_params);
-             ^
-/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include/llama.h:442:5: note: 'llama_load_model_from_file' has been explicitly marked deprecated here
-    DEPRECATED(LLAMA_API struct llama_model * llama_load_model_from_file(
+/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp:41:12: warning: 'llama_new_context_with_model' is deprecated: use llama_init_from_model instead [-Wdeprecated-declarations]
+    ctx_ = llama_new_context_with_model(model_, ctx_params);
+           ^
+/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include/llama.h:474:5: note: 'llama_new_context_with_model' has been explicitly marked deprecated here
+    DEPRECATED(LLAMA_API struct llama_context * llama_new_context_with_model(
+    ^
 --
 Caused by: com.android.ide.common.process.ProcessException: Error while executing process /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja with arguments {-C /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a jarvis_native}
 	at com.android.build.gradle.internal.process.GradleProcessResult.buildProcessException(GradleProcessResult.java:73)
@@ -166,8 +166,8 @@ C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : hard linked /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a/compile_commands.json to /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/tools/debug/arm64-v8a/compile_commands.json
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : JSON generation completed without problems
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : Writing build model to /home/runner/work/JarvisMerged/JarvisMerged/app/build/intermediates/cxx/Debug/5l5y6b68/logs/arm64-v8a/build_model.json
-Resolve mutations for :app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 3,5,main]) started.
-:app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
+:app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
 > Task :app:buildCMakeDebug[arm64-v8a] FAILED
 Caching disabled for task ':app:buildCMakeDebug[arm64-v8a]' because:
 Task ':app:buildCMakeDebug[arm64-v8a]' is not up-to-date because:
@@ -179,42 +179,39 @@ C/C++: /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linu
 Execution failed for task ':app:buildCMakeDebug[arm64-v8a]'.
 > com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
   [1/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o
-  [2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
-  [3/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
+  [2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
   FAILED: CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o 
   /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android26 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DGGML_USE_CPU -Djarvis_native_EXPORTS -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src/../include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/src/../include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O3 -DNDEBUG -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -MF CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o.d -o CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -c /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp
-  [4/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o
+  [3/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o
+  [4/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
   [5/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o
   [6/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o
-  [7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o
-  [8/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
+  [7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
   ninja: build stopped: subcommand failed.
       /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:buildCMakeDebug[arm64-v8a]'.
 Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
 [1/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o
-[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
-[3/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
+[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
 FAILED: CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o 
 /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android26 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DGGML_USE_CPU -Djarvis_native_EXPORTS -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src/../include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/src/../include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O3 -DNDEBUG -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -MF CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o.d -o CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -c /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp
-[4/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o
+[3/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o
+[4/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
 [5/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o
 [6/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o
-[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o
-[8/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
+[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
 ninja: build stopped: subcommand failed.
     /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 Caused by: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
 [1/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o
-[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
-[3/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
+[2/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o
 FAILED: CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o 
 /usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android26 --sysroot=/usr/local/lib/android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/linux-x86_64/sysroot -DGGML_USE_CPU -Djarvis_native_EXPORTS -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/src/../include -I/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama.cpp/ggml/src/../include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O3 -DNDEBUG -fexceptions -fno-limit-debug-info  -fPIC -std=gnu++17 -MD -MT CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -MF CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o.d -o CMakeFiles/jarvis_native.dir/app/src/main/cpp/llama_context.cpp.o -c /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/cpp/llama_context.cpp
-[4/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o
+[3/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o
+[4/165] Building CXX object CMakeFiles/jarvis_native.dir/app/src/main/cpp/native_bridge.cpp.o
 [5/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o
 [6/165] Building C object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o
-[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o
-[8/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
+[7/165] Building CXX object app/src/main/cpp/llama.cpp/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o
 ninja: build stopped: subcommand failed.
     /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 Caused by: com.android.ide.common.process.ProcessException: Error while executing process /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja with arguments {-C /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a jarvis_native}
