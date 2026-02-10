@@ -18,31 +18,28 @@ object LlamaLLMEngine : LLMEngine {
     private var isInitialized = false
     private var appContext: Context? = null
     
-    // Coroutine scope for async operations
     private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
-    // ✅ CRITICAL FIX: Use function instead of val so path is evaluated with current permissions
     private fun getModelsDir(): File {
         val externalStorage = Environment.getExternalStorageDirectory()
-        val dir = File(externalStorage, "JarvisModels")
-        return dir
+        return File(externalStorage, "JarvisModels")
     }
     
-    // Model configurations with SMALLER context and fewer threads to prevent crashes
+    // ✅ RESTORED: Normal settings now that native code is fixed
     private val chatModelConfig = ModelConfig(
         type = ModelType.CHAT,
         name = "Phi-2",
         filename = "phi-2.Q4_K_M.gguf",
-        contextSize = 512,  // ✅ REDUCED from 2048 to prevent OOM
-        threads = 2         // ✅ REDUCED from 4 to prevent overload
+        contextSize = 2048,
+        threads = 4
     )
     
     private val codeModelConfig = ModelConfig(
         type = ModelType.CODE,
         name = "DeepSeek Coder",
         filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
-        contextSize = 512,  // ✅ REDUCED from 2048
-        threads = 2         // ✅ REDUCED from 4
+        contextSize = 2048,
+        threads = 4
     )
 
     override fun init(context: Context) {
@@ -51,65 +48,39 @@ object LlamaLLMEngine : LLMEngine {
             return
         }
         
-        // Store application context
         appContext = context.applicationContext
         isInitialized = true
         
         val modelsDir = getModelsDir()
         
-        Log.d(TAG, "=== INITIALIZING JARVIS LLM ENGINE (ASYNC) ===")
-        Log.d(TAG, "External storage: ${Environment.getExternalStorageDirectory().absolutePath}")
+        Log.d(TAG, "=== INITIALIZING JARVIS LLM ENGINE ===")
         Log.d(TAG, "Models directory: ${modelsDir.absolutePath}")
         Log.d(TAG, "Directory exists: ${modelsDir.exists()}")
-        Log.d(TAG, "Directory readable: ${modelsDir.canRead()}")
         
-        // Check permissions on Android 11+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val hasPermission = Environment.isExternalStorageManager()
-            Log.d(TAG, "Android ${Build.VERSION.SDK_INT} - MANAGE_EXTERNAL_STORAGE: $hasPermission")
+            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE: $hasPermission")
             if (!hasPermission) {
-                Log.e(TAG, "❌ PERMISSION NOT GRANTED! Cannot access models.")
+                Log.e(TAG, "❌ NO PERMISSION")
                 return
             }
         }
         
-        // List files for debugging
-        if (modelsDir.exists() && modelsDir.isDirectory) {
-            val files = modelsDir.listFiles()
-            if (files != null && files.isNotEmpty()) {
-                Log.d(TAG, "Found ${files.size} files in models directory:")
-                files.take(10).forEach { file ->
-                    val sizeMB = file.length() / (1024.0 * 1024.0)
-                    Log.d(TAG, "  - ${file.name} (%.2f MB) readable=${file.canRead()}".format(sizeMB))
-                }
-            } else {
-                Log.w(TAG, "Models directory is empty or not readable")
-            }
-        } else {
-            Log.e(TAG, "Models directory does not exist!")
-        }
-        
-        // ✅ LOAD MODELS ASYNCHRONOUSLY (don't block main thread!)
+        // Load models asynchronously
         engineScope.launch {
-            loadModelsAsync(modelsDir)
+            loadModels(modelsDir)
         }
     }
     
-    /**
-     * Load models asynchronously in background thread
-     */
-    private suspend fun loadModelsAsync(modelsDir: File) = withContext(Dispatchers.IO) {
+    private suspend fun loadModels(modelsDir: File) = withContext(Dispatchers.IO) {
         try {
             // Load chat model
             val chatModelPath = File(modelsDir, chatModelConfig.filename)
-            Log.d(TAG, "Looking for chat model: ${chatModelPath.absolutePath}")
-            
             if (chatModelPath.exists() && chatModelPath.canRead()) {
                 try {
-                    Log.i(TAG, "Loading chat model: ${chatModelConfig.name}...")
+                    Log.i(TAG, "Loading chat model...")
                     val service = AIService(appContext!!)
                     
-                    // Use initializeWithPath for direct path loading
                     val success = service.initializeWithPath(
                         chatModelPath.absolutePath,
                         chatModelConfig.contextSize,
@@ -118,24 +89,23 @@ object LlamaLLMEngine : LLMEngine {
                     
                     if (success) {
                         chatService = service
-                        Log.i(TAG, "✅ Chat model loaded: ${chatModelConfig.name}")
+                        Log.i(TAG, "✅ Chat model loaded")
                     } else {
-                        Log.e(TAG, "❌ Failed to load chat model")
+                        Log.e(TAG, "❌ Chat model failed")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "❌ Error loading chat model: ${e.message}", e)
+                    Log.e(TAG, "❌ Chat model error: ${e.message}", e)
                 }
-            } else {
-                Log.w(TAG, "❌ Chat model not found: ${chatModelPath.absolutePath}")
             }
+            
+            // Small delay between loading models
+            delay(1000)
             
             // Load code model
             val codeModelPath = File(modelsDir, codeModelConfig.filename)
-            Log.d(TAG, "Looking for code model: ${codeModelPath.absolutePath}")
-            
             if (codeModelPath.exists() && codeModelPath.canRead()) {
                 try {
-                    Log.i(TAG, "Loading code model: ${codeModelConfig.name}...")
+                    Log.i(TAG, "Loading code model...")
                     val service = AIService(appContext!!)
                     
                     val success = service.initializeWithPath(
@@ -146,111 +116,79 @@ object LlamaLLMEngine : LLMEngine {
                     
                     if (success) {
                         codeService = service
-                        Log.i(TAG, "✅ Code model loaded: ${codeModelConfig.name}")
+                        Log.i(TAG, "✅ Code model loaded")
                     } else {
-                        Log.e(TAG, "❌ Failed to load code model")
+                        Log.e(TAG, "❌ Code model failed")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "❌ Error loading code model: ${e.message}", e)
+                    Log.e(TAG, "❌ Code model error: ${e.message}", e)
                 }
-            } else {
-                Log.w(TAG, "❌ Code model not found: ${codeModelPath.absolutePath}")
             }
             
-            Log.d(TAG, "=== MODEL LOADING COMPLETE ===")
-            Log.d(TAG, "Chat service: ${if (chatService != null) "LOADED ✅" else "NOT LOADED ❌"}")
-            Log.d(TAG, "Code service: ${if (codeService != null) "LOADED ✅" else "NOT LOADED ❌"}")
+            Log.d(TAG, "=== LOADING COMPLETE ===")
+            Log.d(TAG, "Chat: ${chatService != null}, Code: ${codeService != null}")
             
-            if (chatService == null && codeService == null) {
-                Log.e(TAG, "❌ NO MODELS LOADED!")
-            }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Fatal error loading models", e)
+            Log.e(TAG, "❌ Fatal error", e)
         }
     }
 
     override fun generateReply(prompt: String): String {
         if (!isInitialized) {
-            Log.e(TAG, "Not initialized")
-            return "AI is initializing. Please try again."
+            return "Initializing..."
         }
         
-        // Check if models are still loading
         if (chatService == null && codeService == null) {
-            return "AI models are loading... Please wait a moment and try again."
+            return "Models loading... please wait and try again."
         }
         
-        // Determine if this is a code request
         val isCodeRequest = isCodeRelated(prompt)
         
         return runBlocking {
             withContext(Dispatchers.IO) {
                 try {
-                    // Add timeout to prevent hanging
-                    withTimeout(30000L) { // 30 second timeout
+                    withTimeout(30000L) {
                         if (isCodeRequest && codeService != null) {
-                            Log.d(TAG, "Using code model for: ${prompt.take(50)}...")
+                            Log.d(TAG, "Using code model")
                             val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
-                            
-                            codeService!!.generate(
-                                formattedPrompt, 
-                                maxTokens = 128,     // ✅ REDUCED from 512
-                                temperature = 0.2f
-                            )
+                            codeService!!.generate(formattedPrompt, maxTokens = 256, temperature = 0.2f)
                         } else if (chatService != null) {
-                            Log.d(TAG, "Using chat model for: ${prompt.take(50)}...")
-                            
-                            chatService!!.generate(
-                                prompt, 
-                                maxTokens = 64,      // ✅ REDUCED from 256
-                                temperature = 0.7f
-                            )
+                            Log.d(TAG, "Using chat model")
+                            chatService!!.generate(prompt, maxTokens = 128, temperature = 0.7f)
                         } else {
-                            Log.w(TAG, "No model available yet")
-                            "I'm Jarvis. My AI models are still loading. Please try again in a moment."
+                            "Models not ready yet."
                         }
                     }
                 } catch (e: TimeoutCancellationException) {
-                    Log.e(TAG, "Generation timed out", e)
-                    "Generation timed out. Try a shorter prompt."
+                    "Timeout. Try shorter prompt."
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error generating reply: ${e.message}", e)
-                    "Error: ${e.message ?: "Unknown error"}"
+                    Log.e(TAG, "Generation error: ${e.message}", e)
+                    "Error: ${e.message}"
                 }
             }
         }
     }
     
-    /**
-     * Detect if the prompt is code-related
-     */
     private fun isCodeRelated(prompt: String): Boolean {
         val codeKeywords = listOf(
             "code", "program", "function", "class", "method",
             "python", "java", "kotlin", "javascript", "c++",
-            "algorithm", "implement", "debug", "fix", "refactor",
-            "write code", "create a", "develop"
+            "algorithm", "implement", "debug", "fix", "refactor"
         )
-        
-        val lowerPrompt = prompt.lowercase()
-        return codeKeywords.any { lowerPrompt.contains(it) }
+        return codeKeywords.any { prompt.lowercase().contains(it) }
     }
     
-    /**
-     * Release models
-     */
     fun release() {
         try {
             chatService?.release()
             codeService?.release()
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing models", e)
+            Log.e(TAG, "Release error", e)
         }
         chatService = null
         codeService = null
         isInitialized = false
         appContext = null
-        engineScope.cancel()
-        Log.d(TAG, "Released all models")
+        Log.d(TAG, "Released")
     }
 }

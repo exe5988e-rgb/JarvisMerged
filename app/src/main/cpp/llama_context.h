@@ -18,7 +18,7 @@ public:
 private:
     llama_model* model_ = nullptr;
     llama_context* ctx_ = nullptr;
-    llama_sampler* sampler_ = nullptr;
+    // ✅ REMOVED: sampler_ - now created per-generation
 };
 
 #endif
