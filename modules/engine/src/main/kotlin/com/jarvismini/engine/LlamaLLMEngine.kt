@@ -1,3 +1,4 @@
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
 package com.jarvismini.engine
 
 import android.content.Context
@@ -15,6 +16,7 @@ object LlamaLLMEngine : LLMEngine {
     private var chatService: AIService? = null
     private var codeService: AIService? = null
     private var isInitialized = false
+    private var appContext: Context? = null
     
     private val modelsDir = File(Environment.getExternalStorageDirectory(), "JarvisModels")
     
@@ -41,6 +43,9 @@ object LlamaLLMEngine : LLMEngine {
             return
         }
         
+        // Store application context
+        appContext = context.applicationContext
+        
         Log.d(TAG, "Initializing LlamaLLMEngine")
         
         // Load models asynchronously
@@ -49,7 +54,7 @@ object LlamaLLMEngine : LLMEngine {
             val chatModelPath = File(modelsDir, chatModelConfig.filename)
             if (chatModelPath.exists() && chatModelPath.canRead()) {
                 try {
-                    val service = AIService()
+                    val service = AIService(appContext!!)
                     val success = service.initialize(
                         chatModelPath.absolutePath,
                         chatModelConfig.contextSize,
@@ -73,7 +78,7 @@ object LlamaLLMEngine : LLMEngine {
             val codeModelPath = File(modelsDir, codeModelConfig.filename)
             if (codeModelPath.exists() && codeModelPath.canRead()) {
                 try {
-                    val service = AIService()
+                    val service = AIService(appContext!!)
                     val success = service.initialize(
                         codeModelPath.absolutePath,
                         codeModelConfig.contextSize,
@@ -155,6 +160,7 @@ object LlamaLLMEngine : LLMEngine {
         chatService = null
         codeService = null
         isInitialized = false
+        appContext = null
         Log.d(TAG, "Released all models")
     }
 }
