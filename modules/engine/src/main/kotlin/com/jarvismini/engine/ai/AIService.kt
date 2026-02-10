@@ -1,7 +1,6 @@
 package com.jarvismini.engine.ai
 
 import android.util.Log
-import com.jarvis.ai.native.LlamaNative
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
