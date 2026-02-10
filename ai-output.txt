@@ -1,144 +1,482 @@
-//===== FILE: app/src/main/cpp/llama_context.cpp =====
-#include "llama_context.h"
-#include <android/log.h>
-#include <vector>
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
+package com.jarvismini.engine
 
-#define TAG "LlamaContext"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+import android.content.Context
+import android.os.Environment
+import android.util.Log
+import com.jarvis.ai.engine.AIService
+import com.jarvis.ai.engine.ModelConfig
+import com.jarvis.ai.engine.ModelType
+import kotlinx.coroutines.runBlocking
+import java.io.File
 
-LlamaContext::LlamaContext() {
-    llama_backend_init();
-    llama_numa_init(GGML_NUMA_STRATEGY_DISABLED);
-}
+object LlamaLLMEngine : LLMEngine {
+    
+    private const val TAG = "LlamaLLMEngine"
+    private var chatService: AIService? = null
+    private var codeService: AIService? = null
+    private var isInitialized = false
+    
+    private val modelsDir = File(Environment.getExternalStorageDirectory(), "JarvisModels")
+    
+    // Model configurations
+    private val chatModelConfig = ModelConfig(
+        type = ModelType.CHAT,
+        name = "Phi-2",
+        filename = "phi-2.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+    
+    private val codeModelConfig = ModelConfig(
+        type = ModelType.CODE,
+        name = "DeepSeek Coder",
+        filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
 
-LlamaContext::~LlamaContext() {
-    unload();
-    llama_backend_free();
-}
-
-bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads) {
-    LOGI("Loading model: %s", model_path.c_str());
-    
-    llama_model_params model_params = llama_model_default_params();
-    model_params.n_gpu_layers = 0;
-    
-    model_ = llama_load_model_from_file(model_path.c_str(), model_params);
-    if (!model_) {
-        LOGE("Failed to load model");
-        return false;
-    }
-    
-    llama_context_params ctx_params = llama_context_default_params();
-    ctx_params.n_ctx = n_ctx;
-    ctx_params.n_threads = n_threads;
-    ctx_params.n_threads_batch = n_threads;
-    
-    ctx_ = llama_new_context_with_model(model_, ctx_params);
-    if (!ctx_) {
-        LOGE("Failed to create context");
-        llama_free_model(model_);
-        model_ = nullptr;
-        return false;
-    }
-    
-    // Minimal sampler chain - temperature + greedy
-    auto sparams = llama_sampler_chain_default_params();
-    sampler_ = llama_sampler_chain_init(sparams);
-    llama_sampler_chain_add(sampler_, llama_sampler_init_temp(0.7f));
-    llama_sampler_chain_add(sampler_, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
-    
-    LOGI("Model loaded successfully");
-    return true;
-}
-
-std::string LlamaContext::generate(const std::string& prompt, int max_tokens, float temp) {
-    if (!ctx_) {
-        LOGE("Context not loaded");
-        return "";
-    }
-    
-    // Tokenize
-    std::vector<llama_token> tokens;
-    tokens.resize(prompt.size() + 128);
-    
-    int n_tokens = llama_tokenize(
-        model_, 
-        prompt.c_str(), 
-        prompt.size(), 
-        tokens.data(), 
-        tokens.size(), 
-        true, 
-        true
-    );
-    
-    if (n_tokens < 0) {
-        tokens.resize(-n_tokens);
-        n_tokens = llama_tokenize(
-            model_, 
-            prompt.c_str(), 
-            prompt.size(),
-            tokens.data(), 
-            tokens.size(), 
-            true, 
-            true
-        );
-    }
-    
-    if (n_tokens <= 0) {
-        LOGE("Tokenization failed");
-        return "";
-    }
-    
-    tokens.resize(n_tokens);
-    LOGI("Tokenized: %d tokens", n_tokens);
-    
-    // Decode prompt
-    llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
-    
-    if (llama_decode(ctx_, batch) != 0) {
-        LOGE("Failed to decode prompt");
-        return "";
-    }
-    
-    std::string result;
-    
-    // Generate tokens
-    for (int i = 0; i < max_tokens; i++) {
-        llama_token new_token = llama_sampler_sample(sampler_, ctx_, -1);
-        
-        if (llama_token_is_eog(model_, new_token)) {
-            break;
+    override fun init(context: Context) {
+        if (isInitialized) {
+            Log.d(TAG, "Already initialized")
+            return
         }
         
-        char buf[256];
-        int n = llama_token_to_piece(model_, new_token, buf, sizeof(buf), 0, true);
-        if (n > 0) {
-            result.append(buf, n);
+        Log.d(TAG, "Initializing LlamaLLMEngine")
+        
+        // Load models asynchronously
+        runBlocking {
+            // Try to load chat model
+            val chatModelPath = File(modelsDir, chatModelConfig.filename)
+            if (chatModelPath.exists() && chatModelPath.canRead()) {
+                try {
+                    val service = AIService()
+                    val success = service.initialize(
+                        chatModelPath.absolutePath,
+                        chatModelConfig.contextSize,
+                        chatModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        chatService = service
+                        Log.i(TAG, "Chat model loaded: ${chatModelConfig.name}")
+                    } else {
+                        Log.e(TAG, "Failed to load chat model")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading chat model", e)
+                }
+            } else {
+                Log.w(TAG, "Chat model not found at: ${chatModelPath.absolutePath}")
+            }
+            
+            // Try to load code model
+            val codeModelPath = File(modelsDir, codeModelConfig.filename)
+            if (codeModelPath.exists() && codeModelPath.canRead()) {
+                try {
+                    val service = AIService()
+                    val success = service.initialize(
+                        codeModelPath.absolutePath,
+                        codeModelConfig.contextSize,
+                        codeModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        codeService = service
+                        Log.i(TAG, "Code model loaded: ${codeModelConfig.name}")
+                    } else {
+                        Log.e(TAG, "Failed to load code model")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading code model", e)
+                }
+            } else {
+                Log.w(TAG, "Code model not found at: ${codeModelPath.absolutePath}")
+            }
         }
         
-        batch = llama_batch_get_one(&new_token, 1);
+        isInitialized = true
         
-        if (llama_decode(ctx_, batch) != 0) {
-            break;
+        if (chatService == null && codeService == null) {
+            Log.w(TAG, "No models loaded. Place models in: ${modelsDir.absolutePath}")
+        }
+    }
+
+    override fun generateReply(prompt: String): String {
+        if (!isInitialized) {
+            Log.e(TAG, "Not initialized")
+            return "AI is initializing. Please try again."
+        }
+        
+        // Determine if this is a code request
+        val isCodeRequest = isCodeRelated(prompt)
+        
+        return runBlocking {
+            try {
+                if (isCodeRequest && codeService != null) {
+                    Log.d(TAG, "Using code model for: ${prompt.take(50)}...")
+                    val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
+                    codeService!!.generate(formattedPrompt, maxTokens = 512, temperature = 0.2f)
+                } else if (chatService != null) {
+                    Log.d(TAG, "Using chat model for: ${prompt.take(50)}...")
+                    chatService!!.generate(prompt, maxTokens = 256, temperature = 0.7f)
+                } else {
+                    // Fallback to stub response
+                    Log.w(TAG, "No model available for generation")
+                    "I'm Jarvis. My AI models are not loaded. Please ensure models are in /sdcard/JarvisModels/"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating reply", e)
+                "Error generating response: ${e.message}"
+            }
         }
     }
     
-    LOGI("Generated %zu bytes", result.size());
-    return result;
+    /**
+     * Detect if the prompt is code-related
+     */
+    private fun isCodeRelated(prompt: String): Boolean {
+        val codeKeywords = listOf(
+            "code", "program", "function", "class", "method",
+            "python", "java", "kotlin", "javascript", "c++",
+            "algorithm", "implement", "debug", "fix", "refactor",
+            "write code", "create a", "develop"
+        )
+        
+        val lowerPrompt = prompt.lowercase()
+        return codeKeywords.any { lowerPrompt.contains(it) }
+    }
+    
+    /**
+     * Release models
+     */
+    fun release() {
+        chatService?.release()
+        codeService?.release()
+        chatService = null
+        codeService = null
+        isInitialized = false
+        Log.d(TAG, "Released all models")
+    }
 }
 
-void LlamaContext::unload() {
-    if (sampler_) {
-        llama_sampler_free(sampler_);
-        sampler_ = nullptr;
+
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/EngineProvider.kt =====
+package com.jarvismini.engine
+
+import android.content.Context
+
+object EngineProvider {
+
+    private lateinit var appContext: Context
+
+    // ---------------- COMMAND ENGINES ----------------
+
+    private lateinit var workModeCommandEngine: CommandEngine
+    private lateinit var schedulerCommandEngine: CommandEngine
+    private lateinit var stubCommandEngine: CommandEngine
+
+    private lateinit var engines: List<CommandEngine>
+
+    // ---------------- LLM ENGINE ----------------
+    
+    // ✅ CHANGED: Use LlamaLLMEngine instead of StubLLMEngine
+    private val llmEngineInstance: LLMEngine = LlamaLLMEngine
+
+    /**
+     * Must be called once from Application.onCreate()
+     */
+    fun init(context: Context) {
+        appContext = context.applicationContext
+
+        // ✔ Correct constructors (verified)
+        workModeCommandEngine = WorkModeCommandEngine(appContext)
+        schedulerCommandEngine = SchedulerCommandEngine()
+        stubCommandEngine = StubCommandEngine()
+
+        engines = listOf(
+            workModeCommandEngine,
+            schedulerCommandEngine,
+            stubCommandEngine
+        )
+
+        // ✅ Initialize Llama engine
+        llmEngineInstance.init(appContext)
     }
-    if (ctx_) {
-        llama_free(ctx_);
-        ctx_ = nullptr;
+
+    /**
+     * Aggregated CommandEngine
+     */
+    val commandEngine: CommandEngine
+        get() {
+            check(::engines.isInitialized) {
+                "EngineProvider.init(context) was not called"
+            }
+
+            return object : CommandEngine {
+                override fun canHandle(input: String): Boolean =
+                    engines.any { it.canHandle(input) }
+
+                override fun handle(input: String): EngineResult =
+                    engines.firstOrNull { it.canHandle(input) }?.handle(input)
+                        ?: EngineResult.Unhandled
+            }
+        }
+
+    /**
+     * LLM engine accessor
+     */
+    val llmEngine: LLMEngine
+        get() = llmEngineInstance
+}
+
+
+//===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jarvismini">
+
+    <!-- ================= PERMISSIONS ================= -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    
+    <!-- ✅ NEW: Storage permissions for model access -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
+    <!-- ================= PACKAGE VISIBILITY ================= -->
+
+    <queries>
+        <package android:name="xyz.penpencil.physicswala" />
+        <package android:name="com.pittvandewitt.wavelet" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.apple.android.music" />
+    </queries>
+
+    <!-- ================= APPLICATION ================= -->
+
+    <application
+        android:name="com.jarvismini.CoreApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JarvisMerged"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true">
+
+        <!-- ================= MAIN ACTIVITY ================= -->
+
+        <activity
+            android:name="com.jarvismini.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ================= NOTIFICATION LISTENER ================= -->
+
+        <service
+            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= SMS RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.callhandler.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ================= CALL STATE RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ================= CALL SCREENING SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall">
+            <intent-filter>
+                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= ACCESSIBILITY SERVICE ================= -->
+
+        <service
+            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/call_accessibility_config" />
+        </service>
+
+        <!-- ================= QUICK SETTINGS TILE ================= -->
+
+        <service
+            android:name="com.jarvismini.service.WorkModeTileService"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- ================= WORK MODE SERVICE ================= -->
+
+        <service
+            android:name=".core.workmode.WorkModeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
+
+        <receiver
+            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
+
+
+//===== FILE: app/src/main/java/com/jarvis/ai/engine/AIService.kt =====
+package com.jarvis.ai.engine
+
+import android.util.Log
+import com.jarvis.ai.native.LlamaNative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+class AIService {
+    private var handle: Long = 0
+    private var isInitialized = false
+
+    suspend fun initialize(modelPath: String, nCtx: Int = 2048, nThreads: Int = 4): Boolean = 
+        withContext(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "Initializing AIService")
+                handle = LlamaNative.nativeInit()
+                
+                if (handle == 0L) {
+                    Log.e(TAG, "Failed to create native context")
+                    return@withContext false
+                }
+                
+                Log.d(TAG, "Loading model: $modelPath")
+                val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
+                
+                if (loaded) {
+                    isInitialized = true
+                    Log.d(TAG, "Model loaded successfully")
+                } else {
+                    Log.e(TAG, "Failed to load model")
+                    LlamaNative.nativeRelease(handle)
+                    handle = 0
+                }
+                
+                loaded
+            } catch (e: Exception) {
+                Log.e(TAG, "Error initializing AIService", e)
+                false
+            }
+        }
+
+    suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
+        withContext(Dispatchers.IO) {
+            if (!isInitialized || handle == 0L) {
+                Log.e(TAG, "Service not initialized")
+                return@withContext ""
+            }
+            
+            try {
+                Log.d(TAG, "Generating response for prompt: ${prompt.take(50)}...")
+                LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating response", e)
+                ""
+            }
+        }
+
+    fun release() {
+        if (handle != 0L) {
+            Log.d(TAG, "Releasing AIService")
+            LlamaNative.nativeRelease(handle)
+            handle = 0
+            isInitialized = false
+        }
     }
-    if (model_) {
-        llama_free_model(model_);
-        model_ = nullptr;
+
+    companion object {
+        private const val TAG = "AIService"
     }
 }
+
+
+//===== FILE: app/src/main/java/com/jarvis/ai/engine/ModelConfig.kt =====
+package com.jarvis.ai.engine
+
+enum class ModelType {
+    CHAT, CODE
+}
+
+data class ModelConfig(
+    val type: ModelType,
+    val name: String,
+    val filename: String,
+    val contextSize: Int = 2048,
+    val threads: Int = 4
+)
