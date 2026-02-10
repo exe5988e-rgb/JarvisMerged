@@ -29,9 +29,10 @@ import com.jarvismini.core.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
 import com.jarvismini.ui.components.GridBackground
+import com.jarvismini.ui.theme.JarvisBlue
 import kotlinx.coroutines.launch
 
-private val JarvisBlue = Color(0xFF00E0FF)
+data class ChatMessage(val text: String, val isUser: Boolean)
 
 @Composable
 fun JarvisChatScreen(
@@ -63,6 +64,7 @@ fun JarvisChatScreen(
     var input by remember { mutableStateOf("") }
     var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
     var expanded by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
     val modes = JarvisMode.values().toList()
 
     // ================= UI =================
@@ -111,8 +113,9 @@ fun JarvisChatScreen(
                     readOnly = true,
                     label = { Text("Select Mode", color = JarvisBlue) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    colors = TextFieldDefaults.textFieldColors(
-                        containerColor = Color.Transparent,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
                         focusedTextColor = JarvisBlue,
                         unfocusedTextColor = JarvisBlue,
                         cursorColor = JarvisBlue,
@@ -154,7 +157,7 @@ fun JarvisChatScreen(
                 Text("Toggle Work Mode", color = Color.Black)
             }
 
-            Divider(color = JarvisBlue.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(color = JarvisBlue.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
 
             // ===== CHAT LOG =====
             LazyColumn(
@@ -187,42 +190,71 @@ fun JarvisChatScreen(
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
+                    enabled = !isProcessing,
                     placeholder = {
                         Text(
-                            "Command input…",
+                            if (isProcessing) "Processing..." else "Command input…",
                             fontFamily = FontFamily.Monospace,
                             color = JarvisBlue.copy(alpha = 0.7f)
                         )
                     },
-                    colors = TextFieldDefaults.textFieldColors(
-                        containerColor = Color.Transparent,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
                         focusedTextColor = JarvisBlue,
                         unfocusedTextColor = JarvisBlue,
+                        disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
                         cursorColor = JarvisBlue,
                         focusedIndicatorColor = JarvisBlue,
-                        unfocusedIndicatorColor = JarvisBlue
+                        unfocusedIndicatorColor = JarvisBlue,
+                        disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
                     )
                 )
 
-                IconButton(onClick = {
-                    val userText = input.trim()
-                    if (userText.isEmpty()) return@IconButton
+                // ✅ FIX: Use proper coroutine with async LLM call
+                IconButton(
+                    onClick = {
+                        val userText = input.trim()
+                        if (userText.isEmpty() || isProcessing) return@IconButton
 
-                    input = ""
-                    messages.add(ChatMessage(userText, true))
-                    messages.add(ChatMessage("Processing…", false))
+                        input = ""
+                        isProcessing = true
+                        messages.add(ChatMessage(userText, true))
+                        messages.add(ChatMessage("Processing…", false))
 
-                    scope.launch {
-                        val result = EngineProvider.commandEngine.handle(userText)
-                        val reply = when (result) {
-                            is EngineResult.Success -> result.reply
-                            else -> EngineProvider.llmEngine.generateReply(userText)
+                        scope.launch {
+                            try {
+                                val result = EngineProvider.commandEngine.handle(userText)
+                                val reply = when (result) {
+                                    is EngineResult.Success -> result.reply
+                                    else -> {
+                                        // ✅ FIX: Use the async version instead of blocking
+                                        val llmEngine = EngineProvider.llmEngine
+                                        if (llmEngine is com.jarvismini.engine.LlamaLLMEngine) {
+                                            llmEngine.generateReplyAsync(userText)
+                                        } else {
+                                            llmEngine.generateReply(userText)
+                                        }
+                                    }
+                                }
+                                messages.removeLast()
+                                messages.add(ChatMessage(reply, false))
+                            } catch (e: Exception) {
+                                messages.removeLast()
+                                messages.add(ChatMessage("Error: ${e.message}", false))
+                            } finally {
+                                isProcessing = false
+                            }
                         }
-                        messages.removeLast()
-                        messages.add(ChatMessage(reply, false))
-                    }
-                }) {
-                    Icon(Icons.Default.Send, "Send", tint = JarvisBlue)
+                    },
+                    enabled = !isProcessing
+                ) {
+                    Icon(
+                        Icons.Default.Send, 
+                        "Send", 
+                        tint = if (isProcessing) JarvisBlue.copy(alpha = 0.3f) else JarvisBlue
+                    )
                 }
             }
         }
