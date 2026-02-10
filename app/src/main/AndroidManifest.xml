@@ -16,10 +16,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     
-    <!-- ✅ NEW: Storage permissions for model access -->
+    <!-- ================= STORAGE PERMISSIONS (Android 13+) ================= -->
+    <!-- For reading images -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    
+    <!-- For reading videos -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    
+    <!-- For reading audio files -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    
+    <!-- Legacy storage for Android 12 and below -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
         android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
         android:maxSdkVersion="32" />
 
     <uses-feature
@@ -104,55 +114,6 @@
                 <action android:name="android.telecom.CallScreeningService" />
             </intent-filter>
         </service>
-
-        <!-- ================= FOREGROUND CALL AUTO-REPLY ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall">
-            <intent-filter>
-                <action android:name="com.jarvismini.ACTION_CALL_AUTO_REPLY" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= ACCESSIBILITY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
-
-        <!-- ================= QUICK SETTINGS TILE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.WorkModeTileService"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= WORK MODE SERVICE ================= -->
-
-        <service
-            android:name=".core.workmode.WorkModeService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- ================= PROGRESS REMINDER RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.core.notifications.ProgressReminderReceiver"
-            android:exported="false" />
 
     </application>
 
