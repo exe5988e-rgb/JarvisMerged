@@ -17,7 +17,7 @@ INCLUDE_EXTENSIONS = {
     ".gradle", ".kts",
     ".properties", ".json",
     ".yml", ".yaml",
-    ".md", ".txt", ".pro" , ".py"
+    ".md", ".txt", ".pro" , ".py", ".cpp", ".h"
 }
 
 # ❌ Always excluded
