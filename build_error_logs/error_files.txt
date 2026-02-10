@@ -1,3 +1,359 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-No error files detected
+//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
+
+// ❌ ERRORS IN THIS FILE (3 error(s)):
+// Line 27: Unresolved reference: ChatAdapter
+// Line 46: Unresolved reference: ChatAdapter
+// Line 69: Unresolved reference: isLoading
+
+   1    package com.jarvismini
+   2    
+   3    import android.os.Bundle
+   4    import android.view.View
+   5    import android.widget.EditText
+   6    import android.widget.ImageButton
+   7    import android.widget.Toast
+   8    import androidx.appcompat.app.AppCompatActivity
+   9    import androidx.lifecycle.lifecycleScope
+  10    import androidx.recyclerview.widget.LinearLayoutManager
+  11    import androidx.recyclerview.widget.RecyclerView
+  12    import com.jarvismini.engine.LlamaLLMEngine
+  13    import com.jarvismini.ui.ModelSelectorView
+  14    import kotlinx.coroutines.launch
+  15    
+  16    /**
+  17     * ✅ UPDATED: Chat activity with model selector integration
+  18     */
+  19    class ChatActivity : AppCompatActivity() {
+  20    
+  21        private lateinit var rvMessages: RecyclerView
+  22        private lateinit var etMessage: EditText
+  23        private lateinit var btnSend: ImageButton
+  24        private lateinit var modelSelector: ModelSelectorView
+  25    
+  26        private val messages = mutableListOf<ChatMessage>()
+  27 ❌     private lateinit var adapter: ChatAdapter
+  28    
+  29        override fun onCreate(savedInstanceState: Bundle?) {
+  30            super.onCreate(savedInstanceState)
+  31            setContentView(R.layout.activity_chat)
+  32    
+  33            initViews()
+  34            setupRecyclerView()
+  35            setupListeners()
+  36        }
+  37    
+  38        private fun initViews() {
+  39            rvMessages = findViewById(R.id.rvMessages)
+  40            etMessage = findViewById(R.id.etMessage)
+  41            btnSend = findViewById(R.id.btnSend)
+  42            modelSelector = findViewById(R.id.modelSelector)
+  43        }
+  44    
+  45        private fun setupRecyclerView() {
+  46 ❌         adapter = ChatAdapter(messages)
+  47            rvMessages.adapter = adapter
+  48            rvMessages.layoutManager = LinearLayoutManager(this).apply {
+  49                stackFromEnd = true
+  50            }
+  51        }
+  52    
+  53        private fun setupListeners() {
+  54            btnSend.setOnClickListener {
+  55                sendMessage()
+  56            }
+  57    
+  58            etMessage.setOnEditorActionListener { _, _, _ ->
+  59                sendMessage()
+  60                true
+  61            }
+  62        }
+  63    
+  64        private fun sendMessage() {
+  65            val text = etMessage.text.toString().trim()
+  66            if (text.isEmpty()) return
+  67    
+  68            // ✅ NEW: Check if models are still loading
+  69 ❌         if (LlamaLLMEngine.isLoading) {
+  70                Toast.makeText(
+  71                    this,
+  72                    "⏳ Models are still loading... Please wait a moment.",
+  73                    Toast.LENGTH_SHORT
+  74                ).show()
+  75                return
+  76            }
+  77    
+  78            // Add user message
+  79            val userMessage = ChatMessage(text, isUser = true)
+  80            messages.add(userMessage)
+  81            adapter.notifyItemInserted(messages.size - 1)
+  82            rvMessages.scrollToPosition(messages.size - 1)
+  83    
+  84            // Clear input
+  85            etMessage.text.clear()
+  86    
+  87            // Disable input while processing
+  88            etMessage.isEnabled = false
+  89            btnSend.isEnabled = false
+  90            etMessage.hint = "Processing..."
+  91    
+  92            // Add "thinking" indicator
+  93            val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
+  94            messages.add(thinkingMessage)
+  95            val thinkingIndex = messages.size - 1
+  96            adapter.notifyItemInserted(thinkingIndex)
+  97            rvMessages.scrollToPosition(thinkingIndex)
+  98    
+  99            // Generate reply
+ 100            lifecycleScope.launch {
+ 101                try {
+ 102                    val reply = LlamaLLMEngine.generateReply(text)
+ 103    
+ 104                    // Remove thinking indicator
+ 105                    messages.removeAt(thinkingIndex)
+ 106                    adapter.notifyItemRemoved(thinkingIndex)
+ 107    
+ 108                    // Add actual reply
+ 109                    val replyMessage = ChatMessage(reply, isUser = false)
+ 110                    messages.add(replyMessage)
+ 111                    adapter.notifyItemInserted(messages.size - 1)
+ 112                    rvMessages.scrollToPosition(messages.size - 1)
+ 113    
+ 114                } catch (e: Exception) {
+ 115                    // Remove thinking indicator
+ 116                    messages.removeAt(thinkingIndex)
+ 117                    adapter.notifyItemRemoved(thinkingIndex)
+ 118    
+ 119                    // Show error
+ 120                    val errorMessage = ChatMessage(
+ 121                        "❌ Error: ${e.message}",
+ 122                        isUser = false
+ 123                    )
+ 124                    messages.add(errorMessage)
+ 125                    adapter.notifyItemInserted(messages.size - 1)
+ 126                    rvMessages.scrollToPosition(messages.size - 1)
+ 127    
+ 128                } finally {
+ 129                    // Re-enable input
+ 130                    etMessage.isEnabled = true
+ 131                    btnSend.isEnabled = true
+ 132                    etMessage.hint = "Type a message..."
+ 133                }
+ 134            }
+ 135        }
+ 136    
+ 137        override fun onDestroy() {
+ 138            super.onDestroy()
+ 139            // Release resources if this is the last activity
+ 140            if (isFinishing) {
+ 141                // Note: Only release if app is actually closing
+ 142                // LlamaLLMEngine.release()
+ 143            }
+ 144        }
+ 145    }
+ 146    
+ 147    data class ChatMessage(
+ 148        val text: String,
+ 149        val isUser: Boolean,
+ 150        val isThinking: Boolean = false
+ 151    )
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ModelSelectorView.kt =====
+
+// ❌ ERRORS IN THIS FILE (7 error(s)):
+// Line 11: Unresolved reference: ModelStatus
+// Line 58: Unresolved reference: selectedModel
+// Line 77: Unresolved reference: getModelStatus
+// Line 83: Unresolved reference: ModelStatus
+// Line 94: Unresolved reference: it
+// Line 110: Unresolved reference: ModelStatus
+// Line 131: Unresolved reference: selectedModel
+
+   1    package com.jarvismini.ui
+   2    
+   3    import android.content.Context
+   4    import android.util.AttributeSet
+   5    import android.view.LayoutInflater
+   6    import android.view.View
+   7    import android.widget.*
+   8    import androidx.constraintlayout.widget.ConstraintLayout
+   9    import com.jarvismini.R
+  10    import com.jarvismini.engine.LlamaLLMEngine
+  11 ❌ import com.jarvismini.engine.ModelStatus
+  12    import kotlinx.coroutines.*
+  13    
+  14    /**
+  15     * ✅ NEW: Model selector UI component
+  16     * Allows users to choose between Auto, Chat, and Code models
+  17     */
+  18    class ModelSelectorView @JvmOverloads constructor(
+  19        context: Context,
+  20        attrs: AttributeSet? = null,
+  21        defStyleAttr: Int = 0
+  22    ) : ConstraintLayout(context, attrs, defStyleAttr) {
+  23    
+  24        private val tvStatus: TextView
+  25        private val spinnerModelSelect: Spinner
+  26        private val layoutLoading: View
+  27        private val progressLoading: ProgressBar
+  28        private val tvLoadingMessage: TextView
+  29        private val tvModelInfo: TextView
+  30    
+  31        private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+  32        private var statusCheckJob: Job? = null
+  33    
+  34        private val modelOptions = mutableListOf<ModelOption>()
+  35        private var adapter: ModelAdapter? = null
+  36    
+  37        init {
+  38            LayoutInflater.from(context).inflate(R.layout.view_model_selector, this, true)
+  39    
+  40            tvStatus = findViewById(R.id.tvModelStatus)
+  41            spinnerModelSelect = findViewById(R.id.spinnerModelSelect)
+  42            layoutLoading = findViewById(R.id.layoutLoading)
+  43            progressLoading = findViewById(R.id.progressModelLoading)
+  44            tvLoadingMessage = findViewById(R.id.tvLoadingMessage)
+  45            tvModelInfo = findViewById(R.id.tvModelInfo)
+  46    
+  47            setupSpinner()
+  48            startStatusMonitoring()
+  49        }
+  50    
+  51        private fun setupSpinner() {
+  52            adapter = ModelAdapter(context, modelOptions)
+  53            spinnerModelSelect.adapter = adapter
+  54    
+  55            spinnerModelSelect.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+  56                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+  57                    val selected = modelOptions.getOrNull(position) ?: return
+  58 ❌                 LlamaLLMEngine.selectedModel = selected.id
+  59                    updateModelInfo(selected)
+  60                }
+  61    
+  62                override fun onNothingSelected(parent: AdapterView<*>?) {}
+  63            }
+  64        }
+  65    
+  66        private fun startStatusMonitoring() {
+  67            statusCheckJob = scope.launch {
+  68                while (isActive) {
+  69                    updateStatus()
+  70                    delay(1000)  // Check every second
+  71                }
+  72            }
+  73        }
+  74    
+  75        private suspend fun updateStatus() {
+  76            val status = withContext(Dispatchers.IO) {
+  77 ❌             LlamaLLMEngine.getModelStatus()
+  78            }
+  79    
+  80            updateUI(status)
+  81        }
+  82    
+  83 ❌     private fun updateUI(status: ModelStatus) {
+  84            // Update loading indicator
+  85            if (status.isLoading) {
+  86                layoutLoading.visibility = View.VISIBLE
+  87                tvStatus.text = "Loading..."
+  88                tvStatus.setTextColor(context.getColor(android.R.color.holo_orange_light))
+  89                spinnerModelSelect.isEnabled = false
+  90            } else {
+  91                layoutLoading.visibility = View.GONE
+  92                spinnerModelSelect.isEnabled = true
+  93    
+  94 ❌             val readyCount = listOf(status.chatReady, status.codeReady).count { it }
+  95                tvStatus.text = when {
+  96                    readyCount == 0 -> "No models"
+  97                    readyCount == 1 -> "1 model ready"
+  98                    else -> "$readyCount models ready"
+  99                }
+ 100                tvStatus.setTextColor(
+ 101                    if (readyCount > 0) context.getColor(android.R.color.holo_green_light)
+ 102                    else context.getColor(android.R.color.holo_red_light)
+ 103                )
+ 104            }
+ 105    
+ 106            // Update available models
+ 107            updateAvailableModels(status)
+ 108        }
+ 109    
+ 110 ❌     private fun updateAvailableModels(status: ModelStatus) {
+ 111            val newOptions = mutableListOf<ModelOption>()
+ 112    
+ 113            // Always add Auto option
+ 114            newOptions.add(ModelOption("auto", "Auto", "Smart selection based on prompt"))
+ 115    
+ 116            // Add available models
+ 117            if (status.chatReady) {
+ 118                newOptions.add(ModelOption("chat", "Chat (Phi-2)", "General conversation & questions"))
+ 119            }
+ 120            if (status.codeReady) {
+ 121                newOptions.add(ModelOption("code", "Code (DeepSeek)", "Programming & code generation"))
+ 122            }
+ 123    
+ 124            // Only update if changed
+ 125            if (newOptions != modelOptions) {
+ 126                modelOptions.clear()
+ 127                modelOptions.addAll(newOptions)
+ 128                adapter?.notifyDataSetChanged()
+ 129    
+ 130                // Restore selection if possible
+ 131 ❌             val currentSelection = LlamaLLMEngine.selectedModel
+ 132                val index = modelOptions.indexOfFirst { it.id == currentSelection }
+ 133                if (index >= 0) {
+ 134                    spinnerModelSelect.setSelection(index)
+ 135                }
+ 136            }
+ 137        }
+ 138    
+ 139        private fun updateModelInfo(option: ModelOption) {
+ 140            tvModelInfo.text = option.description
+ 141        }
+ 142    
+ 143        override fun onDetachedFromWindow() {
+ 144            super.onDetachedFromWindow()
+ 145            statusCheckJob?.cancel()
+ 146            scope.cancel()
+ 147        }
+ 148    
+ 149        private data class ModelOption(
+ 150            val id: String,
+ 151            val name: String,
+ 152            val description: String
+ 153        ) {
+ 154            override fun equals(other: Any?): Boolean {
+ 155                if (this === other) return true
+ 156                if (other !is ModelOption) return false
+ 157                return id == other.id
+ 158            }
+ 159    
+ 160            override fun hashCode(): Int = id.hashCode()
+ 161        }
+ 162    
+ 163        private class ModelAdapter(
+ 164            context: Context,
+ 165            private val options: List<ModelOption>
+ 166        ) : ArrayAdapter<ModelOption>(context, android.R.layout.simple_spinner_item, options) {
+ 167    
+ 168            init {
+ 169                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+ 170            }
+ 171    
+ 172            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+ 173                val view = super.getView(position, convertView, parent)
+ 174                (view as? TextView)?.text = options[position].name
+ 175                return view
+ 176            }
+ 177    
+ 178            override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+ 179                val view = super.getDropDownView(position, convertView, parent)
+ 180                (view as? TextView)?.text = options[position].name
+ 181                return view
+ 182            }
+ 183        }
+ 184    }
+
+
