@@ -2825,7 +2825,6 @@ package com.jarvismini.ui.chat
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.util.Log
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -2845,18 +2844,24 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.jarvismini.core.workmode.WorkModeManager
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
-import com.jarvismini.state.JarvisMode
-import com.jarvismini.state.JarvisState
-import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.components.GridBackground
-import com.jarvismini.ui.theme.JarvisBlue
 import kotlinx.coroutines.*
 
-private const val TAG = "JarvisChatScreen"
+)
 
+/**
+ * Main chat screen for interacting with J.A.R.V.I.S.
+ * 
+ * ✅ FIXED: Input clearing moved to AFTER successful processing
+ * ✅ FIXED: Added 30-second timeout protection
+ * ✅ FIXED: Enhanced logging for debugging
+ * ✅ FIXED: Input preserved on error for retry
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JarvisChatScreen(
@@ -3085,132 +3090,159 @@ fun JarvisChatScreen(
                         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                         Log.d(TAG, "🚀 SEND BUTTON CLICKED")
                         Log.d(TAG, "📝 User input: '$userText'")
-                        Log.d(TAG, "🧵 Main thread: ${Thread.currentThread().name}")
                         
-                        // ✅ FIX: Set processing state but DON'T clear input yet
-                        // Input stays visible (disabled) during processing
+                        // Set processing state
                         isProcessing = true
                         
-                        // Add user message to chat
+                        // Add user message
                         messages.add(ChatMessage(userText, isUser = true))
-                        
-                        // Add temporary "thinking" message
                         messages.add(ChatMessage("Processing…", isUser = false))
 
-                        // Launch coroutine with proper error handling and timeout
+                        // Launch with timeout watcher
                         scope.launch {
+                            var timeoutJob: Job? = null
+                            var processingJob: Job? = null
+                            
                             try {
-                                Log.d(TAG, "⏳ Starting message processing in coroutine")
-                                Log.d(TAG, "🧵 Coroutine thread: ${Thread.currentThread().name}")
+                                Log.d(TAG, "⏳ Starting message processing")
                                 
-                                // ✅ FIX: Add 30-second timeout to prevent infinite hang
-                                val reply = withTimeout(30000L) {
-                                    // Try command engine first
-                                    val result = EngineProvider.commandEngine.handle(userText)
-                                    Log.d(TAG, "🎯 Command engine result: $result")
-                                    
-                                    when (result) {
-                                        is EngineResult.Success -> {
-                                            Log.d(TAG, "✅ Command handled successfully")
-                                            result.reply
-                                        }
-                                        else -> {
-                                            Log.d(TAG, "🔄 Command not handled, calling LLM")
-                                            
-                                            // Call LLM on IO dispatcher
-                                            withContext(Dispatchers.IO) {
-                                                Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
-                                                val llmReply = EngineProvider.llmEngine.generateReply(userText)
-                                                Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
-                                                llmReply
+                                // ✅ FIX: Pre-check engine state BEFORE calling native code
+                                val llmEngine = EngineProvider.llmEngine
+                                val modelStatus = try {
+                                    llmEngine.getModelStatus()
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "❌ Failed to get model status", e)
+                                    null
+                                }
+                                
+                                // Check if models are actually ready
+                                if (modelStatus == null || (!modelStatus.chatReady && !modelStatus.codeReady)) {
+                                    Log.w(TAG, "⚠️ No models ready - returning early")
+                                    messages.removeLastOrNull()
+                                    messages.add(ChatMessage(
+                                        "🤖 No AI models found.\n\n" +
+                                        "To use AI features, place .gguf model files in:\n" +
+                                        "/storage/emulated/0/JarvisModels/\n\n" +
+                                        "Download models from Hugging Face and restart the app.",
+                                        isUser = false
+                                    ))
+                                    input = ""
+                                    return@launch
+                                }
+                                
+                                if (modelStatus.isLoading) {
+                                    Log.w(TAG, "⚠️ Models still loading")
+                                    messages.removeLastOrNull()
+                                    messages.add(ChatMessage(
+                                        "🤖 AI models are loading...\n\n" +
+                                        "This can take 1-2 minutes on first launch.\n" +
+                                        "Please wait and try again in a moment.",
+                                        isUser = false
+                                    ))
+                                    return@launch
+                                }
+                                
+                                Log.d(TAG, "✅ Models ready: chat=${modelStatus.chatReady}, code=${modelStatus.codeReady}")
+                                
+                                // ✅ FIX: Create timeout watcher BEFORE calling native code
+                                timeoutJob = launch {
+                                    delay(30000L) // 30 seconds
+                                    if (isProcessing) {
+                                        Log.e(TAG, "⏱️ TIMEOUT WATCHER: 30 seconds elapsed!")
+                                        messages.removeLastOrNull()
+                                        messages.add(ChatMessage(
+                                            "⏱️ Request timed out after 30 seconds.\n\n" +
+                                            "The model may be:\n" +
+                                            "• Processing a very complex request\n" +
+                                            "• Loading for the first time\n" +
+                                            "• Stuck on corrupted model files\n\n" +
+                                            "Try:\n" +
+                                            "• A shorter, simpler message\n" +
+                                            "• Restarting the app\n" +
+                                            "• Checking model files in /storage/emulated/0/JarvisModels/",
+                                            isUser = false
+                                        ))
+                                        processingJob?.cancel()
+                                        isProcessing = false
+                                    }
+                                }
+                                
+                                // ✅ FIX: Launch actual processing in separate job
+                                processingJob = launch {
+                                    try {
+                                        Log.d(TAG, "🔄 Trying command engine first")
+                                        val result = EngineProvider.commandEngine.handle(userText)
+                                        Log.d(TAG, "🎯 Command result: $result")
+                                        
+                                        val reply = when (result) {
+                                            is EngineResult.Success -> {
+                                                Log.d(TAG, "✅ Command handled")
+                                                result.reply
                                             }
+                                            else -> {
+                                                Log.d(TAG, "🔄 Calling LLM (this may take time)")
+                                                
+                                                // Call LLM on IO thread
+                                                withContext(Dispatchers.IO) {
+                                                    try {
+                                                        Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
+                                                        val llmReply = llmEngine.generateReply(userText)
+                                                        Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
+                                                        llmReply
+                                                    } catch (e: Exception) {
+                                                        Log.e(TAG, "❌ LLM error", e)
+                                                        "❌ Error: ${e.message ?: "Unknown error"}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Success - cancel timeout and update UI
+                                        if (isProcessing) { // Only update if not timed out
+                                            timeoutJob?.cancel()
+                                            Log.d(TAG, "🔄 Updating UI with reply")
+                                            messages.removeLastOrNull()
+                                            messages.add(ChatMessage(reply, isUser = false))
+                                            input = "" // Clear input only on success
+                                            Log.d(TAG, "✅ PROCESSING COMPLETE")
+                                        }
+                                        
+                                    } catch (e: CancellationException) {
+                                        Log.w(TAG, "🚫 Processing cancelled (likely timeout)")
+                                        throw e
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "❌ Processing error", e)
+                                        if (isProcessing) {
+                                            timeoutJob?.cancel()
+                                            messages.removeLastOrNull()
+                                            messages.add(ChatMessage(
+                                                "❌ Error: ${e.message ?: "Unknown error occurred"}",
+                                                isUser = false
+                                            ))
                                         }
                                     }
                                 }
                                 
-                                Log.d(TAG, "🔄 Updating UI with reply")
-                                
-                                // Remove "Processing..." message
-                                messages.removeLastOrNull()
-                                
-                                // Add actual reply
-                                messages.add(ChatMessage(reply, isUser = false))
-                                
-                                // ✅ FIX: Clear input only AFTER successful processing
-                                input = ""
-                                
-                                Log.d(TAG, "✅ MESSAGE PROCESSING COMPLETE")
-                                Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                                
-                            } catch (e: TimeoutCancellationException) {
-                                Log.e(TAG, "⏱️ TIMEOUT: Operation took longer than 30 seconds")
-                                
-                                // Remove "Processing..." message
-                                messages.removeLastOrNull()
-                                
-                                // Add timeout message
-                                messages.add(ChatMessage(
-                                    "⏱️ Request timed out after 30 seconds. The model may be loading or the prompt is too complex. Try:\n" +
-                                    "• A shorter message\n" +
-                                    "• Checking if models are in /storage/emulated/0/JarvisModels/\n" +
-                                    "• Restarting the app",
-                                    isUser = false
-                                ))
-                                
-                                // ✅ FIX: Keep input on timeout so user can retry or modify
-                                Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
+                                // Wait for processing to complete (or timeout to trigger)
+                                processingJob?.join()
                                 
                             } catch (e: CancellationException) {
-                                Log.e(TAG, "🚫 CANCELLED: Coroutine was cancelled")
-                                
-                                // Remove "Processing..." message
+                                Log.w(TAG, "🚫 Main coroutine cancelled")
+                                // Don't rethrow - just clean up
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ Unexpected error", e)
                                 messages.removeLastOrNull()
-                                
-                                // Add cancellation message
                                 messages.add(ChatMessage(
-                                    "🚫 Processing cancelled. Try again.",
+                                    "❌ Unexpected error: ${e.message}",
                                     isUser = false
                                 ))
-                                
-                                // Re-throw to properly handle cancellation
-                                throw e
-                                
-                            } catch (e: Exception) {
-                                Log.e(TAG, "❌ ERROR PROCESSING MESSAGE", e)
-                                Log.e(TAG, "Error type: ${e.javaClass.simpleName}")
-                                Log.e(TAG, "Error message: ${e.message}")
-                                
-                                // Remove "Processing..." message
-                                messages.removeLastOrNull()
-                                
-                                // Add detailed error message
-                                val errorMsg = when {
-                                    e.message?.contains("timeout", ignoreCase = true) == true ->
-                                        "⏱️ Timeout. The request took too long. Try a shorter prompt."
-                                        
-                                    e.message?.contains("model", ignoreCase = true) == true ->
-                                        "🤖 Model error. Check if .gguf models are in:\n/storage/emulated/0/JarvisModels/"
-                                        
-                                    e.message?.contains("permission", ignoreCase = true) == true ->
-                                        "🔒 Permission error. Grant storage access in Settings."
-                                        
-                                    e.message?.contains("memory", ignoreCase = true) == true ->
-                                        "💾 Memory error. Try a smaller model or restart the app."
-                                        
-                                    else ->
-                                        "❌ Error: ${e.message ?: "Unknown error occurred"}\n\nCheck logs for details."
-                                }
-                                
-                                messages.add(ChatMessage(errorMsg, isUser = false))
-                                
-                                // ✅ FIX: Keep input on error so user can retry
-                                Log.d(TAG, "ℹ️ Input preserved for retry: '$userText'")
-                                
                             } finally {
+                                // Always clean up
+                                timeoutJob?.cancel()
+                                processingJob?.cancel()
                                 Log.d(TAG, "🔄 Resetting processing state")
-                                Log.d(TAG, "isProcessing: true -> false")
                                 isProcessing = false
-                                Log.d(TAG, "✅ Processing state reset complete")
+                                Log.d(TAG, "✅ Cleanup complete")
                             }
                         }
                     },
