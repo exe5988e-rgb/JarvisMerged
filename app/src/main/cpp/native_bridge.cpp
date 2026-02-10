@@ -6,13 +6,13 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeInit(JNIEnv*, jobject) {
+Java_com_jarvismini_engine_ai_LlamaNative_nativeInit(JNIEnv*, jobject) {
     auto* ctx = new LlamaContext();
     return reinterpret_cast<jlong>(ctx);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeLoad(
+Java_com_jarvismini_engine_ai_LlamaNative_nativeLoad(
     JNIEnv* env, jobject, jlong handle, jstring modelPath, jint nCtx, jint nThreads
 ) {
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
@@ -23,7 +23,7 @@ Java_com_jarvis_ai_native_LlamaNative_nativeLoad(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeGenerate(
+Java_com_jarvismini_engine_ai_LlamaNative_nativeGenerate(
     JNIEnv* env, jobject, jlong handle, jstring prompt, jint maxTokens, jfloat temp
 ) {
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
@@ -34,7 +34,7 @@ Java_com_jarvis_ai_native_LlamaNative_nativeGenerate(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_jarvis_ai_native_LlamaNative_nativeRelease(JNIEnv*, jobject, jlong handle) {
+Java_com_jarvismini_engine_ai_LlamaNative_nativeRelease(JNIEnv*, jobject, jlong handle) {
     auto* ctx = reinterpret_cast<LlamaContext*>(handle);
     delete ctx;
 }

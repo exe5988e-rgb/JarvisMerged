@@ -10,6 +10,11 @@ android {
     defaultConfig {
         minSdk = 24
         targetSdk = 34
+        
+        // ✅ NDK Configuration for native library
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     compileOptions {
@@ -20,9 +25,18 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    
+    // ✅ CMake Configuration for native code
+    externalNativeBuild {
+        cmake {
+            path = file("../../CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation(project(":modules:core"))
 }
