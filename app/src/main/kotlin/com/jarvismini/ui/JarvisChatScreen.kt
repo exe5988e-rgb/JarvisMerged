@@ -29,8 +29,9 @@ import com.jarvismini.core.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
 import com.jarvismini.ui.components.GridBackground
-import com.jarvismini.ui.theme.JarvisBlue
 import kotlinx.coroutines.launch
+
+private val JarvisBlue = Color(0xFF00E0FF)
 
 data class ChatMessage(val text: String, val isUser: Boolean)
 

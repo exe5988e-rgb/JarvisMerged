@@ -4,7 +4,9 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.util.Log
-import com.jarvismini.llama.AIService
+import com.jarvismini.engine.ai.AIService
+import com.jarvismini.engine.ai.ModelConfig
+import com.jarvismini.engine.ai.ModelType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
