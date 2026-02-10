@@ -35,6 +35,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   ├── com
 │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   ├── BuildConfigBridge.kt
+│   │   │   │   │   │   ├── ChatActivity.kt
 │   │   │   │   │   │   ├── CoreApp.kt
 │   │   │   │   │   │   ├── MainActivity.kt
 │   │   │   │   │   │   ├── ProgressInitializer.kt
@@ -49,6 +50,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── ui
 │   │   │   │   │   │   │   ├── ChatMessage.kt
 │   │   │   │   │   │   │   ├── ChecklistItem.kt
+│   │   │   │   │   │   │   ├── ModelSelectorView.kt
 │   │   │   │   │   │   │   ├── boot
 │   │   │   │   │   │   │   │   ├── BootScreen.kt
 │   │   │   │   │   │   │   ├── calendar
@@ -84,8 +86,10 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
 │   │   │   ├── res
 │   │   │   │   ├── layout
+│   │   │   │   │   ├── activity_chat.xml
 │   │   │   │   │   ├── activity_main.xml
 │   │   │   │   │   ├── activity_settings.xml
+│   │   │   │   │   ├── view_model_selector.xml
 │   │   │   │   ├── mipmap-anydpi-v26
 │   │   │   │   │   ├── ic_launcher.xml
 │   │   │   │   │   ├── ic_launcher_round.xml
@@ -1049,6 +1053,160 @@ object BuildConfigBridge {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
+package com.jarvismini
+
+import android.os.Bundle
+import android.view.View
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.jarvismini.engine.LlamaLLMEngine
+import com.jarvismini.ui.ModelSelectorView
+import kotlinx.coroutines.launch
+
+/**
+ * ✅ UPDATED: Chat activity with model selector integration
+ */
+class ChatActivity : AppCompatActivity() {
+
+    private lateinit var rvMessages: RecyclerView
+    private lateinit var etMessage: EditText
+    private lateinit var btnSend: ImageButton
+    private lateinit var modelSelector: ModelSelectorView
+
+    private val messages = mutableListOf<ChatMessage>()
+    private lateinit var adapter: ChatAdapter
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_chat)
+
+        initViews()
+        setupRecyclerView()
+        setupListeners()
+    }
+
+    private fun initViews() {
+        rvMessages = findViewById(R.id.rvMessages)
+        etMessage = findViewById(R.id.etMessage)
+        btnSend = findViewById(R.id.btnSend)
+        modelSelector = findViewById(R.id.modelSelector)
+    }
+
+    private fun setupRecyclerView() {
+        adapter = ChatAdapter(messages)
+        rvMessages.adapter = adapter
+        rvMessages.layoutManager = LinearLayoutManager(this).apply {
+            stackFromEnd = true
+        }
+    }
+
+    private fun setupListeners() {
+        btnSend.setOnClickListener {
+            sendMessage()
+        }
+
+        etMessage.setOnEditorActionListener { _, _, _ ->
+            sendMessage()
+            true
+        }
+    }
+
+    private fun sendMessage() {
+        val text = etMessage.text.toString().trim()
+        if (text.isEmpty()) return
+
+        // ✅ NEW: Check if models are still loading
+        if (LlamaLLMEngine.isLoading) {
+            Toast.makeText(
+                this,
+                "⏳ Models are still loading... Please wait a moment.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        // Add user message
+        val userMessage = ChatMessage(text, isUser = true)
+        messages.add(userMessage)
+        adapter.notifyItemInserted(messages.size - 1)
+        rvMessages.scrollToPosition(messages.size - 1)
+
+        // Clear input
+        etMessage.text.clear()
+
+        // Disable input while processing
+        etMessage.isEnabled = false
+        btnSend.isEnabled = false
+        etMessage.hint = "Processing..."
+
+        // Add "thinking" indicator
+        val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
+        messages.add(thinkingMessage)
+        val thinkingIndex = messages.size - 1
+        adapter.notifyItemInserted(thinkingIndex)
+        rvMessages.scrollToPosition(thinkingIndex)
+
+        // Generate reply
+        lifecycleScope.launch {
+            try {
+                val reply = LlamaLLMEngine.generateReply(text)
+
+                // Remove thinking indicator
+                messages.removeAt(thinkingIndex)
+                adapter.notifyItemRemoved(thinkingIndex)
+
+                // Add actual reply
+                val replyMessage = ChatMessage(reply, isUser = false)
+                messages.add(replyMessage)
+                adapter.notifyItemInserted(messages.size - 1)
+                rvMessages.scrollToPosition(messages.size - 1)
+
+            } catch (e: Exception) {
+                // Remove thinking indicator
+                messages.removeAt(thinkingIndex)
+                adapter.notifyItemRemoved(thinkingIndex)
+
+                // Show error
+                val errorMessage = ChatMessage(
+                    "❌ Error: ${e.message}",
+                    isUser = false
+                )
+                messages.add(errorMessage)
+                adapter.notifyItemInserted(messages.size - 1)
+                rvMessages.scrollToPosition(messages.size - 1)
+
+            } finally {
+                // Re-enable input
+                etMessage.isEnabled = true
+                btnSend.isEnabled = true
+                etMessage.hint = "Type a message..."
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Release resources if this is the last activity
+        if (isFinishing) {
+            // Note: Only release if app is actually closing
+            // LlamaLLMEngine.release()
+        }
+    }
+}
+
+data class ChatMessage(
+    val text: String,
+    val isUser: Boolean,
+    val isThinking: Boolean = false
+)
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
 package com.jarvismini
 
@@ -1930,6 +2088,193 @@ fun ChecklistItem(
 
 private fun formatTime(ms: Long): String {
     return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/ModelSelectorView.kt =====
+package com.jarvismini.ui
+
+import android.content.Context
+import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.*
+import androidx.constraintlayout.widget.ConstraintLayout
+import com.jarvismini.R
+import com.jarvismini.engine.LlamaLLMEngine
+import com.jarvismini.engine.ModelStatus
+import kotlinx.coroutines.*
+
+/**
+ * ✅ NEW: Model selector UI component
+ * Allows users to choose between Auto, Chat, and Code models
+ */
+class ModelSelectorView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : ConstraintLayout(context, attrs, defStyleAttr) {
+
+    private val tvStatus: TextView
+    private val spinnerModelSelect: Spinner
+    private val layoutLoading: View
+    private val progressLoading: ProgressBar
+    private val tvLoadingMessage: TextView
+    private val tvModelInfo: TextView
+
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var statusCheckJob: Job? = null
+
+    private val modelOptions = mutableListOf<ModelOption>()
+    private var adapter: ModelAdapter? = null
+
+    init {
+        LayoutInflater.from(context).inflate(R.layout.view_model_selector, this, true)
+
+        tvStatus = findViewById(R.id.tvModelStatus)
+        spinnerModelSelect = findViewById(R.id.spinnerModelSelect)
+        layoutLoading = findViewById(R.id.layoutLoading)
+        progressLoading = findViewById(R.id.progressModelLoading)
+        tvLoadingMessage = findViewById(R.id.tvLoadingMessage)
+        tvModelInfo = findViewById(R.id.tvModelInfo)
+
+        setupSpinner()
+        startStatusMonitoring()
+    }
+
+    private fun setupSpinner() {
+        adapter = ModelAdapter(context, modelOptions)
+        spinnerModelSelect.adapter = adapter
+
+        spinnerModelSelect.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selected = modelOptions.getOrNull(position) ?: return
+                LlamaLLMEngine.selectedModel = selected.id
+                updateModelInfo(selected)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    private fun startStatusMonitoring() {
+        statusCheckJob = scope.launch {
+            while (isActive) {
+                updateStatus()
+                delay(1000)  // Check every second
+            }
+        }
+    }
+
+    private suspend fun updateStatus() {
+        val status = withContext(Dispatchers.IO) {
+            LlamaLLMEngine.getModelStatus()
+        }
+
+        updateUI(status)
+    }
+
+    private fun updateUI(status: ModelStatus) {
+        // Update loading indicator
+        if (status.isLoading) {
+            layoutLoading.visibility = View.VISIBLE
+            tvStatus.text = "Loading..."
+            tvStatus.setTextColor(context.getColor(android.R.color.holo_orange_light))
+            spinnerModelSelect.isEnabled = false
+        } else {
+            layoutLoading.visibility = View.GONE
+            spinnerModelSelect.isEnabled = true
+
+            val readyCount = listOf(status.chatReady, status.codeReady).count { it }
+            tvStatus.text = when {
+                readyCount == 0 -> "No models"
+                readyCount == 1 -> "1 model ready"
+                else -> "$readyCount models ready"
+            }
+            tvStatus.setTextColor(
+                if (readyCount > 0) context.getColor(android.R.color.holo_green_light)
+                else context.getColor(android.R.color.holo_red_light)
+            )
+        }
+
+        // Update available models
+        updateAvailableModels(status)
+    }
+
+    private fun updateAvailableModels(status: ModelStatus) {
+        val newOptions = mutableListOf<ModelOption>()
+
+        // Always add Auto option
+        newOptions.add(ModelOption("auto", "Auto", "Smart selection based on prompt"))
+
+        // Add available models
+        if (status.chatReady) {
+            newOptions.add(ModelOption("chat", "Chat (Phi-2)", "General conversation & questions"))
+        }
+        if (status.codeReady) {
+            newOptions.add(ModelOption("code", "Code (DeepSeek)", "Programming & code generation"))
+        }
+
+        // Only update if changed
+        if (newOptions != modelOptions) {
+            modelOptions.clear()
+            modelOptions.addAll(newOptions)
+            adapter?.notifyDataSetChanged()
+
+            // Restore selection if possible
+            val currentSelection = LlamaLLMEngine.selectedModel
+            val index = modelOptions.indexOfFirst { it.id == currentSelection }
+            if (index >= 0) {
+                spinnerModelSelect.setSelection(index)
+            }
+        }
+    }
+
+    private fun updateModelInfo(option: ModelOption) {
+        tvModelInfo.text = option.description
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        statusCheckJob?.cancel()
+        scope.cancel()
+    }
+
+    private data class ModelOption(
+        val id: String,
+        val name: String,
+        val description: String
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is ModelOption) return false
+            return id == other.id
+        }
+
+        override fun hashCode(): Int = id.hashCode()
+    }
+
+    private class ModelAdapter(
+        context: Context,
+        private val options: List<ModelOption>
+    ) : ArrayAdapter<ModelOption>(context, android.R.layout.simple_spinner_item, options) {
+
+        init {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+
+        override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+            val view = super.getView(position, convertView, parent)
+            (view as? TextView)?.text = options[position].name
+            return view
+        }
+
+        override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+            val view = super.getDropDownView(position, convertView, parent)
+            (view as? TextView)?.text = options[position].name
+            return view
+        }
+    }
 }
 
 
@@ -4640,6 +4985,128 @@ private fun formatTime(seconds: Long): String {
 }
 
 
+//===== FILE: app/src/main/res/layout/activity_chat.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorBackground">
+
+    <!-- Header with Model Selector -->
+    <LinearLayout
+        android:id="@+id/headerLayout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Title Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?attr/colorPrimary"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <ImageView
+                android:id="@+id/btnBack"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_arrow_back"
+                android:contentDescription="Back"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="J.A.R.V.I.S CHAT"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnPrimary"
+                android:layout_marginStart="8dp" />
+
+            <ImageView
+                android:id="@+id/btnSettings"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_settings"
+                android:contentDescription="Settings" />
+
+        </LinearLayout>
+
+        <!-- Model Selector -->
+        <com.jarvismini.ui.ModelSelectorView
+            android:id="@+id/modelSelector"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </LinearLayout>
+
+    <!-- Messages RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvMessages"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@id/headerLayout"
+        app:layout_constraintBottom_toTopOf="@id/inputLayout"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:listitem="@layout/item_message" />
+
+    <!-- Input Layout -->
+    <LinearLayout
+        android:id="@+id/inputLayout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:gravity="center_vertical"
+        android:background="?attr/colorSurface"
+        android:elevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <EditText
+            android:id="@+id/etMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Processing..."
+            android:textSize="16sp"
+            android:background="@drawable/bg_input"
+            android:padding="12dp"
+            android:minHeight="48dp"
+            android:maxLines="4"
+            android:inputType="textMultiLine|textCapSentences" />
+
+        <ImageButton
+            android:id="@+id/btnSend"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_send"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Send"
+            android:tint="?attr/colorPrimary" />
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+
 //===== FILE: app/src/main/res/layout/activity_main.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -4664,6 +5131,98 @@ private fun formatTime(seconds: Long): String {
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp" />
+
+</LinearLayout>
+
+
+//===== FILE: app/src/main/res/layout/view_model_selector.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="?attr/colorSurface"
+    android:elevation="4dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvModelSelectorTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="AI Model"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/tvModelStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ready"
+            android:textSize="12sp"
+            android:textColor="?attr/colorPrimary"
+            android:paddingStart="8dp"
+            android:paddingEnd="0dp" />
+
+    </LinearLayout>
+
+    <!-- Model Selection Spinner/Dropdown -->
+    <Spinner
+        android:id="@+id/spinnerModelSelect"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackground"
+        android:spinnerMode="dropdown" />
+
+    <!-- Loading Progress (hidden when ready) -->
+    <LinearLayout
+        android:id="@+id/layoutLoading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="8dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/progressModelLoading"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:indeterminate="true" />
+
+        <TextView
+            android:id="@+id/tvLoadingMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="Loading models..."
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+    </LinearLayout>
+
+    <!-- Model Info (expandable) -->
+    <TextView
+        android:id="@+id/tvModelInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="11sp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:text="Auto: Smart selection based on your prompt"
+        android:paddingTop="4dp" />
 
 </LinearLayout>
 
@@ -9628,8 +10187,7 @@ package com.jarvismini.engine.ai
 
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.io.File
 
 class AIService(private val context: Context) {
@@ -9665,7 +10223,11 @@ class AIService(private val context: Context) {
             }
             
             Log.d(TAG, "Loading model (ctx=$nCtx, threads=$nThreads)...")
-            val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
+            
+            // ✅ NEW: Add timeout to model loading
+            val loaded = withTimeout(120000L) {  // 2 minutes max for loading
+                LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
+            }
             
             if (loaded) {
                 isInitialized = true
@@ -9678,12 +10240,26 @@ class AIService(private val context: Context) {
             }
             
             loaded
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "❌ Model loading timeout (2 min)")
+            if (handle != 0L) {
+                LlamaNative.nativeRelease(handle)
+                handle = 0
+            }
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Error: ${e.message}", e)
+            if (handle != 0L) {
+                LlamaNative.nativeRelease(handle)
+                handle = 0
+            }
             false
         }
     }
 
+    /**
+     * ✅ IMPROVED: Better timeout handling for generation
+     */
     suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
         withContext(Dispatchers.IO) {
             if (!isInitialized || handle == 0L) {
@@ -9693,7 +10269,23 @@ class AIService(private val context: Context) {
             
             try {
                 Log.d(TAG, "Generating (${prompt.take(30)}...)")
-                LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+                
+                // ✅ IMPROVED: Timeout wraps native call
+                // Note: This may not interrupt native code, but prevents infinite Kotlin wait
+                withTimeout(45000L) {  // 45 seconds for generation
+                    val result = LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+                    Log.d(TAG, "Generation complete (${result.length} chars)")
+                    result
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "⏱️ Generation timeout - native call may still be running")
+                // Attempt to stop generation
+                try {
+                    LlamaNative.nativeStopGeneration(handle)
+                } catch (stopError: Exception) {
+                    Log.e(TAG, "Failed to stop generation: ${stopError.message}")
+                }
+                ""
             } catch (e: Exception) {
                 Log.e(TAG, "Generation error: ${e.message}", e)
                 ""
@@ -9702,7 +10294,12 @@ class AIService(private val context: Context) {
     
     fun stopGeneration() {
         if (handle != 0L) {
-            LlamaNative.nativeStopGeneration(handle)
+            try {
+                LlamaNative.nativeStopGeneration(handle)
+                Log.d(TAG, "Stop signal sent")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop: ${e.message}")
+            }
         }
     }
 
