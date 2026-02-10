@@ -11304,7 +11304,7 @@ jobs:
           # Save tail of full log
           tail -1000 build_error_logs/build_output.txt > build_error_logs/build_tail.txt
 
-      # ---------------- EXTRACT ERROR SOURCE FILES WITH PYTHON ----------------
+      # ---------------- EXTRACT ERROR SOURCE FILES WITH PYTHON (FIXED PATH HANDLING) ----------------
       - name: Extract source code of error files with highlighted error lines
         if: steps.gradle_build.outputs.exit_code != '0'
         run: |
@@ -11318,6 +11318,8 @@ jobs:
           OUTPUT = "build_error_logs/error_files.txt"
           REPO_ROOT = os.getcwd()
 
+          print(f"Repository root: {REPO_ROOT}")
+
           # Read error log
           with open(ERROR_LOG, 'r', encoding='utf-8', errors='ignore') as f:
               error_log = f.read()
@@ -11325,37 +11327,60 @@ jobs:
           # Dictionary to store file -> [(line_num, error_msg)]
           error_map = defaultdict(list)
 
+          def normalize_path(filepath):
+              """Normalize file path to be relative to repo root"""
+              # Remove file:// prefix
+              filepath = re.sub(r'^file:/+', '', filepath)
+              
+              # Remove leading slashes
+              filepath = filepath.lstrip('/')
+              
+              # Extract relative path from GitHub Actions workspace path
+              # Pattern: /home/runner/work/REPO_NAME/REPO_NAME/actual/path
+              match = re.search(r'/home/runner/work/[^/]+/[^/]+/(.+)', filepath)
+              if match:
+                  filepath = match.group(1)
+              
+              # Also handle pattern: home/runner/work/REPO_NAME/REPO_NAME/actual/path (no leading /)
+              match = re.search(r'home/runner/work/[^/]+/[^/]+/(.+)', filepath)
+              if match:
+                  filepath = match.group(1)
+              
+              return filepath
+
           # Pattern for Kotlin errors: e: file:///path/to/file.kt:line:col error message
-          kt_pattern = r'e:\s+(?:file://)?(?:/+)?([^:]+\.kt):(\d+):(\d+)\s+(.+)'
+          kt_pattern = r'e:\s+(?:file://)?([^\s:]+\.kt):(\d+):(\d+)\s+(.+)'
           for match in re.finditer(kt_pattern, error_log):
-              filepath = match.group(1)
+              filepath = normalize_path(match.group(1))
               line_num = int(match.group(2))
-              error_msg = match.group(4)
+              error_msg = match.group(4).strip()
               error_map[filepath].append((line_num, error_msg))
 
           # Pattern for Java errors
           java_pattern = r'([a-zA-Z0-9_./\-]+\.java):(\d+):\s+error:\s+(.+)'
           for match in re.finditer(java_pattern, error_log):
-              filepath = match.group(1)
+              filepath = normalize_path(match.group(1))
               line_num = int(match.group(2))
-              error_msg = match.group(3)
+              error_msg = match.group(3).strip()
               error_map[filepath].append((line_num, error_msg))
 
           # Pattern for XML errors
           xml_pattern = r'([a-zA-Z0-9_./\-]+\.xml):(\d+):(\d+):\s+(.+)'
           for match in re.finditer(xml_pattern, error_log):
-              filepath = match.group(1)
+              filepath = normalize_path(match.group(1))
               line_num = int(match.group(2))
-              error_msg = match.group(4)
+              error_msg = match.group(4).strip()
               error_map[filepath].append((line_num, error_msg))
 
           # Pattern for C++ errors
           cpp_pattern = r'([a-zA-Z0-9_./\-]+\.(cpp|c|h|hpp)):(\d+):(\d+):\s+error:\s+(.+)'
           for match in re.finditer(cpp_pattern, error_log):
-              filepath = match.group(1)
+              filepath = normalize_path(match.group(1))
               line_num = int(match.group(3))
-              error_msg = match.group(5)
+              error_msg = match.group(5).strip()
               error_map[filepath].append((line_num, error_msg))
+
+          print(f"\nDetected {len(error_map)} error file(s)")
 
           # Write output
           with open(OUTPUT, 'w', encoding='utf-8') as out:
@@ -11365,20 +11390,19 @@ jobs:
                   out.write("No error files detected\n")
               else:
                   for filepath in sorted(error_map.keys()):
-                      # Try to find the file
-                      if os.path.isfile(filepath):
-                          actual_path = filepath
-                      else:
-                          # Try relative to repo root
-                          possible_path = os.path.join(REPO_ROOT, filepath.lstrip('/'))
-                          if os.path.isfile(possible_path):
-                              actual_path = possible_path
-                          else:
-                              out.write(f"//===== FILE: {filepath} (NOT FOUND) =====\n\n")
-                              continue
+                      print(f"Processing: {filepath}")
                       
-                      relative_path = os.path.relpath(actual_path, REPO_ROOT)
-                      out.write(f"//===== FILE: {relative_path} =====\n\n")
+                      # Construct actual file path
+                      actual_path = os.path.join(REPO_ROOT, filepath)
+                      
+                      if not os.path.isfile(actual_path):
+                          print(f"  ⚠️  File not found at: {actual_path}")
+                          out.write(f"//===== FILE: {filepath} (NOT FOUND) =====\n")
+                          out.write(f"// Expected at: {actual_path}\n\n")
+                          continue
+                      
+                      print(f"  ✅ Found at: {actual_path}")
+                      out.write(f"//===== FILE: {filepath} =====\n\n")
                       
                       # Write error summary
                       errors = sorted(set(error_map[filepath]))
@@ -11394,11 +11418,15 @@ jobs:
                       try:
                           with open(actual_path, 'r', encoding='utf-8', errors='ignore') as f:
                               for line_num, line in enumerate(f, 1):
+                                  # Remove trailing newline for consistent formatting
+                                  line = line.rstrip('\n\r')
                                   if line_num in error_lines:
-                                      out.write(f"{line_num:4d} ❌ {line}")
+                                      out.write(f"{line_num:4d} ❌ {line}\n")
                                   else:
-                                      out.write(f"{line_num:4d}    {line}")
+                                      out.write(f"{line_num:4d}    {line}\n")
+                          print(f"  ✅ Extracted {line_num} lines")
                       except Exception as e:
+                          print(f"  ❌ Error reading file: {e}")
                           out.write(f"// Error reading file: {e}\n")
                       
                       out.write("\n\n")
@@ -11408,9 +11436,8 @@ jobs:
               for filepath in sorted(error_map.keys()):
                   f.write(f"{filepath}\n")
 
-          print(f"Detected {len(error_map)} error file(s)")
-          for filepath in sorted(error_map.keys()):
-              print(f"  - {filepath} ({len(error_map[filepath])} error(s))")
+          print(f"\n✅ Error extraction complete")
+          print(f"Error files written to: {OUTPUT}")
 
           PYTHON_SCRIPT
 
