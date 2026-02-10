@@ -1,238 +1,167 @@
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/ModelPathManager.kt =====
-package com.jarvismini.engine.ai
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
+//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
+package com.jarvismini.engine
 
 import android.content.Context
 import android.os.Environment
 import android.util.Log
+import com.jarvismini.engine.ai.AIService
+import com.jarvismini.engine.ai.ModelConfig
+import com.jarvismini.engine.ai.ModelType
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
-object ModelPathManager {
-    private const val TAG = "ModelPathManager"
-    private const val MODELS_FOLDER_NAME = "JarvisModels"
+object LlamaLLMEngine : LLMEngine {
     
-    /**
-     * Get the correct models directory path using Android's proper APIs
-     * This works across all Android versions and handles symlinks correctly
-     */
-    fun getModelsDirectory(context: Context): File {
-        // Use Environment.getExternalStorageDirectory() which properly resolves to /storage/emulated/0
-        val externalStorage = Environment.getExternalStorageDirectory()
-        val modelsDir = File(externalStorage, MODELS_FOLDER_NAME)
-        
-        Log.d(TAG, "Models directory path: ${modelsDir.absolutePath}")
-        
-        // Create directory if it doesn't exist
-        if (!modelsDir.exists()) {
-            val created = modelsDir.mkdirs()
-            Log.d(TAG, "Models directory created: $created")
-        }
-        
-        return modelsDir
-    }
-    
-    /**
-     * List all .gguf model files in the models directory
-     */
-    fun listModelFiles(context: Context): List<File> {
-        val modelsDir = getModelsDirectory(context)
-        
-        if (!modelsDir.exists() || !modelsDir.isDirectory) {
-            Log.w(TAG, "Models directory does not exist: ${modelsDir.absolutePath}")
-            return emptyList()
-        }
-        
-        val modelFiles = modelsDir.listFiles { file ->
-            file.isFile && file.extension.equals("gguf", ignoreCase = true)
-        }?.toList() ?: emptyList()
-        
-        Log.d(TAG, "Found ${modelFiles.size} model files")
-        modelFiles.forEach { 
-            Log.d(TAG, "  - ${it.name} (${it.length() / 1024 / 1024}MB)")
-        }
-        
-        return modelFiles
-    }
-    
-    /**
-     * Find a specific model file by name (case-insensitive)
-     */
-    fun findModel(context: Context, modelName: String): File? {
-        val models = listModelFiles(context)
-        return models.find { 
-            it.nameWithoutExtension.equals(modelName, ignoreCase = true)
-        }
-    }
-    
-    /**
-     * Get the default model (first .gguf file found, or a specific preferred model)
-     */
-    fun getDefaultModel(context: Context, preferredName: String? = null): File? {
-        val models = listModelFiles(context)
-        
-        if (models.isEmpty()) {
-            Log.w(TAG, "No models found in ${getModelsDirectory(context).absolutePath}")
-            return null
-        }
-        
-        // Try to find preferred model first
-        preferredName?.let { name ->
-            models.find { it.nameWithoutExtension.equals(name, ignoreCase = true) }?.let {
-                Log.d(TAG, "Using preferred model: ${it.name}")
-                return it
-            }
-        }
-        
-        // Return first model as default
-        Log.d(TAG, "Using default model: ${models[0].name}")
-        return models[0]
-    }
-    
-    /**
-     * Check if models directory exists and has at least one model
-     */
-    fun hasModels(context: Context): Boolean {
-        return listModelFiles(context).isNotEmpty()
-    }
-    
-    /**
-     * Get a user-friendly error message if no models are found
-     */
-    fun getNoModelsErrorMessage(context: Context): String {
-        val path = getModelsDirectory(context).absolutePath
-        return "No AI models found. Please place .gguf model files in:\n$path"
-    }
-}
-
-
-//===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/ai/AIService.kt =====
-package com.jarvismini.engine.ai
-
-import android.content.Context
-import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
-
-class AIService(private val context: Context) {
-    private var handle: Long = 0
+    private const val TAG = "LlamaLLMEngine"
+    private var chatService: AIService? = null
+    private var codeService: AIService? = null
     private var isInitialized = false
-    private var currentModelPath: String? = null
-
-    /**
-     * Initialize with automatic model detection
-     */
-    suspend fun initialize(
-        modelName: String? = null,
-        nCtx: Int = 2048, 
-        nThreads: Int = 4
-    ): Boolean = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "Initializing AIService")
-            
-            // Check if models exist
-            if (!ModelPathManager.hasModels(context)) {
-                Log.e(TAG, ModelPathManager.getNoModelsErrorMessage(context))
-                return@withContext false
-            }
-            
-            // Get model file
-            val modelFile = if (modelName != null) {
-                ModelPathManager.findModel(context, modelName)
-            } else {
-                ModelPathManager.getDefaultModel(context)
-            }
-            
-            if (modelFile == null || !modelFile.exists()) {
-                Log.e(TAG, "Model file not found: $modelName")
-                Log.e(TAG, "Available models: ${ModelPathManager.listModelFiles(context).joinToString { it.name }}")
-                return@withContext false
-            }
-            
-            return@withContext initializeWithPath(modelFile.absolutePath, nCtx, nThreads)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error initializing AIService", e)
-            false
-        }
-    }
+    private var appContext: Context? = null
     
-    /**
-     * Initialize with explicit model path (for advanced use)
-     */
-    suspend fun initializeWithPath(
-        modelPath: String,
-        nCtx: Int = 2048,
-        nThreads: Int = 4
-    ): Boolean = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "Initializing AIService with path: $modelPath")
-            
-            // Verify file exists
-            val modelFile = File(modelPath)
-            if (!modelFile.exists()) {
-                Log.e(TAG, "Model file does not exist: $modelPath")
-                return@withContext false
-            }
-            
-            Log.d(TAG, "Model file size: ${modelFile.length() / 1024 / 1024}MB")
-            
-            handle = LlamaNative.nativeInit()
-            
-            if (handle == 0L) {
-                Log.e(TAG, "Failed to create native context")
-                return@withContext false
-            }
-            
-            Log.d(TAG, "Loading model: $modelPath (ctx=$nCtx, threads=$nThreads)")
-            val loaded = LlamaNative.nativeLoad(handle, modelPath, nCtx, nThreads)
-            
-            if (loaded) {
-                isInitialized = true
-                currentModelPath = modelPath
-                Log.d(TAG, "Model loaded successfully: ${modelFile.name}")
+    private val modelsDir = File(Environment.getExternalStorageDirectory(), "JarvisModels")
+    
+    // Model configurations
+    private val chatModelConfig = ModelConfig(
+        type = ModelType.CHAT,
+        name = "Phi-2",
+        filename = "phi-2.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+    
+    private val codeModelConfig = ModelConfig(
+        type = ModelType.CODE,
+        name = "DeepSeek Coder",
+        filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
+        contextSize = 2048,
+        threads = 4
+    )
+
+    override fun init(context: Context) {
+        if (isInitialized) {
+            Log.d(TAG, "Already initialized")
+            return
+        }
+        
+        // Store application context
+        appContext = context.applicationContext
+        
+        Log.d(TAG, "Initializing LlamaLLMEngine")
+        
+        // Load models asynchronously
+        runBlocking {
+            // Try to load chat model
+            val chatModelPath = File(modelsDir, chatModelConfig.filename)
+            if (chatModelPath.exists() && chatModelPath.canRead()) {
+                try {
+                    val service = AIService(appContext!!)
+                    val success = service.initialize(
+                        chatModelPath.absolutePath,
+                        chatModelConfig.contextSize,
+                        chatModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        chatService = service
+                        Log.i(TAG, "Chat model loaded: ${chatModelConfig.name}")
+                    } else {
+                        Log.e(TAG, "Failed to load chat model")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading chat model", e)
+                }
             } else {
-                Log.e(TAG, "Failed to load model")
-                LlamaNative.nativeRelease(handle)
-                handle = 0
+                Log.w(TAG, "Chat model not found at: ${chatModelPath.absolutePath}")
             }
             
-            loaded
-        } catch (e: Exception) {
-            Log.e(TAG, "Error initializing AIService", e)
-            false
+            // Try to load code model
+            val codeModelPath = File(modelsDir, codeModelConfig.filename)
+            if (codeModelPath.exists() && codeModelPath.canRead()) {
+                try {
+                    val service = AIService(appContext!!)
+                    val success = service.initialize(
+                        codeModelPath.absolutePath,
+                        codeModelConfig.contextSize,
+                        codeModelConfig.threads
+                    )
+                    
+                    if (success) {
+                        codeService = service
+                        Log.i(TAG, "Code model loaded: ${codeModelConfig.name}")
+                    } else {
+                        Log.e(TAG, "Failed to load code model")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading code model", e)
+                }
+            } else {
+                Log.w(TAG, "Code model not found at: ${codeModelPath.absolutePath}")
+            }
+        }
+        
+        isInitialized = true
+        
+        if (chatService == null && codeService == null) {
+            Log.w(TAG, "No models loaded. Place models in: ${modelsDir.absolutePath}")
         }
     }
 
-    suspend fun generate(prompt: String, maxTokens: Int = 256, temperature: Float = 0.7f): String =
-        withContext(Dispatchers.IO) {
-            if (!isInitialized || handle == 0L) {
-                Log.e(TAG, "Service not initialized")
-                return@withContext ""
-            }
-            
+    override fun generateReply(prompt: String): String {
+        if (!isInitialized) {
+            Log.e(TAG, "Not initialized")
+            return "AI is initializing. Please try again."
+        }
+        
+        // Determine if this is a code request
+        val isCodeRequest = isCodeRelated(prompt)
+        
+        return runBlocking {
             try {
-                Log.d(TAG, "Generating response for prompt: ${prompt.take(50)}...")
-                LlamaNative.nativeGenerate(handle, prompt, maxTokens, temperature)
+                if (isCodeRequest && codeService != null) {
+                    Log.d(TAG, "Using code model for: ${prompt.take(50)}...")
+                    val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
+                    codeService!!.generate(formattedPrompt, maxTokens = 512, temperature = 0.2f)
+                } else if (chatService != null) {
+                    Log.d(TAG, "Using chat model for: ${prompt.take(50)}...")
+                    chatService!!.generate(prompt, maxTokens = 256, temperature = 0.7f)
+                } else {
+                    // Fallback to stub response
+                    Log.w(TAG, "No model available for generation")
+                    "I'm Jarvis. My AI models are not loaded. Please ensure models are in /sdcard/JarvisModels/"
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Error generating response", e)
-                ""
+                Log.e(TAG, "Error generating reply", e)
+                "Error generating response: ${e.message}"
             }
-        }
-
-    fun release() {
-        if (handle != 0L) {
-            Log.d(TAG, "Releasing AIService")
-            LlamaNative.nativeRelease(handle)
-            handle = 0
-            isInitialized = false
-            currentModelPath = null
         }
     }
     
-    fun isReady(): Boolean = isInitialized && handle != 0L
+    /**
+     * Detect if the prompt is code-related
+     */
+    private fun isCodeRelated(prompt: String): Boolean {
+        val codeKeywords = listOf(
+            "code", "program", "function", "class", "method",
+            "python", "java", "kotlin", "javascript", "c++",
+            "algorithm", "implement", "debug", "fix", "refactor",
+            "write code", "create a", "develop"
+        )
+        
+        val lowerPrompt = prompt.lowercase()
+        return codeKeywords.any { lowerPrompt.contains(it) }
+    }
     
-    fun getCurrentModel(): String? = currentModelPath
-
-    companion object {
-        private const val TAG = "AIService"
+    /**
+     * Release models
+     */
+    fun release() {
+        chatService?.release()
+        codeService?.release()
+        chatService = null
+        codeService = null
+        isInitialized = false
+        appContext = null
+        Log.d(TAG, "Released all models")
     }
 }
