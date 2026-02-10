@@ -33,8 +33,6 @@ import kotlinx.coroutines.launch
 
 private val JarvisBlue = Color(0xFF00E0FF)
 
-data class ChatMessage(val text: String, val isUser: Boolean)
-
 @Composable
 fun JarvisChatScreen(
     onBack: () -> Unit
