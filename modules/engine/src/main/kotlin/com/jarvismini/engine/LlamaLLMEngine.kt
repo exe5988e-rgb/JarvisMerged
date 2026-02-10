@@ -9,6 +9,7 @@ import com.jarvismini.engine.ai.ModelConfig
 import com.jarvismini.engine.ai.ModelType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.File
 
 object LlamaLLMEngine : LLMEngine {
@@ -18,9 +19,9 @@ object LlamaLLMEngine : LLMEngine {
     private var codeService: AIService? = null
     private var isInitialized = false
     private var appContext: Context? = null
+    private var modelsLoadAttempted = false
     
-    // ✅ CRITICAL FIX: Use function instead of val so path is evaluated with current permissions
-    // This was the main bug - modelsDir was initialized before permissions were granted!
+    // ✅ Use function instead of val so path is evaluated with current permissions
     private fun getModelsDir(): File {
         val externalStorage = Environment.getExternalStorageDirectory()
         val dir = File(externalStorage, "JarvisModels")
@@ -50,9 +51,7 @@ object LlamaLLMEngine : LLMEngine {
             return
         }
         
-        // Store application context
         appContext = context.applicationContext
-        
         val modelsDir = getModelsDir()
         
         Log.d(TAG, "=== INITIALIZING JARVIS LLM ENGINE ===")
@@ -89,34 +88,32 @@ object LlamaLLMEngine : LLMEngine {
             Log.e(TAG, "Models directory does not exist!")
         }
         
-        Log.d(TAG, "Initializing LlamaLLMEngine")
-        
-        // ✅ FIX: Mark as initialized immediately to prevent blocking
-        // Model loading will happen lazily when needed
         isInitialized = true
-        
         Log.d(TAG, "=== INITIALIZATION COMPLETE (models will load on demand) ===")
     }
     
     /**
-     * ✅ FIX: Load models lazily in background thread
+     * ✅ FIX: Load models lazily in background thread with proper suspend handling
      */
     private suspend fun ensureModelsLoaded() = withContext(Dispatchers.IO) {
-        if (chatService != null || codeService != null) {
-            return@withContext // Already loaded
+        // If already loaded or attempted, skip
+        if ((chatService != null || codeService != null) || modelsLoadAttempted) {
+            return@withContext
         }
         
+        modelsLoadAttempted = true
         val modelsDir = getModelsDir()
         
         // Try to load chat model
         val chatModelPath = File(modelsDir, chatModelConfig.filename)
         Log.d(TAG, "Looking for chat model: ${chatModelPath.absolutePath}")
-        Log.d(TAG, "  exists=${chatModelPath.exists()}, readable=${chatModelPath.canRead()}, size=${chatModelPath.length()}")
         
         if (chatModelPath.exists() && chatModelPath.canRead()) {
             try {
                 Log.i(TAG, "Loading chat model: ${chatModelConfig.name}")
                 val service = AIService(appContext!!)
+                
+                // ✅ FIX: initializeWithPath is a suspend function, so we can call it directly
                 val success = service.initializeWithPath(
                     chatModelPath.absolutePath,
                     chatModelConfig.contextSize,
@@ -139,12 +136,13 @@ object LlamaLLMEngine : LLMEngine {
         // Try to load code model
         val codeModelPath = File(modelsDir, codeModelConfig.filename)
         Log.d(TAG, "Looking for code model: ${codeModelPath.absolutePath}")
-        Log.d(TAG, "  exists=${codeModelPath.exists()}, readable=${codeModelPath.canRead()}, size=${codeModelPath.length()}")
         
         if (codeModelPath.exists() && codeModelPath.canRead()) {
             try {
                 Log.i(TAG, "Loading code model: ${codeModelConfig.name}")
                 val service = AIService(appContext!!)
+                
+                // ✅ FIX: initializeWithPath is a suspend function
                 val success = service.initializeWithPath(
                     codeModelPath.absolutePath,
                     codeModelConfig.contextSize,
@@ -174,46 +172,70 @@ object LlamaLLMEngine : LLMEngine {
         }
     }
 
-    // ✅ FIX: Change to suspend function instead of blocking
+    /**
+     * ✅ FIX: Async generation with timeout to prevent hanging
+     */
     suspend fun generateReplyAsync(prompt: String): String {
         if (!isInitialized) {
             Log.e(TAG, "Not initialized")
             return "AI is initializing. Please try again."
         }
         
-        // Ensure models are loaded (happens in background)
-        ensureModelsLoaded()
-        
-        // Determine if this is a code request
-        val isCodeRequest = isCodeRelated(prompt)
-        
-        return withContext(Dispatchers.IO) {
-            try {
-                if (isCodeRequest && codeService != null) {
-                    Log.d(TAG, "Using code model for: ${prompt.take(50)}...")
-                    val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
-                    codeService!!.generate(formattedPrompt, maxTokens = 512, temperature = 0.2f)
-                } else if (chatService != null) {
-                    Log.d(TAG, "Using chat model for: ${prompt.take(50)}...")
-                    chatService!!.generate(prompt, maxTokens = 256, temperature = 0.7f)
-                } else {
-                    // Fallback to stub response
-                    Log.w(TAG, "No model available for generation")
-                    "I'm Jarvis. My AI models are not loaded. Please ensure models are in /sdcard/JarvisModels/"
+        return try {
+            // Add timeout to prevent hanging forever (30 seconds)
+            withTimeout(30000L) {
+                Log.d(TAG, "Starting reply generation for: ${prompt.take(50)}...")
+                
+                // Ensure models are loaded
+                ensureModelsLoaded()
+                
+                // Check if models loaded successfully
+                if (chatService == null && codeService == null) {
+                    return@withTimeout "AI models are not loaded. Please ensure models are in /sdcard/JarvisModels/"
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error generating reply", e)
-                "Error generating response: ${e.message}"
+                
+                // Determine if this is a code request
+                val isCodeRequest = isCodeRelated(prompt)
+                
+                // Generate response
+                withContext(Dispatchers.IO) {
+                    try {
+                        if (isCodeRequest && codeService != null) {
+                            Log.d(TAG, "Using code model...")
+                            val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
+                            val result = codeService!!.generate(formattedPrompt, maxTokens = 512, temperature = 0.2f)
+                            Log.d(TAG, "Code model returned: ${result.take(50)}...")
+                            result
+                        } else if (chatService != null) {
+                            Log.d(TAG, "Using chat model...")
+                            val result = chatService!!.generate(prompt, maxTokens = 256, temperature = 0.7f)
+                            Log.d(TAG, "Chat model returned: ${result.take(50)}...")
+                            result
+                        } else {
+                            Log.w(TAG, "No model available")
+                            "I'm Jarvis. My AI models are not loaded. Please ensure models are in /sdcard/JarvisModels/"
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during generation", e)
+                        "Error generating response: ${e.message}"
+                    }
+                }
             }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.e(TAG, "Generation timed out after 30 seconds")
+            "Response generation timed out. The model may be too slow or stuck."
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error in generateReplyAsync", e)
+            "Error: ${e.message}"
         }
     }
     
-    // ✅ Keep the old interface for backward compatibility but log warning
+    /**
+     * Keep the old interface for backward compatibility
+     */
     override fun generateReply(prompt: String): String {
-        Log.w(TAG, "⚠️ Using blocking generateReply - consider using generateReplyAsync instead")
-        // For now, return a message that directs to use the async version
-        // This prevents crashes but encourages proper usage
-        return "Please wait, processing in background..."
+        Log.w(TAG, "⚠️ Using blocking generateReply - use generateReplyAsync instead")
+        return "Please use async version"
     }
     
     /**
@@ -240,5 +262,6 @@ object LlamaLLMEngine : LLMEngine {
         chatService = null
         codeService = null
         isInitialized = false
+        modelsLoadAttempted = false
     }
 }

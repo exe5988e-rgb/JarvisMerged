@@ -4,6 +4,7 @@ package com.jarvismini.ui
 
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -32,6 +33,7 @@ import com.jarvismini.ui.components.GridBackground
 import kotlinx.coroutines.launch
 
 private val JarvisBlue = Color(0xFF00E0FF)
+private const val TAG = "JarvisChatScreen"
 
 @Composable
 fun JarvisChatScreen(
@@ -211,12 +213,16 @@ fun JarvisChatScreen(
                     )
                 )
 
-                // ✅ FIX: Use proper coroutine with async LLM call
+                // ✅ FIX: Improved error handling and state management
                 IconButton(
                     onClick = {
                         val userText = input.trim()
-                        if (userText.isEmpty() || isProcessing) return@IconButton
+                        if (userText.isEmpty() || isProcessing) {
+                            Log.d(TAG, "Ignoring click: empty=${userText.isEmpty()} processing=$isProcessing")
+                            return@IconButton
+                        }
 
+                        Log.d(TAG, "Send button clicked: '$userText'")
                         input = ""
                         isProcessing = true
                         messages.add(ChatMessage(userText, true))
@@ -224,25 +230,42 @@ fun JarvisChatScreen(
 
                         scope.launch {
                             try {
+                                Log.d(TAG, "Starting message processing...")
+                                
+                                // Try command engine first
                                 val result = EngineProvider.commandEngine.handle(userText)
                                 val reply = when (result) {
-                                    is EngineResult.Success -> result.reply
+                                    is EngineResult.Success -> {
+                                        Log.d(TAG, "Command engine handled: ${result.reply}")
+                                        result.reply
+                                    }
                                     else -> {
-                                        // ✅ FIX: Use the async version instead of blocking
+                                        Log.d(TAG, "Command not handled, trying LLM...")
                                         val llmEngine = EngineProvider.llmEngine
+                                        
+                                        // ✅ FIX: Use the async version with proper error handling
                                         if (llmEngine is com.jarvismini.engine.LlamaLLMEngine) {
-                                            llmEngine.generateReplyAsync(userText)
+                                            Log.d(TAG, "Calling generateReplyAsync...")
+                                            val llmReply = llmEngine.generateReplyAsync(userText)
+                                            Log.d(TAG, "LLM replied: ${llmReply.take(50)}...")
+                                            llmReply
                                         } else {
+                                            Log.d(TAG, "Using fallback LLM method")
                                             llmEngine.generateReply(userText)
                                         }
                                     }
                                 }
-                                messages.removeLast()
+                                
+                                Log.d(TAG, "Removing processing message and adding reply")
+                                messages.removeLastOrNull()
                                 messages.add(ChatMessage(reply, false))
+                                
                             } catch (e: Exception) {
-                                messages.removeLast()
-                                messages.add(ChatMessage("Error: ${e.message}", false))
+                                Log.e(TAG, "Error processing message", e)
+                                messages.removeLastOrNull()
+                                messages.add(ChatMessage("Error: ${e.message ?: "Unknown error"}", false))
                             } finally {
+                                Log.d(TAG, "Processing complete, resetting state")
                                 isProcessing = false
                             }
                         }
