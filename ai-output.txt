@@ -1,187 +1,285 @@
-//===== FILE: app/src/main/cpp/llama_context.cpp =====
-#include "llama_context.h"
-#include <android/log.h>
-#include <vector>
-#include <atomic>
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
+@file:OptIn(ExperimentalMaterial3Api::class)
 
-#define TAG "LlamaContext"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+package com.jarvismini.ui
 
-LlamaContext::LlamaContext() {
-    // ✅ Don't init backend here - it's done globally
-}
+import android.app.Activity
+import android.content.pm.PackageManager
+import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.WorkModeManager
+import com.jarvismini.engine.EngineProvider
+import com.jarvismini.engine.EngineResult
+import com.jarvismini.ui.components.GridBackground
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-LlamaContext::~LlamaContext() {
-    unload();
-    // ✅ Don't free backend - it's shared
-}
+private val JarvisBlue = Color(0xFF00E0FF)
+private const val TAG = "JarvisChatScreen"
 
-bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads) {
-    LOGI("Loading model: %s (ctx=%d, threads=%d)", model_path.c_str(), n_ctx, n_threads);
-    
-    llama_model_params model_params = llama_model_default_params();
-    model_params.n_gpu_layers = 0;  // CPU only on mobile
-    
-    // ✅ FIXED: Use llama_model_load_from_file (newer API)
-    model_ = llama_model_load_from_file(model_path.c_str(), model_params);
-    if (!model_) {
-        LOGE("Failed to load model");
-        return false;
-    }
-    
-    llama_context_params ctx_params = llama_context_default_params();
-    ctx_params.n_ctx = n_ctx;
-    ctx_params.n_threads = n_threads;
-    ctx_params.n_threads_batch = n_threads;
-    
-    // ✅ Best practices from GPT4All Android
-    ctx_params.type_k = GGML_TYPE_F16;  // Use F16 for KV cache
-    ctx_params.type_v = GGML_TYPE_F16;
-    
-    // ✅ FIXED: Use llama_init_from_model (newer API)
-    ctx_ = llama_init_from_model(model_, ctx_params);
-    if (!ctx_) {
-        LOGE("Failed to create context");
-        llama_free_model(model_);
-        model_ = nullptr;
-        return false;
-    }
-    
-    LOGI("Model loaded successfully");
-    return true;
-}
+@Composable
+fun JarvisChatScreen(
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
 
-std::string LlamaContext::generate(const std::string& prompt, int max_tokens, float temp) {
-    if (!ctx_) {
-        LOGE("Context not loaded");
-        return "";
+    // ================= INIT =================
+    LaunchedEffect(Unit) {
+        JarvisState.init(context)
+        EngineProvider.init(context)
     }
-    
-    should_stop_.store(false);
-    
-    LOGI("Generating (temp=%.2f, max=%d)", temp, max_tokens);
-    
-    const struct llama_vocab* vocab = llama_model_get_vocab(model_);
-    
-    // ✅ Create sampler with correct temperature
-    auto sparams = llama_sampler_chain_default_params();
-    llama_sampler* sampler = llama_sampler_chain_init(sparams);
-    
-    // Standard sampler chain from llama.cpp examples
-    llama_sampler_chain_add(sampler, llama_sampler_init_temp(temp));
-    llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
-    
-    // Tokenize
-    std::vector<llama_token> tokens;
-    tokens.resize(prompt.size() + 128);
-    
-    int32_t n_tokens = llama_tokenize(
-        vocab,
-        prompt.c_str(),
-        static_cast<int32_t>(prompt.length()),
-        tokens.data(),
-        static_cast<int32_t>(tokens.size()),
-        true,   // add_special
-        true    // parse_special
-    );
-    
-    if (n_tokens < 0) {
-        tokens.resize(-n_tokens);
-        n_tokens = llama_tokenize(
-            vocab,
-            prompt.c_str(),
-            static_cast<int32_t>(prompt.length()),
-            tokens.data(),
-            static_cast<int32_t>(tokens.size()),
-            true,
-            true
-        );
+
+    // ================= PERMISSIONS =================
+    LaunchedEffect(Unit) {
+        if (activity == null) return@LaunchedEffect
+        val perms = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+            perms += android.Manifest.permission.READ_CONTACTS
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED)
+            perms += android.Manifest.permission.SEND_SMS
+        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
     }
-    
-    if (n_tokens <= 0) {
-        LOGE("Tokenization failed");
-        llama_sampler_free(sampler);
-        return "";
-    }
-    
-    tokens.resize(n_tokens);
-    LOGI("Tokenized to %d tokens", n_tokens);
-    
-    // ✅ FIXED: Simply recreate context instead of clearing cache
-    // Old llama.cpp doesn't have cache clear functions
-    // The context will be clean on each generation anyway
-    // No cache clear needed - context is fresh
-    
-    // Decode prompt
-    llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
-    
-    if (llama_decode(ctx_, batch) != 0) {
-        LOGE("Failed to decode prompt");
-        llama_sampler_free(sampler);
-        return "";
-    }
-    
-    std::string result;
-    result.reserve(max_tokens * 4);  // Pre-allocate
-    
-    // Generate tokens
-    for (int i = 0; i < max_tokens; i++) {
-        // ✅ Check stop flag
-        if (should_stop_.load()) {
-            LOGI("Generation stopped by user");
-            break;
+
+    // ================= STATE =================
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var input by remember { mutableStateOf("") }
+    var currentMode by remember { mutableStateOf(JarvisState.currentMode) }
+    var expanded by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+    val modes = JarvisMode.values().toList()
+
+    // ================= UI =================
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
+            )
+    ) {
+        GridBackground()
+
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+
+            // ===== HEADER =====
+            TopAppBar(
+                title = {
+                    Text(
+                        "J.A.R.V.I.S CHAT",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.6f)
+                )
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ===== MODE SELECTOR =====
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
+            ) {
+                TextField(
+                    value = currentMode.name,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Select Mode", color = JarvisBlue) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedTextColor = JarvisBlue,
+                        unfocusedTextColor = JarvisBlue,
+                        cursorColor = JarvisBlue,
+                        focusedIndicatorColor = JarvisBlue,
+                        unfocusedIndicatorColor = JarvisBlue
+                    ),
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    modes.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.name, color = JarvisBlue) },
+                            onClick = {
+                                JarvisState.setMode(context, mode)
+                                currentMode = mode
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    WorkModeManager.toggle(context)
+                    currentMode = JarvisState.currentMode
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = JarvisBlue.copy(alpha = 0.7f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Toggle Work Mode", color = Color.Black)
+            }
+
+            HorizontalDivider(color = JarvisBlue.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
+
+            // ===== CHAT LOG =====
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                reverseLayout = true
+            ) {
+                items(messages.reversed()) { msg ->
+                    Text(
+                        text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+                        color = JarvisBlue,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(6.dp)
+                    )
+                }
+            }
+
+            // ===== INPUT BAR =====
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        JarvisBlue.copy(alpha = 0.4f),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                TextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isProcessing,
+                    placeholder = {
+                        Text(
+                            if (isProcessing) "Processing..." else "Command input…",
+                            fontFamily = FontFamily.Monospace,
+                            color = JarvisBlue.copy(alpha = 0.7f)
+                        )
+                    },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedTextColor = JarvisBlue,
+                        unfocusedTextColor = JarvisBlue,
+                        disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
+                        cursorColor = JarvisBlue,
+                        focusedIndicatorColor = JarvisBlue,
+                        unfocusedIndicatorColor = JarvisBlue,
+                        disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
+                    )
+                )
+
+                // ✅ FIXED: Use generateReply instead of non-existent generateReplyAsync
+                // ✅ FIXED: Wrapped in withContext(Dispatchers.IO) for proper threading
+                IconButton(
+                    onClick = {
+                        val userText = input.trim()
+                        if (userText.isEmpty() || isProcessing) {
+                            Log.d(TAG, "Ignoring click: empty=${userText.isEmpty()} processing=$isProcessing")
+                            return@IconButton
+                        }
+
+                        Log.d(TAG, "Send button clicked: '$userText'")
+                        input = ""
+                        isProcessing = true
+                        messages.add(ChatMessage(userText, true))
+                        messages.add(ChatMessage("Processing…", false))
+
+                        scope.launch {
+                            try {
+                                Log.d(TAG, "Starting message processing...")
+                                
+                                // Try command engine first
+                                val result = EngineProvider.commandEngine.handle(userText)
+                                val reply = when (result) {
+                                    is EngineResult.Success -> {
+                                        Log.d(TAG, "Command engine handled: ${result.reply}")
+                                        result.reply
+                                    }
+                                    else -> {
+                                        Log.d(TAG, "Command not handled, trying LLM...")
+                                        val llmEngine = EngineProvider.llmEngine
+                                        
+                                        // ✅ FIXED: Call generateReply in IO context instead of non-existent generateReplyAsync
+                                        withContext(Dispatchers.IO) {
+                                            Log.d(TAG, "Calling generateReply on IO dispatcher...")
+                                            val llmReply = llmEngine.generateReply(userText)
+                                            Log.d(TAG, "LLM replied: ${llmReply.take(50)}...")
+                                            llmReply
+                                        }
+                                    }
+                                }
+                                
+                                Log.d(TAG, "Removing processing message and adding reply")
+                                messages.removeLastOrNull()
+                                messages.add(ChatMessage(reply, false))
+                                
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error processing message", e)
+                                messages.removeLastOrNull()
+                                messages.add(ChatMessage("Error: ${e.message ?: "Unknown error"}", false))
+                            } finally {
+                                Log.d(TAG, "Processing complete, resetting state")
+                                isProcessing = false
+                            }
+                        }
+                    },
+                    enabled = !isProcessing
+                ) {
+                    Icon(
+                        Icons.Default.Send, 
+                        "Send", 
+                        tint = if (isProcessing) JarvisBlue.copy(alpha = 0.3f) else JarvisBlue
+                    )
+                }
+            }
         }
-        
-        llama_token new_token = llama_sampler_sample(sampler, ctx_, -1);
-        
-        // Check for end of generation
-        if (llama_vocab_is_eog(vocab, new_token)) {
-            LOGI("EOG token reached");
-            break;
-        }
-        
-        // Token to text
-        char buf[256];
-        int32_t n = llama_token_to_piece(
-            vocab,
-            new_token,
-            buf,
-            sizeof(buf),
-            0,      // lstrip
-            true    // special
-        );
-        
-        if (n > 0) {
-            result.append(buf, n);
-        }
-        
-        // Prepare next batch
-        batch = llama_batch_get_one(&new_token, 1);
-        
-        if (llama_decode(ctx_, batch) != 0) {
-            LOGE("Decode failed at token %d", i);
-            break;
-        }
-    }
-    
-    llama_sampler_free(sampler);
-    
-    LOGI("Generated %zu bytes", result.size());
-    return result;
-}
-
-void LlamaContext::stopGeneration() {
-    should_stop_.store(true);
-}
-
-void LlamaContext::unload() {
-    if (ctx_) {
-        llama_free(ctx_);
-        ctx_ = nullptr;
-    }
-    if (model_) {
-        llama_free_model(model_);
-        model_ = nullptr;
     }
 }
