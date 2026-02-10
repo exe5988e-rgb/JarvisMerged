@@ -34,8 +34,6 @@ import kotlinx.coroutines.launch
 
 private val JarvisBlue = Color(0xFF00E0FF)
 
-data class ChatMessage(val text: String, val isUser: Boolean)
-
 @Composable
 fun JarvisChatScreen(
     onBack: () -> Unit
@@ -262,6 +260,21 @@ fun JarvisChatScreen(
         }
     }
 }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/theme/JarvisColors.kt =====
+package com.jarvismini.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+val JarvisBlue = Color(0xFF00E0FF)
+val JarvisCyan = Color(0xFF00E0FF)
+val JarvisBackground = Color(0xFF001520)
+val JarvisBlack = Color.Black
+val JarvisGreen = Color(0xFF00FF00)
+val JarvisRed = Color(0xFFFF4444)
+
+
 //===== FILE: modules/engine/src/main/kotlin/com/jarvismini/engine/LlamaLLMEngine.kt =====
 package com.jarvismini.engine
 
