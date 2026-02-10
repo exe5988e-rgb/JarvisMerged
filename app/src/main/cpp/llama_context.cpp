@@ -22,7 +22,8 @@ bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads)
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = 0;  // CPU only on mobile
     
-    model_ = llama_load_model_from_file(model_path.c_str(), model_params);
+    // ✅ FIXED: Use llama_model_load_from_file instead of deprecated llama_load_model_from_file
+    model_ = llama_model_load_from_file(model_path.c_str(), model_params);
     if (!model_) {
         LOGE("Failed to load model");
         return false;
@@ -105,8 +106,9 @@ std::string LlamaContext::generate(const std::string& prompt, int max_tokens, fl
     tokens.resize(n_tokens);
     LOGI("Tokenized to %d tokens", n_tokens);
     
-    // ✅ Clear KV cache before generation
-    llama_kv_cache_clear(ctx_);
+    // ✅ FIXED: Use llama_kv_cache_seq_rm instead of non-existent llama_kv_cache_clear
+    // Parameters: ctx, seq_id (-1 = all), p0 (-1 = start), p1 (-1 = end)
+    llama_kv_cache_seq_rm(ctx_, -1, -1, -1);
     
     // Decode prompt
     llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
