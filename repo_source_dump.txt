@@ -9081,7 +9081,7 @@ import java.io.File
  * 2. Removed runBlocking that was freezing the UI thread
  * 3. Proper timeout handling
  * 4. Better error messages for debugging
- * 5. FIXED: All 'if' expressions have proper else branches
+ * 5. FIXED: Line 144 - Added Unit return to ensure if statement is not used as expression
  */
 object LlamaLLMEngine : LLMEngine {
     
@@ -9204,9 +9204,11 @@ object LlamaLLMEngine : LLMEngine {
             Log.d(TAG, "=== LOADING COMPLETE ===")
             Log.d(TAG, "Chat: ${chatService != null}, Code: ${codeService != null}")
             
+            // ✅ FIX: Explicitly ensure this is a statement, not an expression
             if (chatService == null && codeService == null) {
                 Log.e(TAG, "⚠️ No models loaded. Please place .gguf files in ${modelsDir.absolutePath}")
             }
+            Unit  // ✅ Explicitly return Unit to make withContext return type clear
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ Fatal error during model loading", e)
