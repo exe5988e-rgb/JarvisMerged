@@ -14,8 +14,9 @@ import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
-import com.jarvismini.llm.TermuxCommandScreen
-import com.jarvismini.llm.TermuxCommandViewModel
+// Fixed: Correct import paths for Termux components
+import com.jarvismini.ui.llm.TermuxCommandScreen
+import com.jarvismini.ui.llm.TermuxCommandViewModel
 
 enum class MainTab {
     Home,
