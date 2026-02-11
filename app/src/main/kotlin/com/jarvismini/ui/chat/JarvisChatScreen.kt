@@ -27,6 +27,7 @@ import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
+import com.jarvismini.engine.LlamaLLMEngine
 import com.jarvismini.ui.components.GridBackground
 import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.theme.JarvisBlue
@@ -287,9 +288,9 @@ fun JarvisChatScreen(
                                 Log.d(TAG, "⏳ Starting message processing")
                                 
                                 // ✅ FIX: Pre-check engine state BEFORE calling native code
-                                val llmEngine = EngineProvider.llmEngine
+                                // Use LlamaLLMEngine directly to access getModelStatus()
                                 val modelStatus = try {
-                                    llmEngine.getModelStatus()
+                                    LlamaLLMEngine.getModelStatus()
                                 } catch (e: Exception) {
                                     Log.e(TAG, "❌ Failed to get model status", e)
                                     null
@@ -366,7 +367,7 @@ fun JarvisChatScreen(
                                                 withContext(Dispatchers.IO) {
                                                     try {
                                                         Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
-                                                        val llmReply = llmEngine.generateReply(userText)
+                                                        val llmReply = EngineProvider.llmEngine.generateReply(userText)
                                                         Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
                                                         llmReply
                                                     } catch (e: Exception) {
