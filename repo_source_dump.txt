@@ -7464,6 +7464,7 @@ import java.io.File
  * This is needed to access /storage/emulated/0/JarvisModels/
  * 
  * CRITICAL FIX: This version properly handles MANAGE_EXTERNAL_STORAGE for Android 11+
+ * ✅ UPDATED: Changed expected models to Qwen2.5-Coder-1.5B (modules/core version)
  */
 object StoragePermissionHelper {
     
@@ -7666,11 +7667,10 @@ object StoragePermissionHelper {
                 }
                 sb.append("\n")
                 
-                // Check for expected models
+                // ✅ CRITICAL FIX: Check for Qwen2.5-Coder model (only 1 file needed now!)
                 sb.append("=== EXPECTED MODELS ===\n")
                 val expectedModels = listOf(
-                    "phi-2.Q4_K_M.gguf",
-                    "deepseek-coder-1.3b-instruct.Q4_K_M.gguf"
+                    "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
                 )
                 expectedModels.forEach { modelName ->
                     val found = files.any { it.name == modelName }
