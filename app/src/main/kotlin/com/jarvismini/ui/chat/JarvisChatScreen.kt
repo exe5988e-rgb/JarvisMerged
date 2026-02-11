@@ -27,7 +27,7 @@ import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.engine.EngineResult
-import com.jarvismini.engine.LlamaLLMEngine
+import com.jarvismini.llm.TermuxLlamaClient
 import com.jarvismini.ui.components.GridBackground
 import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.theme.JarvisBlue
@@ -38,10 +38,8 @@ private const val TAG = "JarvisChatScreen"
 /**
  * Main chat screen for interacting with J.A.R.V.I.S.
  * 
- * ✅ FIXED: Input clearing moved to AFTER successful processing
- * ✅ FIXED: Added 30-second timeout protection
- * ✅ FIXED: Enhanced logging for debugging
- * ✅ FIXED: Input preserved on error for retry
+ * UPDATED: Now uses Termux LLM server instead of local models
+ * This fixes crashes that occurred when trying to load local .gguf models
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,11 +50,20 @@ fun JarvisChatScreen(
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
+    // ================= TERMUX LLM CLIENT =================
+    // Use Termux server instead of local models
+    val llamaClient = remember { TermuxLlamaClient() }
+
     // ================= INITIALIZATION =================
     LaunchedEffect(Unit) {
         Log.d(TAG, "Initializing JarvisChatScreen")
         JarvisState.init(context)
         EngineProvider.init(context)
+        
+        // Check if Termux server is healthy
+        val isHealthy = llamaClient.checkHealth()
+        Log.d(TAG, "Termux server health: $isHealthy")
+        
         Log.d(TAG, "Initialization complete")
     }
 
@@ -117,7 +124,7 @@ fun JarvisChatScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "J.A.R.V.I.S CHAT",
+                        "J.A.R.V.I.S CHAT (Termux LLM)",
                         color = JarvisBlue,
                         fontFamily = FontFamily.Monospace
                     )
@@ -232,7 +239,7 @@ fun JarvisChatScreen(
                     enabled = !isProcessing,
                     placeholder = {
                         Text(
-                            if (isProcessing) "Processing..." else "Command input…",
+                            if (isProcessing) "Processing..." else "Chat with JARVIS…",
                             fontFamily = FontFamily.Monospace,
                             color = JarvisBlue.copy(alpha = 0.7f)
                         )
@@ -252,7 +259,6 @@ fun JarvisChatScreen(
                 )
 
                 // ===== SEND BUTTON =====
-                // ✅ FIXED: Input cleared AFTER success, with timeout protection
                 IconButton(
                     onClick = {
                         val userText = input.trim()
@@ -279,148 +285,67 @@ fun JarvisChatScreen(
                         messages.add(ChatMessage(userText, isUser = true))
                         messages.add(ChatMessage("Processing…", isUser = false))
 
-                        // Launch with timeout watcher
+                        // Launch processing
                         scope.launch {
-                            var timeoutJob: Job? = null
-                            var processingJob: Job? = null
-                            
                             try {
                                 Log.d(TAG, "⏳ Starting message processing")
                                 
-                                // ✅ FIX: Pre-check engine state BEFORE calling native code
-                                // Use LlamaLLMEngine directly to access getModelStatus()
-                                val modelStatus = try {
-                                    LlamaLLMEngine.getModelStatus()
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "❌ Failed to get model status", e)
-                                    null
-                                }
+                                // First try command engine for simple commands
+                                Log.d(TAG, "🔄 Trying command engine first")
+                                val commandResult = EngineProvider.commandEngine.handle(userText)
+                                Log.d(TAG, "🎯 Command result: $commandResult")
                                 
-                                // Check if models are actually ready
-                                if (modelStatus == null || (!modelStatus.chatReady && !modelStatus.codeReady)) {
-                                    Log.w(TAG, "⚠️ No models ready - returning early")
-                                    messages.removeLastOrNull()
-                                    messages.add(ChatMessage(
-                                        "🤖 No AI models found.\n\n" +
-                                        "To use AI features, place .gguf model files in:\n" +
-                                        "/storage/emulated/0/JarvisModels/\n\n" +
-                                        "Download models from Hugging Face and restart the app.",
-                                        isUser = false
-                                    ))
-                                    input = ""
-                                    return@launch
-                                }
-                                
-                                if (modelStatus.isLoading) {
-                                    Log.w(TAG, "⚠️ Models still loading")
-                                    messages.removeLastOrNull()
-                                    messages.add(ChatMessage(
-                                        "🤖 AI models are loading...\n\n" +
-                                        "This can take 1-2 minutes on first launch.\n" +
-                                        "Please wait and try again in a moment.",
-                                        isUser = false
-                                    ))
-                                    return@launch
-                                }
-                                
-                                Log.d(TAG, "✅ Models ready: chat=${modelStatus.chatReady}, code=${modelStatus.codeReady}")
-                                
-                                // ✅ FIX: Create timeout watcher BEFORE calling native code
-                                timeoutJob = launch {
-                                    delay(30000L) // 30 seconds
-                                    if (isProcessing) {
-                                        Log.e(TAG, "⏱️ TIMEOUT WATCHER: 30 seconds elapsed!")
-                                        messages.removeLastOrNull()
-                                        messages.add(ChatMessage(
-                                            "⏱️ Request timed out after 30 seconds.\n\n" +
-                                            "The model may be:\n" +
-                                            "• Processing a very complex request\n" +
-                                            "• Loading for the first time\n" +
-                                            "• Stuck on corrupted model files\n\n" +
-                                            "Try:\n" +
-                                            "• A shorter, simpler message\n" +
-                                            "• Restarting the app\n" +
-                                            "• Checking model files in /storage/emulated/0/JarvisModels/",
-                                            isUser = false
-                                        ))
-                                        processingJob?.cancel()
-                                        isProcessing = false
+                                val reply = when (commandResult) {
+                                    is EngineResult.Success -> {
+                                        Log.d(TAG, "✅ Command handled by engine")
+                                        commandResult.reply
                                     }
-                                }
-                                
-                                // ✅ FIX: Launch actual processing in separate job
-                                processingJob = launch {
-                                    try {
-                                        Log.d(TAG, "🔄 Trying command engine first")
-                                        val result = EngineProvider.commandEngine.handle(userText)
-                                        Log.d(TAG, "🎯 Command result: $result")
+                                    else -> {
+                                        // Use Termux LLM server for general chat
+                                        Log.d(TAG, "🔄 Using Termux LLM server")
                                         
-                                        val reply = when (result) {
-                                            is EngineResult.Success -> {
-                                                Log.d(TAG, "✅ Command handled")
-                                                result.reply
-                                            }
-                                            else -> {
-                                                Log.d(TAG, "🔄 Calling LLM (this may take time)")
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                // For general chat, we need a different prompt
+                                                // The server is configured for command generation
+                                                // So we'll use it creatively or add a chat endpoint
                                                 
-                                                // Call LLM on IO thread
-                                                withContext(Dispatchers.IO) {
-                                                    try {
-                                                        Log.d(TAG, "🧵 LLM thread: ${Thread.currentThread().name}")
-                                                        val llmReply = EngineProvider.llmEngine.generateReply(userText)
-                                                        Log.d(TAG, "✅ LLM replied: ${llmReply.take(50)}...")
-                                                        llmReply
-                                                    } catch (e: Exception) {
-                                                        Log.e(TAG, "❌ LLM error", e)
-                                                        "❌ Error: ${e.message ?: "Unknown error"}"
-                                                    }
+                                                // For now, just generate a response
+                                                // You may want to add a /chat endpoint to the server
+                                                val result = llamaClient.generateCommand(userText)
+                                                
+                                                if (result.success && result.command != null) {
+                                                    Log.d(TAG, "✅ Termux LLM replied")
+                                                    result.command
+                                                } else {
+                                                    Log.e(TAG, "❌ Termux LLM error: ${result.error}")
+                                                    "❌ Error from Termux server:\n${result.error}"
                                                 }
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "❌ Termux LLM exception", e)
+                                                "❌ Error: ${e.message ?: "Unknown error"}"
                                             }
-                                        }
-                                        
-                                        // Success - cancel timeout and update UI
-                                        if (isProcessing) { // Only update if not timed out
-                                            timeoutJob?.cancel()
-                                            Log.d(TAG, "🔄 Updating UI with reply")
-                                            messages.removeLastOrNull()
-                                            messages.add(ChatMessage(reply, isUser = false))
-                                            input = "" // Clear input only on success
-                                            Log.d(TAG, "✅ PROCESSING COMPLETE")
-                                        }
-                                        
-                                    } catch (e: CancellationException) {
-                                        Log.w(TAG, "🚫 Processing cancelled (likely timeout)")
-                                        throw e
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "❌ Processing error", e)
-                                        if (isProcessing) {
-                                            timeoutJob?.cancel()
-                                            messages.removeLastOrNull()
-                                            messages.add(ChatMessage(
-                                                "❌ Error: ${e.message ?: "Unknown error occurred"}",
-                                                isUser = false
-                                            ))
                                         }
                                     }
                                 }
                                 
-                                // Wait for processing to complete (or timeout to trigger)
-                                processingJob?.join()
+                                // Update UI with reply
+                                messages.removeLastOrNull()
+                                messages.add(ChatMessage(reply, isUser = false))
+                                input = "" // Clear input only on success
+                                Log.d(TAG, "✅ PROCESSING COMPLETE")
                                 
                             } catch (e: CancellationException) {
-                                Log.w(TAG, "🚫 Main coroutine cancelled")
-                                // Don't rethrow - just clean up
+                                Log.w(TAG, "🚫 Processing cancelled")
+                                throw e
                             } catch (e: Exception) {
-                                Log.e(TAG, "❌ Unexpected error", e)
+                                Log.e(TAG, "❌ Processing error", e)
                                 messages.removeLastOrNull()
                                 messages.add(ChatMessage(
-                                    "❌ Unexpected error: ${e.message}",
+                                    "❌ Error: ${e.message ?: "Unknown error occurred"}",
                                     isUser = false
                                 ))
                             } finally {
-                                // Always clean up
-                                timeoutJob?.cancel()
-                                processingJob?.cancel()
                                 Log.d(TAG, "🔄 Resetting processing state")
                                 isProcessing = false
                                 Log.d(TAG, "✅ Cleanup complete")
