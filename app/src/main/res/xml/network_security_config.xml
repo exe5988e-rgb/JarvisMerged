@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- ✅ CREATE THIS FILE: app/src/main/res/xml/network_security_config.xml -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <!-- ✅ Allow cleartext (HTTP) traffic to localhost for Termux server -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+    
+    <!-- Optional: Keep default security for all other domains -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-
-    <!-- Allow local IP (Termux server) -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168.29.48</domain>
-    </domain-config>
 </network-security-config>

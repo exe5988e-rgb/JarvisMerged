@@ -2,6 +2,7 @@ package com.jarvismini.ui.main
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
@@ -13,6 +14,8 @@ import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
+import com.jarvismini.llm.TermuxCommandScreen
+import com.jarvismini.llm.TermuxCommandViewModel
 
 enum class MainTab {
     Home,
@@ -20,7 +23,8 @@ enum class MainTab {
     Calendar,
     Checklist,
     Settings,
-    Debug
+    Debug,
+    TermuxCommand  // ✅ NEW: Added Termux Command tab
 }
 
 @Composable
@@ -59,7 +63,8 @@ fun MainScreen() {
             onNavigateToCalendar = { selectedTab = MainTab.Calendar },
             onNavigateToChecklist = { selectedTab = MainTab.Checklist },
             onNavigateToSettings = { selectedTab = MainTab.Settings },
-            onNavigateToDebug = { selectedTab = MainTab.Debug }
+            onNavigateToDebug = { selectedTab = MainTab.Debug },
+            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand }  // ✅ NEW
         )
 
         MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
@@ -79,5 +84,14 @@ fun MainScreen() {
         MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
 
         MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+
+        // ✅ NEW: Termux Command Screen
+        MainTab.TermuxCommand -> {
+            val viewModel: TermuxCommandViewModel = viewModel()
+            TermuxCommandScreen(
+                viewModel = viewModel,
+                onNavigateBack = { selectedTab = MainTab.Home }
+            )
+        }
     }
 }
