@@ -1620,6 +1620,7 @@ import java.io.File
  * This is needed to access /storage/emulated/0/JarvisModels/
  * 
  * CRITICAL FIX: This version properly handles MANAGE_EXTERNAL_STORAGE for Android 11+
+ * UPDATED: Changed expected models to Qwen2.5-Coder-1.5B
  */
 object StoragePermissionHelper {
     
@@ -1822,11 +1823,10 @@ object StoragePermissionHelper {
                 }
                 sb.append("\n")
                 
-                // Check for expected models
+                // ✅ UPDATED: Check for Qwen2.5-Coder model (only 1 file needed now!)
                 sb.append("=== EXPECTED MODELS ===\n")
                 val expectedModels = listOf(
-                    "phi-2.Q4_K_M.gguf",
-                    "deepseek-coder-1.3b-instruct.Q4_K_M.gguf"
+                    "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
                 )
                 expectedModels.forEach { modelName ->
                     val found = files.any { it.name == modelName }
@@ -9847,12 +9847,14 @@ import kotlinx.coroutines.*
 import java.io.File
 
 /**
- * UPDATED VERSION - Added model selector support
+ * UPDATED VERSION - Migrated to Qwen2.5-Coder-1.5B
  * 
- * NEW ADDITIONS:
- * 1. isLoading property for UI feedback
- * 2. selectedModel property for user preference
- * 3. getModelStatus() method for real-time status updates
+ * CHANGES FROM PREVIOUS VERSION:
+ * 1. Replaced Phi-2 with Qwen2.5-Coder (better performance, more stable)
+ * 2. Replaced DeepSeek-Coder-1.3B with Qwen2.5-Coder (unified model for chat & code)
+ * 3. Increased context size from 2048 to 4096 tokens
+ * 4. Increased timeout from 30s to 120s for first-time model loading
+ * 5. Optimized generation parameters for mobile devices
  */
 object LlamaLLMEngine : LLMEngine {
     
@@ -9876,19 +9878,21 @@ object LlamaLLMEngine : LLMEngine {
         return File(externalStorage, "JarvisModels")
     }
     
+    // ✅ UPDATED: Qwen2.5-Coder for chat (better quality, faster, more stable)
     private val chatModelConfig = ModelConfig(
         type = ModelType.CHAT,
-        name = "Phi-2",
-        filename = "phi-2.Q4_K_M.gguf",
-        contextSize = 2048,
+        name = "Qwen2.5-Coder",
+        filename = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+        contextSize = 4096,  // Qwen2.5 supports longer context
         threads = 4
     )
     
+    // ✅ UPDATED: Qwen2.5-Coder for code (same model, optimized for both tasks)
     private val codeModelConfig = ModelConfig(
         type = ModelType.CODE,
-        name = "DeepSeek Coder",
-        filename = "deepseek-coder-1.3b-instruct.Q4_K_M.gguf",
-        contextSize = 2048,
+        name = "Qwen2.5-Coder",
+        filename = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+        contextSize = 4096,  // Qwen2.5 supports longer context
         threads = 4
     )
 
@@ -9964,7 +9968,7 @@ object LlamaLLMEngine : LLMEngine {
             // Small delay between loading models
             delay(1000)
             
-            // Load code model
+            // Load code model (same file as chat for Qwen2.5-Coder)
             val codeModelPath = File(modelsDir, codeModelConfig.filename)
             if (codeModelPath.exists() && codeModelPath.canRead()) {
                 try {
@@ -10027,16 +10031,18 @@ object LlamaLLMEngine : LLMEngine {
         
         return withContext(Dispatchers.IO) {
             try {
-                withTimeout(30000L) {
+                // ✅ INCREASED: Timeout from 30s to 120s for first-time generation
+                withTimeout(120000L) {
                     when {
                         shouldUseCode && codeService != null -> {
                             Log.d(TAG, "Using code model for generation")
-                            val formattedPrompt = "### Instruction:\n$prompt\n\n### Response:\n"
-                            codeService!!.generate(formattedPrompt, maxTokens = 256, temperature = 0.2f)
+                            // ✅ UPDATED: Qwen2.5-Coder format (no special prompt formatting needed)
+                            codeService!!.generate(prompt, maxTokens = 256, temperature = 0.2f)
                         }
                         chatService != null -> {
                             Log.d(TAG, "Using chat model for generation")
-                            chatService!!.generate(prompt, maxTokens = 128, temperature = 0.7f)
+                            // ✅ UPDATED: Increased tokens from 128 to 256 for better responses
+                            chatService!!.generate(prompt, maxTokens = 256, temperature = 0.7f)
                         }
                         else -> {
                             "Models are still loading... Please wait a few more seconds."
@@ -10044,8 +10050,8 @@ object LlamaLLMEngine : LLMEngine {
                     }
                 }
             } catch (e: TimeoutCancellationException) {
-                Log.e(TAG, "Generation timeout after 30 seconds")
-                "Request timed out. Try a shorter prompt or wait for the model to warm up."
+                Log.e(TAG, "Generation timeout after 120 seconds")
+                "Request timed out. The model may still be loading. Please try again."
             } catch (e: CancellationException) {
                 Log.w(TAG, "Generation cancelled")
                 "Request cancelled."
