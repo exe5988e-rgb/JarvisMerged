@@ -25,8 +25,6 @@ import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.WorkModeManager
-import com.jarvismini.engine.EngineProvider
-import com.jarvismini.engine.EngineResult
 import com.jarvismini.llm.TermuxLlamaClient
 import com.jarvismini.ui.components.GridBackground
 import com.jarvismini.ui.ChatMessage
@@ -38,7 +36,7 @@ private const val TAG = "JarvisChatScreen"
 /**
  * Main chat screen for interacting with J.A.R.V.I.S.
  * 
- * COMPLETE VERSION: Uses /chat_sync endpoint for natural conversations
+ * FIXED VERSION: Always uses /chat_sync endpoint, bypasses buggy command engine
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +54,6 @@ fun JarvisChatScreen(
     LaunchedEffect(Unit) {
         Log.d(TAG, "Initializing JarvisChatScreen")
         JarvisState.init(context)
-        EngineProvider.init(context)
         
         // Check if Termux server is healthy
         val isHealthy = llamaClient.checkHealth()
@@ -283,36 +280,40 @@ fun JarvisChatScreen(
                             try {
                                 Log.d(TAG, "⏳ Starting message processing")
                                 
-                                // First try command engine for simple commands
-                                Log.d(TAG, "🔄 Trying command engine first")
-                                val commandResult = EngineProvider.commandEngine.handle(userText)
+                                // =================================================================
+                                // CRITICAL FIX: Skip the buggy command engine, go straight to chat
+                                // =================================================================
+                                // The command engine was incorrectly calling generateCommand()
+                                // which hits /generate_sync instead of /chat_sync
+                                //
+                                // OLD CODE (BUGGY):
+                                // val commandResult = EngineProvider.commandEngine.handle(userText)
+                                //
+                                // NEW CODE: Direct to chat endpoint
+                                // =================================================================
                                 
-                                val reply = when (commandResult) {
-                                    is EngineResult.Success -> {
-                                        Log.d(TAG, "✅ Command handled by engine")
-                                        commandResult.reply
-                                    }
-                                    else -> {
-                                        // Use Termux LLM server chat endpoint
-                                        Log.d(TAG, "🔄 Using Termux LLM chat endpoint")
+                                Log.d(TAG, "🗨️ Using Termux LLM CHAT endpoint (/chat_sync)")
+                                
+                                val reply = withContext(Dispatchers.IO) {
+                                    try {
+                                        // IMPORTANT: Use chat() for conversations
+                                        // This hits /chat_sync endpoint with proper chat configuration
+                                        val result = llamaClient.chat(
+                                            query = userText,
+                                            timeoutSeconds = 150  // 2.5 min (within server's 120s limit + buffer)
+                                        )
                                         
-                                        withContext(Dispatchers.IO) {
-                                            try {
-                                                // Use the chat() method for conversations
-                                                val result = llamaClient.chat(userText, timeoutSeconds = 300)
-                                                
-                                                if (result.success && result.response != null) {
-                                                    Log.d(TAG, "✅ Chat response: ${result.response.take(100)}...")
-                                                    result.response
-                                                } else {
-                                                    Log.e(TAG, "❌ Chat error: ${result.error}")
-                                                    "❌ ${result.error}"
-                                                }
-                                            } catch (e: Exception) {
-                                                Log.e(TAG, "❌ Chat exception", e)
-                                                "❌ Error: ${e.message ?: "Unknown error"}"
-                                            }
+                                        if (result.success && result.response != null) {
+                                            Log.d(TAG, "✅ Chat response: ${result.response.take(100)}...")
+                                            result.response
+                                        } else {
+                                            val errorMsg = result.error ?: "Unknown error"
+                                            Log.e(TAG, "❌ Chat error: $errorMsg")
+                                            "❌ $errorMsg"
                                         }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "❌ Chat exception", e)
+                                        "❌ Error: ${e.message ?: "Unknown error"}"
                                     }
                                 }
                                 
