@@ -3190,8 +3190,7 @@ private const val TAG = "JarvisChatScreen"
 /**
  * Main chat screen for interacting with J.A.R.V.I.S.
  * 
- * UPDATED: Now uses Termux LLM server instead of local models
- * This fixes crashes that occurred when trying to load local .gguf models
+ * COMPLETE VERSION: Uses /chat_sync endpoint for natural conversations
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -3203,7 +3202,6 @@ fun JarvisChatScreen(
     val scope = rememberCoroutineScope()
 
     // ================= TERMUX LLM CLIENT =================
-    // Use Termux server instead of local models
     val llamaClient = remember { TermuxLlamaClient() }
 
     // ================= INITIALIZATION =================
@@ -3276,7 +3274,7 @@ fun JarvisChatScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "J.A.R.V.I.S CHAT (Termux LLM)",
+                        "J.A.R.V.I.S CHAT",
                         color = JarvisBlue,
                         fontFamily = FontFamily.Monospace
                     )
@@ -3415,7 +3413,6 @@ fun JarvisChatScreen(
                     onClick = {
                         val userText = input.trim()
                         
-                        // Validation
                         if (userText.isEmpty()) {
                             Log.d(TAG, "❌ Ignoring empty input")
                             return@IconButton
@@ -3430,14 +3427,10 @@ fun JarvisChatScreen(
                         Log.d(TAG, "🚀 SEND BUTTON CLICKED")
                         Log.d(TAG, "📝 User input: '$userText'")
                         
-                        // Set processing state
                         isProcessing = true
-                        
-                        // Add user message
                         messages.add(ChatMessage(userText, isUser = true))
                         messages.add(ChatMessage("Processing…", isUser = false))
 
-                        // Launch processing
                         scope.launch {
                             try {
                                 Log.d(TAG, "⏳ Starting message processing")
@@ -3445,7 +3438,6 @@ fun JarvisChatScreen(
                                 // First try command engine for simple commands
                                 Log.d(TAG, "🔄 Trying command engine first")
                                 val commandResult = EngineProvider.commandEngine.handle(userText)
-                                Log.d(TAG, "🎯 Command result: $commandResult")
                                 
                                 val reply = when (commandResult) {
                                     is EngineResult.Success -> {
@@ -3453,28 +3445,23 @@ fun JarvisChatScreen(
                                         commandResult.reply
                                     }
                                     else -> {
-                                        // Use Termux LLM server for general chat
-                                        Log.d(TAG, "🔄 Using Termux LLM server")
+                                        // Use Termux LLM server chat endpoint
+                                        Log.d(TAG, "🔄 Using Termux LLM chat endpoint")
                                         
                                         withContext(Dispatchers.IO) {
                                             try {
-                                                // For general chat, we need a different prompt
-                                                // The server is configured for command generation
-                                                // So we'll use it creatively or add a chat endpoint
+                                                // Use the chat() method for conversations
+                                                val result = llamaClient.chat(userText, timeoutSeconds = 300)
                                                 
-                                                // For now, just generate a response
-                                                // You may want to add a /chat endpoint to the server
-                                                val result = llamaClient.generateCommand(userText)
-                                                
-                                                if (result.success && result.command != null) {
-                                                    Log.d(TAG, "✅ Termux LLM replied")
-                                                    result.command
+                                                if (result.success && result.response != null) {
+                                                    Log.d(TAG, "✅ Chat response: ${result.response.take(100)}...")
+                                                    result.response
                                                 } else {
-                                                    Log.e(TAG, "❌ Termux LLM error: ${result.error}")
-                                                    "❌ Error from Termux server:\n${result.error}"
+                                                    Log.e(TAG, "❌ Chat error: ${result.error}")
+                                                    "❌ ${result.error}"
                                                 }
                                             } catch (e: Exception) {
-                                                Log.e(TAG, "❌ Termux LLM exception", e)
+                                                Log.e(TAG, "❌ Chat exception", e)
                                                 "❌ Error: ${e.message ?: "Unknown error"}"
                                             }
                                         }
@@ -3484,7 +3471,7 @@ fun JarvisChatScreen(
                                 // Update UI with reply
                                 messages.removeLastOrNull()
                                 messages.add(ChatMessage(reply, isUser = false))
-                                input = "" // Clear input only on success
+                                input = ""
                                 Log.d(TAG, "✅ PROCESSING COMPLETE")
                                 
                             } catch (e: CancellationException) {
