@@ -86,11 +86,11 @@ fun MainScreen() {
 
         MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
 
-        // ✅ NEW: Termux Command Screen
+        // ✅ FIXED: Renamed variable to avoid conflict with parameter name
         MainTab.TermuxCommand -> {
-            val viewModel: TermuxCommandViewModel = viewModel()
+            val termuxViewModel: TermuxCommandViewModel = viewModel()
             TermuxCommandScreen(
-                viewModel = viewModel,
+                viewModel = termuxViewModel,
                 onNavigateBack = { selectedTab = MainTab.Home }
             )
         }
