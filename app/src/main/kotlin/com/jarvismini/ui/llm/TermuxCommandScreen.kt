@@ -1,5 +1,7 @@
 package com.jarvismini.ui.llm
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,13 +16,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jarvismini.llm.TermuxLlamaClient
-// Fixed: Import individual colors instead of JarvisColors object
 import com.jarvismini.ui.theme.JarvisBlue
 import com.jarvismini.ui.theme.JarvisCyan
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,9 +32,10 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel for managing Termux LLM interactions
+ * UPDATED: Supports editable commands and Termux intent execution
  */
-class TermuxCommandViewModel : ViewModel() {
-    private val llamaClient = TermuxLlamaClient()
+class TermuxCommandViewModel(private val context: Context) : ViewModel() {
+    private val llamaClient = TermuxLlamaClient(context = context)
     
     private val _uiState = MutableStateFlow<LlamaUiState>(LlamaUiState.Idle)
     val uiState: StateFlow<LlamaUiState> = _uiState.asStateFlow()
@@ -47,9 +50,16 @@ class TermuxCommandViewModel : ViewModel() {
         object Idle : LlamaUiState()
         object CheckingServer : LlamaUiState()
         object Generating : LlamaUiState()
-        data class WaitingConfirmation(val command: String) : LlamaUiState()
+        data class WaitingConfirmation(
+            val command: String,
+            val isEdited: Boolean = false
+        ) : LlamaUiState()
         object Executing : LlamaUiState()
-        data class Success(val output: String, val exitCode: Int) : LlamaUiState()
+        data class Success(
+            val output: String,
+            val exitCode: Int,
+            val executionMethod: String? = null
+        ) : LlamaUiState()
         data class Error(val message: String) : LlamaUiState()
     }
     
@@ -65,6 +75,7 @@ class TermuxCommandViewModel : ViewModel() {
         val command: String,
         val output: String?,
         val success: Boolean,
+        val executionMethod: String? = null,
         val timestamp: Long = System.currentTimeMillis()
     )
     
@@ -88,13 +99,15 @@ class TermuxCommandViewModel : ViewModel() {
                 val result = llamaClient.generateCommand(query)
                 
                 if (result.success && result.command != null) {
-                    _uiState.value = LlamaUiState.WaitingConfirmation(result.command)
+                    _uiState.value = LlamaUiState.WaitingConfirmation(
+                        command = result.command,
+                        isEdited = false
+                    )
                 } else {
                     _uiState.value = LlamaUiState.Error(
                         result.error ?: "Failed to generate command"
                     )
                     
-                    // Add to history as failed
                     addToHistory(
                         CommandHistoryItem(
                             query = query,
@@ -110,30 +123,93 @@ class TermuxCommandViewModel : ViewModel() {
         }
     }
     
-    fun executeCommand(command: String, query: String) {
+    fun updateCommand(newCommand: String) {
+        val currentState = _uiState.value
+        if (currentState is LlamaUiState.WaitingConfirmation) {
+            _uiState.value = LlamaUiState.WaitingConfirmation(
+                command = newCommand,
+                isEdited = true
+            )
+        }
+    }
+    
+    fun executeCommand(command: String, query: String, isEdited: Boolean) {
         viewModelScope.launch {
             try {
                 _uiState.value = LlamaUiState.Executing
                 
-                val result = llamaClient.executeCommand(command)
+                val result = if (isEdited) {
+                    // Use Termux intent for manually edited commands
+                    executeViaTermuxIntent(command)
+                } else {
+                    // Use HTTP proxy for generated commands
+                    llamaClient.executeCommand(command)
+                }
                 
-                _uiState.value = LlamaUiState.Success(
-                    output = result.output ?: "",
-                    exitCode = result.exitCode ?: -1
-                )
-                
-                // Add to history
-                addToHistory(
-                    CommandHistoryItem(
-                        query = query,
-                        command = command,
-                        output = result.output,
-                        success = result.success
+                if (result.success) {
+                    _uiState.value = LlamaUiState.Success(
+                        output = result.output ?: "Command sent to Termux",
+                        exitCode = result.exitCode ?: 0,
+                        executionMethod = result.method
                     )
-                )
+                    
+                    addToHistory(
+                        CommandHistoryItem(
+                            query = query,
+                            command = command,
+                            output = result.output,
+                            success = true,
+                            executionMethod = result.method
+                        )
+                    )
+                } else {
+                    _uiState.value = LlamaUiState.Error(
+                        result.error ?: "Execution failed"
+                    )
+                    
+                    addToHistory(
+                        CommandHistoryItem(
+                            query = query,
+                            command = command,
+                            output = result.error,
+                            success = false,
+                            executionMethod = result.method
+                        )
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.value = LlamaUiState.Error(e.message ?: "Execution failed")
             }
+        }
+    }
+    
+    private suspend fun executeViaTermuxIntent(command: String): TermuxLlamaClient.CommandResult {
+        return try {
+            // Execute command directly in Termux via intent
+            val intent = Intent().apply {
+                setClassName("com.termux", "com.termux.app.RunCommandService")
+                action = "com.termux.RUN_COMMAND"
+                putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
+                putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", command))
+                putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
+                putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
+            }
+            
+            context.startService(intent)
+            
+            TermuxLlamaClient.CommandResult(
+                success = true,
+                output = "✅ Command sent to Termux. Check Termux app for output.",
+                exitCode = 0,
+                method = "termux_intent"
+            )
+        } catch (e: Exception) {
+            TermuxLlamaClient.CommandResult(
+                success = false,
+                error = "Failed to launch Termux: ${e.message}\n\nMake sure Termux app is installed.",
+                exitCode = -1,
+                method = "termux_intent_error"
+            )
         }
     }
     
@@ -156,13 +232,16 @@ class TermuxCommandViewModel : ViewModel() {
 
 /**
  * Main screen for Termux command generation
+ * UPDATED: Editable command field with Termux intent execution
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TermuxCommandScreen(
-    viewModel: TermuxCommandViewModel,
     onNavigateBack: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val viewModel = remember { TermuxCommandViewModel(context) }
+    
     val uiState by viewModel.uiState.collectAsState()
     val serverStatus by viewModel.serverStatus.collectAsState()
     val commandHistory by viewModel.commandHistory.collectAsState()
@@ -180,13 +259,11 @@ fun TermuxCommandScreen(
                     }
                 },
                 actions = {
-                    // Server status indicator
                     ServerStatusChip(
                         status = serverStatus,
                         onRefresh = { viewModel.checkServerStatus() }
                     )
                     
-                    // History button
                     IconButton(onClick = { showHistory = !showHistory }) {
                         Icon(
                             if (showHistory) Icons.Default.Clear else Icons.Default.History,
@@ -201,7 +278,6 @@ fun TermuxCommandScreen(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Main content
             AnimatedVisibility(
                 visible = !showHistory,
                 enter = fadeIn() + slideInHorizontally(),
@@ -217,8 +293,11 @@ fun TermuxCommandScreen(
                             viewModel.generateCommand(currentQuery)
                         }
                     },
-                    onExecuteCommand = { command ->
-                        viewModel.executeCommand(command, currentQuery)
+                    onUpdateCommand = { newCommand ->
+                        viewModel.updateCommand(newCommand)
+                    },
+                    onExecuteCommand = { command, isEdited ->
+                        viewModel.executeCommand(command, currentQuery, isEdited)
                         currentQuery = ""
                     },
                     onCancelCommand = { viewModel.cancelCommand() },
@@ -226,7 +305,6 @@ fun TermuxCommandScreen(
                 )
             }
             
-            // History view
             AnimatedVisibility(
                 visible = showHistory,
                 enter = fadeIn() + slideInHorizontally { it },
@@ -282,7 +360,8 @@ private fun MainContent(
     currentQuery: String,
     onQueryChange: (String) -> Unit,
     onGenerateCommand: () -> Unit,
-    onExecuteCommand: (String) -> Unit,
+    onUpdateCommand: (String) -> Unit,
+    onExecuteCommand: (String, Boolean) -> Unit,
     onCancelCommand: () -> Unit,
     onReset: () -> Unit
 ) {
@@ -291,7 +370,6 @@ private fun MainContent(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Query input
         QueryInputSection(
             query = currentQuery,
             onQueryChange = onQueryChange,
@@ -301,7 +379,6 @@ private fun MainContent(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // State-based content
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -311,9 +388,13 @@ private fun MainContent(
                 is TermuxCommandViewModel.LlamaUiState.Idle -> IdleState()
                 is TermuxCommandViewModel.LlamaUiState.Generating -> GeneratingState()
                 is TermuxCommandViewModel.LlamaUiState.WaitingConfirmation -> {
-                    ConfirmationState(
+                    EditableConfirmationState(
                         command = uiState.command,
-                        onExecute = { onExecuteCommand(uiState.command) },
+                        isEdited = uiState.isEdited,
+                        onCommandChange = onUpdateCommand,
+                        onExecute = { command, isEdited -> 
+                            onExecuteCommand(command, isEdited) 
+                        },
                         onCancel = onCancelCommand
                     )
                 }
@@ -322,6 +403,7 @@ private fun MainContent(
                     SuccessState(
                         output = uiState.output,
                         exitCode = uiState.exitCode,
+                        executionMethod = uiState.executionMethod,
                         onReset = onReset
                     )
                 }
@@ -364,7 +446,7 @@ private fun QueryInputSection(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("e.g., Find all PDF files in Downloads") },
+                placeholder = { Text("e.g., list files") },
                 enabled = enabled,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = JarvisBlue,
@@ -416,7 +498,6 @@ private fun IdleState() {
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Example suggestions
         Text(
             "Try asking:",
             style = MaterialTheme.typography.titleSmall,
@@ -468,52 +549,93 @@ private fun GeneratingState() {
     }
 }
 
+/**
+ * UPDATED: Editable confirmation state
+ * Shows TextField instead of Text for command editing
+ */
 @Composable
-private fun ConfirmationState(
+private fun EditableConfirmationState(
     command: String,
-    onExecute: () -> Unit,
+    isEdited: Boolean,
+    onCommandChange: (String) -> Unit,
+    onExecute: (String, Boolean) -> Unit,
     onCancel: () -> Unit
 ) {
+    var editableCommand by remember { mutableStateOf(command) }
+    
+    // Update when command changes from ViewModel
+    LaunchedEffect(command) {
+        editableCommand = command
+    }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = JarvisCyan.copy(alpha = 0.1f)
+            containerColor = if (isEdited) Color(0xFF2D5016) else JarvisCyan.copy(alpha = 0.1f)
         ),
         border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(JarvisCyan)
+            brush = androidx.compose.ui.graphics.SolidColor(
+                if (isEdited) Color.Green else JarvisCyan
+            )
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.Warning,
+                    if (isEdited) Icons.Default.Edit else Icons.Default.Warning,
                     null,
-                    tint = Color.Yellow,
+                    tint = if (isEdited) Color.Green else Color.Yellow,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Confirm Command Execution",
+                    if (isEdited) "Edited Command (Termux Intent)" else "Confirm Command Execution",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = JarvisCyan
+                    color = if (isEdited) Color.Green else JarvisCyan
                 )
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            Box(
+            // EDITABLE COMMAND FIELD
+            OutlinedTextField(
+                value = editableCommand,
+                onValueChange = { newValue ->
+                    editableCommand = newValue
+                    onCommandChange(newValue)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(12.dp)
-            ) {
-                Text(
-                    command,
+                    .heightIn(min = 60.dp),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color.Green,
-                    style = MaterialTheme.typography.bodyMedium
+                    color = Color.Green
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.Black.copy(alpha = 0.5f),
+                    unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
+                    focusedBorderColor = Color.Green,
+                    unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
+                    cursorColor = Color.Green,
+                    focusedTextColor = Color.Green,
+                    unfocusedTextColor = Color.Green
+                ),
+                placeholder = {
+                    Text(
+                        "Enter command...",
+                        fontFamily = FontFamily.Monospace,
+                        color = Color.Green.copy(alpha = 0.5f)
+                    )
+                }
+            )
+            
+            if (isEdited) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "ℹ️ Edited commands will execute via Termux intent",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Cyan.copy(alpha = 0.8f)
                 )
             }
             
@@ -536,7 +658,7 @@ private fun ConfirmationState(
                 }
                 
                 Button(
-                    onClick = onExecute,
+                    onClick = { onExecute(editableCommand, isEdited) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Green
@@ -572,6 +694,7 @@ private fun ExecutingState() {
 private fun SuccessState(
     output: String,
     exitCode: Int,
+    executionMethod: String?,
     onReset: () -> Unit
 ) {
     Card(
@@ -593,7 +716,7 @@ private fun SuccessState(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Command Executed Successfully",
+                    "Command Executed",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.Green
@@ -607,6 +730,14 @@ private fun SuccessState(
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.6f)
             )
+            
+            if (executionMethod != null) {
+                Text(
+                    "Method: $executionMethod",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = JarvisCyan.copy(alpha = 0.8f)
+                )
+            }
             
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -710,7 +841,6 @@ private fun HistoryView(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -729,7 +859,6 @@ private fun HistoryView(
             }
         }
         
-        // History list
         if (history.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -795,6 +924,14 @@ private fun CommandHistoryItemCard(
                 color = Color.White.copy(alpha = 0.6f),
                 maxLines = 1
             )
+            
+            if (item.executionMethod != null) {
+                Text(
+                    "via ${item.executionMethod}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = JarvisCyan.copy(alpha = 0.6f)
+                )
+            }
         }
     }
 }
