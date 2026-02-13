@@ -1985,134 +1985,235 @@ class WorkModeService : Service() {
 package com.jarvismini.llm
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Client for communicating with Termux LLaMA server and executor
  * 
- * UPDATED: File-based executor support for /sdcard compatibility
+ * FILE-BASED COMMUNICATION:
+ * - Commands written to /sdcard/jarvis/command.txt
+ * - Results read from /sdcard/jarvis/result.txt
+ * - Status checked via /sdcard/jarvis/status.txt
+ * 
+ * ARCHITECTURE:
+ * 1. LLM (chat, generate) → HTTP (port 8888) → llamafile (port 8080)
+ * 2. Command execution → File-based → jarvis_executor.sh in Termux
  */
-class TermuxLlamaClient(private val context: Context) {
+class TermuxLlamaClient(
+    private val context: Context,
+    private val serverHost: String = "127.0.0.1",
+    private val serverPort: Int = 8888
+) {
+    private val baseUrl = "http://$serverHost:$serverPort"
+    private val tag = "TermuxLlamaClient"
     
-    // LLM Server configuration (for command generation)
-    private val llamaServerUrl = "http://127.0.0.1:8080"
-    
-    // File-based executor configuration (NEW)
+    // File-based executor configuration
     private val EXECUTOR_DIR = "/sdcard/jarvis"
     private val COMMAND_FILE = "$EXECUTOR_DIR/command.txt"
     private val RESULT_FILE = "$EXECUTOR_DIR/result.txt"
     private val STATUS_FILE = "$EXECUTOR_DIR/status.txt"
-    
+
+    data class CommandResult(
+        val success: Boolean,
+        val response: String? = null,
+        val command: String? = null,
+        val output: String? = null,
+        val exitCode: Int? = null,
+        val error: String? = null,
+        val method: String? = null
+    )
+
     /**
-     * Check if the executor service is running
+     * Check if the LLM server is healthy
      */
     suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Check if status file exists and contains "ready"
-            val statusFile = File(STATUS_FILE)
-            if (!statusFile.exists()) {
-                return@withContext false
-            }
-            
-            val status = statusFile.readText().trim()
-            return@withContext status == "ready" || status == "executing"
+            val url = java.net.URL("$baseUrl/health")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+
+            val isHealthy = connection.responseCode == 200
+            Log.d(tag, "Health check: $isHealthy")
+            isHealthy
         } catch (e: Exception) {
+            Log.e(tag, "Health check failed", e)
             false
         }
     }
-    
+
     /**
-     * Generate a Termux command from natural language query
+     * Chat with the LLM (conversational mode)
+     * Uses /chat_sync endpoint for natural conversations
      */
-    suspend fun generateCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
+    suspend fun chat(query: String, timeoutSeconds: Int = 60): CommandResult = withContext(Dispatchers.IO) {
         try {
-            // Call LLM server to generate command
-            val url = URL("$llamaServerUrl/completion")
-            val connection = url.openConnection() as HttpURLConnection
+            Log.d(tag, "Chat request: $query")
             
+            val url = java.net.URL("$baseUrl/chat_sync")
+            val connection = url.openConnection() as java.net.HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
+            connection.connectTimeout = 10000
+            connection.readTimeout = (timeoutSeconds + 10) * 1000
             connection.doOutput = true
-            
-            // Create prompt for command generation
-            val prompt = """Convert this request to a Termux bash command. 
-                |Respond with ONLY the command, no explanation.
-                |
-                |Request: $query
-                |Command:""".trimMargin()
-            
-            val jsonBody = """{"prompt": "$prompt", "n_predict": 100}"""
+
+            // Create JSON request
+            val jsonBody = """{"query": "$query"}"""
             
             connection.outputStream.use { os ->
                 os.write(jsonBody.toByteArray())
             }
-            
+
             val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().use { it.readText() }
-                
-                // Parse JSON response and extract command
-                // Simple parsing - you might want to use a JSON library
-                val command = extractCommandFromResponse(response)
-                
-                CommandResult(
-                    success = true,
-                    command = command
-                )
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
             } else {
-                CommandResult(
-                    success = false,
-                    error = "Server returned code: $responseCode"
-                )
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            Log.d(tag, "Chat response code: $responseCode")
+
+            when (responseCode) {
+                200 -> {
+                    // Parse JSON response
+                    val json = org.json.JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        val chatResponse = json.getString("response")
+                        Log.d(tag, "Chat success: ${chatResponse.take(100)}...")
+                        CommandResult(success = true, response = chatResponse)
+                    } else {
+                        val error = json.optString("error", "Unknown error")
+                        Log.e(tag, "Chat failed: $error")
+                        CommandResult(success = false, error = error)
+                    }
+                }
+                else -> {
+                    Log.e(tag, "HTTP error: $responseCode")
+                    CommandResult(success = false, error = "HTTP $responseCode: $response")
+                }
             }
         } catch (e: Exception) {
-            CommandResult(
-                success = false,
-                error = "Failed to generate command: ${e.message}"
-            )
+            Log.e(tag, "Chat exception", e)
+            CommandResult(success = false, error = e.message ?: "Connection failed")
         }
     }
-    
+
     /**
-     * Execute a command using the file-based executor
+     * Generate a Termux command from natural language
+     * Uses /generate_sync endpoint for command generation
      */
-    suspend fun executeCommand(command: String): ExecutionResult = withContext(Dispatchers.IO) {
+    suspend fun generateCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
         try {
-            // Verify executor is running
+            Log.d(tag, "Generate command: $query")
+            
+            val url = java.net.URL("$baseUrl/generate_sync")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 40000
+            connection.doOutput = true
+
+            val jsonBody = """{"query": "$query"}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            when (responseCode) {
+                200 -> {
+                    val json = org.json.JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        val cmd = json.getString("command")
+                        Log.d(tag, "Generated command: $cmd")
+                        CommandResult(success = true, command = cmd, response = cmd)
+                    } else {
+                        val error = json.optString("error", "Unknown error")
+                        Log.e(tag, "Command generation failed: $error")
+                        CommandResult(success = false, error = error)
+                    }
+                }
+                else -> {
+                    Log.e(tag, "HTTP error: $responseCode")
+                    CommandResult(success = false, error = "HTTP $responseCode")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Generate command exception", e)
+            CommandResult(success = false, error = e.message ?: "Connection failed")
+        }
+    }
+
+    /**
+     * Execute command using file-based communication with jarvis_executor.sh
+     * 
+     * WORKFLOW:
+     * 1. Write command to /sdcard/jarvis/command.txt
+     * 2. jarvis_executor.sh reads it and executes
+     * 3. Result written to /sdcard/jarvis/result.txt
+     * 4. Read result (format: "exit_code|output")
+     */
+    suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "Execute command: $command")
+            
             val statusFile = File(STATUS_FILE)
+            val commandFile = File(COMMAND_FILE)
+            val resultFile = File(RESULT_FILE)
+            
+            // Check if executor is running
             if (!statusFile.exists()) {
-                return@withContext ExecutionResult(
+                return@withContext CommandResult(
                     success = false,
-                    error = "Executor not running. Status file not found.",
+                    error = "Executor not running. Run in Termux:\n  bash ~/jarvis_executor.sh &",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            val status = statusFile.readText().trim()
+            if (status != "ready" && status != "executing") {
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Executor status: $status",
+                    exitCode = -1,
                     method = "file-based"
                 )
             }
             
             // Clear old result
-            val resultFile = File(RESULT_FILE)
             if (resultFile.exists()) {
                 resultFile.writeText("")
             }
             
-            // Write command to command file
-            val commandFile = File(COMMAND_FILE)
+            // Write command
             commandFile.writeText(command)
+            Log.d(tag, "Command written to file")
             
-            // Wait for executor to process (check status)
+            // Wait for result (max 60 seconds)
             var attempts = 0
-            val maxAttempts = 50 // 10 second timeout (50 * 200ms)
+            val maxAttempts = 300 // 300 * 200ms = 60 seconds
             
             while (attempts < maxAttempts) {
-                Thread.sleep(200)
+                delay(200)
                 
-                // Check if result is ready
                 if (resultFile.exists() && resultFile.length() > 0) {
                     val resultContent = resultFile.readText()
                     if (resultContent.isNotBlank()) {
+                        Log.d(tag, "Got result after ${attempts * 200}ms")
                         break
                     }
                 }
@@ -2120,83 +2221,69 @@ class TermuxLlamaClient(private val context: Context) {
                 attempts++
             }
             
-            // Read result
+            // Check timeout
             if (!resultFile.exists() || resultFile.length() == 0L) {
-                return@withContext ExecutionResult(
+                return@withContext CommandResult(
                     success = false,
-                    error = "Timeout waiting for command execution",
+                    error = "Timeout waiting for command execution (60s)",
+                    exitCode = -1,
                     method = "file-based"
                 )
             }
             
+            // Parse result: "exit_code|output"
             val result = resultFile.readText()
-            
-            // Parse result (format: "exit_code|output")
             val parts = result.split("|", limit = 2)
-            val exitCode = parts.getOrNull(0)?.toIntOrNull() ?: -1
-            val output = parts.getOrNull(1) ?: ""
             
-            ExecutionResult(
+            if (parts.size != 2) {
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Invalid result format: $result",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            val exitCode = parts[0].toIntOrNull() ?: -1
+            val output = parts[1]
+            
+            Log.d(tag, "Command executed: exitCode=$exitCode")
+            
+            CommandResult(
                 success = exitCode == 0,
-                output = output,
+                output = output.ifEmpty { "✓ Command completed" },
                 exitCode = exitCode,
                 method = "file-based"
             )
+            
         } catch (e: Exception) {
-            ExecutionResult(
+            Log.e(tag, "Execute command exception", e)
+            CommandResult(
                 success = false,
                 error = "Execution failed: ${e.message}",
+                exitCode = -1,
                 method = "file-based"
             )
         }
     }
     
     /**
-     * Extract command from LLM response
-     * Simple implementation - enhance as needed
+     * Check if jarvis_executor.sh is running
      */
-    private fun extractCommandFromResponse(response: String): String {
-        // Very basic parsing - you should use a proper JSON parser
+    suspend fun checkExecutorStatus(): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Look for "content" field in response
-            val contentStart = response.indexOf("\"content\"")
-            if (contentStart != -1) {
-                val valueStart = response.indexOf(":", contentStart) + 1
-                val valueEnd = response.indexOf("\"", valueStart + 1)
-                if (valueEnd != -1) {
-                    return response.substring(valueStart, valueEnd)
-                        .trim()
-                        .trim('"')
-                        .trim()
-                }
+            val statusFile = File(STATUS_FILE)
+            if (!statusFile.exists()) {
+                return@withContext false
             }
             
-            // Fallback: return trimmed response
-            return response.trim()
+            val status = statusFile.readText().trim()
+            status == "ready" || status == "executing"
         } catch (e: Exception) {
-            return response.trim()
+            Log.e(tag, "Executor status check failed", e)
+            false
         }
     }
-    
-    /**
-     * Result of command generation
-     */
-    data class CommandResult(
-        val success: Boolean,
-        val command: String? = null,
-        val error: String? = null
-    )
-    
-    /**
-     * Result of command execution
-     */
-    data class ExecutionResult(
-        val success: Boolean,
-        val output: String? = null,
-        val exitCode: Int? = null,
-        val error: String? = null,
-        val method: String? = null
-    )
 }
 
 
@@ -3109,7 +3196,8 @@ fun JarvisChatScreen(
     val scope = rememberCoroutineScope()
 
     // ================= TERMUX LLM CLIENT =================
-    val llamaClient = remember { TermuxLlamaClient() }
+    // FIXED: Pass context parameter to TermuxLlamaClient constructor
+    val llamaClient = remember { TermuxLlamaClient(context) }
 
     // ================= INITIALIZATION =================
     LaunchedEffect(Unit) {
@@ -3213,13 +3301,14 @@ fun JarvisChatScreen(
                         unfocusedContainerColor = Color.Transparent,
                         focusedTextColor = JarvisBlue,
                         unfocusedTextColor = JarvisBlue,
-                        cursorColor = JarvisBlue,
+                        focusedLabelColor = JarvisBlue,
+                        unfocusedLabelColor = JarvisBlue,
                         focusedIndicatorColor = JarvisBlue,
                         unfocusedIndicatorColor = JarvisBlue
                     ),
                     modifier = Modifier
-                        .menuAnchor()
                         .fillMaxWidth()
+                        .menuAnchor()
                 )
 
                 ExposedDropdownMenu(
@@ -3228,36 +3317,26 @@ fun JarvisChatScreen(
                 ) {
                     modes.forEach { mode ->
                         DropdownMenuItem(
-                            text = { Text(mode.name, color = JarvisBlue) },
+                            text = {
+                                Text(
+                                    mode.name,
+                                    color = JarvisBlue,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            },
                             onClick = {
-                                JarvisState.setMode(context, mode)
                                 currentMode = mode
+                                JarvisState.setMode(mode)
+                                WorkModeManager.updateMode(mode)
                                 expanded = false
-                                Log.d(TAG, "Mode changed to: ${mode.name}")
                             }
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = {
-                    WorkModeManager.toggle(context)
-                    currentMode = JarvisState.currentMode
-                    Log.d(TAG, "Work mode toggled")
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = JarvisBlue.copy(alpha = 0.7f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Toggle Work Mode", color = Color.Black)
-            }
-
-            HorizontalDivider(
-                color = JarvisBlue.copy(alpha = 0.3f), 
+            Divider(
+                color = JarvisBlue.copy(alpha = 0.3f),
                 modifier = Modifier.padding(vertical = 8.dp)
             )
 
