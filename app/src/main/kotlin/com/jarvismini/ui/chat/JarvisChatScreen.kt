@@ -48,7 +48,8 @@ fun JarvisChatScreen(
     val scope = rememberCoroutineScope()
 
     // ================= TERMUX LLM CLIENT =================
-    val llamaClient = remember { TermuxLlamaClient() }
+    // FIXED: Pass context parameter to TermuxLlamaClient constructor
+    val llamaClient = remember { TermuxLlamaClient(context) }
 
     // ================= INITIALIZATION =================
     LaunchedEffect(Unit) {
@@ -152,13 +153,14 @@ fun JarvisChatScreen(
                         unfocusedContainerColor = Color.Transparent,
                         focusedTextColor = JarvisBlue,
                         unfocusedTextColor = JarvisBlue,
-                        cursorColor = JarvisBlue,
+                        focusedLabelColor = JarvisBlue,
+                        unfocusedLabelColor = JarvisBlue,
                         focusedIndicatorColor = JarvisBlue,
                         unfocusedIndicatorColor = JarvisBlue
                     ),
                     modifier = Modifier
-                        .menuAnchor()
                         .fillMaxWidth()
+                        .menuAnchor()
                 )
 
                 ExposedDropdownMenu(
@@ -167,36 +169,26 @@ fun JarvisChatScreen(
                 ) {
                     modes.forEach { mode ->
                         DropdownMenuItem(
-                            text = { Text(mode.name, color = JarvisBlue) },
+                            text = {
+                                Text(
+                                    mode.name,
+                                    color = JarvisBlue,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            },
                             onClick = {
-                                JarvisState.setMode(context, mode)
                                 currentMode = mode
+                                JarvisState.setMode(mode)
+                                WorkModeManager.updateMode(mode)
                                 expanded = false
-                                Log.d(TAG, "Mode changed to: ${mode.name}")
                             }
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = {
-                    WorkModeManager.toggle(context)
-                    currentMode = JarvisState.currentMode
-                    Log.d(TAG, "Work mode toggled")
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = JarvisBlue.copy(alpha = 0.7f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Toggle Work Mode", color = Color.Black)
-            }
-
-            HorizontalDivider(
-                color = JarvisBlue.copy(alpha = 0.3f), 
+            Divider(
+                color = JarvisBlue.copy(alpha = 0.3f),
                 modifier = Modifier.padding(vertical = 8.dp)
             )
 
