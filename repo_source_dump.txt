@@ -4697,6 +4697,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.jarvismini.ui.theme.JarvisBlue
 import com.jarvismini.ui.theme.JarvisCyan
@@ -4865,7 +4866,7 @@ private fun MainContent(
                         command = uiState.command,
                         isEdited = uiState.isEdited,
                         onCommandChange = onUpdateCommand,
-                        onExecute = { command, isEdited -> 
+                        onExecute = { command: String, isEdited: Boolean -> 
                             onExecuteCommand(command, isEdited) 
                         },
                         onCancel = onCancelCommand
@@ -4886,7 +4887,6 @@ private fun MainContent(
                         onRetry = onReset
                     )
                 }
-                else -> {}
             }
         }
     }
@@ -4899,54 +4899,78 @@ private fun QueryInputSection(
     onGenerate: () -> Unit,
     enabled: Boolean
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = JarvisBlue.copy(alpha = 0.1f)
+    Column {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("What do you want to do in Termux?") },
+            placeholder = { Text("e.g., update all packages, list files, check disk space") },
+            enabled = enabled,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = JarvisCyan,
+                unfocusedBorderColor = JarvisCyan.copy(alpha = 0.5f)
+            )
         )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Button(
+            onClick = onGenerate,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = enabled && query.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = JarvisBlue
+            )
+        ) {
+            Icon(Icons.Default.AutoAwesome, null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Generate Command")
+        }
+    }
+}
+
+// ✅ FIX: Added missing IdleState Composable
+@Composable
+private fun IdleState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            "Enter a query to generate a Termux command",
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.White.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+// ✅ FIX: Added missing GeneratingState Composable
+@Composable
+private fun GeneratingState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(
+                color = JarvisCyan,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "What would you like to do?",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                "Generating command...",
+                style = MaterialTheme.typography.bodyLarge,
                 color = JarvisCyan
             )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("e.g., list files") },
-                enabled = enabled,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = JarvisCyan,
-                    unfocusedBorderColor = JarvisCyan.copy(alpha = 0.5f)
-                )
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Button(
-                onClick = onGenerate,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = enabled && query.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = JarvisCyan
-                )
-            ) {
-                Icon(Icons.Default.PlayArrow, null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Generate Command")
-            }
         }
     }
 }
 
 /**
- * ✅ UPDATED: Shows FIFO method info instead of Termux intent
+ * Editable confirmation state
+ * Shows TextField for command editing
  */
 @Composable
 private fun EditableConfirmationState(
@@ -4993,172 +5017,36 @@ private fun EditableConfirmationState(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // EDITABLE COMMAND FIELD
-            OutlinedTextField(
-                value = editableCommand,
-                onValueChange = { newValue ->
-                    editableCommand = newValue
-                    onCommandChange(newValue)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 60.dp),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color.Green
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.Black.copy(alpha = 0.5f),
-                    unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
-                    focusedBorderColor = Color.Green,
-                    unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
-                    cursorColor = Color.Green,
-                    focusedTextColor = Color.Green,
-                    unfocusedTextColor = Color.Green
-                ),
-                placeholder = {
-                    Text(
-                        "Enter command...",
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.Green.copy(alpha = 0.5f)
-                    )
-                }
+            Text(
+                if (isEdited) 
+                    "You've edited the command. Review and execute when ready." 
+                else 
+                    "Review the generated command and edit if needed before execution.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.7f)
             )
-            
-            if (isEdited) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "ℹ️ Command will execute via FIFO in Termux",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Cyan.copy(alpha = 0.8f)
-                )
-            }
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.Red
-                    )
-                ) {
-                    Icon(Icons.Default.Close, null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Cancel")
-                }
-                
-                Button(
-                    onClick = { onExecute(editableCommand, isEdited) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Green
-                    )
-                ) {
-                    Icon(Icons.Default.PlayArrow, null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Execute")
-                }
-            }
-        }
-    }
-}
-    }
-}
-
-/**
- * UPDATED: Editable confirmation state
- * Shows TextField instead of Text for command editing
- */
-@Composable
-private fun EditableConfirmationState(
-    command: String,
-    isEdited: Boolean,
-    onCommandChange: (String) -> Unit,
-    onExecute: (String, Boolean) -> Unit,
-    onCancel: () -> Unit
-) {
-    var editableCommand by remember { mutableStateOf(command) }
-    
-    // Update when command changes from ViewModel
-    LaunchedEffect(command) {
-        editableCommand = command
-    }
-    
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isEdited) Color(0xFF2D5016) else JarvisCyan.copy(alpha = 0.1f)
-        ),
-        border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(
-                if (isEdited) Color.Green else JarvisCyan
-            )
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    if (isEdited) Icons.Default.Edit else Icons.Default.Warning,
-                    null,
-                    tint = if (isEdited) Color.Green else Color.Yellow,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    if (isEdited) "Edited Command (Termux Intent)" else "Confirm Command Execution",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isEdited) Color.Green else JarvisCyan
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // EDITABLE COMMAND FIELD
             OutlinedTextField(
                 value = editableCommand,
-                onValueChange = { newValue ->
-                    editableCommand = newValue
-                    onCommandChange(newValue)
+                onValueChange = { 
+                    editableCommand = it
+                    onCommandChange(it)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 60.dp),
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.3f)),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color.Green
+                    color = if (isEdited) Color.Green else Color.White
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.Black.copy(alpha = 0.5f),
-                    unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
-                    focusedBorderColor = Color.Green,
-                    unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
-                    cursorColor = Color.Green,
-                    focusedTextColor = Color.Green,
-                    unfocusedTextColor = Color.Green
-                ),
-                placeholder = {
-                    Text(
-                        "Enter command...",
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.Green.copy(alpha = 0.5f)
-                    )
-                }
-            )
-            
-            if (isEdited) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "ℹ️ Edited commands will execute via Termux intent",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Cyan.copy(alpha = 0.8f)
+                    focusedBorderColor = if (isEdited) Color.Green else JarvisCyan,
+                    unfocusedBorderColor = if (isEdited) Color.Green.copy(alpha = 0.5f) else JarvisCyan.copy(alpha = 0.5f)
                 )
-            }
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -5196,18 +5084,22 @@ private fun EditableConfirmationState(
 
 @Composable
 private fun ExecutingState() {
-    Column(
+    Box(
         modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(color = Color.Green)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            "Executing command...",
-            style = MaterialTheme.typography.bodyLarge,
-            color = Color.Green
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(
+                color = Color.Green,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Executing command...",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.Green
+            )
+        }
     }
 }
 
@@ -5237,24 +5129,17 @@ private fun SuccessState(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Command Executed",
+                    "Command Executed Successfully",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.Green
                 )
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                "Exit code: $exitCode",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.6f)
-            )
-            
             if (executionMethod != null) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Method: $executionMethod",
+                    "Execution method: $executionMethod",
                     style = MaterialTheme.typography.bodySmall,
                     color = JarvisCyan.copy(alpha = 0.8f)
                 )
@@ -5262,21 +5147,40 @@ private fun SuccessState(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 300.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .verticalScroll(rememberScrollState())
-                    .padding(12.dp)
-            ) {
+            Text(
+                "Exit Code: $exitCode",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = Color.Green
+            )
+            
+            if (output.isNotBlank()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 Text(
-                    output.ifBlank { "(No output)" },
-                    fontFamily = FontFamily.Monospace,
-                    color = Color.Green,
-                    style = MaterialTheme.typography.bodySmall
+                    "Output:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.3f))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        output,
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.9f),
+                        modifier = Modifier.verticalScroll(rememberScrollState())
+                    )
+                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))
