@@ -9,13 +9,13 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Client for communicating with the local llamafile server via proxy
+ * Client for communicating with the enhanced llamafile proxy server
  * 
- * UPDATED: Now uses port 8888 (llamafile_proxy.py)
+ * FINAL VERSION: Supports all endpoints with proper execution
  */
 class TermuxLlamaClient(
     private val serverHost: String = "127.0.0.1",
-    private val serverPort: Int = 8888  // ← CHANGED from 8080 to 8888
+    private val serverPort: Int = 8888
 ) {
     private val baseUrl = "http://$serverHost:$serverPort"
     private val tag = "TermuxLlamaClient"
@@ -57,7 +57,7 @@ class TermuxLlamaClient(
 
     /**
      * Chat with JARVIS - Uses /chat_sync endpoint
-     * This works with the llamafile_proxy.py server
+     * For JarvisChatScreen
      */
     suspend fun chat(query: String, timeoutSeconds: Int = 60): CommandResult = withContext(Dispatchers.IO) {
         try {
@@ -65,8 +65,8 @@ class TermuxLlamaClient(
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.connectTimeout = 10000  // 10 second connect timeout
-            connection.readTimeout = (timeoutSeconds + 10) * 1000  // timeout + buffer
+            connection.connectTimeout = 10000
+            connection.readTimeout = (timeoutSeconds + 10) * 1000
             connection.doOutput = true
 
             val jsonBody = JSONObject().apply {
@@ -107,7 +107,7 @@ class TermuxLlamaClient(
                 503 -> {
                     CommandResult(
                         success = false,
-                        error = "LLM server not running. Please start llamafile server first."
+                        error = "LLM server not running. Please start llamafile server in Termux."
                     )
                 }
                 else -> {
@@ -127,7 +127,7 @@ class TermuxLlamaClient(
             Log.e(tag, "Connection error", e)
             CommandResult(
                 success = false,
-                error = "Cannot connect to server. Make sure llamafile and proxy are running."
+                error = "Cannot connect to server. Make sure llamafile and proxy are running in Termux."
             )
         } catch (e: Exception) {
             Log.e(tag, "Chat error", e)
@@ -139,24 +139,172 @@ class TermuxLlamaClient(
     }
 
     /**
-     * Generate a shell command - For command generation requests
-     * Note: The old server had /generate_sync endpoint, but since llamafile
-     * uses the same /chat_sync endpoint, we'll just use chat() with command prompts
+     * Generate a shell command - Uses /generate_sync endpoint
+     * For TermuxCommandScreen
+     * 
+     * This now uses the PROPER endpoint instead of chat
      */
-    suspend fun generateCommand(query: String): CommandResult {
-        // Just use the chat endpoint with command-generation prompt
-        val commandPrompt = "Generate a Termux shell command for: $query\nRespond with ONLY the command, no explanation."
-        return chat(commandPrompt, timeoutSeconds = 30)
+    suspend fun generateCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$baseUrl/generate_sync")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 40000  // 40 second timeout
+            connection.doOutput = true
+
+            val jsonBody = JSONObject().apply {
+                put("query", query)
+            }
+
+            Log.d(tag, "Generating command for: $query")
+
+            OutputStreamWriter(connection.outputStream).use { writer ->
+                writer.write(jsonBody.toString())
+                writer.flush()
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "Unknown error"
+            }
+
+            Log.d(tag, "Command response ($responseCode): $response")
+
+            when (responseCode) {
+                200 -> {
+                    val json = JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        val command = json.getString("command")
+                        Log.d(tag, "Generated command: $command")
+                        CommandResult(
+                            success = true,
+                            command = command,
+                            response = command  // Include response for compatibility
+                        )
+                    } else {
+                        CommandResult(
+                            success = false,
+                            error = json.optString("error", "Failed to generate command")
+                        )
+                    }
+                }
+                503 -> {
+                    CommandResult(
+                        success = false,
+                        error = "LLM server not running. Please start llamafile server in Termux."
+                    )
+                }
+                else -> {
+                    CommandResult(
+                        success = false,
+                        error = "HTTP $responseCode: $response"
+                    )
+                }
+            }
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.e(tag, "Command generation timeout", e)
+            CommandResult(
+                success = false,
+                error = "Command generation timed out. Try a simpler request."
+            )
+        } catch (e: java.net.ConnectException) {
+            Log.e(tag, "Connection error", e)
+            CommandResult(
+                success = false,
+                error = "Cannot connect to server. Make sure llamafile and proxy are running in Termux."
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "Command generation error", e)
+            CommandResult(
+                success = false,
+                error = "Error: ${e.message}"
+            )
+        }
     }
 
     /**
-     * Execute a shell command (if the server supports /execute endpoint)
-     * Note: llamafile_proxy doesn't have this, so you'd need to add it if needed
+     * Execute a shell command via /execute endpoint
+     * 
+     * NOW ACTUALLY WORKS! Uses enhanced_proxy.py execution
      */
     suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
-        CommandResult(
-            success = false,
-            error = "Command execution not supported by llamafile proxy. Execute commands manually in Termux."
-        )
+        try {
+            val url = URL("$baseUrl/execute")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 60000  // 60 second timeout for execution
+            connection.doOutput = true
+
+            val jsonBody = JSONObject().apply {
+                put("command", command)
+            }
+
+            Log.d(tag, "Executing command: $command")
+
+            OutputStreamWriter(connection.outputStream).use { writer ->
+                writer.write(jsonBody.toString())
+                writer.flush()
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "Unknown error"
+            }
+
+            Log.d(tag, "Execute response ($responseCode): $response")
+
+            when (responseCode) {
+                200 -> {
+                    val json = JSONObject(response)
+                    val success = json.getBoolean("success")
+                    val output = json.optString("output", "")
+                    val exitCode = json.optInt("exit_code", -1)
+                    
+                    Log.d(tag, "Command executed: success=$success, exitCode=$exitCode")
+                    
+                    CommandResult(
+                        success = success,
+                        output = output,
+                        exitCode = exitCode
+                    )
+                }
+                else -> {
+                    CommandResult(
+                        success = false,
+                        error = "HTTP $responseCode: $response",
+                        exitCode = -1
+                    )
+                }
+            }
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.e(tag, "Command execution timeout", e)
+            CommandResult(
+                success = false,
+                error = "Command execution timed out (60s limit). The command may still be running in background.",
+                exitCode = -1
+            )
+        } catch (e: java.net.ConnectException) {
+            Log.e(tag, "Connection error", e)
+            CommandResult(
+                success = false,
+                error = "Cannot connect to server. Make sure the proxy is running in Termux.",
+                exitCode = -1
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "Command execution error", e)
+            CommandResult(
+                success = false,
+                error = "Execution error: ${e.message}",
+                exitCode = -1
+            )
+        }
     }
 }
