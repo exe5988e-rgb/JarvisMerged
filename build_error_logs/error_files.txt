@@ -2,1141 +2,793 @@
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/llm/TermuxCommandScreen.kt =====
 
-// ❌ ERRORS IN THIS FILE (2 error(s)):
-// Line 37: Redeclaration: TermuxCommandViewModel
-// Line 332: 'when' expression must be exhaustive, add necessary 'Checking', 'Offline', 'Online', 'Unknown' branches or 'else' branch instead
+// ❌ ERRORS IN THIS FILE (8 error(s)):
+// Line 181: Unresolved reference: IdleState
+// Line 182: Unresolved reference: GeneratingState
+// Line 184: Overload resolution ambiguity:
+// Line 188: Cannot infer a type for this parameter. Please specify it explicitly.
+// Line 271: Conflicting overloads: private fun EditableConfirmationState(command: String, isEdited: Boolean, onCommandChange: (String) -> Unit, onExecute: (String, Boolean) -> Unit, onCancel: () -> Unit): Unit defined in com.jarvismini.ui.llm in file TermuxCommandScreen.kt, private fun EditableConfirmationState(command: String, isEdited: Boolean, onCommandChange: (String) -> Unit, onExecute: (String, Boolean) -> Unit, onCancel: () -> Unit): Unit defined in com.jarvismini.ui.llm in file TermuxCommandScreen.kt
+// Line 390: Expecting a top level declaration
+// Line 391: Expecting a top level declaration
+// Line 397: Conflicting overloads: private fun EditableConfirmationState(command: String, isEdited: Boolean, onCommandChange: (String) -> Unit, onExecute: (String, Boolean) -> Unit, onCancel: () -> Unit): Unit defined in com.jarvismini.ui.llm in file TermuxCommandScreen.kt, private fun EditableConfirmationState(command: String, isEdited: Boolean, onCommandChange: (String) -> Unit, onExecute: (String, Boolean) -> Unit, onCancel: () -> Unit): Unit defined in com.jarvismini.ui.llm in file TermuxCommandScreen.kt
 
    1    package com.jarvismini.ui.llm
    2    
-   3    import android.content.Context
-   4    import android.content.Intent
-   5    import androidx.compose.animation.*
-   6    import androidx.compose.foundation.background
-   7    import androidx.compose.foundation.layout.*
-   8    import androidx.compose.foundation.rememberScrollState
-   9    import androidx.compose.foundation.shape.RoundedCornerShape
-  10    import androidx.compose.foundation.verticalScroll
-  11    import androidx.compose.material.icons.Icons
-  12    import androidx.compose.material.icons.filled.*
-  13    import androidx.compose.material3.*
-  14    import androidx.compose.runtime.*
-  15    import androidx.compose.ui.Alignment
-  16    import androidx.compose.ui.Modifier
-  17    import androidx.compose.ui.draw.clip
-  18    import androidx.compose.ui.graphics.Color
-  19    import androidx.compose.ui.platform.LocalContext
-  20    import androidx.compose.ui.text.font.FontFamily
-  21    import androidx.compose.ui.text.font.FontWeight
-  22    import androidx.compose.ui.unit.dp
-  23    import androidx.lifecycle.ViewModel
-  24    import androidx.lifecycle.viewModelScope
-  25    import com.jarvismini.llm.TermuxLlamaClient
-  26    import com.jarvismini.ui.theme.JarvisBlue
-  27    import com.jarvismini.ui.theme.JarvisCyan
-  28    import kotlinx.coroutines.flow.MutableStateFlow
-  29    import kotlinx.coroutines.flow.StateFlow
-  30    import kotlinx.coroutines.flow.asStateFlow
-  31    import kotlinx.coroutines.launch
-  32    
-  33    /**
-  34     * ViewModel for managing Termux LLM interactions
-  35     * UPDATED: Supports editable commands and Termux intent execution
-  36     */
-  37 ❌ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
-  38        private val llamaClient = TermuxLlamaClient(context = context)
-  39        
-  40        private val _uiState = MutableStateFlow<LlamaUiState>(LlamaUiState.Idle)
-  41        val uiState: StateFlow<LlamaUiState> = _uiState.asStateFlow()
-  42        
-  43        private val _commandHistory = MutableStateFlow<List<CommandHistoryItem>>(emptyList())
-  44        val commandHistory: StateFlow<List<CommandHistoryItem>> = _commandHistory.asStateFlow()
-  45        
-  46        private val _serverStatus = MutableStateFlow<ServerStatus>(ServerStatus.Unknown)
-  47        val serverStatus: StateFlow<ServerStatus> = _serverStatus.asStateFlow()
-  48        
-  49        sealed class LlamaUiState {
-  50            object Idle : LlamaUiState()
-  51            object CheckingServer : LlamaUiState()
-  52            object Generating : LlamaUiState()
-  53            data class WaitingConfirmation(
-  54                val command: String,
-  55                val isEdited: Boolean = false
-  56            ) : LlamaUiState()
-  57            object Executing : LlamaUiState()
-  58            data class Success(
-  59                val output: String,
-  60                val exitCode: Int,
-  61                val executionMethod: String? = null
-  62            ) : LlamaUiState()
-  63            data class Error(val message: String) : LlamaUiState()
-  64        }
-  65        
-  66        sealed class ServerStatus {
-  67            object Unknown : ServerStatus()
-  68            object Checking : ServerStatus()
-  69            object Online : ServerStatus()
-  70            object Offline : ServerStatus()
-  71        }
-  72        
-  73        data class CommandHistoryItem(
-  74            val query: String,
-  75            val command: String,
-  76            val output: String?,
-  77            val success: Boolean,
-  78            val executionMethod: String? = null,
-  79            val timestamp: Long = System.currentTimeMillis()
-  80        )
-  81        
-  82        init {
-  83            checkServerStatus()
-  84        }
-  85        
-  86        fun checkServerStatus() {
-  87            viewModelScope.launch {
-  88                _serverStatus.value = ServerStatus.Checking
-  89                val isHealthy = llamaClient.checkHealth()
-  90                _serverStatus.value = if (isHealthy) ServerStatus.Online else ServerStatus.Offline
-  91            }
-  92        }
-  93        
-  94        fun generateCommand(query: String) {
-  95            viewModelScope.launch {
-  96                try {
-  97                    _uiState.value = LlamaUiState.Generating
-  98                    
-  99                    val result = llamaClient.generateCommand(query)
- 100                    
- 101                    if (result.success && result.command != null) {
- 102                        _uiState.value = LlamaUiState.WaitingConfirmation(
- 103                            command = result.command,
- 104                            isEdited = false
- 105                        )
- 106                    } else {
- 107                        _uiState.value = LlamaUiState.Error(
- 108                            result.error ?: "Failed to generate command"
- 109                        )
- 110                        
- 111                        addToHistory(
- 112                            CommandHistoryItem(
- 113                                query = query,
- 114                                command = "",
- 115                                output = result.error,
- 116                                success = false
- 117                            )
- 118                        )
- 119                    }
- 120                } catch (e: Exception) {
- 121                    _uiState.value = LlamaUiState.Error(e.message ?: "Unknown error")
- 122                }
- 123            }
- 124        }
- 125        
- 126        fun updateCommand(newCommand: String) {
- 127            val currentState = _uiState.value
- 128            if (currentState is LlamaUiState.WaitingConfirmation) {
- 129                _uiState.value = LlamaUiState.WaitingConfirmation(
- 130                    command = newCommand,
- 131                    isEdited = true
- 132                )
- 133            }
- 134        }
- 135        
- 136        fun executeCommand(command: String, query: String, isEdited: Boolean) {
- 137            viewModelScope.launch {
- 138                try {
- 139                    _uiState.value = LlamaUiState.Executing
- 140                    
- 141                    val result = if (isEdited) {
- 142                        // Use Termux intent for manually edited commands
- 143                        executeViaTermuxIntent(command)
- 144                    } else {
- 145                        // Use HTTP proxy for generated commands
- 146                        llamaClient.executeCommand(command)
- 147                    }
- 148                    
- 149                    if (result.success) {
- 150                        _uiState.value = LlamaUiState.Success(
- 151                            output = result.output ?: "Command sent to Termux",
- 152                            exitCode = result.exitCode ?: 0,
- 153                            executionMethod = result.method
- 154                        )
- 155                        
- 156                        addToHistory(
- 157                            CommandHistoryItem(
- 158                                query = query,
- 159                                command = command,
- 160                                output = result.output,
- 161                                success = true,
- 162                                executionMethod = result.method
- 163                            )
- 164                        )
- 165                    } else {
- 166                        _uiState.value = LlamaUiState.Error(
- 167                            result.error ?: "Execution failed"
- 168                        )
- 169                        
- 170                        addToHistory(
- 171                            CommandHistoryItem(
- 172                                query = query,
- 173                                command = command,
- 174                                output = result.error,
- 175                                success = false,
- 176                                executionMethod = result.method
- 177                            )
- 178                        )
- 179                    }
- 180                } catch (e: Exception) {
- 181                    _uiState.value = LlamaUiState.Error(e.message ?: "Execution failed")
- 182                }
- 183            }
- 184        }
- 185        
- 186        private suspend fun executeViaTermuxIntent(command: String): TermuxLlamaClient.CommandResult {
- 187            return try {
- 188                // Execute command directly in Termux via intent
- 189                val intent = Intent().apply {
- 190                    setClassName("com.termux", "com.termux.app.RunCommandService")
- 191                    action = "com.termux.RUN_COMMAND"
- 192                    putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
- 193                    putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", command))
- 194                    putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
- 195                    putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
- 196                }
- 197                
- 198                context.startService(intent)
- 199                
- 200                TermuxLlamaClient.CommandResult(
- 201                    success = true,
- 202                    output = "✅ Command sent to Termux. Check Termux app for output.",
- 203                    exitCode = 0,
- 204                    method = "termux_intent"
- 205                )
- 206            } catch (e: Exception) {
- 207                TermuxLlamaClient.CommandResult(
- 208                    success = false,
- 209                    error = "Failed to launch Termux: ${e.message}\n\nMake sure Termux app is installed.",
- 210                    exitCode = -1,
- 211                    method = "termux_intent_error"
- 212                )
- 213            }
- 214        }
- 215        
- 216        fun cancelCommand() {
- 217            _uiState.value = LlamaUiState.Idle
- 218        }
- 219        
- 220        fun reset() {
- 221            _uiState.value = LlamaUiState.Idle
- 222        }
- 223        
- 224        private fun addToHistory(item: CommandHistoryItem) {
- 225            _commandHistory.value = listOf(item) + _commandHistory.value
- 226        }
- 227        
- 228        fun clearHistory() {
- 229            _commandHistory.value = emptyList()
- 230        }
- 231    }
- 232    
- 233    /**
- 234     * Main screen for Termux command generation
- 235     * UPDATED: Editable command field with Termux intent execution
- 236     */
- 237    @OptIn(ExperimentalMaterial3Api::class)
- 238    @Composable
- 239    fun TermuxCommandScreen(
- 240        onNavigateBack: () -> Unit = {}
- 241    ) {
- 242        val context = LocalContext.current
- 243        val viewModel = remember { TermuxCommandViewModel(context) }
- 244        
- 245        val uiState by viewModel.uiState.collectAsState()
- 246        val serverStatus by viewModel.serverStatus.collectAsState()
- 247        val commandHistory by viewModel.commandHistory.collectAsState()
- 248        
- 249        var currentQuery by remember { mutableStateOf("") }
- 250        var showHistory by remember { mutableStateOf(false) }
- 251        
- 252        Scaffold(
- 253            topBar = {
- 254                TopAppBar(
- 255                    title = { Text("Termux Command Generator") },
- 256                    navigationIcon = {
- 257                        IconButton(onClick = onNavigateBack) {
- 258                            Icon(Icons.Default.ArrowBack, "Back")
- 259                        }
- 260                    },
- 261                    actions = {
- 262                        ServerStatusChip(
- 263                            status = serverStatus,
- 264                            onRefresh = { viewModel.checkServerStatus() }
- 265                        )
- 266                        
- 267                        IconButton(onClick = { showHistory = !showHistory }) {
- 268                            Icon(
- 269                                if (showHistory) Icons.Default.Clear else Icons.Default.History,
- 270                                "Command History"
- 271                            )
- 272                        }
- 273                    },
- 274                    colors = TopAppBarDefaults.topAppBarColors(
- 275                        containerColor = JarvisBlue.copy(alpha = 0.1f)
- 276                    )
- 277                )
- 278            }
- 279        ) { padding ->
- 280            Box(modifier = Modifier.fillMaxSize()) {
- 281                AnimatedVisibility(
- 282                    visible = !showHistory,
- 283                    enter = fadeIn() + slideInHorizontally(),
- 284                    exit = fadeOut() + slideOutHorizontally()
- 285                ) {
- 286                    MainContent(
- 287                        modifier = Modifier.padding(padding),
- 288                        uiState = uiState,
- 289                        currentQuery = currentQuery,
- 290                        onQueryChange = { currentQuery = it },
- 291                        onGenerateCommand = { 
- 292                            if (currentQuery.isNotBlank()) {
- 293                                viewModel.generateCommand(currentQuery)
- 294                            }
- 295                        },
- 296                        onUpdateCommand = { newCommand ->
- 297                            viewModel.updateCommand(newCommand)
- 298                        },
- 299                        onExecuteCommand = { command, isEdited ->
- 300                            viewModel.executeCommand(command, currentQuery, isEdited)
- 301                            currentQuery = ""
- 302                        },
- 303                        onCancelCommand = { viewModel.cancelCommand() },
- 304                        onReset = { viewModel.reset() }
- 305                    )
- 306                }
- 307                
- 308                AnimatedVisibility(
- 309                    visible = showHistory,
- 310                    enter = fadeIn() + slideInHorizontally { it },
- 311                    exit = fadeOut() + slideOutHorizontally { it }
- 312                ) {
- 313                    HistoryView(
- 314                        modifier = Modifier.padding(padding),
- 315                        history = commandHistory,
- 316                        onSelectCommand = { item ->
- 317                            currentQuery = item.query
- 318                            showHistory = false
- 319                        },
- 320                        onClearHistory = { viewModel.clearHistory() }
- 321                    )
- 322                }
- 323            }
- 324        }
- 325    }
- 326    
- 327    @Composable
- 328    private fun ServerStatusChip(
- 329        status: TermuxCommandViewModel.ServerStatus,
- 330        onRefresh: () -> Unit
- 331    ) {
- 332 ❌     val (text, color) = when (status) {
- 333            is TermuxCommandViewModel.ServerStatus.Online -> "Online" to Color.Green
- 334            is TermuxCommandViewModel.ServerStatus.Offline -> "Offline" to Color.Red
- 335            is TermuxCommandViewModel.ServerStatus.Checking -> "Checking..." to JarvisCyan
- 336            is TermuxCommandViewModel.ServerStatus.Unknown -> "Unknown" to Color.Gray
- 337        }
- 338        
- 339        AssistChip(
- 340            onClick = onRefresh,
- 341            label = { Text(text, fontSize = MaterialTheme.typography.bodySmall.fontSize) },
- 342            leadingIcon = {
- 343                Icon(
- 344                    Icons.Default.Circle,
- 345                    null,
- 346                    modifier = Modifier.size(8.dp),
- 347                    tint = color
- 348                )
- 349            },
- 350            colors = AssistChipDefaults.assistChipColors(
- 351                containerColor = color.copy(alpha = 0.2f)
- 352            )
- 353        )
- 354    }
- 355    
- 356    @Composable
- 357    private fun MainContent(
- 358        modifier: Modifier = Modifier,
- 359        uiState: TermuxCommandViewModel.LlamaUiState,
- 360        currentQuery: String,
- 361        onQueryChange: (String) -> Unit,
- 362        onGenerateCommand: () -> Unit,
- 363        onUpdateCommand: (String) -> Unit,
- 364        onExecuteCommand: (String, Boolean) -> Unit,
- 365        onCancelCommand: () -> Unit,
- 366        onReset: () -> Unit
- 367    ) {
- 368        Column(
- 369            modifier = modifier
- 370                .fillMaxSize()
- 371                .padding(16.dp)
- 372        ) {
- 373            QueryInputSection(
- 374                query = currentQuery,
- 375                onQueryChange = onQueryChange,
- 376                onGenerate = onGenerateCommand,
- 377                enabled = uiState is TermuxCommandViewModel.LlamaUiState.Idle
- 378            )
- 379            
- 380            Spacer(modifier = Modifier.height(16.dp))
- 381            
- 382            Box(
- 383                modifier = Modifier
- 384                    .weight(1f)
- 385                    .fillMaxWidth()
- 386            ) {
- 387                when (uiState) {
- 388                    is TermuxCommandViewModel.LlamaUiState.Idle -> IdleState()
- 389                    is TermuxCommandViewModel.LlamaUiState.Generating -> GeneratingState()
- 390                    is TermuxCommandViewModel.LlamaUiState.WaitingConfirmation -> {
- 391                        EditableConfirmationState(
- 392                            command = uiState.command,
- 393                            isEdited = uiState.isEdited,
- 394                            onCommandChange = onUpdateCommand,
- 395                            onExecute = { command, isEdited -> 
- 396                                onExecuteCommand(command, isEdited) 
- 397                            },
- 398                            onCancel = onCancelCommand
- 399                        )
- 400                    }
- 401                    is TermuxCommandViewModel.LlamaUiState.Executing -> ExecutingState()
- 402                    is TermuxCommandViewModel.LlamaUiState.Success -> {
- 403                        SuccessState(
- 404                            output = uiState.output,
- 405                            exitCode = uiState.exitCode,
- 406                            executionMethod = uiState.executionMethod,
- 407                            onReset = onReset
- 408                        )
- 409                    }
- 410                    is TermuxCommandViewModel.LlamaUiState.Error -> {
- 411                        ErrorState(
- 412                            message = uiState.message,
- 413                            onRetry = onReset
- 414                        )
- 415                    }
- 416                    else -> {}
- 417                }
- 418            }
- 419        }
- 420    }
- 421    
- 422    @Composable
- 423    private fun QueryInputSection(
- 424        query: String,
- 425        onQueryChange: (String) -> Unit,
- 426        onGenerate: () -> Unit,
- 427        enabled: Boolean
- 428    ) {
- 429        Card(
- 430            modifier = Modifier.fillMaxWidth(),
- 431            colors = CardDefaults.cardColors(
- 432                containerColor = JarvisBlue.copy(alpha = 0.1f)
- 433            )
- 434        ) {
- 435            Column(modifier = Modifier.padding(16.dp)) {
- 436                Text(
- 437                    "What would you like to do?",
- 438                    style = MaterialTheme.typography.titleMedium,
- 439                    fontWeight = FontWeight.Bold,
- 440                    color = JarvisBlue
- 441                )
- 442                
- 443                Spacer(modifier = Modifier.height(8.dp))
- 444                
- 445                OutlinedTextField(
- 446                    value = query,
- 447                    onValueChange = onQueryChange,
- 448                    modifier = Modifier.fillMaxWidth(),
- 449                    placeholder = { Text("e.g., list files") },
- 450                    enabled = enabled,
- 451                    colors = OutlinedTextFieldDefaults.colors(
- 452                        focusedBorderColor = JarvisBlue,
- 453                        unfocusedBorderColor = JarvisBlue.copy(alpha = 0.5f)
- 454                    )
- 455                )
- 456                
- 457                Spacer(modifier = Modifier.height(12.dp))
- 458                
- 459                Button(
- 460                    onClick = onGenerate,
- 461                    modifier = Modifier.fillMaxWidth(),
- 462                    enabled = enabled && query.isNotBlank(),
- 463                    colors = ButtonDefaults.buttonColors(
- 464                        containerColor = JarvisBlue
- 465                    )
- 466                ) {
- 467                    Icon(Icons.Default.Send, null)
- 468                    Spacer(modifier = Modifier.width(8.dp))
- 469                    Text("Generate Command")
- 470                }
- 471            }
- 472        }
- 473    }
- 474    
- 475    @Composable
- 476    private fun IdleState() {
- 477        Column(
- 478            modifier = Modifier
- 479                .fillMaxSize()
- 480                .verticalScroll(rememberScrollState()),
- 481            horizontalAlignment = Alignment.CenterHorizontally,
- 482            verticalArrangement = Arrangement.Center
- 483        ) {
- 484            Icon(
- 485                Icons.Default.Terminal,
- 486                null,
- 487                modifier = Modifier.size(64.dp),
- 488                tint = JarvisBlue.copy(alpha = 0.5f)
- 489            )
- 490            
- 491            Spacer(modifier = Modifier.height(16.dp))
- 492            
- 493            Text(
- 494                "Enter a command in natural language",
- 495                style = MaterialTheme.typography.bodyLarge,
- 496                color = Color.White.copy(alpha = 0.6f)
- 497            )
- 498            
- 499            Spacer(modifier = Modifier.height(24.dp))
- 500            
- 501            Text(
- 502                "Try asking:",
- 503                style = MaterialTheme.typography.titleSmall,
- 504                fontWeight = FontWeight.Bold,
- 505                color = JarvisBlue
- 506            )
- 507            
- 508            Spacer(modifier = Modifier.height(8.dp))
- 509            
- 510            SuggestionCard("List all files in my Downloads folder")
- 511            SuggestionCard("Show my current directory size")
- 512            SuggestionCard("Find files modified in the last 7 days")
- 513        }
- 514    }
- 515    
- 516    @Composable
- 517    private fun SuggestionCard(text: String) {
- 518        Card(
- 519            modifier = Modifier
- 520                .fillMaxWidth()
- 521                .padding(vertical = 4.dp),
- 522            colors = CardDefaults.cardColors(
- 523                containerColor = JarvisCyan.copy(alpha = 0.1f)
- 524            )
- 525        ) {
+   3    import androidx.compose.animation.*
+   4    import androidx.compose.foundation.background
+   5    import androidx.compose.foundation.layout.*
+   6    import androidx.compose.foundation.rememberScrollState
+   7    import androidx.compose.foundation.shape.RoundedCornerShape
+   8    import androidx.compose.foundation.verticalScroll
+   9    import androidx.compose.material.icons.Icons
+  10    import androidx.compose.material.icons.filled.*
+  11    import androidx.compose.material3.*
+  12    import androidx.compose.runtime.*
+  13    import androidx.compose.ui.Alignment
+  14    import androidx.compose.ui.Modifier
+  15    import androidx.compose.ui.draw.clip
+  16    import androidx.compose.ui.graphics.Color
+  17    import androidx.compose.ui.platform.LocalContext
+  18    import androidx.compose.ui.text.font.FontFamily
+  19    import androidx.compose.ui.text.font.FontWeight
+  20    import androidx.compose.ui.unit.dp
+  21    import com.jarvismini.ui.theme.JarvisBlue
+  22    import com.jarvismini.ui.theme.JarvisCyan
+  23    
+  24    /**
+  25     * Main screen for Termux command generation
+  26     * 
+  27     * ✅ FIXED: ViewModel moved to separate file
+  28     * Now uses FIFO for all command execution (no more Termux intent)
+  29     */
+  30    @OptIn(ExperimentalMaterial3Api::class)
+  31    @Composable
+  32    fun TermuxCommandScreen(
+  33        onNavigateBack: () -> Unit = {}
+  34    ) {
+  35        val context = LocalContext.current
+  36        val viewModel = remember { TermuxCommandViewModel(context) }
+  37        
+  38        val uiState by viewModel.uiState.collectAsState()
+  39        val serverStatus by viewModel.serverStatus.collectAsState()
+  40        val commandHistory by viewModel.commandHistory.collectAsState()
+  41        
+  42        var currentQuery by remember { mutableStateOf("") }
+  43        var showHistory by remember { mutableStateOf(false) }
+  44        
+  45        Scaffold(
+  46            topBar = {
+  47                TopAppBar(
+  48                    title = { Text("Termux Command Generator") },
+  49                    navigationIcon = {
+  50                        IconButton(onClick = onNavigateBack) {
+  51                            Icon(Icons.Default.ArrowBack, "Back")
+  52                        }
+  53                    },
+  54                    actions = {
+  55                        ServerStatusChip(
+  56                            status = serverStatus,
+  57                            onRefresh = { viewModel.checkServerStatus() }
+  58                        )
+  59                        
+  60                        IconButton(onClick = { showHistory = !showHistory }) {
+  61                            Icon(
+  62                                if (showHistory) Icons.Default.Clear else Icons.Default.History,
+  63                                "Command History"
+  64                            )
+  65                        }
+  66                    },
+  67                    colors = TopAppBarDefaults.topAppBarColors(
+  68                        containerColor = JarvisBlue.copy(alpha = 0.1f)
+  69                    )
+  70                )
+  71            }
+  72        ) { padding ->
+  73            Box(modifier = Modifier.fillMaxSize()) {
+  74                AnimatedVisibility(
+  75                    visible = !showHistory,
+  76                    enter = fadeIn() + slideInHorizontally(),
+  77                    exit = fadeOut() + slideOutHorizontally()
+  78                ) {
+  79                    MainContent(
+  80                        modifier = Modifier.padding(padding),
+  81                        uiState = uiState,
+  82                        currentQuery = currentQuery,
+  83                        onQueryChange = { currentQuery = it },
+  84                        onGenerateCommand = { 
+  85                            if (currentQuery.isNotBlank()) {
+  86                                viewModel.generateCommand(currentQuery)
+  87                            }
+  88                        },
+  89                        onUpdateCommand = { newCommand ->
+  90                            viewModel.updateCommand(newCommand)
+  91                        },
+  92                        onExecuteCommand = { command, isEdited ->
+  93                            viewModel.executeCommand(command, currentQuery, isEdited)
+  94                            currentQuery = ""
+  95                        },
+  96                        onCancelCommand = { viewModel.cancelCommand() },
+  97                        onReset = { viewModel.reset() }
+  98                    )
+  99                }
+ 100                
+ 101                AnimatedVisibility(
+ 102                    visible = showHistory,
+ 103                    enter = fadeIn() + slideInHorizontally { it },
+ 104                    exit = fadeOut() + slideOutHorizontally { it }
+ 105                ) {
+ 106                    HistoryView(
+ 107                        modifier = Modifier.padding(padding),
+ 108                        history = commandHistory,
+ 109                        onSelectCommand = { item ->
+ 110                            currentQuery = item.query
+ 111                            showHistory = false
+ 112                        },
+ 113                        onClearHistory = { viewModel.clearHistory() }
+ 114                    )
+ 115                }
+ 116            }
+ 117        }
+ 118    }
+ 119    
+ 120    @Composable
+ 121    private fun ServerStatusChip(
+ 122        status: TermuxCommandViewModel.ServerStatus,
+ 123        onRefresh: () -> Unit
+ 124    ) {
+ 125        val (text, color) = when (status) {
+ 126            is TermuxCommandViewModel.ServerStatus.Online -> "Online" to Color.Green
+ 127            is TermuxCommandViewModel.ServerStatus.Offline -> "Offline" to Color.Red
+ 128            is TermuxCommandViewModel.ServerStatus.Checking -> "Checking..." to JarvisCyan
+ 129            is TermuxCommandViewModel.ServerStatus.Unknown -> "Unknown" to Color.Gray
+ 130        }
+ 131        
+ 132        AssistChip(
+ 133            onClick = onRefresh,
+ 134            label = { Text(text, fontSize = MaterialTheme.typography.bodySmall.fontSize) },
+ 135            leadingIcon = {
+ 136                Icon(
+ 137                    Icons.Default.Circle,
+ 138                    null,
+ 139                    modifier = Modifier.size(8.dp),
+ 140                    tint = color
+ 141                )
+ 142            },
+ 143            colors = AssistChipDefaults.assistChipColors(
+ 144                containerColor = color.copy(alpha = 0.2f)
+ 145            )
+ 146        )
+ 147    }
+ 148    
+ 149    @Composable
+ 150    private fun MainContent(
+ 151        modifier: Modifier = Modifier,
+ 152        uiState: TermuxCommandViewModel.LlamaUiState,
+ 153        currentQuery: String,
+ 154        onQueryChange: (String) -> Unit,
+ 155        onGenerateCommand: () -> Unit,
+ 156        onUpdateCommand: (String) -> Unit,
+ 157        onExecuteCommand: (String, Boolean) -> Unit,
+ 158        onCancelCommand: () -> Unit,
+ 159        onReset: () -> Unit
+ 160    ) {
+ 161        Column(
+ 162            modifier = modifier
+ 163                .fillMaxSize()
+ 164                .padding(16.dp)
+ 165        ) {
+ 166            QueryInputSection(
+ 167                query = currentQuery,
+ 168                onQueryChange = onQueryChange,
+ 169                onGenerate = onGenerateCommand,
+ 170                enabled = uiState is TermuxCommandViewModel.LlamaUiState.Idle
+ 171            )
+ 172            
+ 173            Spacer(modifier = Modifier.height(16.dp))
+ 174            
+ 175            Box(
+ 176                modifier = Modifier
+ 177                    .weight(1f)
+ 178                    .fillMaxWidth()
+ 179            ) {
+ 180                when (uiState) {
+ 181 ❌                 is TermuxCommandViewModel.LlamaUiState.Idle -> IdleState()
+ 182 ❌                 is TermuxCommandViewModel.LlamaUiState.Generating -> GeneratingState()
+ 183                    is TermuxCommandViewModel.LlamaUiState.WaitingConfirmation -> {
+ 184 ❌                     EditableConfirmationState(
+ 185                            command = uiState.command,
+ 186                            isEdited = uiState.isEdited,
+ 187                            onCommandChange = onUpdateCommand,
+ 188 ❌                         onExecute = { command, isEdited -> 
+ 189                                onExecuteCommand(command, isEdited) 
+ 190                            },
+ 191                            onCancel = onCancelCommand
+ 192                        )
+ 193                    }
+ 194                    is TermuxCommandViewModel.LlamaUiState.Executing -> ExecutingState()
+ 195                    is TermuxCommandViewModel.LlamaUiState.Success -> {
+ 196                        SuccessState(
+ 197                            output = uiState.output,
+ 198                            exitCode = uiState.exitCode,
+ 199                            executionMethod = uiState.executionMethod,
+ 200                            onReset = onReset
+ 201                        )
+ 202                    }
+ 203                    is TermuxCommandViewModel.LlamaUiState.Error -> {
+ 204                        ErrorState(
+ 205                            message = uiState.message,
+ 206                            onRetry = onReset
+ 207                        )
+ 208                    }
+ 209                    else -> {}
+ 210                }
+ 211            }
+ 212        }
+ 213    }
+ 214    
+ 215    @Composable
+ 216    private fun QueryInputSection(
+ 217        query: String,
+ 218        onQueryChange: (String) -> Unit,
+ 219        onGenerate: () -> Unit,
+ 220        enabled: Boolean
+ 221    ) {
+ 222        Card(
+ 223            modifier = Modifier.fillMaxWidth(),
+ 224            colors = CardDefaults.cardColors(
+ 225                containerColor = JarvisBlue.copy(alpha = 0.1f)
+ 226            )
+ 227        ) {
+ 228            Column(modifier = Modifier.padding(16.dp)) {
+ 229                Text(
+ 230                    "What would you like to do?",
+ 231                    style = MaterialTheme.typography.titleMedium,
+ 232                    fontWeight = FontWeight.Bold,
+ 233                    color = JarvisCyan
+ 234                )
+ 235                
+ 236                Spacer(modifier = Modifier.height(12.dp))
+ 237                
+ 238                OutlinedTextField(
+ 239                    value = query,
+ 240                    onValueChange = onQueryChange,
+ 241                    modifier = Modifier.fillMaxWidth(),
+ 242                    placeholder = { Text("e.g., list files") },
+ 243                    enabled = enabled,
+ 244                    colors = OutlinedTextFieldDefaults.colors(
+ 245                        focusedBorderColor = JarvisCyan,
+ 246                        unfocusedBorderColor = JarvisCyan.copy(alpha = 0.5f)
+ 247                    )
+ 248                )
+ 249                
+ 250                Spacer(modifier = Modifier.height(12.dp))
+ 251                
+ 252                Button(
+ 253                    onClick = onGenerate,
+ 254                    modifier = Modifier.fillMaxWidth(),
+ 255                    enabled = enabled && query.isNotBlank(),
+ 256                    colors = ButtonDefaults.buttonColors(
+ 257                        containerColor = JarvisCyan
+ 258                    )
+ 259                ) {
+ 260                    Icon(Icons.Default.PlayArrow, null)
+ 261                    Spacer(modifier = Modifier.width(8.dp))
+ 262                    Text("Generate Command")
+ 263                }
+ 264            }
+ 265        }
+ 266    }
+ 267    
+ 268    /**
+ 269     * ✅ UPDATED: Shows FIFO method info instead of Termux intent
+ 270     */
+ 271 ❌ @Composable
+ 272    private fun EditableConfirmationState(
+ 273        command: String,
+ 274        isEdited: Boolean,
+ 275        onCommandChange: (String) -> Unit,
+ 276        onExecute: (String, Boolean) -> Unit,
+ 277        onCancel: () -> Unit
+ 278    ) {
+ 279        var editableCommand by remember { mutableStateOf(command) }
+ 280        
+ 281        // Update when command changes from ViewModel
+ 282        LaunchedEffect(command) {
+ 283            editableCommand = command
+ 284        }
+ 285        
+ 286        Card(
+ 287            modifier = Modifier.fillMaxWidth(),
+ 288            colors = CardDefaults.cardColors(
+ 289                containerColor = if (isEdited) Color(0xFF2D5016) else JarvisCyan.copy(alpha = 0.1f)
+ 290            ),
+ 291            border = CardDefaults.outlinedCardBorder().copy(
+ 292                brush = androidx.compose.ui.graphics.SolidColor(
+ 293                    if (isEdited) Color.Green else JarvisCyan
+ 294                )
+ 295            )
+ 296        ) {
+ 297            Column(modifier = Modifier.padding(16.dp)) {
+ 298                Row(verticalAlignment = Alignment.CenterVertically) {
+ 299                    Icon(
+ 300                        if (isEdited) Icons.Default.Edit else Icons.Default.Warning,
+ 301                        null,
+ 302                        tint = if (isEdited) Color.Green else Color.Yellow,
+ 303                        modifier = Modifier.size(24.dp)
+ 304                    )
+ 305                    Spacer(modifier = Modifier.width(8.dp))
+ 306                    Text(
+ 307                        if (isEdited) "Edited Command" else "Confirm Command Execution",
+ 308                        style = MaterialTheme.typography.titleMedium,
+ 309                        fontWeight = FontWeight.Bold,
+ 310                        color = if (isEdited) Color.Green else JarvisCyan
+ 311                    )
+ 312                }
+ 313                
+ 314                Spacer(modifier = Modifier.height(16.dp))
+ 315                
+ 316                // EDITABLE COMMAND FIELD
+ 317                OutlinedTextField(
+ 318                    value = editableCommand,
+ 319                    onValueChange = { newValue ->
+ 320                        editableCommand = newValue
+ 321                        onCommandChange(newValue)
+ 322                    },
+ 323                    modifier = Modifier
+ 324                        .fillMaxWidth()
+ 325                        .heightIn(min = 60.dp),
+ 326                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+ 327                        fontFamily = FontFamily.Monospace,
+ 328                        color = Color.Green
+ 329                    ),
+ 330                    colors = OutlinedTextFieldDefaults.colors(
+ 331                        focusedContainerColor = Color.Black.copy(alpha = 0.5f),
+ 332                        unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
+ 333                        focusedBorderColor = Color.Green,
+ 334                        unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
+ 335                        cursorColor = Color.Green,
+ 336                        focusedTextColor = Color.Green,
+ 337                        unfocusedTextColor = Color.Green
+ 338                    ),
+ 339                    placeholder = {
+ 340                        Text(
+ 341                            "Enter command...",
+ 342                            fontFamily = FontFamily.Monospace,
+ 343                            color = Color.Green.copy(alpha = 0.5f)
+ 344                        )
+ 345                    }
+ 346                )
+ 347                
+ 348                if (isEdited) {
+ 349                    Spacer(modifier = Modifier.height(8.dp))
+ 350                    Text(
+ 351                        "ℹ️ Command will execute via FIFO in Termux",
+ 352                        style = MaterialTheme.typography.bodySmall,
+ 353                        color = Color.Cyan.copy(alpha = 0.8f)
+ 354                    )
+ 355                }
+ 356                
+ 357                Spacer(modifier = Modifier.height(16.dp))
+ 358                
+ 359                Row(
+ 360                    modifier = Modifier.fillMaxWidth(),
+ 361                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+ 362                ) {
+ 363                    OutlinedButton(
+ 364                        onClick = onCancel,
+ 365                        modifier = Modifier.weight(1f),
+ 366                        colors = ButtonDefaults.outlinedButtonColors(
+ 367                            contentColor = Color.Red
+ 368                        )
+ 369                    ) {
+ 370                        Icon(Icons.Default.Close, null)
+ 371                        Spacer(modifier = Modifier.width(4.dp))
+ 372                        Text("Cancel")
+ 373                    }
+ 374                    
+ 375                    Button(
+ 376                        onClick = { onExecute(editableCommand, isEdited) },
+ 377                        modifier = Modifier.weight(1f),
+ 378                        colors = ButtonDefaults.buttonColors(
+ 379                            containerColor = Color.Green
+ 380                        )
+ 381                    ) {
+ 382                        Icon(Icons.Default.PlayArrow, null)
+ 383                        Spacer(modifier = Modifier.width(4.dp))
+ 384                        Text("Execute")
+ 385                    }
+ 386                }
+ 387            }
+ 388        }
+ 389    }
+ 390 ❌     }
+ 391 ❌ }
+ 392    
+ 393    /**
+ 394     * UPDATED: Editable confirmation state
+ 395     * Shows TextField instead of Text for command editing
+ 396     */
+ 397 ❌ @Composable
+ 398    private fun EditableConfirmationState(
+ 399        command: String,
+ 400        isEdited: Boolean,
+ 401        onCommandChange: (String) -> Unit,
+ 402        onExecute: (String, Boolean) -> Unit,
+ 403        onCancel: () -> Unit
+ 404    ) {
+ 405        var editableCommand by remember { mutableStateOf(command) }
+ 406        
+ 407        // Update when command changes from ViewModel
+ 408        LaunchedEffect(command) {
+ 409            editableCommand = command
+ 410        }
+ 411        
+ 412        Card(
+ 413            modifier = Modifier.fillMaxWidth(),
+ 414            colors = CardDefaults.cardColors(
+ 415                containerColor = if (isEdited) Color(0xFF2D5016) else JarvisCyan.copy(alpha = 0.1f)
+ 416            ),
+ 417            border = CardDefaults.outlinedCardBorder().copy(
+ 418                brush = androidx.compose.ui.graphics.SolidColor(
+ 419                    if (isEdited) Color.Green else JarvisCyan
+ 420                )
+ 421            )
+ 422        ) {
+ 423            Column(modifier = Modifier.padding(16.dp)) {
+ 424                Row(verticalAlignment = Alignment.CenterVertically) {
+ 425                    Icon(
+ 426                        if (isEdited) Icons.Default.Edit else Icons.Default.Warning,
+ 427                        null,
+ 428                        tint = if (isEdited) Color.Green else Color.Yellow,
+ 429                        modifier = Modifier.size(24.dp)
+ 430                    )
+ 431                    Spacer(modifier = Modifier.width(8.dp))
+ 432                    Text(
+ 433                        if (isEdited) "Edited Command (Termux Intent)" else "Confirm Command Execution",
+ 434                        style = MaterialTheme.typography.titleMedium,
+ 435                        fontWeight = FontWeight.Bold,
+ 436                        color = if (isEdited) Color.Green else JarvisCyan
+ 437                    )
+ 438                }
+ 439                
+ 440                Spacer(modifier = Modifier.height(16.dp))
+ 441                
+ 442                // EDITABLE COMMAND FIELD
+ 443                OutlinedTextField(
+ 444                    value = editableCommand,
+ 445                    onValueChange = { newValue ->
+ 446                        editableCommand = newValue
+ 447                        onCommandChange(newValue)
+ 448                    },
+ 449                    modifier = Modifier
+ 450                        .fillMaxWidth()
+ 451                        .heightIn(min = 60.dp),
+ 452                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+ 453                        fontFamily = FontFamily.Monospace,
+ 454                        color = Color.Green
+ 455                    ),
+ 456                    colors = OutlinedTextFieldDefaults.colors(
+ 457                        focusedContainerColor = Color.Black.copy(alpha = 0.5f),
+ 458                        unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
+ 459                        focusedBorderColor = Color.Green,
+ 460                        unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
+ 461                        cursorColor = Color.Green,
+ 462                        focusedTextColor = Color.Green,
+ 463                        unfocusedTextColor = Color.Green
+ 464                    ),
+ 465                    placeholder = {
+ 466                        Text(
+ 467                            "Enter command...",
+ 468                            fontFamily = FontFamily.Monospace,
+ 469                            color = Color.Green.copy(alpha = 0.5f)
+ 470                        )
+ 471                    }
+ 472                )
+ 473                
+ 474                if (isEdited) {
+ 475                    Spacer(modifier = Modifier.height(8.dp))
+ 476                    Text(
+ 477                        "ℹ️ Edited commands will execute via Termux intent",
+ 478                        style = MaterialTheme.typography.bodySmall,
+ 479                        color = Color.Cyan.copy(alpha = 0.8f)
+ 480                    )
+ 481                }
+ 482                
+ 483                Spacer(modifier = Modifier.height(16.dp))
+ 484                
+ 485                Row(
+ 486                    modifier = Modifier.fillMaxWidth(),
+ 487                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+ 488                ) {
+ 489                    OutlinedButton(
+ 490                        onClick = onCancel,
+ 491                        modifier = Modifier.weight(1f),
+ 492                        colors = ButtonDefaults.outlinedButtonColors(
+ 493                            contentColor = Color.Red
+ 494                        )
+ 495                    ) {
+ 496                        Icon(Icons.Default.Close, null)
+ 497                        Spacer(modifier = Modifier.width(4.dp))
+ 498                        Text("Cancel")
+ 499                    }
+ 500                    
+ 501                    Button(
+ 502                        onClick = { onExecute(editableCommand, isEdited) },
+ 503                        modifier = Modifier.weight(1f),
+ 504                        colors = ButtonDefaults.buttonColors(
+ 505                            containerColor = Color.Green
+ 506                        )
+ 507                    ) {
+ 508                        Icon(Icons.Default.PlayArrow, null)
+ 509                        Spacer(modifier = Modifier.width(4.dp))
+ 510                        Text("Execute")
+ 511                    }
+ 512                }
+ 513            }
+ 514        }
+ 515    }
+ 516    
+ 517    @Composable
+ 518    private fun ExecutingState() {
+ 519        Column(
+ 520            modifier = Modifier.fillMaxSize(),
+ 521            horizontalAlignment = Alignment.CenterHorizontally,
+ 522            verticalArrangement = Arrangement.Center
+ 523        ) {
+ 524            CircularProgressIndicator(color = Color.Green)
+ 525            Spacer(modifier = Modifier.height(16.dp))
  526            Text(
- 527                text,
- 528                modifier = Modifier.padding(12.dp),
- 529                style = MaterialTheme.typography.bodyMedium,
- 530                color = Color.White.copy(alpha = 0.7f)
- 531            )
- 532        }
- 533    }
- 534    
- 535    @Composable
- 536    private fun GeneratingState() {
- 537        Column(
- 538            modifier = Modifier.fillMaxSize(),
- 539            horizontalAlignment = Alignment.CenterHorizontally,
- 540            verticalArrangement = Arrangement.Center
- 541        ) {
- 542            CircularProgressIndicator(color = JarvisBlue)
- 543            Spacer(modifier = Modifier.height(16.dp))
- 544            Text(
- 545                "Generating command...",
- 546                style = MaterialTheme.typography.bodyLarge,
- 547                color = JarvisBlue
+ 527                "Executing command...",
+ 528                style = MaterialTheme.typography.bodyLarge,
+ 529                color = Color.Green
+ 530            )
+ 531        }
+ 532    }
+ 533    
+ 534    @Composable
+ 535    private fun SuccessState(
+ 536        output: String,
+ 537        exitCode: Int,
+ 538        executionMethod: String?,
+ 539        onReset: () -> Unit
+ 540    ) {
+ 541        Card(
+ 542            modifier = Modifier.fillMaxWidth(),
+ 543            colors = CardDefaults.cardColors(
+ 544                containerColor = Color.Green.copy(alpha = 0.1f)
+ 545            ),
+ 546            border = CardDefaults.outlinedCardBorder().copy(
+ 547                brush = androidx.compose.ui.graphics.SolidColor(Color.Green)
  548            )
- 549        }
- 550    }
- 551    
- 552    /**
- 553     * UPDATED: Editable confirmation state
- 554     * Shows TextField instead of Text for command editing
- 555     */
- 556    @Composable
- 557    private fun EditableConfirmationState(
- 558        command: String,
- 559        isEdited: Boolean,
- 560        onCommandChange: (String) -> Unit,
- 561        onExecute: (String, Boolean) -> Unit,
- 562        onCancel: () -> Unit
- 563    ) {
- 564        var editableCommand by remember { mutableStateOf(command) }
- 565        
- 566        // Update when command changes from ViewModel
- 567        LaunchedEffect(command) {
- 568            editableCommand = command
- 569        }
- 570        
- 571        Card(
- 572            modifier = Modifier.fillMaxWidth(),
- 573            colors = CardDefaults.cardColors(
- 574                containerColor = if (isEdited) Color(0xFF2D5016) else JarvisCyan.copy(alpha = 0.1f)
- 575            ),
- 576            border = CardDefaults.outlinedCardBorder().copy(
- 577                brush = androidx.compose.ui.graphics.SolidColor(
- 578                    if (isEdited) Color.Green else JarvisCyan
- 579                )
- 580            )
- 581        ) {
- 582            Column(modifier = Modifier.padding(16.dp)) {
- 583                Row(verticalAlignment = Alignment.CenterVertically) {
- 584                    Icon(
- 585                        if (isEdited) Icons.Default.Edit else Icons.Default.Warning,
- 586                        null,
- 587                        tint = if (isEdited) Color.Green else Color.Yellow,
- 588                        modifier = Modifier.size(24.dp)
- 589                    )
- 590                    Spacer(modifier = Modifier.width(8.dp))
- 591                    Text(
- 592                        if (isEdited) "Edited Command (Termux Intent)" else "Confirm Command Execution",
- 593                        style = MaterialTheme.typography.titleMedium,
- 594                        fontWeight = FontWeight.Bold,
- 595                        color = if (isEdited) Color.Green else JarvisCyan
- 596                    )
- 597                }
- 598                
- 599                Spacer(modifier = Modifier.height(16.dp))
- 600                
- 601                // EDITABLE COMMAND FIELD
- 602                OutlinedTextField(
- 603                    value = editableCommand,
- 604                    onValueChange = { newValue ->
- 605                        editableCommand = newValue
- 606                        onCommandChange(newValue)
- 607                    },
- 608                    modifier = Modifier
- 609                        .fillMaxWidth()
- 610                        .heightIn(min = 60.dp),
- 611                    textStyle = MaterialTheme.typography.bodyMedium.copy(
- 612                        fontFamily = FontFamily.Monospace,
- 613                        color = Color.Green
- 614                    ),
- 615                    colors = OutlinedTextFieldDefaults.colors(
- 616                        focusedContainerColor = Color.Black.copy(alpha = 0.5f),
- 617                        unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
- 618                        focusedBorderColor = Color.Green,
- 619                        unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
- 620                        cursorColor = Color.Green,
- 621                        focusedTextColor = Color.Green,
- 622                        unfocusedTextColor = Color.Green
- 623                    ),
- 624                    placeholder = {
- 625                        Text(
- 626                            "Enter command...",
- 627                            fontFamily = FontFamily.Monospace,
- 628                            color = Color.Green.copy(alpha = 0.5f)
- 629                        )
- 630                    }
- 631                )
- 632                
- 633                if (isEdited) {
- 634                    Spacer(modifier = Modifier.height(8.dp))
- 635                    Text(
- 636                        "ℹ️ Edited commands will execute via Termux intent",
- 637                        style = MaterialTheme.typography.bodySmall,
- 638                        color = Color.Cyan.copy(alpha = 0.8f)
- 639                    )
- 640                }
- 641                
- 642                Spacer(modifier = Modifier.height(16.dp))
- 643                
- 644                Row(
- 645                    modifier = Modifier.fillMaxWidth(),
- 646                    horizontalArrangement = Arrangement.spacedBy(8.dp)
- 647                ) {
- 648                    OutlinedButton(
- 649                        onClick = onCancel,
- 650                        modifier = Modifier.weight(1f),
- 651                        colors = ButtonDefaults.outlinedButtonColors(
- 652                            contentColor = Color.Red
- 653                        )
- 654                    ) {
- 655                        Icon(Icons.Default.Close, null)
- 656                        Spacer(modifier = Modifier.width(4.dp))
- 657                        Text("Cancel")
- 658                    }
- 659                    
- 660                    Button(
- 661                        onClick = { onExecute(editableCommand, isEdited) },
- 662                        modifier = Modifier.weight(1f),
- 663                        colors = ButtonDefaults.buttonColors(
- 664                            containerColor = Color.Green
- 665                        )
- 666                    ) {
- 667                        Icon(Icons.Default.PlayArrow, null)
- 668                        Spacer(modifier = Modifier.width(4.dp))
- 669                        Text("Execute")
- 670                    }
- 671                }
- 672            }
- 673        }
- 674    }
- 675    
- 676    @Composable
- 677    private fun ExecutingState() {
- 678        Column(
- 679            modifier = Modifier.fillMaxSize(),
- 680            horizontalAlignment = Alignment.CenterHorizontally,
- 681            verticalArrangement = Arrangement.Center
- 682        ) {
- 683            CircularProgressIndicator(color = Color.Green)
- 684            Spacer(modifier = Modifier.height(16.dp))
- 685            Text(
- 686                "Executing command...",
- 687                style = MaterialTheme.typography.bodyLarge,
- 688                color = Color.Green
- 689            )
- 690        }
- 691    }
- 692    
- 693    @Composable
- 694    private fun SuccessState(
- 695        output: String,
- 696        exitCode: Int,
- 697        executionMethod: String?,
- 698        onReset: () -> Unit
- 699    ) {
- 700        Card(
- 701            modifier = Modifier.fillMaxWidth(),
- 702            colors = CardDefaults.cardColors(
- 703                containerColor = Color.Green.copy(alpha = 0.1f)
- 704            ),
- 705            border = CardDefaults.outlinedCardBorder().copy(
- 706                brush = androidx.compose.ui.graphics.SolidColor(Color.Green)
- 707            )
- 708        ) {
- 709            Column(modifier = Modifier.padding(16.dp)) {
- 710                Row(verticalAlignment = Alignment.CenterVertically) {
- 711                    Icon(
- 712                        Icons.Default.CheckCircle,
- 713                        null,
- 714                        tint = Color.Green,
- 715                        modifier = Modifier.size(24.dp)
- 716                    )
- 717                    Spacer(modifier = Modifier.width(8.dp))
- 718                    Text(
- 719                        "Command Executed",
- 720                        style = MaterialTheme.typography.titleMedium,
- 721                        fontWeight = FontWeight.Bold,
- 722                        color = Color.Green
- 723                    )
- 724                }
- 725                
- 726                Spacer(modifier = Modifier.height(8.dp))
- 727                
- 728                Text(
- 729                    "Exit code: $exitCode",
- 730                    style = MaterialTheme.typography.bodySmall,
- 731                    color = Color.White.copy(alpha = 0.6f)
- 732                )
- 733                
- 734                if (executionMethod != null) {
- 735                    Text(
- 736                        "Method: $executionMethod",
- 737                        style = MaterialTheme.typography.bodySmall,
- 738                        color = JarvisCyan.copy(alpha = 0.8f)
- 739                    )
- 740                }
- 741                
- 742                Spacer(modifier = Modifier.height(16.dp))
- 743                
- 744                Box(
- 745                    modifier = Modifier
- 746                        .fillMaxWidth()
- 747                        .heightIn(max = 300.dp)
- 748                        .clip(RoundedCornerShape(8.dp))
- 749                        .background(Color.Black.copy(alpha = 0.5f))
- 750                        .verticalScroll(rememberScrollState())
- 751                        .padding(12.dp)
- 752                ) {
- 753                    Text(
- 754                        output.ifBlank { "(No output)" },
- 755                        fontFamily = FontFamily.Monospace,
- 756                        color = Color.Green,
- 757                        style = MaterialTheme.typography.bodySmall
- 758                    )
- 759                }
+ 549        ) {
+ 550            Column(modifier = Modifier.padding(16.dp)) {
+ 551                Row(verticalAlignment = Alignment.CenterVertically) {
+ 552                    Icon(
+ 553                        Icons.Default.CheckCircle,
+ 554                        null,
+ 555                        tint = Color.Green,
+ 556                        modifier = Modifier.size(24.dp)
+ 557                    )
+ 558                    Spacer(modifier = Modifier.width(8.dp))
+ 559                    Text(
+ 560                        "Command Executed",
+ 561                        style = MaterialTheme.typography.titleMedium,
+ 562                        fontWeight = FontWeight.Bold,
+ 563                        color = Color.Green
+ 564                    )
+ 565                }
+ 566                
+ 567                Spacer(modifier = Modifier.height(8.dp))
+ 568                
+ 569                Text(
+ 570                    "Exit code: $exitCode",
+ 571                    style = MaterialTheme.typography.bodySmall,
+ 572                    color = Color.White.copy(alpha = 0.6f)
+ 573                )
+ 574                
+ 575                if (executionMethod != null) {
+ 576                    Text(
+ 577                        "Method: $executionMethod",
+ 578                        style = MaterialTheme.typography.bodySmall,
+ 579                        color = JarvisCyan.copy(alpha = 0.8f)
+ 580                    )
+ 581                }
+ 582                
+ 583                Spacer(modifier = Modifier.height(16.dp))
+ 584                
+ 585                Box(
+ 586                    modifier = Modifier
+ 587                        .fillMaxWidth()
+ 588                        .heightIn(max = 300.dp)
+ 589                        .clip(RoundedCornerShape(8.dp))
+ 590                        .background(Color.Black.copy(alpha = 0.5f))
+ 591                        .verticalScroll(rememberScrollState())
+ 592                        .padding(12.dp)
+ 593                ) {
+ 594                    Text(
+ 595                        output.ifBlank { "(No output)" },
+ 596                        fontFamily = FontFamily.Monospace,
+ 597                        color = Color.Green,
+ 598                        style = MaterialTheme.typography.bodySmall
+ 599                    )
+ 600                }
+ 601                
+ 602                Spacer(modifier = Modifier.height(16.dp))
+ 603                
+ 604                Button(
+ 605                    onClick = onReset,
+ 606                    modifier = Modifier.fillMaxWidth(),
+ 607                    colors = ButtonDefaults.buttonColors(
+ 608                        containerColor = JarvisBlue
+ 609                    )
+ 610                ) {
+ 611                    Text("Run Another Command")
+ 612                }
+ 613            }
+ 614        }
+ 615    }
+ 616    
+ 617    @Composable
+ 618    private fun ErrorState(
+ 619        message: String,
+ 620        onRetry: () -> Unit
+ 621    ) {
+ 622        Card(
+ 623            modifier = Modifier.fillMaxWidth(),
+ 624            colors = CardDefaults.cardColors(
+ 625                containerColor = Color.Red.copy(alpha = 0.1f)
+ 626            ),
+ 627            border = CardDefaults.outlinedCardBorder().copy(
+ 628                brush = androidx.compose.ui.graphics.SolidColor(Color.Red)
+ 629            )
+ 630        ) {
+ 631            Column(modifier = Modifier.padding(16.dp)) {
+ 632                Row(verticalAlignment = Alignment.CenterVertically) {
+ 633                    Icon(
+ 634                        Icons.Default.Error,
+ 635                        null,
+ 636                        tint = Color.Red,
+ 637                        modifier = Modifier.size(24.dp)
+ 638                    )
+ 639                    Spacer(modifier = Modifier.width(8.dp))
+ 640                    Text(
+ 641                        "Error",
+ 642                        style = MaterialTheme.typography.titleMedium,
+ 643                        fontWeight = FontWeight.Bold,
+ 644                        color = Color.Red
+ 645                    )
+ 646                }
+ 647                
+ 648                Spacer(modifier = Modifier.height(16.dp))
+ 649                
+ 650                Text(
+ 651                    message,
+ 652                    style = MaterialTheme.typography.bodyMedium,
+ 653                    color = Color.White.copy(alpha = 0.8f)
+ 654                )
+ 655                
+ 656                Spacer(modifier = Modifier.height(16.dp))
+ 657                
+ 658                Button(
+ 659                    onClick = onRetry,
+ 660                    modifier = Modifier.fillMaxWidth(),
+ 661                    colors = ButtonDefaults.buttonColors(
+ 662                        containerColor = JarvisBlue
+ 663                    )
+ 664                ) {
+ 665                    Icon(Icons.Default.Refresh, null)
+ 666                    Spacer(modifier = Modifier.width(8.dp))
+ 667                    Text("Try Again")
+ 668                }
+ 669            }
+ 670        }
+ 671    }
+ 672    
+ 673    @Composable
+ 674    private fun HistoryView(
+ 675        modifier: Modifier = Modifier,
+ 676        history: List<TermuxCommandViewModel.CommandHistoryItem>,
+ 677        onSelectCommand: (TermuxCommandViewModel.CommandHistoryItem) -> Unit,
+ 678        onClearHistory: () -> Unit
+ 679    ) {
+ 680        Column(
+ 681            modifier = modifier
+ 682                .fillMaxSize()
+ 683                .padding(16.dp)
+ 684        ) {
+ 685            Row(
+ 686                modifier = Modifier.fillMaxWidth(),
+ 687                horizontalArrangement = Arrangement.SpaceBetween,
+ 688                verticalAlignment = Alignment.CenterVertically
+ 689            ) {
+ 690                Text(
+ 691                    "Command History",
+ 692                    style = MaterialTheme.typography.titleLarge,
+ 693                    fontWeight = FontWeight.Bold
+ 694                )
+ 695                
+ 696                if (history.isNotEmpty()) {
+ 697                    TextButton(onClick = onClearHistory) {
+ 698                        Text("Clear")
+ 699                    }
+ 700                }
+ 701            }
+ 702            
+ 703            if (history.isEmpty()) {
+ 704                Box(
+ 705                    modifier = Modifier.fillMaxSize(),
+ 706                    contentAlignment = Alignment.Center
+ 707                ) {
+ 708                    Text(
+ 709                        "No command history yet",
+ 710                        style = MaterialTheme.typography.bodyLarge,
+ 711                        color = Color.White.copy(alpha = 0.6f)
+ 712                    )
+ 713                }
+ 714            } else {
+ 715                Column(
+ 716                    modifier = Modifier
+ 717                        .fillMaxSize()
+ 718                        .verticalScroll(rememberScrollState())
+ 719                        .padding(horizontal = 16.dp)
+ 720                ) {
+ 721                    history.forEach { item ->
+ 722                        CommandHistoryItemCard(
+ 723                            item = item,
+ 724                            onClick = { onSelectCommand(item) }
+ 725                        )
+ 726                        Spacer(modifier = Modifier.height(8.dp))
+ 727                    }
+ 728                }
+ 729            }
+ 730        }
+ 731    }
+ 732    
+ 733    @Composable
+ 734    private fun CommandHistoryItemCard(
+ 735        item: TermuxCommandViewModel.CommandHistoryItem,
+ 736        onClick: () -> Unit
+ 737    ) {
+ 738        Card(
+ 739            onClick = onClick,
+ 740            modifier = Modifier.fillMaxWidth()
+ 741        ) {
+ 742            Column(modifier = Modifier.padding(12.dp)) {
+ 743                Row(verticalAlignment = Alignment.CenterVertically) {
+ 744                    Icon(
+ 745                        if (item.success) Icons.Default.CheckCircle else Icons.Default.Error,
+ 746                        null,
+ 747                        tint = if (item.success) Color.Green else Color.Red,
+ 748                        modifier = Modifier.size(16.dp)
+ 749                    )
+ 750                    Spacer(modifier = Modifier.width(8.dp))
+ 751                    Text(
+ 752                        item.query,
+ 753                        style = MaterialTheme.typography.bodyMedium,
+ 754                        fontWeight = FontWeight.Medium,
+ 755                        maxLines = 1
+ 756                    )
+ 757                }
+ 758                
+ 759                Spacer(modifier = Modifier.height(4.dp))
  760                
- 761                Spacer(modifier = Modifier.height(16.dp))
- 762                
- 763                Button(
- 764                    onClick = onReset,
- 765                    modifier = Modifier.fillMaxWidth(),
- 766                    colors = ButtonDefaults.buttonColors(
- 767                        containerColor = JarvisBlue
- 768                    )
- 769                ) {
- 770                    Text("Run Another Command")
- 771                }
- 772            }
- 773        }
- 774    }
- 775    
- 776    @Composable
- 777    private fun ErrorState(
- 778        message: String,
- 779        onRetry: () -> Unit
- 780    ) {
- 781        Card(
- 782            modifier = Modifier.fillMaxWidth(),
- 783            colors = CardDefaults.cardColors(
- 784                containerColor = Color.Red.copy(alpha = 0.1f)
- 785            ),
- 786            border = CardDefaults.outlinedCardBorder().copy(
- 787                brush = androidx.compose.ui.graphics.SolidColor(Color.Red)
- 788            )
- 789        ) {
- 790            Column(modifier = Modifier.padding(16.dp)) {
- 791                Row(verticalAlignment = Alignment.CenterVertically) {
- 792                    Icon(
- 793                        Icons.Default.Error,
- 794                        null,
- 795                        tint = Color.Red,
- 796                        modifier = Modifier.size(24.dp)
- 797                    )
- 798                    Spacer(modifier = Modifier.width(8.dp))
- 799                    Text(
- 800                        "Error",
- 801                        style = MaterialTheme.typography.titleMedium,
- 802                        fontWeight = FontWeight.Bold,
- 803                        color = Color.Red
- 804                    )
- 805                }
- 806                
- 807                Spacer(modifier = Modifier.height(16.dp))
- 808                
- 809                Text(
- 810                    message,
- 811                    style = MaterialTheme.typography.bodyMedium,
- 812                    color = Color.White.copy(alpha = 0.8f)
- 813                )
- 814                
- 815                Spacer(modifier = Modifier.height(16.dp))
- 816                
- 817                Button(
- 818                    onClick = onRetry,
- 819                    modifier = Modifier.fillMaxWidth(),
- 820                    colors = ButtonDefaults.buttonColors(
- 821                        containerColor = JarvisBlue
- 822                    )
- 823                ) {
- 824                    Icon(Icons.Default.Refresh, null)
- 825                    Spacer(modifier = Modifier.width(8.dp))
- 826                    Text("Try Again")
- 827                }
- 828            }
- 829        }
- 830    }
- 831    
- 832    @Composable
- 833    private fun HistoryView(
- 834        modifier: Modifier = Modifier,
- 835        history: List<TermuxCommandViewModel.CommandHistoryItem>,
- 836        onSelectCommand: (TermuxCommandViewModel.CommandHistoryItem) -> Unit,
- 837        onClearHistory: () -> Unit
- 838    ) {
- 839        Column(
- 840            modifier = modifier
- 841                .fillMaxSize()
- 842                .padding(16.dp)
- 843        ) {
- 844            Row(
- 845                modifier = Modifier.fillMaxWidth(),
- 846                horizontalArrangement = Arrangement.SpaceBetween,
- 847                verticalAlignment = Alignment.CenterVertically
- 848            ) {
- 849                Text(
- 850                    "Command History",
- 851                    style = MaterialTheme.typography.titleLarge,
- 852                    fontWeight = FontWeight.Bold
- 853                )
- 854                
- 855                if (history.isNotEmpty()) {
- 856                    TextButton(onClick = onClearHistory) {
- 857                        Text("Clear")
- 858                    }
- 859                }
- 860            }
- 861            
- 862            if (history.isEmpty()) {
- 863                Box(
- 864                    modifier = Modifier.fillMaxSize(),
- 865                    contentAlignment = Alignment.Center
- 866                ) {
- 867                    Text(
- 868                        "No command history yet",
- 869                        style = MaterialTheme.typography.bodyLarge,
- 870                        color = Color.White.copy(alpha = 0.6f)
- 871                    )
- 872                }
- 873            } else {
- 874                Column(
- 875                    modifier = Modifier
- 876                        .fillMaxSize()
- 877                        .verticalScroll(rememberScrollState())
- 878                        .padding(horizontal = 16.dp)
- 879                ) {
- 880                    history.forEach { item ->
- 881                        CommandHistoryItemCard(
- 882                            item = item,
- 883                            onClick = { onSelectCommand(item) }
- 884                        )
- 885                        Spacer(modifier = Modifier.height(8.dp))
- 886                    }
- 887                }
- 888            }
- 889        }
- 890    }
- 891    
- 892    @Composable
- 893    private fun CommandHistoryItemCard(
- 894        item: TermuxCommandViewModel.CommandHistoryItem,
- 895        onClick: () -> Unit
- 896    ) {
- 897        Card(
- 898            onClick = onClick,
- 899            modifier = Modifier.fillMaxWidth()
- 900        ) {
- 901            Column(modifier = Modifier.padding(12.dp)) {
- 902                Row(verticalAlignment = Alignment.CenterVertically) {
- 903                    Icon(
- 904                        if (item.success) Icons.Default.CheckCircle else Icons.Default.Error,
- 905                        null,
- 906                        tint = if (item.success) Color.Green else Color.Red,
- 907                        modifier = Modifier.size(16.dp)
- 908                    )
- 909                    Spacer(modifier = Modifier.width(8.dp))
- 910                    Text(
- 911                        item.query,
- 912                        style = MaterialTheme.typography.bodyMedium,
- 913                        fontWeight = FontWeight.Medium,
- 914                        maxLines = 1
- 915                    )
- 916                }
- 917                
- 918                Spacer(modifier = Modifier.height(4.dp))
- 919                
- 920                Text(
- 921                    item.command,
- 922                    fontFamily = FontFamily.Monospace,
- 923                    style = MaterialTheme.typography.bodySmall,
- 924                    color = Color.White.copy(alpha = 0.6f),
- 925                    maxLines = 1
- 926                )
- 927                
- 928                if (item.executionMethod != null) {
- 929                    Text(
- 930                        "via ${item.executionMethod}",
- 931                        style = MaterialTheme.typography.bodySmall,
- 932                        color = JarvisCyan.copy(alpha = 0.6f)
- 933                    )
- 934                }
- 935            }
- 936        }
- 937    }
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/llm/TermuxCommandViewModel.kt =====
-
-// ❌ ERRORS IN THIS FILE (7 error(s)):
-// Line 18: Redeclaration: TermuxCommandViewModel
-// Line 82: Unresolved reference: isSuccess
-// Line 83: Unresolved reference. None of the following candidates is applicable because of receiver type mismatch:
-// Line 89: Unresolved reference: exceptionOrNull
-// Line 130: Unresolved reference: isSuccess
-// Line 131: Unresolved reference. None of the following candidates is applicable because of receiver type mismatch:
-// Line 148: Unresolved reference: exceptionOrNull
-
-   1    package com.jarvismini.ui.llm
-   2    
-   3    import android.content.Context
-   4    import androidx.lifecycle.ViewModel
-   5    import androidx.lifecycle.viewModelScope
-   6    import com.jarvismini.llm.TermuxLlamaClient
-   7    import kotlinx.coroutines.flow.MutableStateFlow
-   8    import kotlinx.coroutines.flow.StateFlow
-   9    import kotlinx.coroutines.flow.asStateFlow
-  10    import kotlinx.coroutines.launch
-  11    
-  12    /**
-  13     * ViewModel for Termux Command Generator
-  14     * 
-  15     * FIXED: Removed Termux intent execution (permission issues)
-  16     * Now ALWAYS uses TermuxLlamaClient which prefers FIFO execution
-  17     */
-  18 ❌ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
-  19        private val llamaClient = TermuxLlamaClient()
-  20        
-  21        private val _uiState = MutableStateFlow<LlamaUiState>(LlamaUiState.Idle)
-  22        val uiState: StateFlow<LlamaUiState> = _uiState.asStateFlow()
-  23        
-  24        private val _commandHistory = MutableStateFlow<List<CommandHistoryItem>>(emptyList())
-  25        val commandHistory: StateFlow<List<CommandHistoryItem>> = _commandHistory.asStateFlow()
-  26        
-  27        private val _serverStatus = MutableStateFlow<ServerStatus>(ServerStatus.Unknown)
-  28        val serverStatus: StateFlow<ServerStatus> = _serverStatus.asStateFlow()
-  29        
-  30        sealed class LlamaUiState {
-  31            object Idle : LlamaUiState()
-  32            object CheckingServer : LlamaUiState()
-  33            object Generating : LlamaUiState()
-  34            data class WaitingConfirmation(
-  35                val command: String,
-  36                val isEdited: Boolean = false
-  37            ) : LlamaUiState()
-  38            object Executing : LlamaUiState()
-  39            data class Success(
-  40                val output: String,
-  41                val exitCode: Int,
-  42                val executionMethod: String? = null
-  43            ) : LlamaUiState()
-  44            data class Error(val message: String) : LlamaUiState()
-  45        }
-  46        
-  47        sealed class ServerStatus {
-  48            object Unknown : ServerStatus()
-  49            object Checking : ServerStatus()
-  50            object Online : ServerStatus()
-  51            object Offline : ServerStatus()
-  52        }
-  53        
-  54        data class CommandHistoryItem(
-  55            val query: String,
-  56            val command: String,
-  57            val output: String?,
-  58            val success: Boolean,
-  59            val executionMethod: String? = null,
-  60            val timestamp: Long = System.currentTimeMillis()
-  61        )
-  62        
-  63        init {
-  64            checkServerStatus()
-  65        }
-  66        
-  67        fun checkServerStatus() {
-  68            viewModelScope.launch {
-  69                _serverStatus.value = ServerStatus.Checking
-  70                val isHealthy = llamaClient.checkHealth()
-  71                _serverStatus.value = if (isHealthy) ServerStatus.Online else ServerStatus.Offline
-  72            }
-  73        }
-  74        
-  75        fun generateCommand(query: String) {
-  76            viewModelScope.launch {
-  77                try {
-  78                    _uiState.value = LlamaUiState.Generating
-  79                    
-  80                    val result = llamaClient.generateCommand(query)
-  81                    
-  82 ❌                 if (result.isSuccess) {
-  83 ❌                     val command = result.getOrNull() ?: ""
-  84                        _uiState.value = LlamaUiState.WaitingConfirmation(
-  85                            command = command,
-  86                            isEdited = false
-  87                        )
-  88                    } else {
-  89 ❌                     val error = result.exceptionOrNull()?.message ?: "Failed to generate command"
-  90                        _uiState.value = LlamaUiState.Error(error)
-  91                        
-  92                        addToHistory(
-  93                            CommandHistoryItem(
-  94                                query = query,
-  95                                command = "",
-  96                                output = error,
-  97                                success = false
-  98                            )
-  99                        )
- 100                    }
- 101                } catch (e: Exception) {
- 102                    _uiState.value = LlamaUiState.Error(e.message ?: "Unknown error")
- 103                }
- 104            }
- 105        }
- 106        
- 107        fun updateCommand(newCommand: String) {
- 108            val currentState = _uiState.value
- 109            if (currentState is LlamaUiState.WaitingConfirmation) {
- 110                _uiState.value = LlamaUiState.WaitingConfirmation(
- 111                    command = newCommand,
- 112                    isEdited = true
- 113                )
- 114            }
- 115        }
- 116        
- 117        /**
- 118         * FIXED: Execute command - ALWAYS use TermuxLlamaClient
- 119         * No more Termux intent (permission issues)
- 120         * TermuxLlamaClient will try FIFO first, then HTTP proxy fallback
- 121         */
- 122        fun executeCommand(command: String, query: String, isEdited: Boolean) {
- 123            viewModelScope.launch {
- 124                try {
- 125                    _uiState.value = LlamaUiState.Executing
- 126                    
- 127                    // ALWAYS use TermuxLlamaClient (prefers FIFO)
- 128                    val result = llamaClient.executeCommand(command)
- 129                    
- 130 ❌                 if (result.isSuccess) {
- 131 ❌                     val cmdResult = result.getOrNull()!!
- 132                        _uiState.value = LlamaUiState.Success(
- 133                            output = cmdResult.output,
- 134                            exitCode = cmdResult.exitCode,
- 135                            executionMethod = cmdResult.method
- 136                        )
- 137                        
- 138                        addToHistory(
- 139                            CommandHistoryItem(
- 140                                query = query,
- 141                                command = command,
- 142                                output = cmdResult.output,
- 143                                success = cmdResult.success,
- 144                                executionMethod = cmdResult.method
- 145                            )
- 146                        )
- 147                    } else {
- 148 ❌                     val error = result.exceptionOrNull()?.message ?: "Execution failed"
- 149                        _uiState.value = LlamaUiState.Error(error)
- 150                        
- 151                        addToHistory(
- 152                            CommandHistoryItem(
- 153                                query = query,
- 154                                command = command,
- 155                                output = error,
- 156                                success = false,
- 157                                executionMethod = "error"
- 158                            )
- 159                        )
- 160                    }
- 161                } catch (e: Exception) {
- 162                    _uiState.value = LlamaUiState.Error(e.message ?: "Execution failed")
- 163                }
- 164            }
- 165        }
- 166        
- 167        fun cancelCommand() {
- 168            _uiState.value = LlamaUiState.Idle
- 169        }
- 170        
- 171        fun reset() {
- 172            _uiState.value = LlamaUiState.Idle
- 173        }
- 174        
- 175        private fun addToHistory(item: CommandHistoryItem) {
- 176            _commandHistory.value = listOf(item) + _commandHistory.value
- 177        }
- 178        
- 179        fun clearHistory() {
- 180            _commandHistory.value = emptyList()
- 181        }
- 182    }
+ 761                Text(
+ 762                    item.command,
+ 763                    fontFamily = FontFamily.Monospace,
+ 764                    style = MaterialTheme.typography.bodySmall,
+ 765                    color = Color.White.copy(alpha = 0.6f),
+ 766                    maxLines = 1
+ 767                )
+ 768                
+ 769                if (item.executionMethod != null) {
+ 770                    Text(
+ 771                        "via ${item.executionMethod}",
+ 772                        style = MaterialTheme.typography.bodySmall,
+ 773                        color = JarvisCyan.copy(alpha = 0.6f)
+ 774                    )
+ 775                }
+ 776            }
+ 777        }
+ 778    }
 
 
