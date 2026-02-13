@@ -2,63 +2,61 @@
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
 
-// ❌ ERRORS IN THIS FILE (3 error(s)):
-// Line 181: No value passed for parameter 'mode'
-// Line 181: Type mismatch: inferred type is JarvisMode but Context was expected
-// Line 182: Unresolved reference: updateMode
+// ❌ ERRORS IN THIS FILE (1 error(s)):
+// Line 52: No value passed for parameter 'context'
 
-   1    package com.jarvismini.ui.chat
-   2    
-   3    import android.app.Activity
-   4    import android.content.pm.PackageManager
-   5    import android.util.Log
-   6    import androidx.compose.foundation.background
-   7    import androidx.compose.foundation.border
-   8    import androidx.compose.foundation.layout.*
-   9    import androidx.compose.foundation.lazy.LazyColumn
-  10    import androidx.compose.foundation.lazy.items
-  11    import androidx.compose.foundation.shape.RoundedCornerShape
-  12    import androidx.compose.material.icons.Icons
-  13    import androidx.compose.material.icons.filled.ArrowBack
-  14    import androidx.compose.material.icons.filled.Send
-  15    import androidx.compose.material3.*
-  16    import androidx.compose.runtime.*
-  17    import androidx.compose.ui.Modifier
-  18    import androidx.compose.ui.graphics.Brush
-  19    import androidx.compose.ui.graphics.Color
-  20    import androidx.compose.ui.platform.LocalContext
-  21    import androidx.compose.ui.text.font.FontFamily
-  22    import androidx.compose.ui.unit.dp
-  23    import androidx.core.app.ActivityCompat
-  24    import androidx.core.content.ContextCompat
-  25    import com.jarvismini.core.JarvisMode
-  26    import com.jarvismini.core.JarvisState
-  27    import com.jarvismini.core.WorkModeManager
-  28    import com.jarvismini.llm.TermuxLlamaClient
-  29    import com.jarvismini.ui.components.GridBackground
-  30    import com.jarvismini.ui.ChatMessage
-  31    import com.jarvismini.ui.theme.JarvisBlue
-  32    import kotlinx.coroutines.*
-  33    
-  34    private const val TAG = "JarvisChatScreen"
-  35    
-  36    /**
-  37     * Main chat screen for interacting with J.A.R.V.I.S.
-  38     * 
-  39     * FIXED VERSION: Always uses /chat_sync endpoint, bypasses buggy command engine
-  40     */
-  41    @OptIn(ExperimentalMaterial3Api::class)
-  42    @Composable
-  43    fun JarvisChatScreen(
-  44        onBack: () -> Unit
-  45    ) {
-  46        val context = LocalContext.current
-  47        val activity = context as? Activity
-  48        val scope = rememberCoroutineScope()
-  49    
-  50        // ================= TERMUX LLM CLIENT =================
-  51        // FIXED: Pass context parameter to TermuxLlamaClient constructor
-  52        val llamaClient = remember { TermuxLlamaClient(context) }
+   1    //===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
+   2    package com.jarvismini.ui.chat
+   3    
+   4    import android.app.Activity
+   5    import android.content.pm.PackageManager
+   6    import android.util.Log
+   7    import androidx.compose.foundation.background
+   8    import androidx.compose.foundation.border
+   9    import androidx.compose.foundation.layout.*
+  10    import androidx.compose.foundation.lazy.LazyColumn
+  11    import androidx.compose.foundation.lazy.items
+  12    import androidx.compose.foundation.shape.RoundedCornerShape
+  13    import androidx.compose.material.icons.Icons
+  14    import androidx.compose.material.icons.filled.ArrowBack
+  15    import androidx.compose.material.icons.filled.Send
+  16    import androidx.compose.material3.*
+  17    import androidx.compose.runtime.*
+  18    import androidx.compose.ui.Modifier
+  19    import androidx.compose.ui.graphics.Brush
+  20    import androidx.compose.ui.graphics.Color
+  21    import androidx.compose.ui.platform.LocalContext
+  22    import androidx.compose.ui.text.font.FontFamily
+  23    import androidx.compose.ui.unit.dp
+  24    import androidx.core.app.ActivityCompat
+  25    import androidx.core.content.ContextCompat
+  26    import com.jarvismini.core.JarvisMode
+  27    import com.jarvismini.core.JarvisState
+  28    import com.jarvismini.core.WorkModeManager
+  29    import com.jarvismini.llm.TermuxLlamaClient
+  30    import com.jarvismini.ui.components.GridBackground
+  31    import com.jarvismini.ui.ChatMessage
+  32    import com.jarvismini.ui.theme.JarvisBlue
+  33    import kotlinx.coroutines.*
+  34    
+  35    private const val TAG = "JarvisChatScreen"
+  36    
+  37    /**
+  38     * Main chat screen for interacting with J.A.R.V.I.S.
+  39     * 
+  40     * FIXED VERSION: Always uses /chat_sync endpoint, bypasses buggy command engine
+  41     */
+  42    @OptIn(ExperimentalMaterial3Api::class)
+  43    @Composable
+  44    fun JarvisChatScreen(
+  45        onBack: () -> Unit
+  46    ) {
+  47        val context = LocalContext.current
+  48        val activity = context as? Activity
+  49        val scope = rememberCoroutineScope()
+  50    
+  51        // ================= TERMUX LLM CLIENT =================
+  52 ❌     val llamaClient = remember { TermuxLlamaClient() }
   53    
   54        // ================= INITIALIZATION =================
   55        LaunchedEffect(Unit) {
@@ -162,199 +160,208 @@
  153                            unfocusedContainerColor = Color.Transparent,
  154                            focusedTextColor = JarvisBlue,
  155                            unfocusedTextColor = JarvisBlue,
- 156                            focusedLabelColor = JarvisBlue,
- 157                            unfocusedLabelColor = JarvisBlue,
- 158                            focusedIndicatorColor = JarvisBlue,
- 159                            unfocusedIndicatorColor = JarvisBlue
- 160                        ),
- 161                        modifier = Modifier
+ 156                            cursorColor = JarvisBlue,
+ 157                            focusedIndicatorColor = JarvisBlue,
+ 158                            unfocusedIndicatorColor = JarvisBlue
+ 159                        ),
+ 160                        modifier = Modifier
+ 161                            .menuAnchor()
  162                            .fillMaxWidth()
- 163                            .menuAnchor()
- 164                    )
- 165    
- 166                    ExposedDropdownMenu(
- 167                        expanded = expanded,
- 168                        onDismissRequest = { expanded = false }
- 169                    ) {
- 170                        modes.forEach { mode ->
- 171                            DropdownMenuItem(
- 172                                text = {
- 173                                    Text(
- 174                                        mode.name,
- 175                                        color = JarvisBlue,
- 176                                        fontFamily = FontFamily.Monospace
- 177                                    )
- 178                                },
- 179                                onClick = {
- 180                                    currentMode = mode
- 181 ❌                                 JarvisState.setMode(mode)
- 182 ❌                                 WorkModeManager.updateMode(mode)
- 183                                    expanded = false
- 184                                }
- 185                            )
- 186                        }
- 187                    }
- 188                }
- 189    
- 190                Divider(
- 191                    color = JarvisBlue.copy(alpha = 0.3f),
- 192                    modifier = Modifier.padding(vertical = 8.dp)
- 193                )
- 194    
- 195                // ===== CHAT LOG =====
- 196                LazyColumn(
- 197                    modifier = Modifier.weight(1f),
- 198                    reverseLayout = true
- 199                ) {
- 200                    items(messages.reversed()) { msg ->
- 201                        Text(
- 202                            text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
- 203                            color = JarvisBlue,
- 204                            fontFamily = FontFamily.Monospace,
- 205                            modifier = Modifier.padding(6.dp)
- 206                        )
- 207                    }
- 208                }
- 209    
- 210                // ===== INPUT BAR =====
- 211                Row(
- 212                    modifier = Modifier
- 213                        .fillMaxWidth()
- 214                        .border(
- 215                            1.dp,
- 216                            JarvisBlue.copy(alpha = 0.4f),
- 217                            RoundedCornerShape(10.dp)
- 218                        )
- 219                        .padding(6.dp),
- 220                    horizontalArrangement = Arrangement.spacedBy(6.dp)
- 221                ) {
- 222                    TextField(
- 223                        value = input,
- 224                        onValueChange = { input = it },
- 225                        modifier = Modifier.weight(1f),
- 226                        enabled = !isProcessing,
- 227                        placeholder = {
- 228                            Text(
- 229                                if (isProcessing) "Processing..." else "Chat with JARVIS…",
- 230                                fontFamily = FontFamily.Monospace,
- 231                                color = JarvisBlue.copy(alpha = 0.7f)
- 232                            )
- 233                        },
- 234                        colors = TextFieldDefaults.colors(
- 235                            focusedContainerColor = Color.Transparent,
- 236                            unfocusedContainerColor = Color.Transparent,
- 237                            disabledContainerColor = Color.Transparent,
- 238                            focusedTextColor = JarvisBlue,
- 239                            unfocusedTextColor = JarvisBlue,
- 240                            disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
- 241                            cursorColor = JarvisBlue,
- 242                            focusedIndicatorColor = JarvisBlue,
- 243                            unfocusedIndicatorColor = JarvisBlue,
- 244                            disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
- 245                        )
- 246                    )
- 247    
- 248                    // ===== SEND BUTTON =====
- 249                    IconButton(
- 250                        onClick = {
- 251                            val userText = input.trim()
- 252                            
- 253                            if (userText.isEmpty()) {
- 254                                Log.d(TAG, "❌ Ignoring empty input")
- 255                                return@IconButton
- 256                            }
- 257                            
- 258                            if (isProcessing) {
- 259                                Log.d(TAG, "⚠️ Already processing, ignoring click")
- 260                                return@IconButton
- 261                            }
- 262    
- 263                            Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
- 264                            Log.d(TAG, "🚀 SEND BUTTON CLICKED")
- 265                            Log.d(TAG, "📝 User input: '$userText'")
+ 163                    )
+ 164    
+ 165                    ExposedDropdownMenu(
+ 166                        expanded = expanded,
+ 167                        onDismissRequest = { expanded = false }
+ 168                    ) {
+ 169                        modes.forEach { mode ->
+ 170                            DropdownMenuItem(
+ 171                                text = { Text(mode.name, color = JarvisBlue) },
+ 172                                onClick = {
+ 173                                    JarvisState.setMode(context, mode)
+ 174                                    currentMode = mode
+ 175                                    expanded = false
+ 176                                    Log.d(TAG, "Mode changed to: ${mode.name}")
+ 177                                }
+ 178                            )
+ 179                        }
+ 180                    }
+ 181                }
+ 182    
+ 183                Spacer(modifier = Modifier.height(8.dp))
+ 184    
+ 185                Button(
+ 186                    onClick = {
+ 187                        WorkModeManager.toggle(context)
+ 188                        currentMode = JarvisState.currentMode
+ 189                        Log.d(TAG, "Work mode toggled")
+ 190                    },
+ 191                    colors = ButtonDefaults.buttonColors(
+ 192                        containerColor = JarvisBlue.copy(alpha = 0.7f)
+ 193                    ),
+ 194                    modifier = Modifier.fillMaxWidth()
+ 195                ) {
+ 196                    Text("Toggle Work Mode", color = Color.Black)
+ 197                }
+ 198    
+ 199                HorizontalDivider(
+ 200                    color = JarvisBlue.copy(alpha = 0.3f), 
+ 201                    modifier = Modifier.padding(vertical = 8.dp)
+ 202                )
+ 203    
+ 204                // ===== CHAT LOG =====
+ 205                LazyColumn(
+ 206                    modifier = Modifier.weight(1f),
+ 207                    reverseLayout = true
+ 208                ) {
+ 209                    items(messages.reversed()) { msg ->
+ 210                        Text(
+ 211                            text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+ 212                            color = JarvisBlue,
+ 213                            fontFamily = FontFamily.Monospace,
+ 214                            modifier = Modifier.padding(6.dp)
+ 215                        )
+ 216                    }
+ 217                }
+ 218    
+ 219                // ===== INPUT BAR =====
+ 220                Row(
+ 221                    modifier = Modifier
+ 222                        .fillMaxWidth()
+ 223                        .border(
+ 224                            1.dp,
+ 225                            JarvisBlue.copy(alpha = 0.4f),
+ 226                            RoundedCornerShape(10.dp)
+ 227                        )
+ 228                        .padding(6.dp),
+ 229                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+ 230                ) {
+ 231                    TextField(
+ 232                        value = input,
+ 233                        onValueChange = { input = it },
+ 234                        modifier = Modifier.weight(1f),
+ 235                        enabled = !isProcessing,
+ 236                        placeholder = {
+ 237                            Text(
+ 238                                if (isProcessing) "Processing..." else "Chat with JARVIS…",
+ 239                                fontFamily = FontFamily.Monospace,
+ 240                                color = JarvisBlue.copy(alpha = 0.7f)
+ 241                            )
+ 242                        },
+ 243                        colors = TextFieldDefaults.colors(
+ 244                            focusedContainerColor = Color.Transparent,
+ 245                            unfocusedContainerColor = Color.Transparent,
+ 246                            disabledContainerColor = Color.Transparent,
+ 247                            focusedTextColor = JarvisBlue,
+ 248                            unfocusedTextColor = JarvisBlue,
+ 249                            disabledTextColor = JarvisBlue.copy(alpha = 0.5f),
+ 250                            cursorColor = JarvisBlue,
+ 251                            focusedIndicatorColor = JarvisBlue,
+ 252                            unfocusedIndicatorColor = JarvisBlue,
+ 253                            disabledIndicatorColor = JarvisBlue.copy(alpha = 0.3f)
+ 254                        )
+ 255                    )
+ 256    
+ 257                    // ===== SEND BUTTON =====
+ 258                    IconButton(
+ 259                        onClick = {
+ 260                            val userText = input.trim()
+ 261                            
+ 262                            if (userText.isEmpty()) {
+ 263                                Log.d(TAG, "❌ Ignoring empty input")
+ 264                                return@IconButton
+ 265                            }
  266                            
- 267                            isProcessing = true
- 268                            messages.add(ChatMessage(userText, isUser = true))
- 269                            messages.add(ChatMessage("Processing…", isUser = false))
- 270    
- 271                            scope.launch {
- 272                                try {
- 273                                    Log.d(TAG, "⏳ Starting message processing")
- 274                                    
- 275                                    // =================================================================
- 276                                    // CRITICAL FIX: Skip the buggy command engine, go straight to chat
- 277                                    // =================================================================
- 278                                    // The command engine was incorrectly calling generateCommand()
- 279                                    // which hits /generate_sync instead of /chat_sync
- 280                                    //
- 281                                    // OLD CODE (BUGGY):
- 282                                    // val commandResult = EngineProvider.commandEngine.handle(userText)
- 283                                    //
- 284                                    // NEW CODE: Direct to chat endpoint
- 285                                    // =================================================================
- 286                                    
- 287                                    Log.d(TAG, "🗨️ Using Termux LLM CHAT endpoint (/chat_sync)")
- 288                                    
- 289                                    val reply = withContext(Dispatchers.IO) {
- 290                                        try {
- 291                                            // IMPORTANT: Use chat() for conversations
- 292                                            // This hits /chat_sync endpoint with proper chat configuration
- 293                                            val result = llamaClient.chat(
- 294                                                query = userText,
- 295                                                timeoutSeconds = 150  // 2.5 min (within server's 120s limit + buffer)
- 296                                            )
- 297                                            
- 298                                            if (result.success && result.response != null) {
- 299                                                Log.d(TAG, "✅ Chat response: ${result.response.take(100)}...")
- 300                                                result.response
- 301                                            } else {
- 302                                                val errorMsg = result.error ?: "Unknown error"
- 303                                                Log.e(TAG, "❌ Chat error: $errorMsg")
- 304                                                "❌ $errorMsg"
- 305                                            }
- 306                                        } catch (e: Exception) {
- 307                                            Log.e(TAG, "❌ Chat exception", e)
- 308                                            "❌ Error: ${e.message ?: "Unknown error"}"
- 309                                        }
- 310                                    }
- 311                                    
- 312                                    // Update UI with reply
- 313                                    messages.removeLastOrNull()
- 314                                    messages.add(ChatMessage(reply, isUser = false))
- 315                                    input = ""
- 316                                    Log.d(TAG, "✅ PROCESSING COMPLETE")
- 317                                    
- 318                                } catch (e: CancellationException) {
- 319                                    Log.w(TAG, "🚫 Processing cancelled")
- 320                                    throw e
- 321                                } catch (e: Exception) {
- 322                                    Log.e(TAG, "❌ Processing error", e)
- 323                                    messages.removeLastOrNull()
- 324                                    messages.add(ChatMessage(
- 325                                        "❌ Error: ${e.message ?: "Unknown error occurred"}",
- 326                                        isUser = false
- 327                                    ))
- 328                                } finally {
- 329                                    Log.d(TAG, "🔄 Resetting processing state")
- 330                                    isProcessing = false
- 331                                    Log.d(TAG, "✅ Cleanup complete")
- 332                                }
- 333                            }
- 334                        },
- 335                        enabled = !isProcessing
- 336                    ) {
- 337                        Icon(
- 338                            Icons.Default.Send,
- 339                            contentDescription = "Send",
- 340                            tint = if (isProcessing) 
- 341                                JarvisBlue.copy(alpha = 0.3f) 
- 342                            else 
- 343                                JarvisBlue
- 344                        )
- 345                    }
- 346                }
- 347            }
- 348        }
- 349    }
+ 267                            if (isProcessing) {
+ 268                                Log.d(TAG, "⚠️ Already processing, ignoring click")
+ 269                                return@IconButton
+ 270                            }
+ 271    
+ 272                            Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+ 273                            Log.d(TAG, "🚀 SEND BUTTON CLICKED")
+ 274                            Log.d(TAG, "📝 User input: '$userText'")
+ 275                            
+ 276                            isProcessing = true
+ 277                            messages.add(ChatMessage(userText, isUser = true))
+ 278                            messages.add(ChatMessage("Processing…", isUser = false))
+ 279    
+ 280                            scope.launch {
+ 281                                try {
+ 282                                    Log.d(TAG, "⏳ Starting message processing")
+ 283                                    
+ 284                                    // =================================================================
+ 285                                    // CRITICAL FIX: Skip the buggy command engine, go straight to chat
+ 286                                    // =================================================================
+ 287                                    // The command engine was incorrectly calling generateCommand()
+ 288                                    // which hits /generate_sync instead of /chat_sync
+ 289                                    //
+ 290                                    // OLD CODE (BUGGY):
+ 291                                    // val commandResult = EngineProvider.commandEngine.handle(userText)
+ 292                                    //
+ 293                                    // NEW CODE: Direct to chat endpoint
+ 294                                    // =================================================================
+ 295                                    
+ 296                                    Log.d(TAG, "🗨️ Using Termux LLM CHAT endpoint (/chat_sync)")
+ 297                                    
+ 298                                    val reply = withContext(Dispatchers.IO) {
+ 299                                        try {
+ 300                                            // IMPORTANT: Use chat() for conversations
+ 301                                            // This hits /chat_sync endpoint with proper chat configuration
+ 302                                            val result = llamaClient.chat(
+ 303                                                query = userText,
+ 304                                                timeoutSeconds = 150  // 2.5 min (within server's 120s limit + buffer)
+ 305                                            )
+ 306                                            
+ 307                                            if (result.success && result.response != null) {
+ 308                                                Log.d(TAG, "✅ Chat response: ${result.response.take(100)}...")
+ 309                                                result.response
+ 310                                            } else {
+ 311                                                val errorMsg = result.error ?: "Unknown error"
+ 312                                                Log.e(TAG, "❌ Chat error: $errorMsg")
+ 313                                                "❌ $errorMsg"
+ 314                                            }
+ 315                                        } catch (e: Exception) {
+ 316                                            Log.e(TAG, "❌ Chat exception", e)
+ 317                                            "❌ Error: ${e.message ?: "Unknown error"}"
+ 318                                        }
+ 319                                    }
+ 320                                    
+ 321                                    // Update UI with reply
+ 322                                    messages.removeLastOrNull()
+ 323                                    messages.add(ChatMessage(reply, isUser = false))
+ 324                                    input = ""
+ 325                                    Log.d(TAG, "✅ PROCESSING COMPLETE")
+ 326                                    
+ 327                                } catch (e: CancellationException) {
+ 328                                    Log.w(TAG, "🚫 Processing cancelled")
+ 329                                    throw e
+ 330                                } catch (e: Exception) {
+ 331                                    Log.e(TAG, "❌ Processing error", e)
+ 332                                    messages.removeLastOrNull()
+ 333                                    messages.add(ChatMessage(
+ 334                                        "❌ Error: ${e.message ?: "Unknown error occurred"}",
+ 335                                        isUser = false
+ 336                                    ))
+ 337                                } finally {
+ 338                                    Log.d(TAG, "🔄 Resetting processing state")
+ 339                                    isProcessing = false
+ 340                                    Log.d(TAG, "✅ Cleanup complete")
+ 341                                }
+ 342                            }
+ 343                        },
+ 344                        enabled = !isProcessing
+ 345                    ) {
+ 346                        Icon(
+ 347                            Icons.Default.Send,
+ 348                            contentDescription = "Send",
+ 349                            tint = if (isProcessing) 
+ 350                                JarvisBlue.copy(alpha = 0.3f) 
+ 351                            else 
+ 352                                JarvisBlue
+ 353                        )
+ 354                    }
+ 355                }
+ 356            }
+ 357        }
+ 358    }
 
 
