@@ -1,3 +1,4 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/chat/JarvisChatScreen.kt =====
 package com.jarvismini.ui.chat
 
 import android.app.Activity
@@ -48,8 +49,7 @@ fun JarvisChatScreen(
     val scope = rememberCoroutineScope()
 
     // ================= TERMUX LLM CLIENT =================
-    // FIXED: Pass context parameter to TermuxLlamaClient constructor
-    val llamaClient = remember { TermuxLlamaClient(context) }
+    val llamaClient = remember { TermuxLlamaClient() }
 
     // ================= INITIALIZATION =================
     LaunchedEffect(Unit) {
@@ -153,14 +153,13 @@ fun JarvisChatScreen(
                         unfocusedContainerColor = Color.Transparent,
                         focusedTextColor = JarvisBlue,
                         unfocusedTextColor = JarvisBlue,
-                        focusedLabelColor = JarvisBlue,
-                        unfocusedLabelColor = JarvisBlue,
+                        cursorColor = JarvisBlue,
                         focusedIndicatorColor = JarvisBlue,
                         unfocusedIndicatorColor = JarvisBlue
                     ),
                     modifier = Modifier
-                        .fillMaxWidth()
                         .menuAnchor()
+                        .fillMaxWidth()
                 )
 
                 ExposedDropdownMenu(
@@ -169,26 +168,36 @@ fun JarvisChatScreen(
                 ) {
                     modes.forEach { mode ->
                         DropdownMenuItem(
-                            text = {
-                                Text(
-                                    mode.name,
-                                    color = JarvisBlue,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            },
+                            text = { Text(mode.name, color = JarvisBlue) },
                             onClick = {
+                                JarvisState.setMode(context, mode)
                                 currentMode = mode
-                                JarvisState.setMode(mode)
-                                WorkModeManager.updateMode(mode)
                                 expanded = false
+                                Log.d(TAG, "Mode changed to: ${mode.name}")
                             }
                         )
                     }
                 }
             }
 
-            Divider(
-                color = JarvisBlue.copy(alpha = 0.3f),
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    WorkModeManager.toggle(context)
+                    currentMode = JarvisState.currentMode
+                    Log.d(TAG, "Work mode toggled")
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = JarvisBlue.copy(alpha = 0.7f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Toggle Work Mode", color = Color.Black)
+            }
+
+            HorizontalDivider(
+                color = JarvisBlue.copy(alpha = 0.3f), 
                 modifier = Modifier.padding(vertical = 8.dp)
             )
 
