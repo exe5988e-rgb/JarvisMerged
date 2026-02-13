@@ -1982,256 +1982,221 @@ class WorkModeService : Service() {
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
-//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 package com.jarvismini.llm
 
 import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.delay
-import org.json.JSONObject
 import java.io.File
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * TermuxLlamaClient with FIFO-based command execution
+ * Client for communicating with Termux LLaMA server and executor
  * 
- * ARCHITECTURE:
- * 1. LLM (chat, generate) → HTTP proxy (port 8888) → llamafile (port 8080)
- * 2. Command execution → FIFO pipes → jarvis_executor.sh in Termux
- * 
- * REQUIREMENTS:
- * - llamafile server running: bash ~/llamafile_server.sh
- * - HTTP proxy running: python3 ~/llamafile_proxy.py
- * - Executor running: bash ~/jarvis_executor.sh &
- * 
- * FIFO COMMUNICATION:
- * - App writes command → ~/.jarvis/commands (named pipe)
- * - Executor reads command, executes it, writes result
- * - App reads result ← ~/.jarvis/results (named pipe)
- * - Format: "exit_code|output"
+ * UPDATED: File-based executor support for /sdcard compatibility
  */
-class TermuxLlamaClient(
-    val context: Context? = null,
-    private val serverHost: String = "127.0.0.1",
-    private val serverPort: Int = 8888
-) {
-    private val baseUrl = "http://$serverHost:$serverPort"
-    private val tag = "TermuxLlamaClient"
+class TermuxLlamaClient(private val context: Context) {
     
-    // FIFO paths - must match jarvis_executor.sh
-    private val termuxHome = "/data/data/com.termux/files/home"
-    private val commandFifo = "$termuxHome/.jarvis/commands"
-    private val resultFifo = "$termuxHome/.jarvis/results"
-
+    // LLM Server configuration (for command generation)
+    private val llamaServerUrl = "http://127.0.0.1:8080"
+    
+    // File-based executor configuration (NEW)
+    private val EXECUTOR_DIR = "/sdcard/jarvis"
+    private val COMMAND_FILE = "$EXECUTOR_DIR/command.txt"
+    private val RESULT_FILE = "$EXECUTOR_DIR/result.txt"
+    private val STATUS_FILE = "$EXECUTOR_DIR/status.txt"
+    
+    /**
+     * Check if the executor service is running
+     */
+    suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            // Check if status file exists and contains "ready"
+            val statusFile = File(STATUS_FILE)
+            if (!statusFile.exists()) {
+                return@withContext false
+            }
+            
+            val status = statusFile.readText().trim()
+            return@withContext status == "ready" || status == "executing"
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    /**
+     * Generate a Termux command from natural language query
+     */
+    suspend fun generateCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            // Call LLM server to generate command
+            val url = URL("$llamaServerUrl/completion")
+            val connection = url.openConnection() as HttpURLConnection
+            
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+            
+            // Create prompt for command generation
+            val prompt = """Convert this request to a Termux bash command. 
+                |Respond with ONLY the command, no explanation.
+                |
+                |Request: $query
+                |Command:""".trimMargin()
+            
+            val jsonBody = """{"prompt": "$prompt", "n_predict": 100}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+            
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                
+                // Parse JSON response and extract command
+                // Simple parsing - you might want to use a JSON library
+                val command = extractCommandFromResponse(response)
+                
+                CommandResult(
+                    success = true,
+                    command = command
+                )
+            } else {
+                CommandResult(
+                    success = false,
+                    error = "Server returned code: $responseCode"
+                )
+            }
+        } catch (e: Exception) {
+            CommandResult(
+                success = false,
+                error = "Failed to generate command: ${e.message}"
+            )
+        }
+    }
+    
+    /**
+     * Execute a command using the file-based executor
+     */
+    suspend fun executeCommand(command: String): ExecutionResult = withContext(Dispatchers.IO) {
+        try {
+            // Verify executor is running
+            val statusFile = File(STATUS_FILE)
+            if (!statusFile.exists()) {
+                return@withContext ExecutionResult(
+                    success = false,
+                    error = "Executor not running. Status file not found.",
+                    method = "file-based"
+                )
+            }
+            
+            // Clear old result
+            val resultFile = File(RESULT_FILE)
+            if (resultFile.exists()) {
+                resultFile.writeText("")
+            }
+            
+            // Write command to command file
+            val commandFile = File(COMMAND_FILE)
+            commandFile.writeText(command)
+            
+            // Wait for executor to process (check status)
+            var attempts = 0
+            val maxAttempts = 50 // 10 second timeout (50 * 200ms)
+            
+            while (attempts < maxAttempts) {
+                Thread.sleep(200)
+                
+                // Check if result is ready
+                if (resultFile.exists() && resultFile.length() > 0) {
+                    val resultContent = resultFile.readText()
+                    if (resultContent.isNotBlank()) {
+                        break
+                    }
+                }
+                
+                attempts++
+            }
+            
+            // Read result
+            if (!resultFile.exists() || resultFile.length() == 0L) {
+                return@withContext ExecutionResult(
+                    success = false,
+                    error = "Timeout waiting for command execution",
+                    method = "file-based"
+                )
+            }
+            
+            val result = resultFile.readText()
+            
+            // Parse result (format: "exit_code|output")
+            val parts = result.split("|", limit = 2)
+            val exitCode = parts.getOrNull(0)?.toIntOrNull() ?: -1
+            val output = parts.getOrNull(1) ?: ""
+            
+            ExecutionResult(
+                success = exitCode == 0,
+                output = output,
+                exitCode = exitCode,
+                method = "file-based"
+            )
+        } catch (e: Exception) {
+            ExecutionResult(
+                success = false,
+                error = "Execution failed: ${e.message}",
+                method = "file-based"
+            )
+        }
+    }
+    
+    /**
+     * Extract command from LLM response
+     * Simple implementation - enhance as needed
+     */
+    private fun extractCommandFromResponse(response: String): String {
+        // Very basic parsing - you should use a proper JSON parser
+        try {
+            // Look for "content" field in response
+            val contentStart = response.indexOf("\"content\"")
+            if (contentStart != -1) {
+                val valueStart = response.indexOf(":", contentStart) + 1
+                val valueEnd = response.indexOf("\"", valueStart + 1)
+                if (valueEnd != -1) {
+                    return response.substring(valueStart, valueEnd)
+                        .trim()
+                        .trim('"')
+                        .trim()
+                }
+            }
+            
+            // Fallback: return trimmed response
+            return response.trim()
+        } catch (e: Exception) {
+            return response.trim()
+        }
+    }
+    
+    /**
+     * Result of command generation
+     */
     data class CommandResult(
         val success: Boolean,
-        val response: String? = null,
         val command: String? = null,
+        val error: String? = null
+    )
+    
+    /**
+     * Result of command execution
+     */
+    data class ExecutionResult(
+        val success: Boolean,
         val output: String? = null,
         val exitCode: Int? = null,
         val error: String? = null,
         val method: String? = null
     )
-
-    suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("$baseUrl/health")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
-
-            connection.responseCode == 200
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    suspend fun chat(query: String, timeoutSeconds: Int = 60): CommandResult = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("$baseUrl/chat_sync")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.connectTimeout = 10000
-            connection.readTimeout = (timeoutSeconds + 10) * 1000
-            connection.doOutput = true
-
-            OutputStreamWriter(connection.outputStream).use {
-                it.write(JSONObject().apply { put("query", query) }.toString())
-                it.flush()
-            }
-
-            val responseCode = connection.responseCode
-            val response = if (responseCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            }
-
-            when (responseCode) {
-                200 -> {
-                    val json = JSONObject(response)
-                    if (json.getBoolean("success")) {
-                        CommandResult(success = true, response = json.getString("response"))
-                    } else {
-                        CommandResult(success = false, error = json.optString("error"))
-                    }
-                }
-                else -> CommandResult(success = false, error = "HTTP $responseCode")
-            }
-        } catch (e: Exception) {
-            CommandResult(success = false, error = e.message ?: "Connection failed")
-        }
-    }
-
-    suspend fun generateCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("$baseUrl/generate_sync")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.connectTimeout = 10000
-            connection.readTimeout = 40000
-            connection.doOutput = true
-
-            OutputStreamWriter(connection.outputStream).use {
-                it.write(JSONObject().apply { put("query", query) }.toString())
-                it.flush()
-            }
-
-            val responseCode = connection.responseCode
-            val response = if (responseCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            }
-
-            when (responseCode) {
-                200 -> {
-                    val json = JSONObject(response)
-                    if (json.getBoolean("success")) {
-                        val cmd = json.getString("command")
-                        CommandResult(success = true, command = cmd, response = cmd)
-                    } else {
-                        CommandResult(success = false, error = json.optString("error"))
-                    }
-                }
-                else -> CommandResult(success = false, error = "HTTP $responseCode")
-            }
-        } catch (e: Exception) {
-            CommandResult(success = false, error = e.message ?: "Connection failed")
-        }
-    }
-
-    /**
-     * Execute command via FIFO pipes (jarvis_executor.sh)
-     * 
-     * This is the BEST method because:
-     * - Direct Termux execution (not subprocess from Python)
-     * - Real output returned to app
-     * - No HTTP overhead
-     * - Works for all commands including interactive ones
-     */
-    suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
-        try {
-            Log.d(tag, "FIFO execute: $command")
-            
-            val cmdFile = File(commandFifo)
-            val resFile = File(resultFifo)
-            
-            // Check if executor is running
-            if (!cmdFile.exists() || !resFile.exists()) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Executor not running.\nRun in Termux:\n  bash ~/jarvis_executor.sh &",
-                    exitCode = -1,
-                    method = "fifo_not_ready"
-                )
-            }
-            
-            // Write command to FIFO
-            try {
-                cmdFile.writeText("$command\n")
-            } catch (e: Exception) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Cannot write to FIFO: ${e.message}",
-                    exitCode = -1,
-                    method = "fifo_write_error"
-                )
-            }
-            
-            // Read result with timeout (60 seconds)
-            var result: String? = null
-            repeat(120) { // 120 * 500ms = 60s
-                try {
-                    val text = resFile.readText().trim()
-                    if (text.isNotEmpty()) {
-                        result = text
-                        return@repeat
-                    }
-                } catch (e: Exception) {
-                    // Not ready yet
-                }
-                delay(500)
-            }
-            
-            if (result.isNullOrEmpty()) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Timeout (60s) waiting for result",
-                    exitCode = -1,
-                    method = "fifo_timeout"
-                )
-            }
-            
-            // Parse "exit_code|output"
-            val parts = result!!.split("|", limit = 2)
-            if (parts.size != 2) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Invalid result format",
-                    exitCode = -1,
-                    method = "fifo_parse_error"
-                )
-            }
-            
-            val exitCode = parts[0].toIntOrNull() ?: -1
-            val output = parts[1]
-            
-            CommandResult(
-                success = exitCode == 0,
-                output = output.ifEmpty { "✓ Command completed" },
-                exitCode = exitCode,
-                method = "fifo"
-            )
-            
-        } catch (e: Exception) {
-            Log.e(tag, "FIFO error", e)
-            CommandResult(
-                success = false,
-                error = "FIFO error: ${e.message}",
-                exitCode = -1,
-                method = "fifo_error"
-            )
-        }
-    }
-    
-    /**
-     * Check if jarvis_executor.sh is running
-     */
-    suspend fun checkExecutorStatus(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            File(commandFifo).exists() && File(resultFifo).exists()
-        } catch (e: Exception) {
-            false
-        }
-    }
 }
 
 
