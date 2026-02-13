@@ -1,449 +1,100 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
-package com.jarvismini.llm
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 
-import android.content.Context
-import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.delay
-import org.json.JSONObject
-import java.io.File
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
+package com.jarvismini.ui.main
 
-/**
- * TermuxLlamaClient with FIFO-based command execution
- * 
- * ARCHITECTURE:
- * 1. LLM (chat, generate) → HTTP proxy (port 8888) → llamafile (port 8080)
- * 2. Command execution → FIFO pipes → jarvis_executor.sh in Termux
- * 
- * REQUIREMENTS:
- * - llamafile server running: bash ~/llamafile_server.sh
- * - HTTP proxy running: python3 ~/llamafile_proxy.py
- * - Executor running: bash ~/jarvis_executor.sh &
- * 
- * FIFO COMMUNICATION:
- * - App writes command → ~/.jarvis/commands (named pipe)
- * - Executor reads command, executes it, writes result
- * - App reads result ← ~/.jarvis/results (named pipe)
- * - Format: "exit_code|output"
- */
-class TermuxLlamaClient(
-    val context: Context? = null,
-    private val serverHost: String = "127.0.0.1",
-    private val serverPort: Int = 8888
-) {
-    private val baseUrl = "http://$serverHost:$serverPort"
-    private val tag = "TermuxLlamaClient"
-    
-    // FIFO paths - must match jarvis_executor.sh
-    private val termuxHome = "/data/data/com.termux/files/home"
-    private val commandFifo = "$termuxHome/.jarvis/commands"
-    private val resultFifo = "$termuxHome/.jarvis/results"
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.chat.JarvisChatScreen
+import com.jarvismini.ui.calendar.CalendarViewModel
+import com.jarvismini.ui.calendar.DayCalendarScreen
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
+// Fixed: Correct import paths for Termux components
+import com.jarvismini.ui.llm.TermuxCommandScreen
+import com.jarvismini.ui.llm.TermuxCommandViewModel
 
-    data class CommandResult(
-        val success: Boolean,
-        val response: String? = null,
-        val command: String? = null,
-        val output: String? = null,
-        val exitCode: Int? = null,
-        val error: String? = null,
-        val method: String? = null
-    )
+enum class MainTab {
+    Home,
+    Chat,
+    Calendar,
+    Checklist,
+    Settings,
+    Debug,
+    TermuxCommand  // ✅ NEW: Added Termux Command tab
+}
 
-    suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("$baseUrl/health")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
 
-            connection.responseCode == 200
-        } catch (e: Exception) {
-            false
+    var showBoot by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+
+    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
+    }
+
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
         }
     }
 
-    suspend fun chat(query: String, timeoutSeconds: Int = 60): CommandResult = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("$baseUrl/chat_sync")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.connectTimeout = 10000
-            connection.readTimeout = (timeoutSeconds + 10) * 1000
-            connection.doOutput = true
+    when (selectedTab) {
 
-            OutputStreamWriter(connection.outputStream).use {
-                it.write(JSONObject().apply { put("query", query) }.toString())
-                it.flush()
-            }
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToChat = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings = { selectedTab = MainTab.Settings },
+            onNavigateToDebug = { selectedTab = MainTab.Debug },
+            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand }  // ✅ NEW
+        )
 
-            val responseCode = connection.responseCode
-            val response = if (responseCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            }
+        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
 
-            when (responseCode) {
-                200 -> {
-                    val json = JSONObject(response)
-                    if (json.getBoolean("success")) {
-                        CommandResult(success = true, response = json.getString("response"))
-                    } else {
-                        CommandResult(success = false, error = json.optString("error"))
-                    }
-                }
-                else -> CommandResult(success = false, error = "HTTP $responseCode")
-            }
-        } catch (e: Exception) {
-            CommandResult(success = false, error = e.message ?: "Connection failed")
-        }
-    }
-
-    suspend fun generateCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("$baseUrl/generate_sync")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.connectTimeout = 10000
-            connection.readTimeout = 40000
-            connection.doOutput = true
-
-            OutputStreamWriter(connection.outputStream).use {
-                it.write(JSONObject().apply { put("query", query) }.toString())
-                it.flush()
-            }
-
-            val responseCode = connection.responseCode
-            val response = if (responseCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            }
-
-            when (responseCode) {
-                200 -> {
-                    val json = JSONObject(response)
-                    if (json.getBoolean("success")) {
-                        val cmd = json.getString("command")
-                        CommandResult(success = true, command = cmd, response = cmd)
-                    } else {
-                        CommandResult(success = false, error = json.optString("error"))
-                    }
-                }
-                else -> CommandResult(success = false, error = "HTTP $responseCode")
-            }
-        } catch (e: Exception) {
-            CommandResult(success = false, error = e.message ?: "Connection failed")
-        }
-    }
-
-    /**
-     * Execute command via FIFO pipes (jarvis_executor.sh)
-     * 
-     * This is the BEST method because:
-     * - Direct Termux execution (not subprocess from Python)
-     * - Real output returned to app
-     * - No HTTP overhead
-     * - Works for all commands including interactive ones
-     */
-    suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
-        try {
-            Log.d(tag, "FIFO execute: $command")
-            
-            val cmdFile = File(commandFifo)
-            val resFile = File(resultFifo)
-            
-            // Check if executor is running
-            if (!cmdFile.exists() || !resFile.exists()) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Executor not running.\nRun in Termux:\n  bash ~/jarvis_executor.sh &",
-                    exitCode = -1,
-                    method = "fifo_not_ready"
-                )
-            }
-            
-            // Write command to FIFO
-            try {
-                cmdFile.writeText("$command\n")
-            } catch (e: Exception) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Cannot write to FIFO: ${e.message}",
-                    exitCode = -1,
-                    method = "fifo_write_error"
-                )
-            }
-            
-            // Read result with timeout (60 seconds)
-            var result: String? = null
-            repeat(120) { // 120 * 500ms = 60s
-                try {
-                    val text = resFile.readText().trim()
-                    if (text.isNotEmpty()) {
-                        result = text
-                        return@repeat
-                    }
-                } catch (e: Exception) {
-                    // Not ready yet
-                }
-                delay(500)
-            }
-            
-            if (result.isNullOrEmpty()) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Timeout (60s) waiting for result",
-                    exitCode = -1,
-                    method = "fifo_timeout"
-                )
-            }
-            
-            // Parse "exit_code|output"
-            val parts = result!!.split("|", limit = 2)
-            if (parts.size != 2) {
-                return@withContext CommandResult(
-                    success = false,
-                    error = "Invalid result format",
-                    exitCode = -1,
-                    method = "fifo_parse_error"
-                )
-            }
-            
-            val exitCode = parts[0].toIntOrNull() ?: -1
-            val output = parts[1]
-            
-            CommandResult(
-                success = exitCode == 0,
-                output = output.ifEmpty { "✓ Command completed" },
-                exitCode = exitCode,
-                method = "fifo"
-            )
-            
-        } catch (e: Exception) {
-            Log.e(tag, "FIFO error", e)
-            CommandResult(
-                success = false,
-                error = "FIFO error: ${e.message}",
-                exitCode = -1,
-                method = "fifo_error"
+        MainTab.Calendar -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(
+                viewModel = vm,
+                onBack = { selectedTab = MainTab.Home }
             )
         }
-    }
-    
-    /**
-     * Check if jarvis_executor.sh is running
-     */
-    suspend fun checkExecutorStatus(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            File(commandFifo).exists() && File(resultFifo).exists()
-        } catch (e: Exception) {
-            false
+
+        MainTab.Checklist -> JarvisChecklistScreen(
+            onBack = { selectedTab = MainTab.Home }
+        )
+
+        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+
+        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+
+        // ✅ FIXED: Renamed variable to avoid conflict with parameter name
+        MainTab.TermuxCommand -> {
+            val termuxViewModel: TermuxCommandViewModel = viewModel()
+            TermuxCommandScreen(
+                viewModel = termuxViewModel,
+                onNavigateBack = { selectedTab = MainTab.Home }
+            )
         }
     }
 }
-//===== FILE: app/src/main/AndroidManifest.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.jarvismini">
-
-    <!-- ================= PERMISSIONS ================= -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
-    
-    <!-- ================= STORAGE PERMISSIONS (Android 13+) ================= -->
-    <!-- For reading images -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    
-    <!-- For reading videos -->
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    
-    <!-- For reading audio files -->
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    
-    <!-- Legacy storage for Android 12 and below -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-    
-    <!-- ================= CRITICAL FIX: ALL FILES ACCESS (Android 11+) ================= -->
-    <!-- This permission is REQUIRED to access /storage/emulated/0/JarvisModels/ on Android 11+ -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
-        tools:ignore="ScopedStorage" />
-
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
-
-    <!-- ================= PACKAGE VISIBILITY ================= -->
-
-    <queries>
-        <!-- Existing packages -->
-        <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
-        <package android:name="com.google.android.apps.youtube.music" />
-        <package android:name="com.oneplus.deskclock" />
-        <package android:name="com.sec.android.app.clockpackage" />
-        <package android:name="com.apple.android.music" />
-        
-        <!-- ================= TERMUX PACKAGES ================= -->
-        <!-- Required for Termux intent execution -->
-        <package android:name="com.termux" />
-        <package android:name="com.termux.api" />
-        <package android:name="com.termux.tasker" />
-    </queries>
-
-    <!-- ================= APPLICATION ================= -->
-
-    <application
-        android:name="com.jarvismini.CoreApp"
-        android:allowBackup="true"
-        android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMerged"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:requestLegacyExternalStorage="true"
-        android:preserveLegacyExternalStorage="true">
-
-        <!-- ================= MAIN ACTIVITY ================= -->
-
-        <activity
-            android:name="com.jarvismini.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- ================= NOTIFICATION LISTENER ================= -->
-
-        <service
-            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= SMS RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.SmsReceiver"
-            android:permission="android.permission.BROADCAST_SMS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL STATE RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL SCREENING SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
-            android:permission="android.permission.BIND_SCREENING_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= CALL ACCESSIBILITY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
-
-        <!-- ================= APP AUTOMATION SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.automation.AppAutomationService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service" />
-        </service>
-
-        <!-- ================= WORK MODE SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.core.workmode.WorkModeService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- ================= WORK MODE TILE SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.WorkModeTileService"
-            android:icon="@mipmap/ic_launcher"
-            android:label="Work Mode"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= CALL AUTO REPLY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
-
-        <!-- ================= PROGRESS REMINDER SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.ProgressReminderService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-    </application>
-
-</manifest>
