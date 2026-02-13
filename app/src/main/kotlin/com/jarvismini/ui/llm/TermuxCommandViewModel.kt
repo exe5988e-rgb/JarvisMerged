@@ -12,11 +12,11 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for Termux Command Generator
  * 
- * FIXED: Removed Termux intent execution (permission issues)
- * Now ALWAYS uses TermuxLlamaClient which prefers FIFO execution
+ * FIXED: Removed Termux intent execution
+ * Now uses FIFO for ALL command execution (edited or generated)
  */
 class TermuxCommandViewModel(private val context: Context) : ViewModel() {
-    private val llamaClient = TermuxLlamaClient()
+    private val llamaClient = TermuxLlamaClient(context = context)
     
     private val _uiState = MutableStateFlow<LlamaUiState>(LlamaUiState.Idle)
     val uiState: StateFlow<LlamaUiState> = _uiState.asStateFlow()
@@ -79,21 +79,21 @@ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
                 
                 val result = llamaClient.generateCommand(query)
                 
-                if (result.isSuccess) {
-                    val command = result.getOrNull() ?: ""
+                if (result.success && result.command != null) {
                     _uiState.value = LlamaUiState.WaitingConfirmation(
-                        command = command,
+                        command = result.command,
                         isEdited = false
                     )
                 } else {
-                    val error = result.exceptionOrNull()?.message ?: "Failed to generate command"
-                    _uiState.value = LlamaUiState.Error(error)
+                    _uiState.value = LlamaUiState.Error(
+                        result.error ?: "Failed to generate command"
+                    )
                     
                     addToHistory(
                         CommandHistoryItem(
                             query = query,
                             command = "",
-                            output = error,
+                            output = result.error,
                             success = false
                         )
                     )
@@ -115,46 +115,45 @@ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
     }
     
     /**
-     * FIXED: Execute command - ALWAYS use TermuxLlamaClient
-     * No more Termux intent (permission issues)
-     * TermuxLlamaClient will try FIFO first, then HTTP proxy fallback
+     * ✅ FIXED: Execute command using FIFO for ALL commands
+     * No more conditional logic - always use llamaClient.executeCommand()
      */
     fun executeCommand(command: String, query: String, isEdited: Boolean) {
         viewModelScope.launch {
             try {
                 _uiState.value = LlamaUiState.Executing
                 
-                // ALWAYS use TermuxLlamaClient (prefers FIFO)
+                // ✅ ALWAYS use FIFO execution (works for generated AND edited commands)
                 val result = llamaClient.executeCommand(command)
                 
-                if (result.isSuccess) {
-                    val cmdResult = result.getOrNull()!!
+                if (result.success) {
                     _uiState.value = LlamaUiState.Success(
-                        output = cmdResult.output,
-                        exitCode = cmdResult.exitCode,
-                        executionMethod = cmdResult.method
+                        output = result.output ?: "Command sent to Termux",
+                        exitCode = result.exitCode ?: 0,
+                        executionMethod = result.method
                     )
                     
                     addToHistory(
                         CommandHistoryItem(
                             query = query,
                             command = command,
-                            output = cmdResult.output,
-                            success = cmdResult.success,
-                            executionMethod = cmdResult.method
+                            output = result.output,
+                            success = true,
+                            executionMethod = result.method
                         )
                     )
                 } else {
-                    val error = result.exceptionOrNull()?.message ?: "Execution failed"
-                    _uiState.value = LlamaUiState.Error(error)
+                    _uiState.value = LlamaUiState.Error(
+                        result.error ?: "Execution failed"
+                    )
                     
                     addToHistory(
                         CommandHistoryItem(
                             query = query,
                             command = command,
-                            output = error,
+                            output = result.error,
                             success = false,
-                            executionMethod = "error"
+                            executionMethod = result.method
                         )
                     )
                 }
