@@ -180,6 +180,7 @@ private fun MainContent(
         ) {
             when (uiState) {
                 is TermuxCommandViewModel.LlamaUiState.Idle -> IdleState()
+                is TermuxCommandViewModel.LlamaUiState.CheckingServer -> CheckingServerState()
                 is TermuxCommandViewModel.LlamaUiState.Generating -> GeneratingState()
                 is TermuxCommandViewModel.LlamaUiState.WaitingConfirmation -> {
                     EditableConfirmationState(
@@ -263,6 +264,28 @@ private fun IdleState() {
             color = Color.White.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )
+    }
+}
+
+// ✅ FIX: Added missing CheckingServerState Composable
+@Composable
+private fun CheckingServerState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(
+                color = JarvisCyan,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Checking server status...",
+                style = MaterialTheme.typography.bodyLarge,
+                color = JarvisCyan
+            )
+        }
     }
 }
 
