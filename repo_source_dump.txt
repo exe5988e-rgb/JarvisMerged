@@ -41,12 +41,23 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── MainActivity.kt
 │   │   │   │   │   │   ├── ProgressInitializer.kt
 │   │   │   │   │   │   ├── ProgressReminderService.kt
+│   │   │   │   │   │   ├── api
+│   │   │   │   │   │   │   ├── ApiGateway.kt
+│   │   │   │   │   │   │   ├── ApiModels.kt
 │   │   │   │   │   │   ├── core
 │   │   │   │   │   │   │   ├── StoragePermissionHelper.kt
 │   │   │   │   │   │   │   ├── workmode
 │   │   │   │   │   │   │   │   ├── WorkModeService.kt
+│   │   │   │   │   │   ├── executor
+│   │   │   │   │   │   │   ├── UnifiedExecutor.kt
 │   │   │   │   │   │   ├── llm
+│   │   │   │   │   │   │   ├── LlmBackend.kt
 │   │   │   │   │   │   │   ├── TermuxLlamaClient.kt
+│   │   │   │   │   │   ├── security
+│   │   │   │   │   │   │   ├── SecurityManager.kt
+│   │   │   │   │   │   ├── server
+│   │   │   │   │   │   │   ├── LanServer.kt
+│   │   │   │   │   │   │   ├── LanServerService.kt
 │   │   │   │   │   │   ├── service
 │   │   │   │   │   │   │   ├── CallAutoReplyService.kt
 │   │   │   │   │   │   │   ├── WorkModeTileService.kt
@@ -361,6 +372,7 @@ SOURCE CODE
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
 }
 
 android {
@@ -371,93 +383,60 @@ android {
         applicationId = "com.jarvismini"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
-        
-        // ✅ NDK Configuration
-        ndk {
-            abiFilters += listOf("arm64-v8a")
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
-
-    buildFeatures {
-        viewBinding = true
-        compose = true
-        buildConfig = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
-
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
+    
     kotlinOptions {
         jvmTarget = "17"
     }
     
-    // ✅ CMake Configuration
-    externalNativeBuild {
-        cmake {
-            path = file("../CMakeLists.txt")
-            version = "3.22.1"
-        }
+    buildFeatures {
+        compose = true
+    }
+    
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 }
 
 dependencies {
-    // Core
     implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
-
-    // Compose BOM
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
+    
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
-
-    // Compose UI
-    implementation("androidx.activity:activity-compose")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    
-    // Material 3
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     
-    // Navigation Compose
-    implementation("androidx.navigation:navigation-compose:2.7.7")
-    
-    // Foundation
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.runtime:runtime")
-    implementation("androidx.compose.animation:animation")
-
-    // Debug tools
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
-
-    // Material
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.11.0")
-
-    // Networking
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // Coroutines (required for suspend + Dispatchers)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-
-    // ViewModel + Compose integration
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
-
-    // Modules
-    implementation(project(":modules:core"))
-    implementation(project(":modules:automation"))
-    implementation(project(":modules:engine"))
-    implementation(project(":modules:smart"))
-    implementation(project(":modules:callhandler"))
+    
+    // HTTP client with proper JSON support
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    
+    // JSON serialization - REQUIRED for production
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+    
+    // Lightweight HTTP server
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 }
 
 
@@ -472,201 +451,40 @@ dependencies {
 
 //===== FILE: app/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.jarvismini">
-
-    <!-- ================= PERMISSIONS ================= -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
-    
-    <!-- ================= STORAGE PERMISSIONS (Android 13+) ================= -->
-    <!-- For reading images -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    
-    <!-- For reading videos -->
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    
-    <!-- For reading audio files -->
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    
-    <!-- Legacy storage for Android 12 and below -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-    
-    <!-- ================= CRITICAL FIX: ALL FILES ACCESS (Android 11+) ================= -->
-    <!-- This permission is REQUIRED to access /storage/emulated/0/JarvisModels/ on Android 11+ -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
-        tools:ignore="ScopedStorage" />
-
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
-
-    <!-- ================= PACKAGE VISIBILITY ================= -->
-
-    <queries>
-        <!-- Existing packages -->
-        <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
-        <package android:name="com.google.android.apps.youtube.music" />
-        <package android:name="com.oneplus.deskclock" />
-        <package android:name="com.sec.android.app.clockpackage" />
-        <package android:name="com.apple.android.music" />
-        
-        <!-- ================= TERMUX PACKAGES ================= -->
-        <!-- Required for Termux intent execution -->
-        <package android:name="com.termux" />
-        <package android:name="com.termux.api" />
-        <package android:name="com.termux.tasker" />
-    </queries>
-
-    <!-- ================= APPLICATION ================= -->
 
     <application
-        android:name="com.jarvismini.CoreApp"
-        android:allowBackup="true"
-        android:label="@string/app_name"
+        android:name=".CoreApp"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMerged"
+        android:label="@string/app_name"
         android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:requestLegacyExternalStorage="true"
-        android:preserveLegacyExternalStorage="true">
-
-        <!-- ================= MAIN ACTIVITY ================= -->
-
+        android:theme="@style/Theme.JarvisMini">
+        
         <activity
-            android:name="com.jarvismini.MainActivity"
-            android:exported="true">
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.JarvisMini">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- ================= NOTIFICATION LISTENER ================= -->
-
+        
         <service
-            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= SMS RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.SmsReceiver"
-            android:permission="android.permission.BROADCAST_SMS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL STATE RECEIVER ================= -->
-
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- ================= CALL SCREENING SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
-            android:permission="android.permission.BIND_SCREENING_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= CALL ACCESSIBILITY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
-
-        <!-- ================= APP AUTOMATION SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.automation.AppAutomationService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service" />
-        </service>
-
-        <!-- ================= WORK MODE SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.core.workmode.WorkModeService"
+            android:name=".server.LanServerService"
+            android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-
-        <!-- ================= WORK MODE TILE SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.WorkModeTileService"
-            android:icon="@mipmap/ic_launcher"
-            android:label="Work Mode"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <!-- ================= CALL AUTO REPLY SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
-
-        <!-- ================= PROGRESS REMINDER SERVICE ================= -->
-
-        <service
-            android:name="com.jarvismini.ProgressReminderService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
     </application>
-
 </manifest>
 
 
@@ -1617,6 +1435,428 @@ class ProgressReminderService : Service() {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/api/ApiGateway.kt =====
+package com.jarvismini.api
+
+import android.content.Context
+import android.util.Log
+import com.jarvismini.executor.ExecutionRequest
+import com.jarvismini.executor.UnifiedExecutor
+import com.jarvismini.llm.LlmBackendFactory
+import com.jarvismini.security.AuthResult
+import com.jarvismini.security.SecurityManager
+import com.jarvismini.security.TrustedDevice
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+
+class ApiGateway(
+    private val context: Context,
+    private val executor: UnifiedExecutor,
+    private val securityManager: SecurityManager
+) {
+
+    private val tag = "ApiGateway"
+
+    suspend fun handleRequest(request: ApiRequest): ApiResponse = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "${request.endpoint} from ${request.source}")
+
+            var authenticatedDevice: TrustedDevice? = null
+
+            // Authenticate LAN requests (except /pair and /health)
+            if (request.source == RequestSource.LAN_CLIENT &&
+                request.endpoint != "/pair" &&
+                request.endpoint != "/health"
+            ) {
+                val authCheck = authenticateLanRequest(request)
+                if (authCheck is AuthCheckResult.Failure) {
+                    return@withContext authCheck.response
+                }
+                authenticatedDevice = (authCheck as AuthCheckResult.Success).device
+            }
+
+            when (request.endpoint) {
+                "/pair" -> handlePair(request)
+                "/unpair" -> handleUnpair(request, authenticatedDevice!!)
+                "/devices" -> handleDevices()
+                "/generate" -> handleGenerate(request)
+                "/execute" -> handleExecute(request)
+                "/chat" -> handleChat(request)
+                "/health" -> handleHealth()
+                else -> errorResponse(404, "Unknown endpoint")
+            }
+
+        } catch (e: Exception) {
+            Log.e(tag, "Request failed", e)
+            errorResponse(500, "Internal error: ${e.message}")
+        }
+    }
+
+    private fun authenticateLanRequest(request: ApiRequest): AuthCheckResult {
+        val auth = request.auth ?: return AuthCheckResult.Failure(
+            errorResponse(401, "Missing authentication")
+        )
+
+        val authResult = securityManager.authenticateToken(auth)
+        if (authResult is AuthResult.Failure) {
+            return AuthCheckResult.Failure(
+                errorResponse(401, authResult.reason)
+            )
+        }
+
+        val device = (authResult as AuthResult.Success).device
+
+        if (!securityManager.checkRateLimit(device.id, request.endpoint)) {
+            return AuthCheckResult.Failure(
+                errorResponse(429, "Rate limit exceeded")
+            )
+        }
+
+        return AuthCheckResult.Success(device)
+    }
+
+    private suspend fun handlePair(request: ApiRequest): ApiResponse {
+        val deviceName = request.body["device_name"]
+        val ipAddress = request.auth?.ipAddress ?: "unknown"
+
+        if (deviceName.isNullOrBlank()) {
+            return errorResponse(400, "Missing device_name")
+        }
+
+        val result = securityManager.pairDevice(deviceName, ipAddress)
+
+        return if (result.success) {
+            ApiResponse(
+                success = true,
+                data = mapOf(
+                    "device_id" to result.deviceId!!,
+                    "token" to result.token!!
+                ),
+                statusCode = 200
+            )
+        } else {
+            errorResponse(403, result.error ?: "Pairing failed")
+        }
+    }
+
+    private suspend fun handleUnpair(request: ApiRequest, device: TrustedDevice): ApiResponse {
+        val deviceId = request.body["device_id"]
+
+        if (deviceId.isNullOrBlank()) {
+            return errorResponse(400, "Missing device_id")
+        }
+
+        val success = securityManager.unpairDevice(deviceId)
+
+        return if (success) {
+            ApiResponse(true, mapOf("message" to "Device unpaired"), null, 200)
+        } else {
+            errorResponse(404, "Device not found")
+        }
+    }
+
+    private suspend fun handleDevices(): ApiResponse {
+        val devices = securityManager.getPairedDevices()
+
+        val deviceInfoList = devices.map { d ->
+            mapOf(
+                "id" to d.id,
+                "name" to d.name,
+                "ip_address" to d.ipAddress,
+                "paired_at" to d.pairedAt.toString(),
+                "last_seen" to d.lastSeen.toString()
+            )
+        }
+
+        val dataMap = mutableMapOf<String, String>()
+        deviceInfoList.forEachIndexed { index, info ->
+            info.forEach { (key, value) ->
+                dataMap["device_${index}_$key"] = value
+            }
+        }
+
+        return ApiResponse(true, dataMap, null, 200)
+    }
+
+    private suspend fun handleGenerate(request: ApiRequest): ApiResponse {
+        val query = request.body["query"]
+
+        if (query.isNullOrBlank()) {
+            return errorResponse(400, "Missing query")
+        }
+
+        val backend = LlmBackendFactory.getBackend(request.source, context, executor)
+
+        return try {
+            withTimeout(30000L) {
+                val result = backend.generate(query)
+                ApiResponse(
+                    true,
+                    mapOf("command" to result, "response" to result),
+                    null,
+                    200
+                )
+            }
+        } catch (e: Exception) {
+            errorResponse(500, "Generation failed: ${e.message}")
+        }
+    }
+
+    private suspend fun handleExecute(request: ApiRequest): ApiResponse {
+        val command = request.body["command"]
+
+        if (command.isNullOrBlank()) {
+            return errorResponse(400, "Missing command")
+        }
+
+        // 🔥 Allow API LLM sources to execute
+        // LAN authentication already handled above
+        val validation = securityManager.isCommandAllowed(command)
+        if (!validation.allowed) {
+            return errorResponse(403, "Command blocked: ${validation.reason}")
+        }
+
+        val execRequest = ExecutionRequest(
+            command = command,
+            source = request.source,
+            timeout = 30000L,
+            maxOutputSize = 10000
+        )
+
+        return try {
+            val result = executor.execute(execRequest)
+            ApiResponse(
+                result.success,
+                mapOf(
+                    "output" to result.output,
+                    "exit_code" to result.exitCode.toString(),
+                    "execution_time" to result.executionTime.toString()
+                ),
+                null,
+                if (result.success) 200 else 500
+            )
+        } catch (e: Exception) {
+            errorResponse(500, "Execution failed: ${e.message}")
+        }
+    }
+
+    private suspend fun handleChat(request: ApiRequest): ApiResponse {
+        val query = request.body["query"]
+
+        if (query.isNullOrBlank()) {
+            return errorResponse(400, "Missing query")
+        }
+
+        val backend = LlmBackendFactory.getBackend(request.source, context, executor)
+
+        return try {
+            withTimeout(30000L) {
+                val messages = listOf(ChatMessage("user", query))
+                val result = backend.chat(messages)
+                ApiResponse(true, mapOf("response" to result), null, 200)
+            }
+        } catch (e: Exception) {
+            errorResponse(500, "Chat failed: ${e.message}")
+        }
+    }
+
+    private suspend fun handleHealth(): ApiResponse {
+        return ApiResponse(
+            true,
+            mapOf(
+                "status" to "healthy",
+                "backends" to "termux,cloud",
+                "executor" to "file-based"
+            ),
+            null,
+            200
+        )
+    }
+
+    private fun errorResponse(code: Int, message: String): ApiResponse {
+        return ApiResponse(false, null, message, code)
+    }
+}
+
+private sealed class AuthCheckResult {
+    data class Success(val device: TrustedDevice) : AuthCheckResult()
+    data class Failure(val response: ApiResponse) : AuthCheckResult()
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/api/ApiModels.kt =====
+package com.jarvismini.api
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+val json = Json { 
+    ignoreUnknownKeys = true
+    prettyPrint = false
+    encodeDefaults = true
+}
+
+@Serializable
+data class ApiRequest(
+    val endpoint: String,
+    val source: RequestSource,
+    val body: Map<String, String>,
+    val auth: AuthContext? = null
+)
+
+@Serializable
+enum class RequestSource {
+    LOCAL_LLM,
+    TERMUX_LLM,
+    CLOUD_API,
+    LAN_CLIENT
+}
+
+@Serializable
+data class AuthContext(
+    val deviceToken: String?,
+    val ipAddress: String,
+    val timestamp: Long
+)
+
+@Serializable
+data class ApiResponse(
+    val success: Boolean,
+    val data: Map<String, String>? = null,
+    val error: String? = null,
+    val statusCode: Int
+) {
+    fun toJson(): String = json.encodeToString(this)
+}
+
+// Request/Response models for LAN API
+@Serializable
+data class PairRequest(
+    val device_name: String
+)
+
+@Serializable
+data class PairResponse(
+    val success: Boolean,
+    val device_id: String? = null,
+    val token: String? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class UnpairRequest(
+    val device_id: String
+)
+
+@Serializable
+data class ExecuteRequest(
+    val command: String
+)
+
+@Serializable
+data class ExecuteResponse(
+    val success: Boolean,
+    val output: String? = null,
+    val exit_code: Int? = null,
+    val execution_time: Long? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class GenerateRequest(
+    val query: String
+)
+
+@Serializable
+data class GenerateResponse(
+    val success: Boolean,
+    val command: String? = null,
+    val response: String? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class ChatRequest(
+    val query: String? = null,
+    val messages: List<ChatMessage>? = null
+)
+
+@Serializable
+data class ChatMessage(
+    val role: String,
+    val content: String
+)
+
+@Serializable
+data class ChatResponse(
+    val success: Boolean,
+    val response: String? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class DeviceInfo(
+    val id: String,
+    val name: String,
+    val ip_address: String,
+    val paired_at: Long,
+    val last_seen: Long
+)
+
+@Serializable
+data class DevicesResponse(
+    val success: Boolean,
+    val devices: List<DeviceInfo>? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class HealthResponse(
+    val status: String,
+    val backends: List<String>,
+    val executor: String
+)
+
+// Cloud API models
+@Serializable
+data class OpenAIRequest(
+    val model: String,
+    val messages: List<ChatMessage>,
+    val max_tokens: Int,
+    val temperature: Double = 0.7
+)
+
+@Serializable
+data class OpenAIResponse(
+    val choices: List<OpenAIChoice>
+)
+
+@Serializable
+data class OpenAIChoice(
+    val message: ChatMessage
+)
+
+@Serializable
+data class AnthropicRequest(
+    val model: String,
+    val max_tokens: Int,
+    val messages: List<ChatMessage>
+)
+
+@Serializable
+data class AnthropicResponse(
+    val content: List<AnthropicContent>
+)
+
+@Serializable
+data class AnthropicContent(
+    val type: String,
+    val text: String
+)
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/core/StoragePermissionHelper.kt =====
 package com.jarvismini.core
 
@@ -1977,6 +2217,378 @@ class WorkModeService : Service() {
         val min = (totalSec % 3600) / 60
         val sec = totalSec % 60
         return "%02d:%02d:%02d".format(hrs, min, sec)
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/executor/UnifiedExecutor.kt =====
+package com.jarvismini.executor
+
+import android.content.Context
+import android.util.Log
+import com.jarvismini.api.RequestSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import java.io.File
+
+interface UnifiedExecutor {
+    suspend fun execute(request: ExecutionRequest): ExecutionResult
+}
+
+data class ExecutionRequest(
+    val command: String,
+    val source: RequestSource,
+    val timeout: Long = 30000L,
+    val maxOutputSize: Int = 10000
+)
+
+data class ExecutionResult(
+    val success: Boolean,
+    val output: String,
+    val exitCode: Int,
+    val executionTime: Long,
+    val source: RequestSource
+)
+
+class FileBasedExecutor(private val context: Context) : UnifiedExecutor {
+    
+    private val tag = "FileBasedExecutor"
+    private val workDir = File("/sdcard/jarvis")
+    private val commandFile = File(workDir, "command.txt")
+    private val resultFile = File(workDir, "result.txt")
+    private val statusFile = File(workDir, "status.txt")
+    
+    override suspend fun execute(request: ExecutionRequest): ExecutionResult = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        
+        try {
+            Log.d(tag, "Executing: ${request.command}")
+            
+            if (!workDir.exists()) {
+                workDir.mkdirs()
+            }
+            
+            if (!isDaemonRunning()) {
+                return@withContext ExecutionResult(
+                    success = false,
+                    output = "Termux daemon not running. Start jarvis_executor.sh",
+                    exitCode = -1,
+                    executionTime = System.currentTimeMillis() - startTime,
+                    source = request.source
+                )
+            }
+            
+            resultFile.writeText("")
+            commandFile.writeText(request.command)
+            
+            val result = withTimeout(request.timeout) {
+                waitForResult()
+            }
+            
+            val executionTime = System.currentTimeMillis() - startTime
+            val parts = result.split("|", limit = 2)
+            val exitCode = parts.getOrNull(0)?.toIntOrNull() ?: -1
+            val output = parts.getOrNull(1) ?: result
+            
+            val truncatedOutput = if (output.length > request.maxOutputSize) {
+                output.take(request.maxOutputSize) + "\n... (truncated)"
+            } else {
+                output
+            }
+            
+            ExecutionResult(
+                success = exitCode == 0,
+                output = truncatedOutput.ifEmpty { "Command completed" },
+                exitCode = exitCode,
+                executionTime = executionTime,
+                source = request.source
+            )
+            
+        } catch (e: Exception) {
+            Log.e(tag, "Execution failed", e)
+            ExecutionResult(
+                success = false,
+                output = "Error: ${e.message}",
+                exitCode = -1,
+                executionTime = System.currentTimeMillis() - startTime,
+                source = request.source
+            )
+        }
+    }
+    
+    private fun isDaemonRunning(): Boolean {
+        return statusFile.exists() && statusFile.readText().trim() == "ready"
+    }
+    
+    private suspend fun waitForResult(): String {
+        repeat(300) {
+            if (resultFile.exists() && resultFile.length() > 0) {
+                val content = resultFile.readText().trim()
+                if (content.isNotEmpty()) {
+                    return content
+                }
+            }
+            delay(100)
+        }
+        throw Exception("Timeout waiting for result")
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/llm/LlmBackend.kt =====
+package com.jarvismini.llm
+
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import android.content.Context
+import android.util.Log
+import com.jarvismini.api.*
+import com.jarvismini.executor.UnifiedExecutor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
+
+interface LlmBackend {
+    suspend fun generate(prompt: String): String
+    suspend fun chat(messages: List<ChatMessage>): String
+}
+
+class TermuxLlmBackend(
+    private val context: Context,
+    private val executor: UnifiedExecutor
+) : LlmBackend {
+    
+    private val tag = "TermuxLlmBackend"
+    private val baseUrl = "http://127.0.0.1:8888"
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+    
+    override suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
+        try {
+            val requestBody = json.encodeToString(GenerateRequest.serializer(), GenerateRequest(prompt))
+            
+            val request = Request.Builder()
+                .url("$baseUrl/generate_sync")
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .build()
+            
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext "Error: HTTP ${response.code}"
+            }
+            
+            val body = response.body?.string() ?: return@withContext "No response"
+            val genResponse = json.decodeFromString<GenerateResponse>(body)
+            
+            genResponse.command ?: genResponse.response ?: "No result"
+            
+        } catch (e: Exception) {
+            Log.e(tag, "Generate failed", e)
+            "Error: ${e.message}"
+        }
+    }
+    
+    override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
+        try {
+            val lastMessage = messages.lastOrNull()?.content ?: ""
+            val requestBody = json.encodeToString(ChatRequest.serializer(), ChatRequest(query = lastMessage))
+            
+            val request = Request.Builder()
+                .url("$baseUrl/chat_sync")
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .build()
+            
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext "Error: HTTP ${response.code}"
+            }
+            
+            val body = response.body?.string() ?: return@withContext "No response"
+            val chatResponse = json.decodeFromString<ChatResponse>(body)
+            
+            chatResponse.response ?: "No result"
+            
+        } catch (e: Exception) {
+            Log.e(tag, "Chat failed", e)
+            "Error: ${e.message}"
+        }
+    }
+}
+
+class CloudApiBackend(
+    private val context: Context,
+    private val executor: UnifiedExecutor
+) : LlmBackend {
+    
+    private val tag = "CloudApiBackend"
+    private val prefs = context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE)
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
+    
+    private fun getApiKey(): String = prefs.getString("cloud_api_key", "") ?: ""
+    private fun getProvider(): String = prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI"
+    
+    override suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
+        val apiKey = getApiKey()
+        if (apiKey.isEmpty()) {
+            return@withContext "Cloud API not configured. Add API key in settings."
+        }
+        
+        try {
+            when (getProvider()) {
+                "OPENAI" -> generateOpenAI(prompt, apiKey)
+                "ANTHROPIC" -> generateAnthropic(prompt, apiKey)
+                else -> "Unknown provider"
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Generate failed", e)
+            "Error: ${e.message}"
+        }
+    }
+    
+    override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
+        val apiKey = getApiKey()
+        if (apiKey.isEmpty()) {
+            return@withContext "Cloud API not configured"
+        }
+        
+        try {
+            when (getProvider()) {
+                "OPENAI" -> chatOpenAI(messages, apiKey)
+                "ANTHROPIC" -> chatAnthropic(messages, apiKey)
+                else -> "Unknown provider"
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Chat failed", e)
+            "Error: ${e.message}"
+        }
+    }
+    
+    private fun generateOpenAI(prompt: String, apiKey: String): String {
+        val requestObj = OpenAIRequest(
+            model = "gpt-4o-mini",
+            messages = listOf(ChatMessage("user", prompt)),
+            max_tokens = 150
+        )
+        
+        val requestBody = json.encodeToString(OpenAIRequest.serializer(), requestObj)
+        
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", "Bearer $apiKey")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw Exception("HTTP ${response.code}: ${response.body?.string()}")
+        }
+        
+        val body = response.body?.string() ?: throw Exception("No response")
+        val openAIResponse = json.decodeFromString<OpenAIResponse>(body)
+        
+        return openAIResponse.choices.firstOrNull()?.message?.content ?: "No result"
+    }
+    
+    private fun chatOpenAI(messages: List<ChatMessage>, apiKey: String): String {
+        val requestObj = OpenAIRequest(
+            model = "gpt-4o-mini",
+            messages = messages,
+            max_tokens = 500
+        )
+        
+        val requestBody = json.encodeToString(OpenAIRequest.serializer(), requestObj)
+        
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", "Bearer $apiKey")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw Exception("HTTP ${response.code}: ${response.body?.string()}")
+        }
+        
+        val body = response.body?.string() ?: throw Exception("No response")
+        val openAIResponse = json.decodeFromString<OpenAIResponse>(body)
+        
+        return openAIResponse.choices.firstOrNull()?.message?.content ?: "No result"
+    }
+    
+    private fun generateAnthropic(prompt: String, apiKey: String): String {
+        val requestObj = AnthropicRequest(
+            model = "claude-sonnet-4-20250514",
+            max_tokens = 150,
+            messages = listOf(ChatMessage("user", prompt))
+        )
+        
+        val requestBody = json.encodeToString(AnthropicRequest.serializer(), requestObj)
+        
+        val request = Request.Builder()
+            .url("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", apiKey)
+            .header("anthropic-version", "2023-06-01")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw Exception("HTTP ${response.code}: ${response.body?.string()}")
+        }
+        
+        val body = response.body?.string() ?: throw Exception("No response")
+        val anthropicResponse = json.decodeFromString<AnthropicResponse>(body)
+        
+        return anthropicResponse.content.firstOrNull()?.text ?: "No result"
+    }
+    
+    private fun chatAnthropic(messages: List<ChatMessage>, apiKey: String): String {
+        val requestObj = AnthropicRequest(
+            model = "claude-sonnet-4-20250514",
+            max_tokens = 1024,
+            messages = messages
+        )
+        
+        val requestBody = json.encodeToString(AnthropicRequest.serializer(), requestObj)
+        
+        val request = Request.Builder()
+            .url("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", apiKey)
+            .header("anthropic-version", "2023-06-01")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+        
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw Exception("HTTP ${response.code}: ${response.body?.string()}")
+        }
+        
+        val body = response.body?.string() ?: throw Exception("No response")
+        val anthropicResponse = json.decodeFromString<AnthropicResponse>(body)
+        
+        return anthropicResponse.content.firstOrNull()?.text ?: "No result"
+    }
+}
+
+object LlmBackendFactory {
+    fun getBackend(source: RequestSource, context: Context, executor: UnifiedExecutor): LlmBackend {
+        return when (source) {
+            RequestSource.LOCAL_LLM, RequestSource.TERMUX_LLM, RequestSource.LAN_CLIENT -> 
+                TermuxLlmBackend(context, executor)
+            RequestSource.CLOUD_API -> 
+                CloudApiBackend(context, executor)
+        }
     }
 }
 
@@ -2424,6 +3036,480 @@ class TermuxLlamaClient(
             Log.e(tag, "Executor status check failed", e)
             false
         }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/security/SecurityManager.kt =====
+package com.jarvismini.security
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
+import com.jarvismini.api.AuthContext
+import com.jarvismini.api.json
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
+
+class SecurityManager(private val context: Context) {
+
+    private val tag = "SecurityManager"
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("jarvis_security", Context.MODE_PRIVATE)
+
+    @Volatile
+    private var pairingEnabled = false
+
+    @Volatile
+    private var pairingExpiry = 0L
+
+    @Volatile
+    private var allowlistEnabled = true  // 🔥 NEW TOGGLE
+
+    fun setAllowlistEnabled(enabled: Boolean) {
+        allowlistEnabled = enabled
+        Log.i(tag, "Allowlist enabled: $enabled")
+    }
+
+    fun isAllowlistEnabled(): Boolean = allowlistEnabled
+
+    private val deviceRegistry = ConcurrentHashMap<String, TrustedDevice>()
+    private val tokenIndex = ConcurrentHashMap<String, String>()
+    private val rateLimitMap =
+        ConcurrentHashMap<String, ConcurrentHashMap<String, MutableList<Long>>>()
+
+    private val allowedCommands = setOf(
+        "date", "uptime", "whoami", "pwd", "ls", "echo",
+        "termux-notification", "termux-toast", "termux-vibrate",
+        "termux-battery-status", "termux-wifi-connectioninfo",
+        "termux-wifi-scaninfo", "termux-clipboard-get"
+    )
+
+    init {
+        loadDevices()
+    }
+
+    fun enablePairingMode(durationSeconds: Int = 60) {
+        pairingEnabled = true
+        pairingExpiry = System.currentTimeMillis() + (durationSeconds * 1000)
+    }
+
+    fun disablePairingMode() {
+        pairingEnabled = false
+        pairingExpiry = 0L
+    }
+
+    fun isPairingEnabled(): Boolean {
+        if (!pairingEnabled) return false
+        if (System.currentTimeMillis() > pairingExpiry) {
+            disablePairingMode()
+            return false
+        }
+        return true
+    }
+
+    fun pairDevice(deviceName: String, ipAddress: String): PairResult {
+        if (!isPairingEnabled()) {
+            return PairResult(false, error = "Pairing mode disabled.")
+        }
+
+        val token = generateSecureToken()
+        val tokenHash = hashToken(token)
+        val deviceId = generateDeviceId()
+
+        val device = TrustedDevice(
+            id = deviceId,
+            name = deviceName.take(100),
+            tokenHash = tokenHash,
+            ipAddress = ipAddress,
+            pairedAt = System.currentTimeMillis(),
+            lastSeen = System.currentTimeMillis()
+        )
+
+        deviceRegistry[deviceId] = device
+        tokenIndex[tokenHash] = deviceId
+        saveDevices()
+
+        return PairResult(true, deviceId, token)
+    }
+
+    fun unpairDevice(deviceId: String): Boolean {
+        val device = deviceRegistry.remove(deviceId) ?: return false
+        tokenIndex.remove(device.tokenHash)
+        rateLimitMap.remove(deviceId)
+        saveDevices()
+        return true
+    }
+
+    fun getPairedDevices(): List<TrustedDevice> =
+        deviceRegistry.values.sortedByDescending { it.lastSeen }
+
+    fun authenticateToken(auth: AuthContext): AuthResult {
+        val token = auth.deviceToken ?: return AuthResult.failure("Missing token")
+        val tokenHash = hashToken(token)
+        val deviceId = tokenIndex[tokenHash] ?: return AuthResult.failure("Invalid token")
+        val device = deviceRegistry[deviceId] ?: return AuthResult.failure("Device not found")
+
+        device.lastSeen = System.currentTimeMillis()
+        return AuthResult.success(device)
+    }
+
+    fun checkRateLimit(deviceId: String, endpoint: String): Boolean {
+        val now = System.currentTimeMillis()
+        val deviceLimits = rateLimitMap.getOrPut(deviceId) { ConcurrentHashMap() }
+        val timestamps = deviceLimits.getOrPut(endpoint) { mutableListOf() }
+
+        synchronized(timestamps) {
+            timestamps.removeAll { it < now - 60000 }
+
+            val limit = when (endpoint) {
+                "/execute" -> 20
+                else -> 60
+            }
+
+            if (timestamps.size >= limit) return false
+            timestamps.add(now)
+            return true
+        }
+    }
+
+    fun isCommandAllowed(command: String): CommandValidation {
+        if (!allowlistEnabled) {
+            return CommandValidation(true, null)  // 🔥 BYPASS
+        }
+
+        val cmd = command.trim()
+        if (cmd.isEmpty()) return CommandValidation(false, "Empty command")
+        if (cmd.length > 10000) return CommandValidation(false, "Command too large")
+
+        val baseCmd = cmd.split(" ", "\t").firstOrNull() ?: ""
+        if (baseCmd !in allowedCommands) {
+            return CommandValidation(false, "Command not in allowlist: $baseCmd")
+        }
+
+        val dangerousPatterns = listOf(";", "|", "&", ">", "<", "`", "$(", "\\$", "..", "~")
+        for (pattern in dangerousPatterns) {
+            if (cmd.contains(pattern)) {
+                return CommandValidation(false, "Dangerous pattern: $pattern")
+            }
+        }
+
+        return CommandValidation(true, null)
+    }
+
+    private fun generateSecureToken(): String {
+        val random = SecureRandom()
+        val bytes = ByteArray(32)
+        random.nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun generateDeviceId(): String {
+        val random = SecureRandom()
+        val bytes = ByteArray(16)
+        random.nextBytes(bytes)
+        return "dev_" + bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun hashToken(token: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        return digest.digest(token.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun saveDevices() {
+        val jsonString = json.encodeToString(deviceRegistry.values.toList())
+        prefs.edit().putString("devices", jsonString).apply()
+    }
+
+    private fun loadDevices() {
+        val jsonString = prefs.getString("devices", null) ?: return
+        try {
+            val deviceList = json.decodeFromString<List<TrustedDevice>>(jsonString)
+            deviceList.forEach {
+                deviceRegistry[it.id] = it
+                tokenIndex[it.tokenHash] = it.id
+            }
+        } catch (_: Exception) {}
+    }
+}
+
+@Serializable
+data class TrustedDevice(
+    val id: String,
+    val name: String,
+    val tokenHash: String,
+    var ipAddress: String,
+    val pairedAt: Long,
+    var lastSeen: Long
+)
+
+data class PairResult(
+    val success: Boolean,
+    val deviceId: String? = null,
+    val token: String? = null,
+    val error: String? = null
+)
+
+data class CommandValidation(val allowed: Boolean, val reason: String?)
+
+sealed class AuthResult {
+    data class Success(val device: TrustedDevice) : AuthResult()
+    data class Failure(val reason: String) : AuthResult()
+    companion object {
+        fun success(device: TrustedDevice) = Success(device)
+        fun failure(reason: String) = Failure(reason)
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/server/LanServer.kt =====
+package com.jarvismini.server
+
+import android.util.Log
+import com.jarvismini.api.*
+import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoHTTPD.IHTTPSession
+import fi.iki.elonen.NanoHTTPD.Method
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.decodeFromString
+
+class LanServer(
+    private val apiGateway: ApiGateway,
+    port: Int = 8080
+) : NanoHTTPD(port) {
+
+    private val tag = "LanServer"
+
+    override fun serve(session: IHTTPSession): Response {
+        val method = session.method
+        val uri = session.uri
+        val clientIp = session.remoteIpAddress ?: "unknown"
+
+        Log.d(tag, "$method $uri from $clientIp")
+
+        return try {
+            when (method) {
+                Method.GET -> handleGet(uri, clientIp)
+                Method.POST -> handlePost(session, uri, clientIp)
+                Method.OPTIONS -> handleCors(session)
+                else -> errorResponse(405, "Method not allowed")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Request failed", e)
+            errorResponse(500, "Internal error")
+        }
+    }
+
+    private fun handleGet(uri: String, clientIp: String): Response {
+        val endpoint = if (uri.startsWith("/api/v1/")) {
+            uri.removePrefix("/api/v1")
+        } else uri
+
+        val response = runBlocking {
+            apiGateway.handleRequest(
+                ApiRequest(
+                    endpoint = endpoint,
+                    source = RequestSource.LAN_CLIENT,
+                    body = emptyMap(),
+                    auth = AuthContext(null, clientIp, System.currentTimeMillis())
+                )
+            )
+        }
+
+        return toNanoResponse(response)
+    }
+
+    private fun handlePost(session: IHTTPSession, uri: String, clientIp: String): Response {
+        val files = mutableMapOf<String, String>()
+
+        try {
+            session.parseBody(files)
+        } catch (e: Exception) {
+            return errorResponse(400, "Invalid request body")
+        }
+
+        val bodyString = files["postData"] ?: ""
+
+        val bodyMap = try {
+            val serializer = MapSerializer(String.serializer(), String.serializer())
+            json.decodeFromString(serializer, bodyString)
+        } catch (e: Exception) {
+            return errorResponse(400, "Invalid JSON")
+        }
+
+        val authHeader = session.headers["authorization"]
+        val deviceToken = authHeader?.removePrefix("Bearer ")?.trim()
+
+        val endpoint = if (uri.startsWith("/api/v1/")) {
+            uri.removePrefix("/api/v1")
+        } else uri
+
+        val response = runBlocking {
+            apiGateway.handleRequest(
+                ApiRequest(
+                    endpoint = endpoint,
+                    source = RequestSource.LAN_CLIENT,
+                    body = bodyMap,
+                    auth = AuthContext(deviceToken, clientIp, System.currentTimeMillis())
+                )
+            )
+        }
+
+        return toNanoResponse(response)
+    }
+
+    private fun handleCors(session: IHTTPSession): Response {
+        val origin = session.headers["origin"] ?: "*"
+        val response = newFixedLengthResponse(Response.Status.OK, "text/plain", "")
+        response.addHeader("Access-Control-Allow-Origin", origin)
+        response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        response.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        response.addHeader("Access-Control-Allow-Credentials", "true")
+        return response
+    }
+
+    private fun toNanoResponse(apiResponse: ApiResponse): Response {
+        val status = when (apiResponse.statusCode) {
+            200 -> Response.Status.OK
+            400 -> Response.Status.BAD_REQUEST
+            401 -> Response.Status.UNAUTHORIZED
+            403 -> Response.Status.FORBIDDEN
+            404 -> Response.Status.NOT_FOUND
+            405 -> Response.Status.METHOD_NOT_ALLOWED
+            429 -> Response.Status.TOO_MANY_REQUESTS
+            else -> Response.Status.INTERNAL_ERROR
+        }
+
+        val jsonBody = apiResponse.toJson()
+        val response = newFixedLengthResponse(status, "application/json; charset=utf-8", jsonBody)
+        response.addHeader("Access-Control-Allow-Origin", "*")
+        response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        response.addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        return response
+    }
+
+    private fun errorResponse(code: Int, message: String): Response {
+        val status = when (code) {
+            400 -> Response.Status.BAD_REQUEST
+            404 -> Response.Status.NOT_FOUND
+            405 -> Response.Status.METHOD_NOT_ALLOWED
+            else -> Response.Status.INTERNAL_ERROR
+        }
+
+        val json = """{"success":false,"error":"$message"}"""
+        val response = newFixedLengthResponse(status, "application/json", json)
+        response.addHeader("Access-Control-Allow-Origin", "*")
+        return response
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/server/LanServerService.kt =====
+package com.jarvismini.server
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import android.util.Log
+import com.jarvismini.api.ApiGateway
+import com.jarvismini.executor.FileBasedExecutor
+import com.jarvismini.security.SecurityManager
+
+class LanServerService : Service() {
+    
+    private val tag = "LanServerService"
+    private var lanServer: LanServer? = null
+    
+    companion object {
+        private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_ID = "jarvis_lan_server"
+        
+        fun start(context: Context) {
+            val intent = Intent(context, LanServerService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+        
+        fun stop(context: Context) {
+            context.stopService(Intent(context, LanServerService::class.java))
+        }
+    }
+    
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(tag, "Service created")
+        
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, createNotification())
+        
+        val executor = FileBasedExecutor(this)
+        val securityManager = SecurityManager(this)
+        val apiGateway = ApiGateway(this, executor, securityManager)
+        
+        lanServer = LanServer(apiGateway, port = 8080)
+        
+        try {
+            lanServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
+            Log.i(tag, "LAN Server started on port 8080")
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to start LAN server", e)
+        }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(tag, "Service destroyed")
+        lanServer?.stop()
+        lanServer = null
+    }
+    
+    override fun onBind(intent: Intent?): IBinder? = null
+    
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "JARVIS LAN Server",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Allows LAN devices to access JARVIS"
+                setShowBadge(false)
+            }
+            
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager?.createNotificationChannel(channel)
+        }
+    }
+    
+    private fun createNotification(): Notification {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        
+        return builder
+            .setContentTitle("JARVIS LAN Server")
+            .setContentText("Listening on port 8080")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .build()
     }
 }
 
