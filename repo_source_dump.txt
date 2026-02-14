@@ -2522,14 +2522,13 @@ class FileBasedExecutor(private val context: Context) : UnifiedExecutor {
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/LlmBackend.kt =====
 package com.jarvismini.llm
 
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.decodeFromString
 import android.content.Context
 import android.util.Log
 import com.jarvismini.api.*
 import com.jarvismini.executor.UnifiedExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -2547,30 +2546,23 @@ class TermuxLlmBackend(
 ) : LlmBackend {
     
     private val tag = "TermuxLlmBackend"
-    private val baseUrl = "http://127.0.0.1:8888"
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
     
     override suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         try {
-            val requestBody = json.encodeToString(GenerateRequest.serializer(), GenerateRequest(prompt))
+            val result = executor.execute(
+                com.jarvismini.executor.ExecutionRequest(
+                    command = "echo 'termux-llama generate: $prompt'",
+                    source = RequestSource.TERMUX_LLM,
+                    timeout = 30000L,
+                    maxOutputSize = 10000
+                )
+            )
             
-            val request = Request.Builder()
-                .url("$baseUrl/generate_sync")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
-            
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext "Error: HTTP ${response.code}"
+            if (result.success) {
+                result.output
+            } else {
+                "Error: ${result.output}"
             }
-            
-            val body = response.body?.string() ?: return@withContext "No response"
-            val genResponse = json.decodeFromString<GenerateResponse>(body)
-            
-            genResponse.command ?: genResponse.response ?: "No result"
             
         } catch (e: Exception) {
             Log.e(tag, "Generate failed", e)
@@ -2580,23 +2572,22 @@ class TermuxLlmBackend(
     
     override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
         try {
-            val lastMessage = messages.lastOrNull()?.content ?: ""
-            val requestBody = json.encodeToString(ChatRequest.serializer(), ChatRequest(query = lastMessage))
+            val lastMessage = messages.lastOrNull()?.content ?: return@withContext "No message"
             
-            val request = Request.Builder()
-                .url("$baseUrl/chat_sync")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
+            val result = executor.execute(
+                com.jarvismini.executor.ExecutionRequest(
+                    command = "echo 'termux-llama chat: $lastMessage'",
+                    source = RequestSource.TERMUX_LLM,
+                    timeout = 30000L,
+                    maxOutputSize = 10000
+                )
+            )
             
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext "Error: HTTP ${response.code}"
+            if (result.success) {
+                result.output
+            } else {
+                "Error: ${result.output}"
             }
-            
-            val body = response.body?.string() ?: return@withContext "No response"
-            val chatResponse = json.decodeFromString<ChatResponse>(body)
-            
-            chatResponse.response ?: "No result"
             
         } catch (e: Exception) {
             Log.e(tag, "Chat failed", e)
@@ -2619,6 +2610,7 @@ class CloudApiBackend(
     
     private fun getApiKey(): String = prefs.getString("cloud_api_key", "") ?: ""
     private fun getProvider(): String = prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI"
+    private fun getSelectedModel(): String = prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini"
     
     override suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
@@ -2657,8 +2649,9 @@ class CloudApiBackend(
     }
     
     private fun generateOpenAI(prompt: String, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = OpenAIRequest(
-            model = "gpt-4o-mini",
+            model = if (model.startsWith("gpt")) model else "gpt-4o-mini",
             messages = listOf(ChatMessage("user", prompt)),
             max_tokens = 150
         )
@@ -2683,8 +2676,9 @@ class CloudApiBackend(
     }
     
     private fun chatOpenAI(messages: List<ChatMessage>, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = OpenAIRequest(
-            model = "gpt-4o-mini",
+            model = if (model.startsWith("gpt")) model else "gpt-4o-mini",
             messages = messages,
             max_tokens = 500
         )
@@ -2709,8 +2703,9 @@ class CloudApiBackend(
     }
     
     private fun generateAnthropic(prompt: String, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = AnthropicRequest(
-            model = "claude-sonnet-4-20250514",
+            model = if (model.startsWith("claude")) model else "claude-sonnet-4-20250514",
             max_tokens = 150,
             messages = listOf(ChatMessage("user", prompt))
         )
@@ -2736,8 +2731,9 @@ class CloudApiBackend(
     }
     
     private fun chatAnthropic(messages: List<ChatMessage>, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = AnthropicRequest(
-            model = "claude-sonnet-4-20250514",
+            model = if (model.startsWith("claude")) model else "claude-sonnet-4-20250514",
             max_tokens = 1024,
             messages = messages
         )
@@ -3250,7 +3246,7 @@ class SecurityManager(private val context: Context) {
     private var pairingExpiry = 0L
 
     @Volatile
-    private var allowlistEnabled = true  // 🔥 NEW TOGGLE
+    private var allowlistEnabled = true  // ðŸ”¥ NEW TOGGLE
 
     fun setAllowlistEnabled(enabled: Boolean) {
         allowlistEnabled = enabled
@@ -3293,6 +3289,8 @@ class SecurityManager(private val context: Context) {
         }
         return true
     }
+    
+    fun getPairingExpiry(): Long = pairingExpiry
 
     fun pairDevice(deviceName: String, ipAddress: String): PairResult {
         if (!isPairingEnabled()) {
@@ -3349,35 +3347,36 @@ class SecurityManager(private val context: Context) {
             timestamps.removeAll { it < now - 60000 }
 
             val limit = when (endpoint) {
-                "/execute" -> 20
-                else -> 60
+                "/generate", "/chat" -> 20
+                "/execute" -> 60
+                else -> 100
             }
 
-            if (timestamps.size >= limit) return false
-            timestamps.add(now)
-            return true
+            return if (timestamps.size < limit) {
+                timestamps.add(now)
+                true
+            } else {
+                false
+            }
         }
     }
 
     fun isCommandAllowed(command: String): CommandValidation {
-        if (!allowlistEnabled) {
-            return CommandValidation(true, null)  // 🔥 BYPASS
+        val trimmed = command.trim()
+
+        if (trimmed.isEmpty()) {
+            return CommandValidation(false, "Empty command")
         }
 
-        val cmd = command.trim()
-        if (cmd.isEmpty()) return CommandValidation(false, "Empty command")
-        if (cmd.length > 10000) return CommandValidation(false, "Command too large")
+        val firstToken = trimmed.split(" ").firstOrNull() ?: ""
 
-        val baseCmd = cmd.split(" ", "\t").firstOrNull() ?: ""
-        if (baseCmd !in allowedCommands) {
-            return CommandValidation(false, "Command not in allowlist: $baseCmd")
+        if (firstToken in allowedCommands) {
+            return CommandValidation(true, null)
         }
 
-        val dangerousPatterns = listOf(";", "|", "&", ">", "<", "`", "$(", "\\$", "..", "~")
-        for (pattern in dangerousPatterns) {
-            if (cmd.contains(pattern)) {
-                return CommandValidation(false, "Dangerous pattern: $pattern")
-            }
+        val dangerous = listOf("rm", "dd", "mkfs", "format", ">", "curl", "wget")
+        if (dangerous.any { trimmed.contains(it) }) {
+            return CommandValidation(false, "Dangerous command blocked")
         }
 
         return CommandValidation(true, null)
@@ -3391,10 +3390,7 @@ class SecurityManager(private val context: Context) {
     }
 
     private fun generateDeviceId(): String {
-        val random = SecureRandom()
-        val bytes = ByteArray(16)
-        random.nextBytes(bytes)
-        return "dev_" + bytes.joinToString("") { "%02x".format(it) }
+        return "dev_${System.currentTimeMillis()}_${(1000..9999).random()}"
     }
 
     private fun hashToken(token: String): String {
@@ -7110,33 +7106,91 @@ fun MainScreen() {
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/settings/SettingsScreen.kt =====
 package com.jarvismini.ui.settings
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.jarvismini.security.SecurityManager
+import com.jarvismini.server.LanServerService
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.net.NetworkInterface
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
+    val securityManager = remember { SecurityManager(context) }
+    val scope = rememberCoroutineScope()
+    
+    // Model Selection State
+    var selectedModel by remember { mutableStateOf(prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini") }
+    var showModelDialog by remember { mutableStateOf(false) }
+    
+    // Cloud API State
+    var cloudProvider by remember { mutableStateOf(prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI") }
+    var apiKey by remember { mutableStateOf(prefs.getString("cloud_api_key", "") ?: "") }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var showApiKey by remember { mutableStateOf(false) }
+    
+    // LAN Server State
+    var isServerRunning by remember { mutableStateOf(false) }
+    var serverIpAddress by remember { mutableStateOf(getLocalIpAddress()) }
+    
+    // Device Pairing State
+    var pairedDevices by remember { mutableStateOf(securityManager.getPairedDevices()) }
+    var isPairingMode by remember { mutableStateOf(false) }
+    var pairingTimeLeft by remember { mutableStateOf(0) }
+    var showPairingDialog by remember { mutableStateOf(false) }
+    var showDeviceListDialog by remember { mutableStateOf(false) }
+    
+    // Pairing countdown timer
+    LaunchedEffect(isPairingMode) {
+        while (isPairingMode) {
+            if (securityManager.isPairingEnabled()) {
+                pairingTimeLeft = ((securityManager.getPairingExpiry() - System.currentTimeMillis()) / 1000).toInt()
+                if (pairingTimeLeft <= 0) {
+                    isPairingMode = false
+                }
+            } else {
+                isPairingMode = false
+            }
+            delay(1000)
+        }
+    }
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black))
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
             )
     ) {
         Column(
@@ -7144,6 +7198,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(20.dp)
         ) {
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -7166,39 +7221,213 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(20.dp))
 
-            Text(
-                text = "SYSTEM CONFIGURATION",
-                fontSize = 14.sp,
-                letterSpacing = 2.sp,
-                color = Color(0xFF00E0FF),
-                fontFamily = FontFamily.Monospace
-            )
-
-            Spacer(Modifier.height(20.dp))
-
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Section: LLM Configuration
+                item {
+                    Text(
+                        text = "LLM CONFIGURATION",
+                        fontSize = 14.sp,
+                        letterSpacing = 2.sp,
+                        color = Color(0xFF00E0FF),
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                
+                // Model Selector
+                item {
+                    SettingsTile(
+                        title = "AI Model",
+                        subtitle = getModelDisplayName(selectedModel),
+                        icon = Icons.Default.Psychology,
+                        onClick = { showModelDialog = true }
+                    )
+                }
+                
+                // Cloud API Configuration
+                item {
+                    SettingsTile(
+                        title = "Cloud API Provider",
+                        subtitle = cloudProvider,
+                        icon = Icons.Default.Cloud,
+                        onClick = { 
+                            cloudProvider = if (cloudProvider == "OPENAI") "ANTHROPIC" else "OPENAI"
+                            prefs.edit().putString("cloud_provider", cloudProvider).apply()
+                        }
+                    )
+                }
+                
+                item {
+                    SettingsTile(
+                        title = "API Key",
+                        subtitle = if (apiKey.isEmpty()) "Not Configured" else "••••••••",
+                        icon = Icons.Default.Key,
+                        onClick = { showApiKeyDialog = true }
+                    )
+                }
+                
+                // Section: LAN Server
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "LAN SERVER",
+                        fontSize = 14.sp,
+                        letterSpacing = 2.sp,
+                        color = Color(0xFF00E0FF),
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                
+                item {
+                    SettingsTile(
+                        title = "Server Status",
+                        subtitle = if (isServerRunning) "Running on $serverIpAddress:8080" else "Stopped",
+                        icon = if (isServerRunning) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                        onClick = {
+                            if (isServerRunning) {
+                                LanServerService.stop(context)
+                                isServerRunning = false
+                            } else {
+                                LanServerService.start(context)
+                                isServerRunning = true
+                                serverIpAddress = getLocalIpAddress()
+                            }
+                        }
+                    )
+                }
+                
+                // Section: Device Pairing
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "DEVICE PAIRING",
+                        fontSize = 14.sp,
+                        letterSpacing = 2.sp,
+                        color = Color(0xFF00E0FF),
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                
+                item {
+                    SettingsTile(
+                        title = "Pairing Mode",
+                        subtitle = if (isPairingMode) "Active ($pairingTimeLeft sec)" else "Disabled",
+                        icon = if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled,
+                        onClick = {
+                            if (isPairingMode) {
+                                securityManager.disablePairingMode()
+                                isPairingMode = false
+                            } else {
+                                securityManager.enablePairingMode(60)
+                                isPairingMode = true
+                                showPairingDialog = true
+                            }
+                        }
+                    )
+                }
+                
+                item {
+                    SettingsTile(
+                        title = "Paired Devices",
+                        subtitle = "${pairedDevices.size} device(s)",
+                        icon = Icons.Default.Devices,
+                        onClick = {
+                            pairedDevices = securityManager.getPairedDevices()
+                            showDeviceListDialog = true
+                        }
+                    )
+                }
+                
+                // Section: Other
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "SYSTEM",
+                        fontSize = 14.sp,
+                        letterSpacing = 2.sp,
+                        color = Color(0xFF00E0FF),
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                
                 item {
                     SettingsTile("Permissions", "All Granted", Icons.Default.CheckCircle)
                 }
-                item {
-                    SettingsTile("LLM Model", "GPT-4.1 Mini", Icons.Default.Psychology)
-                }
+                
                 item {
                     SettingsTile("Voice Engine", "ElevenLabs", Icons.Default.Mic)
                 }
+                
                 item {
                     SettingsTile("Vision Models", "Downloaded", Icons.Default.Visibility)
                 }
             }
         }
     }
+    
+    // Model Selection Dialog
+    if (showModelDialog) {
+        ModelSelectionDialog(
+            currentModel = selectedModel,
+            onDismiss = { showModelDialog = false },
+            onModelSelected = { model ->
+                selectedModel = model
+                prefs.edit().putString("selected_model", model).apply()
+                showModelDialog = false
+            }
+        )
+    }
+    
+    // API Key Dialog
+    if (showApiKeyDialog) {
+        ApiKeyDialog(
+            provider = cloudProvider,
+            currentKey = apiKey,
+            onDismiss = { showApiKeyDialog = false },
+            onSave = { newKey ->
+                apiKey = newKey
+                prefs.edit().putString("cloud_api_key", newKey).apply()
+                showApiKeyDialog = false
+            }
+        )
+    }
+    
+    // Pairing Instructions Dialog
+    if (showPairingDialog) {
+        PairingInstructionsDialog(
+            ipAddress = serverIpAddress,
+            timeLeft = pairingTimeLeft,
+            onDismiss = { showPairingDialog = false }
+        )
+    }
+    
+    // Device List Dialog
+    if (showDeviceListDialog) {
+        DeviceListDialog(
+            devices = pairedDevices,
+            onDismiss = { showDeviceListDialog = false },
+            onUnpair = { deviceId ->
+                securityManager.unpairDevice(deviceId)
+                pairedDevices = securityManager.getPairedDevices()
+            }
+        )
+    }
 }
 
 @Composable
-fun SettingsTile(title: String, subtitle: String, icon: ImageVector) {
+fun SettingsTile(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: (() -> Unit)? = null
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(
                 color = Color.Black.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(8.dp)
@@ -7211,29 +7440,550 @@ fun SettingsTile(title: String, subtitle: String, icon: ImageVector) {
             .padding(16.dp),
         color = Color.Transparent
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Color(0xFF00E0FF)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color(0xFF00E0FF),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E0FF)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = subtitle,
+                        fontSize = 12.sp,
+                        color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                    )
+                }
+            }
+            if (onClick != null) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color(0xFF00E0FF).copy(alpha = 0.4f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ModelSelectionDialog(
+    currentModel: String,
+    onDismiss: () -> Unit,
+    onModelSelected: (String) -> Unit
+) {
+    val models = listOf(
+        ModelOption("gpt-4o-mini", "GPT-4o Mini", "OpenAI - Fast & Efficient"),
+        ModelOption("gpt-4o", "GPT-4o", "OpenAI - Most Capable"),
+        ModelOption("gpt-3.5-turbo", "GPT-3.5 Turbo", "OpenAI - Legacy"),
+        ModelOption("claude-sonnet-4-20250514", "Claude Sonnet 4", "Anthropic - Balanced"),
+        ModelOption("claude-opus-4-5-20251101", "Claude Opus 4.5", "Anthropic - Most Intelligent"),
+        ModelOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5", "Anthropic - Fast"),
+        ModelOption("termux-llama", "Termux Llama", "Local - Privacy First")
+    )
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF001520),
+            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .widthIn(max = 400.dp)
+            ) {
+                Text(
+                    text = "SELECT AI MODEL",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    color = Color(0xFF00E0FF)
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.heightIn(max = 400.dp)
+                ) {
+                    items(models) { model ->
+                        ModelOptionItem(
+                            model = model,
+                            isSelected = currentModel == model.id,
+                            onClick = { onModelSelected(model.id) }
+                        )
+                    }
+                }
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
+                    )
+                ) {
+                    Text("CANCEL", color = Color(0xFF00E0FF))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ModelOptionItem(
+    model: ModelOption,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = if (isSelected) Color(0xFF00E0FF).copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.3f),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) Color(0xFF00E0FF) else Color(0xFF00E0FF).copy(alpha = 0.2f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = isSelected,
+                onClick = onClick,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = Color(0xFF00E0FF),
+                    unselectedColor = Color(0xFF00E0FF).copy(alpha = 0.5f)
+                )
             )
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(8.dp))
             Column {
                 Text(
-                    text = title,
+                    text = model.displayName,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF00E0FF)
                 )
-                Spacer(Modifier.height(4.dp))
                 Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
+                    text = model.description,
+                    fontSize = 11.sp,
                     color = Color(0xFF00E0FF).copy(alpha = 0.6f)
                 )
             }
         }
     }
+}
+
+@Composable
+fun ApiKeyDialog(
+    provider: String,
+    currentKey: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var apiKey by remember { mutableStateOf(currentKey) }
+    var showKey by remember { mutableStateOf(false) }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF001520),
+            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp)
+            ) {
+                Text(
+                    text = "$provider API KEY",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    color = Color(0xFF00E0FF)
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("API Key", color = Color(0xFF00E0FF).copy(alpha = 0.6f)) },
+                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showKey = !showKey }) {
+                            Icon(
+                                imageVector = if (showKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (showKey) "Hide" else "Show",
+                                tint = Color(0xFF00E0FF)
+                            )
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color(0xFF00E0FF),
+                        unfocusedTextColor = Color(0xFF00E0FF).copy(alpha = 0.8f),
+                        focusedBorderColor = Color(0xFF00E0FF),
+                        unfocusedBorderColor = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                        cursorColor = Color(0xFF00E0FF)
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                Text(
+                    text = if (provider == "OPENAI") 
+                        "Get your key from platform.openai.com"
+                    else 
+                        "Get your key from console.anthropic.com",
+                    fontSize = 11.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.5f),
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                Spacer(Modifier.height(20.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Text("CANCEL", color = Color(0xFF00E0FF))
+                    }
+                    
+                    Button(
+                        onClick = { onSave(apiKey) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00E0FF)
+                        )
+                    ) {
+                        Text("SAVE", color = Color.Black)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PairingInstructionsDialog(
+    ipAddress: String,
+    timeLeft: Int,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF001520),
+            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp)
+            ) {
+                Text(
+                    text = "PAIRING MODE ACTIVE",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    color = Color(0xFF00E0FF)
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Text(
+                    text = "Time Remaining: $timeLeft seconds",
+                    fontSize = 14.sp,
+                    color = Color(0xFF00FF00),
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Text(
+                    text = "To pair a device, send a POST request to:",
+                    fontSize = 12.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "http://$ipAddress:8080/api/v1/pair",
+                        fontSize = 11.sp,
+                        color = Color(0xFF00FF00),
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                
+                Spacer(Modifier.height(8.dp))
+                
+                Text(
+                    text = "With JSON body:",
+                    fontSize = 12.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = """{"device_name": "My Device"}""",
+                        fontSize = 11.sp,
+                        color = Color(0xFF00FF00),
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00E0FF)
+                    )
+                ) {
+                    Text("GOT IT", color = Color.Black)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeviceListDialog(
+    devices: List<com.jarvismini.security.TrustedDevice>,
+    onDismiss: () -> Unit,
+    onUnpair: (String) -> Unit
+) {
+    var deviceToUnpair by remember { mutableStateOf<String?>(null) }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF001520),
+            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .widthIn(max = 400.dp)
+            ) {
+                Text(
+                    text = "PAIRED DEVICES",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    color = Color(0xFF00E0FF)
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                if (devices.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No devices paired",
+                            fontSize = 14.sp,
+                            color = Color(0xFF00E0FF).copy(alpha = 0.5f)
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = 400.dp)
+                    ) {
+                        items(devices) { device ->
+                            DeviceItem(
+                                device = device,
+                                onUnpair = { deviceToUnpair = device.id }
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
+                    )
+                ) {
+                    Text("CLOSE", color = Color(0xFF00E0FF))
+                }
+            }
+        }
+    }
+    
+    // Confirm unpair dialog
+    deviceToUnpair?.let { deviceId ->
+        AlertDialog(
+            onDismissRequest = { deviceToUnpair = null },
+            title = {
+                Text("Unpair Device?", color = Color(0xFF00E0FF))
+            },
+            text = {
+                Text(
+                    "This device will lose access to this server.",
+                    color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUnpair(deviceId)
+                        deviceToUnpair = null
+                    }
+                ) {
+                    Text("UNPAIR", color = Color(0xFFFF4444))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deviceToUnpair = null }) {
+                    Text("CANCEL", color = Color(0xFF00E0FF))
+                }
+            },
+            containerColor = Color(0xFF001520)
+        )
+    }
+}
+
+@Composable
+fun DeviceItem(
+    device: com.jarvismini.security.TrustedDevice,
+    onUnpair: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
+    
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color.Black.copy(alpha = 0.3f),
+        border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.2f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Devices,
+                contentDescription = null,
+                tint = Color(0xFF00E0FF),
+                modifier = Modifier.size(24.dp)
+            )
+            
+            Spacer(Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = device.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00E0FF)
+                )
+                Text(
+                    text = device.ipAddress,
+                    fontSize = 11.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "Last seen: ${dateFormat.format(Date(device.lastSeen))}",
+                    fontSize = 10.sp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.5f)
+                )
+            }
+            
+            IconButton(onClick = onUnpair) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Unpair",
+                    tint = Color(0xFFFF4444)
+                )
+            }
+        }
+    }
+}
+
+data class ModelOption(
+    val id: String,
+    val displayName: String,
+    val description: String
+)
+
+fun getModelDisplayName(modelId: String): String {
+    return when (modelId) {
+        "gpt-4o-mini" -> "GPT-4o Mini"
+        "gpt-4o" -> "GPT-4o"
+        "gpt-3.5-turbo" -> "GPT-3.5 Turbo"
+        "claude-sonnet-4-20250514" -> "Claude Sonnet 4"
+        "claude-opus-4-5-20251101" -> "Claude Opus 4.5"
+        "claude-haiku-4-5-20251001" -> "Claude Haiku 4.5"
+        "termux-llama" -> "Termux Llama (Local)"
+        else -> modelId
+    }
+}
+
+fun getLocalIpAddress(): String {
+    try {
+        val interfaces = NetworkInterface.getNetworkInterfaces()
+        while (interfaces.hasMoreElements()) {
+            val networkInterface = interfaces.nextElement()
+            val addresses = networkInterface.inetAddresses
+            while (addresses.hasMoreElements()) {
+                val address = addresses.nextElement()
+                if (!address.isLoopbackAddress && address is java.net.Inet4Address) {
+                    return address.hostAddress ?: "Unknown"
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return "Unknown"
 }
 
 
