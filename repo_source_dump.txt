@@ -1982,7 +1982,6 @@ class WorkModeService : Service() {
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
-//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 package com.jarvismini.llm
 
 import android.content.Context
@@ -1993,17 +1992,14 @@ import kotlinx.coroutines.delay
 import java.io.File
 
 /**
- * Client for communicating with Termux LLaMA server and executor
+ * FIXED: Improved file-based execution with better sync handling
  * 
- * TWO EXECUTION PATHS:
- * 1. Server-side (/execute endpoint) - for unedited LLM-generated commands
- * 2. File-based (jarvis_executor.sh) - for user-edited commands
- * 
- * ARCHITECTURE:
- * - Chat: User → /chat_sync → LLM response
- * - Generate: User query → /generate_sync → Command
- * - Execute (unedited): Command → /execute → Server executes → Result
- * - Execute (edited): Command → file-based → jarvis_executor.sh → Result
+ * Changes:
+ * - Clear result file completely before execution
+ * - Add initial delay for executor startup
+ * - Better file sync handling
+ * - Validate result format
+ * - Detailed logging for debugging
  */
 class TermuxLlamaClient(
     private val context: Context,
@@ -2013,7 +2009,7 @@ class TermuxLlamaClient(
     private val baseUrl = "http://$serverHost:$serverPort"
     private val tag = "TermuxLlamaClient"
     
-    // File-based executor configuration (for edited commands)
+    // File-based executor configuration
     private val EXECUTOR_DIR = "/sdcard/jarvis"
     private val COMMAND_FILE = "$EXECUTOR_DIR/command.txt"
     private val RESULT_FILE = "$EXECUTOR_DIR/result.txt"
@@ -2029,9 +2025,6 @@ class TermuxLlamaClient(
         val method: String? = null
     )
 
-    /**
-     * Check if the LLM server is healthy
-     */
     suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = java.net.URL("$baseUrl/health")
@@ -2049,10 +2042,6 @@ class TermuxLlamaClient(
         }
     }
 
-    /**
-     * Chat with the LLM (conversational mode)
-     * Uses /chat_sync endpoint for natural conversations
-     */
     suspend fun chat(query: String, timeoutSeconds: Int = 60): CommandResult = withContext(Dispatchers.IO) {
         try {
             Log.d(tag, "Chat request: $query")
@@ -2065,7 +2054,6 @@ class TermuxLlamaClient(
             connection.readTimeout = (timeoutSeconds + 10) * 1000
             connection.doOutput = true
 
-            // Create JSON request
             val jsonBody = """{"query": "$query"}"""
             
             connection.outputStream.use { os ->
@@ -2083,7 +2071,6 @@ class TermuxLlamaClient(
 
             when (responseCode) {
                 200 -> {
-                    // Parse JSON response
                     val json = org.json.JSONObject(response)
                     if (json.getBoolean("success")) {
                         val chatResponse = json.getString("response")
@@ -2106,10 +2093,6 @@ class TermuxLlamaClient(
         }
     }
 
-    /**
-     * Generate a Termux command from natural language
-     * Uses /generate_sync endpoint for command generation
-     */
     suspend fun generateCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
         try {
             Log.d(tag, "Generate command: $query")
@@ -2159,12 +2142,6 @@ class TermuxLlamaClient(
         }
     }
 
-    /**
-     * Execute command via server /execute endpoint
-     * Used for UNEDITED LLM-generated commands
-     * 
-     * Server executes the command in Termux and returns result
-     */
     suspend fun executeCommandViaServer(command: String): CommandResult = withContext(Dispatchers.IO) {
         try {
             Log.d(tag, "Execute via server: $command")
@@ -2174,7 +2151,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             connection.connectTimeout = 10000
-            connection.readTimeout = 70000 // 70 seconds (server has 60s timeout)
+            connection.readTimeout = 70000
             connection.doOutput = true
 
             val jsonBody = """{"command": "$command"}"""
@@ -2221,17 +2198,14 @@ class TermuxLlamaClient(
     }
 
     /**
-     * Execute command via file-based executor (jarvis_executor.sh)
-     * Used for USER-EDITED commands
-     * 
-     * WORKFLOW:
-     * 1. Write command to /sdcard/jarvis/command.txt
-     * 2. jarvis_executor.sh reads it and executes
-     * 3. Result written to /sdcard/jarvis/result.txt
-     * 4. Read result (format: "exit_code|output")
+     * FIXED: Improved file-based execution
+     * - Better file sync handling
+     * - Result validation
+     * - Detailed logging
      */
     suspend fun executeCommandViaFile(command: String): CommandResult = withContext(Dispatchers.IO) {
         try {
+            Log.d(tag, "========================================")
             Log.d(tag, "Execute via file: $command")
             
             val statusFile = File(STATUS_FILE)
@@ -2240,69 +2214,103 @@ class TermuxLlamaClient(
             
             // Check if executor is running
             if (!statusFile.exists()) {
+                Log.e(tag, "Status file not found")
                 return@withContext CommandResult(
                     success = false,
-                    error = "Executor not running. Run in Termux:\n  bash ~/jarvis_executor_file_based.sh &",
+                    error = "Executor not running.\nRun in Termux:\n  bash ~/jarvis_executor_optimized.sh &",
                     exitCode = -1,
                     method = "file-based"
                 )
             }
             
             val status = statusFile.readText().trim()
+            Log.d(tag, "Executor status: $status")
+            
             if (status != "ready" && status != "executing") {
                 return@withContext CommandResult(
                     success = false,
-                    error = "Executor status: $status",
+                    error = "Executor status: $status\n\nRestart executor in Termux",
                     exitCode = -1,
                     method = "file-based"
                 )
             }
             
-            // Clear old result
+            // Clear old result completely
+            Log.d(tag, "Clearing old result...")
             if (resultFile.exists()) {
-                resultFile.writeText("")
+                resultFile.delete()
+                delay(20) // Let file system catch up
             }
+            resultFile.createNewFile()
+            resultFile.writeText("")
+            Log.d(tag, "Result file cleared")
             
             // Write command
             commandFile.writeText(command)
-            Log.d(tag, "Command written to file")
+            Log.d(tag, "Command written, waiting for result...")
             
-            // Wait for result (max 60 seconds)
+            // Small initial delay for executor to start processing
+            delay(100)
+            
+            // Wait for result with improved checking
             var attempts = 0
-            val maxAttempts = 300 // 300 * 200ms = 60 seconds
+            val maxAttempts = 300 // 60 seconds (300 * 200ms)
+            var resultContent: String? = null
             
             while (attempts < maxAttempts) {
-                delay(200)
-                
-                if (resultFile.exists() && resultFile.length() > 0) {
-                    val resultContent = resultFile.readText()
-                    if (resultContent.isNotBlank()) {
-                        Log.d(tag, "Got result after ${attempts * 200}ms")
-                        break
+                try {
+                    if (resultFile.exists()) {
+                        val length = resultFile.length()
+                        
+                        if (length > 0) {
+                            resultContent = resultFile.readText().trim()
+                            
+                            // Valid result MUST contain pipe separator
+                            if (resultContent.isNotEmpty() && resultContent.contains("|")) {
+                                Log.d(tag, "✓ Valid result found after ${attempts * 200}ms")
+                                Log.d(tag, "  Format: ${resultContent.take(50)}...")
+                                break
+                            } else if (resultContent.isNotEmpty()) {
+                                Log.d(tag, "  Result file has content but no pipe: '$resultContent'")
+                            }
+                        }
                     }
+                } catch (e: Exception) {
+                    Log.d(tag, "  Read attempt failed (will retry): ${e.message}")
                 }
                 
+                delay(200)
                 attempts++
+                
+                // Log progress every 5 seconds
+                if (attempts % 25 == 0) {
+                    Log.d(tag, "⏳ Still waiting... ${attempts * 200}ms elapsed")
+                }
             }
             
-            // Check timeout
-            if (!resultFile.exists() || resultFile.length() == 0L) {
+            // Check timeout or invalid result
+            if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
+                Log.e(tag, "❌ TIMEOUT or INVALID RESULT")
+                Log.e(tag, "  Time elapsed: ${attempts * 200}ms")
+                Log.e(tag, "  Result content: '$resultContent'")
+                Log.e(tag, "  Check executor: tail -f /sdcard/jarvis/executor.log")
+                
                 return@withContext CommandResult(
                     success = false,
-                    error = "Timeout waiting for command execution (60s)",
+                    error = "Failed to get result.\n\nLast content: '$resultContent'\n\nCheck executor log:\n  tail -f /sdcard/jarvis/executor.log",
                     exitCode = -1,
                     method = "file-based"
                 )
             }
             
             // Parse result: "exit_code|output"
-            val result = resultFile.readText()
-            val parts = result.split("|", limit = 2)
+            val parts = resultContent.split("|", limit = 2)
             
             if (parts.size != 2) {
+                Log.e(tag, "❌ Invalid result format: $resultContent")
                 return@withContext CommandResult(
                     success = false,
-                    error = "Invalid result format: $result",
+                    error = "Invalid result format.\n\nGot: $resultContent\n\nExpected: exitcode|output",
                     exitCode = -1,
                     method = "file-based"
                 )
@@ -2311,37 +2319,34 @@ class TermuxLlamaClient(
             val exitCode = parts[0].toIntOrNull() ?: -1
             val output = parts[1]
             
-            Log.d(tag, "File-based execution: exitCode=$exitCode")
+            Log.d(tag, "✓ Execution complete:")
+            Log.d(tag, "  Exit code: $exitCode")
+            Log.d(tag, "  Output length: ${output.length} chars")
+            Log.d(tag, "  Output preview: ${output.take(100)}")
+            Log.d(tag, "========================================")
             
             CommandResult(
                 success = exitCode == 0,
-                output = output.ifEmpty { "✓ Command completed" },
+                output = output.ifEmpty { "✓ Command completed (no output)" },
                 exitCode = exitCode,
                 method = "file-based"
             )
             
         } catch (e: Exception) {
-            Log.e(tag, "File-based execution exception", e)
+            Log.e(tag, "❌ File-based execution exception", e)
             CommandResult(
                 success = false,
-                error = "Execution failed: ${e.message}",
+                error = "Execution failed: ${e.message}\n\nCheck logcat:\n  adb logcat | grep TermuxLlama",
                 exitCode = -1,
                 method = "file-based"
             )
         }
     }
 
-    /**
-     * LEGACY: Execute command (kept for backward compatibility)
-     * Defaults to file-based execution
-     */
     suspend fun executeCommand(command: String): CommandResult {
         return executeCommandViaFile(command)
     }
     
-    /**
-     * Check if jarvis_executor.sh is running
-     */
     suspend fun checkExecutorStatus(): Boolean = withContext(Dispatchers.IO) {
         try {
             val statusFile = File(STATUS_FILE)
