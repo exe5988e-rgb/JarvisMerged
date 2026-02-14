@@ -1,109 +1,895 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/server/LanServerService.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/settings/SettingsScreen.kt =====
 
-// ❌ ERRORS IN THIS FILE (1 error(s)):
-// Line 53: Unresolved reference: NanoHTTPD
+// ❌ ERRORS IN THIS FILE (6 error(s)):
+// Line 398: Unresolved reference: BorderStroke
+// Line 456: Unresolved reference: BorderStroke
+// Line 505: Unresolved reference: BorderStroke
+// Line 598: Unresolved reference: BorderStroke
+// Line 696: Unresolved reference: BorderStroke
+// Line 798: Unresolved reference: BorderStroke
 
-   1    package com.jarvismini.server
+   1    package com.jarvismini.ui.settings
    2    
-   3    import android.app.Notification
-   4    import android.app.NotificationChannel
-   5    import android.app.NotificationManager
-   6    import android.app.Service
-   7    import android.content.Context
-   8    import android.content.Intent
-   9    import android.os.Build
-  10    import android.os.IBinder
-  11    import android.util.Log
-  12    import com.jarvismini.api.ApiGateway
-  13    import com.jarvismini.executor.FileBasedExecutor
-  14    import com.jarvismini.security.SecurityManager
-  15    
-  16    class LanServerService : Service() {
-  17        
-  18        private val tag = "LanServerService"
-  19        private var lanServer: LanServer? = null
-  20        
-  21        companion object {
-  22            private const val NOTIFICATION_ID = 1001
-  23            private const val CHANNEL_ID = "jarvis_lan_server"
-  24            
-  25            fun start(context: Context) {
-  26                val intent = Intent(context, LanServerService::class.java)
-  27                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-  28                    context.startForegroundService(intent)
-  29                } else {
-  30                    context.startService(intent)
-  31                }
-  32            }
-  33            
-  34            fun stop(context: Context) {
-  35                context.stopService(Intent(context, LanServerService::class.java))
-  36            }
-  37        }
-  38        
-  39        override fun onCreate() {
-  40            super.onCreate()
-  41            Log.d(tag, "Service created")
-  42            
-  43            createNotificationChannel()
-  44            startForeground(NOTIFICATION_ID, createNotification())
-  45            
-  46            val executor = FileBasedExecutor(this)
-  47            val securityManager = SecurityManager(this)
-  48            val apiGateway = ApiGateway(this, executor, securityManager)
-  49            
-  50            lanServer = LanServer(apiGateway, port = 8080)
-  51            
-  52            try {
-  53 ❌             lanServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
-  54                Log.i(tag, "LAN Server started on port 8080")
-  55            } catch (e: Exception) {
-  56                Log.e(tag, "Failed to start LAN server", e)
-  57            }
-  58        }
-  59        
-  60        override fun onDestroy() {
-  61            super.onDestroy()
-  62            Log.d(tag, "Service destroyed")
-  63            lanServer?.stop()
-  64            lanServer = null
-  65        }
-  66        
-  67        override fun onBind(intent: Intent?): IBinder? = null
-  68        
-  69        private fun createNotificationChannel() {
-  70            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-  71                val channel = NotificationChannel(
-  72                    CHANNEL_ID,
-  73                    "JARVIS LAN Server",
-  74                    NotificationManager.IMPORTANCE_LOW
-  75                ).apply {
-  76                    description = "Allows LAN devices to access JARVIS"
-  77                    setShowBadge(false)
-  78                }
-  79                
-  80                val notificationManager = getSystemService(NotificationManager::class.java)
-  81                notificationManager?.createNotificationChannel(channel)
-  82            }
-  83        }
-  84        
-  85        private fun createNotification(): Notification {
-  86            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-  87                Notification.Builder(this, CHANNEL_ID)
-  88            } else {
-  89                @Suppress("DEPRECATION")
-  90                Notification.Builder(this)
-  91            }
-  92            
-  93            return builder
-  94                .setContentTitle("JARVIS LAN Server")
-  95                .setContentText("Listening on port 8080")
-  96                .setSmallIcon(android.R.drawable.ic_dialog_info)
-  97                .setOngoing(true)
-  98                .build()
-  99        }
- 100    }
+   3    import android.content.Context
+   4    import androidx.compose.foundation.background
+   5    import androidx.compose.foundation.border
+   6    import androidx.compose.foundation.clickable
+   7    import androidx.compose.foundation.layout.*
+   8    import androidx.compose.foundation.lazy.LazyColumn
+   9    import androidx.compose.foundation.lazy.items
+  10    import androidx.compose.foundation.shape.RoundedCornerShape
+  11    import androidx.compose.foundation.text.KeyboardOptions
+  12    import androidx.compose.material.icons.Icons
+  13    import androidx.compose.material.icons.filled.*
+  14    import androidx.compose.material3.*
+  15    import androidx.compose.runtime.*
+  16    import androidx.compose.ui.Alignment
+  17    import androidx.compose.ui.Modifier
+  18    import androidx.compose.ui.graphics.Brush
+  19    import androidx.compose.ui.graphics.Color
+  20    import androidx.compose.ui.graphics.vector.ImageVector
+  21    import androidx.compose.ui.platform.LocalContext
+  22    import androidx.compose.ui.text.font.FontFamily
+  23    import androidx.compose.ui.text.font.FontWeight
+  24    import androidx.compose.ui.text.input.KeyboardType
+  25    import androidx.compose.ui.text.input.PasswordVisualTransformation
+  26    import androidx.compose.ui.text.input.VisualTransformation
+  27    import androidx.compose.ui.unit.dp
+  28    import androidx.compose.ui.unit.sp
+  29    import androidx.compose.ui.window.Dialog
+  30    import com.jarvismini.security.SecurityManager
+  31    import com.jarvismini.server.LanServerService
+  32    import kotlinx.coroutines.delay
+  33    import kotlinx.coroutines.launch
+  34    import java.net.NetworkInterface
+  35    import java.text.SimpleDateFormat
+  36    import java.util.*
+  37    
+  38    @Composable
+  39    fun SettingsScreen(onBack: () -> Unit) {
+  40        val context = LocalContext.current
+  41        val prefs = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
+  42        val securityManager = remember { SecurityManager(context) }
+  43        val scope = rememberCoroutineScope()
+  44        
+  45        // Model Selection State
+  46        var selectedModel by remember { mutableStateOf(prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini") }
+  47        var showModelDialog by remember { mutableStateOf(false) }
+  48        
+  49        // Cloud API State
+  50        var cloudProvider by remember { mutableStateOf(prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI") }
+  51        var apiKey by remember { mutableStateOf(prefs.getString("cloud_api_key", "") ?: "") }
+  52        var showApiKeyDialog by remember { mutableStateOf(false) }
+  53        var showApiKey by remember { mutableStateOf(false) }
+  54        
+  55        // LAN Server State
+  56        var isServerRunning by remember { mutableStateOf(false) }
+  57        var serverIpAddress by remember { mutableStateOf(getLocalIpAddress()) }
+  58        
+  59        // Device Pairing State
+  60        var pairedDevices by remember { mutableStateOf(securityManager.getPairedDevices()) }
+  61        var isPairingMode by remember { mutableStateOf(false) }
+  62        var pairingTimeLeft by remember { mutableStateOf(0) }
+  63        var showPairingDialog by remember { mutableStateOf(false) }
+  64        var showDeviceListDialog by remember { mutableStateOf(false) }
+  65        
+  66        // Pairing countdown timer
+  67        LaunchedEffect(isPairingMode) {
+  68            while (isPairingMode) {
+  69                if (securityManager.isPairingEnabled()) {
+  70                    pairingTimeLeft = ((securityManager.getPairingExpiry() - System.currentTimeMillis()) / 1000).toInt()
+  71                    if (pairingTimeLeft <= 0) {
+  72                        isPairingMode = false
+  73                    }
+  74                } else {
+  75                    isPairingMode = false
+  76                }
+  77                delay(1000)
+  78            }
+  79        }
+  80        
+  81        Box(
+  82            modifier = Modifier
+  83                .fillMaxSize()
+  84                .background(
+  85                    brush = Brush.radialGradient(
+  86                        colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+  87                    )
+  88                )
+  89        ) {
+  90            Column(
+  91                modifier = Modifier
+  92                    .fillMaxSize()
+  93                    .padding(20.dp)
+  94            ) {
+  95                // Header
+  96                Row(
+  97                    modifier = Modifier.fillMaxWidth(),
+  98                    verticalAlignment = Alignment.CenterVertically
+  99                ) {
+ 100                    IconButton(onClick = onBack) {
+ 101                        Icon(
+ 102                            imageVector = Icons.Default.ArrowBack,
+ 103                            contentDescription = "Back",
+ 104                            tint = Color(0xFF00E0FF)
+ 105                        )
+ 106                    }
+ 107                    Text(
+ 108                        text = "SETTINGS",
+ 109                        fontSize = 24.sp,
+ 110                        fontWeight = FontWeight.Light,
+ 111                        letterSpacing = 4.sp,
+ 112                        color = Color(0xFF00E0FF)
+ 113                    )
+ 114                }
+ 115    
+ 116                Spacer(Modifier.height(20.dp))
+ 117    
+ 118                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+ 119                    // Section: LLM Configuration
+ 120                    item {
+ 121                        Text(
+ 122                            text = "LLM CONFIGURATION",
+ 123                            fontSize = 14.sp,
+ 124                            letterSpacing = 2.sp,
+ 125                            color = Color(0xFF00E0FF),
+ 126                            fontFamily = FontFamily.Monospace,
+ 127                            modifier = Modifier.padding(bottom = 8.dp)
+ 128                        )
+ 129                    }
+ 130                    
+ 131                    // Model Selector
+ 132                    item {
+ 133                        SettingsTile(
+ 134                            title = "AI Model",
+ 135                            subtitle = getModelDisplayName(selectedModel),
+ 136                            icon = Icons.Default.Psychology,
+ 137                            onClick = { showModelDialog = true }
+ 138                        )
+ 139                    }
+ 140                    
+ 141                    // Cloud API Configuration
+ 142                    item {
+ 143                        SettingsTile(
+ 144                            title = "Cloud API Provider",
+ 145                            subtitle = cloudProvider,
+ 146                            icon = Icons.Default.Cloud,
+ 147                            onClick = { 
+ 148                                cloudProvider = if (cloudProvider == "OPENAI") "ANTHROPIC" else "OPENAI"
+ 149                                prefs.edit().putString("cloud_provider", cloudProvider).apply()
+ 150                            }
+ 151                        )
+ 152                    }
+ 153                    
+ 154                    item {
+ 155                        SettingsTile(
+ 156                            title = "API Key",
+ 157                            subtitle = if (apiKey.isEmpty()) "Not Configured" else "••••••••",
+ 158                            icon = Icons.Default.Key,
+ 159                            onClick = { showApiKeyDialog = true }
+ 160                        )
+ 161                    }
+ 162                    
+ 163                    // Section: LAN Server
+ 164                    item {
+ 165                        Spacer(Modifier.height(12.dp))
+ 166                        Text(
+ 167                            text = "LAN SERVER",
+ 168                            fontSize = 14.sp,
+ 169                            letterSpacing = 2.sp,
+ 170                            color = Color(0xFF00E0FF),
+ 171                            fontFamily = FontFamily.Monospace,
+ 172                            modifier = Modifier.padding(bottom = 8.dp)
+ 173                        )
+ 174                    }
+ 175                    
+ 176                    item {
+ 177                        SettingsTile(
+ 178                            title = "Server Status",
+ 179                            subtitle = if (isServerRunning) "Running on $serverIpAddress:8080" else "Stopped",
+ 180                            icon = if (isServerRunning) Icons.Default.CheckCircle else Icons.Default.Cancel,
+ 181                            onClick = {
+ 182                                if (isServerRunning) {
+ 183                                    LanServerService.stop(context)
+ 184                                    isServerRunning = false
+ 185                                } else {
+ 186                                    LanServerService.start(context)
+ 187                                    isServerRunning = true
+ 188                                    serverIpAddress = getLocalIpAddress()
+ 189                                }
+ 190                            }
+ 191                        )
+ 192                    }
+ 193                    
+ 194                    // Section: Device Pairing
+ 195                    item {
+ 196                        Spacer(Modifier.height(12.dp))
+ 197                        Text(
+ 198                            text = "DEVICE PAIRING",
+ 199                            fontSize = 14.sp,
+ 200                            letterSpacing = 2.sp,
+ 201                            color = Color(0xFF00E0FF),
+ 202                            fontFamily = FontFamily.Monospace,
+ 203                            modifier = Modifier.padding(bottom = 8.dp)
+ 204                        )
+ 205                    }
+ 206                    
+ 207                    item {
+ 208                        SettingsTile(
+ 209                            title = "Pairing Mode",
+ 210                            subtitle = if (isPairingMode) "Active ($pairingTimeLeft sec)" else "Disabled",
+ 211                            icon = if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled,
+ 212                            onClick = {
+ 213                                if (isPairingMode) {
+ 214                                    securityManager.disablePairingMode()
+ 215                                    isPairingMode = false
+ 216                                } else {
+ 217                                    securityManager.enablePairingMode(60)
+ 218                                    isPairingMode = true
+ 219                                    showPairingDialog = true
+ 220                                }
+ 221                            }
+ 222                        )
+ 223                    }
+ 224                    
+ 225                    item {
+ 226                        SettingsTile(
+ 227                            title = "Paired Devices",
+ 228                            subtitle = "${pairedDevices.size} device(s)",
+ 229                            icon = Icons.Default.Devices,
+ 230                            onClick = {
+ 231                                pairedDevices = securityManager.getPairedDevices()
+ 232                                showDeviceListDialog = true
+ 233                            }
+ 234                        )
+ 235                    }
+ 236                    
+ 237                    // Section: Other
+ 238                    item {
+ 239                        Spacer(Modifier.height(12.dp))
+ 240                        Text(
+ 241                            text = "SYSTEM",
+ 242                            fontSize = 14.sp,
+ 243                            letterSpacing = 2.sp,
+ 244                            color = Color(0xFF00E0FF),
+ 245                            fontFamily = FontFamily.Monospace,
+ 246                            modifier = Modifier.padding(bottom = 8.dp)
+ 247                        )
+ 248                    }
+ 249                    
+ 250                    item {
+ 251                        SettingsTile("Permissions", "All Granted", Icons.Default.CheckCircle)
+ 252                    }
+ 253                    
+ 254                    item {
+ 255                        SettingsTile("Voice Engine", "ElevenLabs", Icons.Default.Mic)
+ 256                    }
+ 257                    
+ 258                    item {
+ 259                        SettingsTile("Vision Models", "Downloaded", Icons.Default.Visibility)
+ 260                    }
+ 261                }
+ 262            }
+ 263        }
+ 264        
+ 265        // Model Selection Dialog
+ 266        if (showModelDialog) {
+ 267            ModelSelectionDialog(
+ 268                currentModel = selectedModel,
+ 269                onDismiss = { showModelDialog = false },
+ 270                onModelSelected = { model ->
+ 271                    selectedModel = model
+ 272                    prefs.edit().putString("selected_model", model).apply()
+ 273                    showModelDialog = false
+ 274                }
+ 275            )
+ 276        }
+ 277        
+ 278        // API Key Dialog
+ 279        if (showApiKeyDialog) {
+ 280            ApiKeyDialog(
+ 281                provider = cloudProvider,
+ 282                currentKey = apiKey,
+ 283                onDismiss = { showApiKeyDialog = false },
+ 284                onSave = { newKey ->
+ 285                    apiKey = newKey
+ 286                    prefs.edit().putString("cloud_api_key", newKey).apply()
+ 287                    showApiKeyDialog = false
+ 288                }
+ 289            )
+ 290        }
+ 291        
+ 292        // Pairing Instructions Dialog
+ 293        if (showPairingDialog) {
+ 294            PairingInstructionsDialog(
+ 295                ipAddress = serverIpAddress,
+ 296                timeLeft = pairingTimeLeft,
+ 297                onDismiss = { showPairingDialog = false }
+ 298            )
+ 299        }
+ 300        
+ 301        // Device List Dialog
+ 302        if (showDeviceListDialog) {
+ 303            DeviceListDialog(
+ 304                devices = pairedDevices,
+ 305                onDismiss = { showDeviceListDialog = false },
+ 306                onUnpair = { deviceId ->
+ 307                    securityManager.unpairDevice(deviceId)
+ 308                    pairedDevices = securityManager.getPairedDevices()
+ 309                }
+ 310            )
+ 311        }
+ 312    }
+ 313    
+ 314    @Composable
+ 315    fun SettingsTile(
+ 316        title: String,
+ 317        subtitle: String,
+ 318        icon: ImageVector,
+ 319        onClick: (() -> Unit)? = null
+ 320    ) {
+ 321        Surface(
+ 322            modifier = Modifier
+ 323                .fillMaxWidth()
+ 324                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+ 325                .background(
+ 326                    color = Color.Black.copy(alpha = 0.5f),
+ 327                    shape = RoundedCornerShape(8.dp)
+ 328                )
+ 329                .border(
+ 330                    width = 1.dp,
+ 331                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+ 332                    shape = RoundedCornerShape(8.dp)
+ 333                )
+ 334                .padding(16.dp),
+ 335            color = Color.Transparent
+ 336        ) {
+ 337            Row(
+ 338                verticalAlignment = Alignment.CenterVertically,
+ 339                horizontalArrangement = Arrangement.SpaceBetween
+ 340            ) {
+ 341                Row(
+ 342                    verticalAlignment = Alignment.CenterVertically,
+ 343                    modifier = Modifier.weight(1f)
+ 344                ) {
+ 345                    Icon(
+ 346                        imageVector = icon,
+ 347                        contentDescription = null,
+ 348                        tint = Color(0xFF00E0FF),
+ 349                        modifier = Modifier.size(24.dp)
+ 350                    )
+ 351                    Spacer(Modifier.width(16.dp))
+ 352                    Column {
+ 353                        Text(
+ 354                            text = title,
+ 355                            fontSize = 14.sp,
+ 356                            fontWeight = FontWeight.Bold,
+ 357                            color = Color(0xFF00E0FF)
+ 358                        )
+ 359                        Spacer(Modifier.height(4.dp))
+ 360                        Text(
+ 361                            text = subtitle,
+ 362                            fontSize = 12.sp,
+ 363                            color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+ 364                        )
+ 365                    }
+ 366                }
+ 367                if (onClick != null) {
+ 368                    Icon(
+ 369                        imageVector = Icons.Default.ChevronRight,
+ 370                        contentDescription = null,
+ 371                        tint = Color(0xFF00E0FF).copy(alpha = 0.4f)
+ 372                    )
+ 373                }
+ 374            }
+ 375        }
+ 376    }
+ 377    
+ 378    @Composable
+ 379    fun ModelSelectionDialog(
+ 380        currentModel: String,
+ 381        onDismiss: () -> Unit,
+ 382        onModelSelected: (String) -> Unit
+ 383    ) {
+ 384        val models = listOf(
+ 385            ModelOption("gpt-4o-mini", "GPT-4o Mini", "OpenAI - Fast & Efficient"),
+ 386            ModelOption("gpt-4o", "GPT-4o", "OpenAI - Most Capable"),
+ 387            ModelOption("gpt-3.5-turbo", "GPT-3.5 Turbo", "OpenAI - Legacy"),
+ 388            ModelOption("claude-sonnet-4-20250514", "Claude Sonnet 4", "Anthropic - Balanced"),
+ 389            ModelOption("claude-opus-4-5-20251101", "Claude Opus 4.5", "Anthropic - Most Intelligent"),
+ 390            ModelOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5", "Anthropic - Fast"),
+ 391            ModelOption("termux-llama", "Termux Llama", "Local - Privacy First")
+ 392        )
+ 393        
+ 394        Dialog(onDismissRequest = onDismiss) {
+ 395            Surface(
+ 396                shape = RoundedCornerShape(16.dp),
+ 397                color = Color(0xFF001520),
+ 398 ❌             border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+ 399            ) {
+ 400                Column(
+ 401                    modifier = Modifier
+ 402                        .padding(20.dp)
+ 403                        .widthIn(max = 400.dp)
+ 404                ) {
+ 405                    Text(
+ 406                        text = "SELECT AI MODEL",
+ 407                        fontSize = 18.sp,
+ 408                        fontWeight = FontWeight.Bold,
+ 409                        letterSpacing = 2.sp,
+ 410                        color = Color(0xFF00E0FF)
+ 411                    )
+ 412                    
+ 413                    Spacer(Modifier.height(16.dp))
+ 414                    
+ 415                    LazyColumn(
+ 416                        verticalArrangement = Arrangement.spacedBy(8.dp),
+ 417                        modifier = Modifier.heightIn(max = 400.dp)
+ 418                    ) {
+ 419                        items(models) { model ->
+ 420                            ModelOptionItem(
+ 421                                model = model,
+ 422                                isSelected = currentModel == model.id,
+ 423                                onClick = { onModelSelected(model.id) }
+ 424                            )
+ 425                        }
+ 426                    }
+ 427                    
+ 428                    Spacer(Modifier.height(16.dp))
+ 429                    
+ 430                    Button(
+ 431                        onClick = onDismiss,
+ 432                        modifier = Modifier.fillMaxWidth(),
+ 433                        colors = ButtonDefaults.buttonColors(
+ 434                            containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
+ 435                        )
+ 436                    ) {
+ 437                        Text("CANCEL", color = Color(0xFF00E0FF))
+ 438                    }
+ 439                }
+ 440            }
+ 441        }
+ 442    }
+ 443    
+ 444    @Composable
+ 445    fun ModelOptionItem(
+ 446        model: ModelOption,
+ 447        isSelected: Boolean,
+ 448        onClick: () -> Unit
+ 449    ) {
+ 450        Surface(
+ 451            modifier = Modifier
+ 452                .fillMaxWidth()
+ 453                .clickable(onClick = onClick),
+ 454            shape = RoundedCornerShape(8.dp),
+ 455            color = if (isSelected) Color(0xFF00E0FF).copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.3f),
+ 456 ❌         border = BorderStroke(
+ 457                1.dp,
+ 458                if (isSelected) Color(0xFF00E0FF) else Color(0xFF00E0FF).copy(alpha = 0.2f)
+ 459            )
+ 460        ) {
+ 461            Row(
+ 462                modifier = Modifier.padding(12.dp),
+ 463                verticalAlignment = Alignment.CenterVertically
+ 464            ) {
+ 465                RadioButton(
+ 466                    selected = isSelected,
+ 467                    onClick = onClick,
+ 468                    colors = RadioButtonDefaults.colors(
+ 469                        selectedColor = Color(0xFF00E0FF),
+ 470                        unselectedColor = Color(0xFF00E0FF).copy(alpha = 0.5f)
+ 471                    )
+ 472                )
+ 473                Spacer(Modifier.width(8.dp))
+ 474                Column {
+ 475                    Text(
+ 476                        text = model.displayName,
+ 477                        fontSize = 14.sp,
+ 478                        fontWeight = FontWeight.Bold,
+ 479                        color = Color(0xFF00E0FF)
+ 480                    )
+ 481                    Text(
+ 482                        text = model.description,
+ 483                        fontSize = 11.sp,
+ 484                        color = Color(0xFF00E0FF).copy(alpha = 0.6f)
+ 485                    )
+ 486                }
+ 487            }
+ 488        }
+ 489    }
+ 490    
+ 491    @Composable
+ 492    fun ApiKeyDialog(
+ 493        provider: String,
+ 494        currentKey: String,
+ 495        onDismiss: () -> Unit,
+ 496        onSave: (String) -> Unit
+ 497    ) {
+ 498        var apiKey by remember { mutableStateOf(currentKey) }
+ 499        var showKey by remember { mutableStateOf(false) }
+ 500        
+ 501        Dialog(onDismissRequest = onDismiss) {
+ 502            Surface(
+ 503                shape = RoundedCornerShape(16.dp),
+ 504                color = Color(0xFF001520),
+ 505 ❌             border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+ 506            ) {
+ 507                Column(
+ 508                    modifier = Modifier.padding(20.dp)
+ 509                ) {
+ 510                    Text(
+ 511                        text = "$provider API KEY",
+ 512                        fontSize = 18.sp,
+ 513                        fontWeight = FontWeight.Bold,
+ 514                        letterSpacing = 2.sp,
+ 515                        color = Color(0xFF00E0FF)
+ 516                    )
+ 517                    
+ 518                    Spacer(Modifier.height(16.dp))
+ 519                    
+ 520                    OutlinedTextField(
+ 521                        value = apiKey,
+ 522                        onValueChange = { apiKey = it },
+ 523                        label = { Text("API Key", color = Color(0xFF00E0FF).copy(alpha = 0.6f)) },
+ 524                        visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+ 525                        trailingIcon = {
+ 526                            IconButton(onClick = { showKey = !showKey }) {
+ 527                                Icon(
+ 528                                    imageVector = if (showKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+ 529                                    contentDescription = if (showKey) "Hide" else "Show",
+ 530                                    tint = Color(0xFF00E0FF)
+ 531                                )
+ 532                            }
+ 533                        },
+ 534                        colors = OutlinedTextFieldDefaults.colors(
+ 535                            focusedTextColor = Color(0xFF00E0FF),
+ 536                            unfocusedTextColor = Color(0xFF00E0FF).copy(alpha = 0.8f),
+ 537                            focusedBorderColor = Color(0xFF00E0FF),
+ 538                            unfocusedBorderColor = Color(0xFF00E0FF).copy(alpha = 0.4f),
+ 539                            cursorColor = Color(0xFF00E0FF)
+ 540                        ),
+ 541                        modifier = Modifier.fillMaxWidth(),
+ 542                        singleLine = true
+ 543                    )
+ 544                    
+ 545                    Spacer(Modifier.height(8.dp))
+ 546                    
+ 547                    Text(
+ 548                        text = if (provider == "OPENAI") 
+ 549                            "Get your key from platform.openai.com"
+ 550                        else 
+ 551                            "Get your key from console.anthropic.com",
+ 552                        fontSize = 11.sp,
+ 553                        color = Color(0xFF00E0FF).copy(alpha = 0.5f),
+ 554                        fontFamily = FontFamily.Monospace
+ 555                    )
+ 556                    
+ 557                    Spacer(Modifier.height(20.dp))
+ 558                    
+ 559                    Row(
+ 560                        modifier = Modifier.fillMaxWidth(),
+ 561                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+ 562                    ) {
+ 563                        Button(
+ 564                            onClick = onDismiss,
+ 565                            modifier = Modifier.weight(1f),
+ 566                            colors = ButtonDefaults.buttonColors(
+ 567                                containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
+ 568                            )
+ 569                        ) {
+ 570                            Text("CANCEL", color = Color(0xFF00E0FF))
+ 571                        }
+ 572                        
+ 573                        Button(
+ 574                            onClick = { onSave(apiKey) },
+ 575                            modifier = Modifier.weight(1f),
+ 576                            colors = ButtonDefaults.buttonColors(
+ 577                                containerColor = Color(0xFF00E0FF)
+ 578                            )
+ 579                        ) {
+ 580                            Text("SAVE", color = Color.Black)
+ 581                        }
+ 582                    }
+ 583                }
+ 584            }
+ 585        }
+ 586    }
+ 587    
+ 588    @Composable
+ 589    fun PairingInstructionsDialog(
+ 590        ipAddress: String,
+ 591        timeLeft: Int,
+ 592        onDismiss: () -> Unit
+ 593    ) {
+ 594        Dialog(onDismissRequest = onDismiss) {
+ 595            Surface(
+ 596                shape = RoundedCornerShape(16.dp),
+ 597                color = Color(0xFF001520),
+ 598 ❌             border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+ 599            ) {
+ 600                Column(
+ 601                    modifier = Modifier.padding(20.dp)
+ 602                ) {
+ 603                    Text(
+ 604                        text = "PAIRING MODE ACTIVE",
+ 605                        fontSize = 18.sp,
+ 606                        fontWeight = FontWeight.Bold,
+ 607                        letterSpacing = 2.sp,
+ 608                        color = Color(0xFF00E0FF)
+ 609                    )
+ 610                    
+ 611                    Spacer(Modifier.height(16.dp))
+ 612                    
+ 613                    Text(
+ 614                        text = "Time Remaining: $timeLeft seconds",
+ 615                        fontSize = 14.sp,
+ 616                        color = Color(0xFF00FF00),
+ 617                        fontFamily = FontFamily.Monospace
+ 618                    )
+ 619                    
+ 620                    Spacer(Modifier.height(12.dp))
+ 621                    
+ 622                    Text(
+ 623                        text = "To pair a device, send a POST request to:",
+ 624                        fontSize = 12.sp,
+ 625                        color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+ 626                    )
+ 627                    
+ 628                    Spacer(Modifier.height(8.dp))
+ 629                    
+ 630                    Surface(
+ 631                        shape = RoundedCornerShape(8.dp),
+ 632                        color = Color.Black.copy(alpha = 0.5f),
+ 633                        modifier = Modifier.fillMaxWidth()
+ 634                    ) {
+ 635                        Text(
+ 636                            text = "http://$ipAddress:8080/api/v1/pair",
+ 637                            fontSize = 11.sp,
+ 638                            color = Color(0xFF00FF00),
+ 639                            fontFamily = FontFamily.Monospace,
+ 640                            modifier = Modifier.padding(12.dp)
+ 641                        )
+ 642                    }
+ 643                    
+ 644                    Spacer(Modifier.height(8.dp))
+ 645                    
+ 646                    Text(
+ 647                        text = "With JSON body:",
+ 648                        fontSize = 12.sp,
+ 649                        color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+ 650                    )
+ 651                    
+ 652                    Spacer(Modifier.height(8.dp))
+ 653                    
+ 654                    Surface(
+ 655                        shape = RoundedCornerShape(8.dp),
+ 656                        color = Color.Black.copy(alpha = 0.5f),
+ 657                        modifier = Modifier.fillMaxWidth()
+ 658                    ) {
+ 659                        Text(
+ 660                            text = """{"device_name": "My Device"}""",
+ 661                            fontSize = 11.sp,
+ 662                            color = Color(0xFF00FF00),
+ 663                            fontFamily = FontFamily.Monospace,
+ 664                            modifier = Modifier.padding(12.dp)
+ 665                        )
+ 666                    }
+ 667                    
+ 668                    Spacer(Modifier.height(16.dp))
+ 669                    
+ 670                    Button(
+ 671                        onClick = onDismiss,
+ 672                        modifier = Modifier.fillMaxWidth(),
+ 673                        colors = ButtonDefaults.buttonColors(
+ 674                            containerColor = Color(0xFF00E0FF)
+ 675                        )
+ 676                    ) {
+ 677                        Text("GOT IT", color = Color.Black)
+ 678                    }
+ 679                }
+ 680            }
+ 681        }
+ 682    }
+ 683    
+ 684    @Composable
+ 685    fun DeviceListDialog(
+ 686        devices: List<com.jarvismini.security.TrustedDevice>,
+ 687        onDismiss: () -> Unit,
+ 688        onUnpair: (String) -> Unit
+ 689    ) {
+ 690        var deviceToUnpair by remember { mutableStateOf<String?>(null) }
+ 691        
+ 692        Dialog(onDismissRequest = onDismiss) {
+ 693            Surface(
+ 694                shape = RoundedCornerShape(16.dp),
+ 695                color = Color(0xFF001520),
+ 696 ❌             border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
+ 697            ) {
+ 698                Column(
+ 699                    modifier = Modifier
+ 700                        .padding(20.dp)
+ 701                        .widthIn(max = 400.dp)
+ 702                ) {
+ 703                    Text(
+ 704                        text = "PAIRED DEVICES",
+ 705                        fontSize = 18.sp,
+ 706                        fontWeight = FontWeight.Bold,
+ 707                        letterSpacing = 2.sp,
+ 708                        color = Color(0xFF00E0FF)
+ 709                    )
+ 710                    
+ 711                    Spacer(Modifier.height(16.dp))
+ 712                    
+ 713                    if (devices.isEmpty()) {
+ 714                        Box(
+ 715                            modifier = Modifier
+ 716                                .fillMaxWidth()
+ 717                                .height(100.dp),
+ 718                            contentAlignment = Alignment.Center
+ 719                        ) {
+ 720                            Text(
+ 721                                text = "No devices paired",
+ 722                                fontSize = 14.sp,
+ 723                                color = Color(0xFF00E0FF).copy(alpha = 0.5f)
+ 724                            )
+ 725                        }
+ 726                    } else {
+ 727                        LazyColumn(
+ 728                            verticalArrangement = Arrangement.spacedBy(8.dp),
+ 729                            modifier = Modifier.heightIn(max = 400.dp)
+ 730                        ) {
+ 731                            items(devices) { device ->
+ 732                                DeviceItem(
+ 733                                    device = device,
+ 734                                    onUnpair = { deviceToUnpair = device.id }
+ 735                                )
+ 736                            }
+ 737                        }
+ 738                    }
+ 739                    
+ 740                    Spacer(Modifier.height(16.dp))
+ 741                    
+ 742                    Button(
+ 743                        onClick = onDismiss,
+ 744                        modifier = Modifier.fillMaxWidth(),
+ 745                        colors = ButtonDefaults.buttonColors(
+ 746                            containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
+ 747                        )
+ 748                    ) {
+ 749                        Text("CLOSE", color = Color(0xFF00E0FF))
+ 750                    }
+ 751                }
+ 752            }
+ 753        }
+ 754        
+ 755        // Confirm unpair dialog
+ 756        deviceToUnpair?.let { deviceId ->
+ 757            AlertDialog(
+ 758                onDismissRequest = { deviceToUnpair = null },
+ 759                title = {
+ 760                    Text("Unpair Device?", color = Color(0xFF00E0FF))
+ 761                },
+ 762                text = {
+ 763                    Text(
+ 764                        "This device will lose access to this server.",
+ 765                        color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+ 766                    )
+ 767                },
+ 768                confirmButton = {
+ 769                    TextButton(
+ 770                        onClick = {
+ 771                            onUnpair(deviceId)
+ 772                            deviceToUnpair = null
+ 773                        }
+ 774                    ) {
+ 775                        Text("UNPAIR", color = Color(0xFFFF4444))
+ 776                    }
+ 777                },
+ 778                dismissButton = {
+ 779                    TextButton(onClick = { deviceToUnpair = null }) {
+ 780                        Text("CANCEL", color = Color(0xFF00E0FF))
+ 781                    }
+ 782                },
+ 783                containerColor = Color(0xFF001520)
+ 784            )
+ 785        }
+ 786    }
+ 787    
+ 788    @Composable
+ 789    fun DeviceItem(
+ 790        device: com.jarvismini.security.TrustedDevice,
+ 791        onUnpair: () -> Unit
+ 792    ) {
+ 793        val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
+ 794        
+ 795        Surface(
+ 796            shape = RoundedCornerShape(8.dp),
+ 797            color = Color.Black.copy(alpha = 0.3f),
+ 798 ❌         border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.2f)),
+ 799            modifier = Modifier.fillMaxWidth()
+ 800        ) {
+ 801            Row(
+ 802                modifier = Modifier.padding(12.dp),
+ 803                verticalAlignment = Alignment.CenterVertically
+ 804            ) {
+ 805                Icon(
+ 806                    imageVector = Icons.Default.Devices,
+ 807                    contentDescription = null,
+ 808                    tint = Color(0xFF00E0FF),
+ 809                    modifier = Modifier.size(24.dp)
+ 810                )
+ 811                
+ 812                Spacer(Modifier.width(12.dp))
+ 813                
+ 814                Column(modifier = Modifier.weight(1f)) {
+ 815                    Text(
+ 816                        text = device.name,
+ 817                        fontSize = 14.sp,
+ 818                        fontWeight = FontWeight.Bold,
+ 819                        color = Color(0xFF00E0FF)
+ 820                    )
+ 821                    Text(
+ 822                        text = device.ipAddress,
+ 823                        fontSize = 11.sp,
+ 824                        color = Color(0xFF00E0FF).copy(alpha = 0.6f),
+ 825                        fontFamily = FontFamily.Monospace
+ 826                    )
+ 827                    Text(
+ 828                        text = "Last seen: ${dateFormat.format(Date(device.lastSeen))}",
+ 829                        fontSize = 10.sp,
+ 830                        color = Color(0xFF00E0FF).copy(alpha = 0.5f)
+ 831                    )
+ 832                }
+ 833                
+ 834                IconButton(onClick = onUnpair) {
+ 835                    Icon(
+ 836                        imageVector = Icons.Default.Delete,
+ 837                        contentDescription = "Unpair",
+ 838                        tint = Color(0xFFFF4444)
+ 839                    )
+ 840                }
+ 841            }
+ 842        }
+ 843    }
+ 844    
+ 845    data class ModelOption(
+ 846        val id: String,
+ 847        val displayName: String,
+ 848        val description: String
+ 849    )
+ 850    
+ 851    fun getModelDisplayName(modelId: String): String {
+ 852        return when (modelId) {
+ 853            "gpt-4o-mini" -> "GPT-4o Mini"
+ 854            "gpt-4o" -> "GPT-4o"
+ 855            "gpt-3.5-turbo" -> "GPT-3.5 Turbo"
+ 856            "claude-sonnet-4-20250514" -> "Claude Sonnet 4"
+ 857            "claude-opus-4-5-20251101" -> "Claude Opus 4.5"
+ 858            "claude-haiku-4-5-20251001" -> "Claude Haiku 4.5"
+ 859            "termux-llama" -> "Termux Llama (Local)"
+ 860            else -> modelId
+ 861        }
+ 862    }
+ 863    
+ 864    fun getLocalIpAddress(): String {
+ 865        try {
+ 866            val interfaces = NetworkInterface.getNetworkInterfaces()
+ 867            while (interfaces.hasMoreElements()) {
+ 868                val networkInterface = interfaces.nextElement()
+ 869                val addresses = networkInterface.inetAddresses
+ 870                while (addresses.hasMoreElements()) {
+ 871                    val address = addresses.nextElement()
+ 872                    if (!address.isLoopbackAddress && address is java.net.Inet4Address) {
+ 873                        return address.hostAddress ?: "Unknown"
+ 874                    }
+ 875                }
+ 876            }
+ 877        } catch (e: Exception) {
+ 878            e.printStackTrace()
+ 879        }
+ 880        return "Unknown"
+ 881    }
 
 
