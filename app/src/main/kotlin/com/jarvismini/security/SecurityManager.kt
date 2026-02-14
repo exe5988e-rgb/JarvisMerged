@@ -25,7 +25,7 @@ class SecurityManager(private val context: Context) {
     private var pairingExpiry = 0L
 
     @Volatile
-    private var allowlistEnabled = true  // ðŸ”¥ NEW TOGGLE
+    private var allowlistEnabled = true  // 🔥 NEW TOGGLE
 
     fun setAllowlistEnabled(enabled: Boolean) {
         allowlistEnabled = enabled
