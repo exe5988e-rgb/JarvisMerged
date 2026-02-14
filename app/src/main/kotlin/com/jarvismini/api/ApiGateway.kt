@@ -2,7 +2,7 @@ package com.jarvismini.api
 
 import android.content.Context
 import android.util.Log
-import com.jarvismini.executor.ExecutionRequest
+import com.jarvismini.executor.FileBasedExecutor
 import com.jarvismini.executor.UnifiedExecutor
 import com.jarvismini.llm.LlmBackendFactory
 import com.jarvismini.security.AuthResult
@@ -22,11 +22,11 @@ class ApiGateway(
 
     suspend fun handleRequest(request: ApiRequest): ApiResponse = withContext(Dispatchers.IO) {
         try {
-            Log.d(tag, "${request.endpoint} from ${request.source}")
-
+            Log.d(tag, "Handling request: ${request.endpoint} from ${request.source}")
+            
             var authenticatedDevice: TrustedDevice? = null
 
-            // Authenticate LAN requests (except /pair and /health)
+            // Skip auth for /pair and /health endpoints
             if (request.source == RequestSource.LAN_CLIENT &&
                 request.endpoint != "/pair" &&
                 request.endpoint != "/health"
@@ -46,11 +46,14 @@ class ApiGateway(
                 "/execute" -> handleExecute(request)
                 "/chat" -> handleChat(request)
                 "/health" -> handleHealth()
-                else -> errorResponse(404, "Unknown endpoint")
+                else -> {
+                    Log.w(tag, "Unknown endpoint: ${request.endpoint}")
+                    errorResponse(404, "Unknown endpoint: ${request.endpoint}")
+                }
             }
 
         } catch (e: Exception) {
-            Log.e(tag, "Request failed", e)
+            Log.e(tag, "Request failed for ${request.endpoint}", e)
             errorResponse(500, "Internal error: ${e.message}")
         }
     }
@@ -161,6 +164,7 @@ class ApiGateway(
                 )
             }
         } catch (e: Exception) {
+            Log.e(tag, "Generate failed", e)
             errorResponse(500, "Generation failed: ${e.message}")
         }
     }
@@ -172,14 +176,12 @@ class ApiGateway(
             return errorResponse(400, "Missing command")
         }
 
-        // 🔥 Allow API LLM sources to execute
-        // LAN authentication already handled above
         val validation = securityManager.isCommandAllowed(command)
         if (!validation.allowed) {
             return errorResponse(403, "Command blocked: ${validation.reason}")
         }
 
-        val execRequest = ExecutionRequest(
+        val execRequest = com.jarvismini.executor.ExecutionRequest(
             command = command,
             source = request.source,
             timeout = 30000L,
@@ -199,6 +201,7 @@ class ApiGateway(
                 if (result.success) 200 else 500
             )
         } catch (e: Exception) {
+            Log.e(tag, "Execute failed", e)
             errorResponse(500, "Execution failed: ${e.message}")
         }
     }
@@ -219,11 +222,13 @@ class ApiGateway(
                 ApiResponse(true, mapOf("response" to result), null, 200)
             }
         } catch (e: Exception) {
+            Log.e(tag, "Chat failed", e)
             errorResponse(500, "Chat failed: ${e.message}")
         }
     }
 
     private suspend fun handleHealth(): ApiResponse {
+        Log.d(tag, "Health check called")
         return ApiResponse(
             true,
             mapOf(
@@ -237,6 +242,7 @@ class ApiGateway(
     }
 
     private fun errorResponse(code: Int, message: String): ApiResponse {
+        Log.w(tag, "Error response: $code - $message")
         return ApiResponse(false, null, message, code)
     }
 }

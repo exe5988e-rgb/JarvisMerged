@@ -22,25 +22,28 @@ class LanServer(
         val uri = session.uri
         val clientIp = session.remoteIpAddress ?: "unknown"
 
-        Log.d(tag, "$method $uri from $clientIp")
+        Log.d(tag, "Request: $method $uri from $clientIp")
 
         return try {
             when (method) {
                 Method.GET -> handleGet(uri, clientIp)
                 Method.POST -> handlePost(session, uri, clientIp)
                 Method.OPTIONS -> handleCors(session)
-                else -> errorResponse(405, "Method not allowed")
+                else -> {
+                    Log.w(tag, "Method not allowed: $method")
+                    errorResponse(405, "Method not allowed")
+                }
             }
         } catch (e: Exception) {
-            Log.e(tag, "Request failed", e)
-            errorResponse(500, "Internal error")
+            Log.e(tag, "Request failed for $uri", e)
+            errorResponse(500, "Internal error: ${e.message}")
         }
     }
 
     private fun handleGet(uri: String, clientIp: String): Response {
-        val endpoint = if (uri.startsWith("/api/v1/")) {
-            uri.removePrefix("/api/v1")
-        } else uri
+        // Normalize the endpoint
+        val endpoint = normalizeEndpoint(uri)
+        Log.d(tag, "GET endpoint: $endpoint (original: $uri)")
 
         val response = runBlocking {
             apiGateway.handleRequest(
@@ -62,24 +65,31 @@ class LanServer(
         try {
             session.parseBody(files)
         } catch (e: Exception) {
+            Log.e(tag, "Failed to parse body", e)
             return errorResponse(400, "Invalid request body")
         }
 
         val bodyString = files["postData"] ?: ""
+        Log.d(tag, "POST body: $bodyString")
 
         val bodyMap = try {
-            val serializer = MapSerializer(String.serializer(), String.serializer())
-            json.decodeFromString(serializer, bodyString)
+            if (bodyString.isBlank()) {
+                emptyMap()
+            } else {
+                val serializer = MapSerializer(String.serializer(), String.serializer())
+                json.decodeFromString(serializer, bodyString)
+            }
         } catch (e: Exception) {
-            return errorResponse(400, "Invalid JSON")
+            Log.e(tag, "Invalid JSON", e)
+            return errorResponse(400, "Invalid JSON: ${e.message}")
         }
 
         val authHeader = session.headers["authorization"]
         val deviceToken = authHeader?.removePrefix("Bearer ")?.trim()
 
-        val endpoint = if (uri.startsWith("/api/v1/")) {
-            uri.removePrefix("/api/v1")
-        } else uri
+        // Normalize the endpoint
+        val endpoint = normalizeEndpoint(uri)
+        Log.d(tag, "POST endpoint: $endpoint (original: $uri)")
 
         val response = runBlocking {
             apiGateway.handleRequest(
@@ -93,6 +103,24 @@ class LanServer(
         }
 
         return toNanoResponse(response)
+    }
+
+    private fun normalizeEndpoint(uri: String): String {
+        // Remove /api/v1 prefix if present
+        var normalized = uri
+        if (normalized.startsWith("/api/v1/")) {
+            normalized = normalized.removePrefix("/api/v1")
+        } else if (normalized.startsWith("/api/")) {
+            normalized = normalized.removePrefix("/api")
+        }
+        
+        // Ensure it starts with /
+        if (!normalized.startsWith("/")) {
+            normalized = "/$normalized"
+        }
+        
+        Log.d(tag, "Normalized: $uri -> $normalized")
+        return normalized
     }
 
     private fun handleCors(session: IHTTPSession): Response {
@@ -118,6 +146,8 @@ class LanServer(
         }
 
         val jsonBody = apiResponse.toJson()
+        Log.d(tag, "Response (${apiResponse.statusCode}): $jsonBody")
+        
         val response = newFixedLengthResponse(status, "application/json; charset=utf-8", jsonBody)
         response.addHeader("Access-Control-Allow-Origin", "*")
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -134,6 +164,8 @@ class LanServer(
         }
 
         val json = """{"success":false,"error":"$message"}"""
+        Log.w(tag, "Error response ($code): $message")
+        
         val response = newFixedLengthResponse(status, "application/json", json)
         response.addHeader("Access-Control-Allow-Origin", "*")
         return response
