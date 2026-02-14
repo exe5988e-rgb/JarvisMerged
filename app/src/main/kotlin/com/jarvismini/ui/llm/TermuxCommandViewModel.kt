@@ -1,6 +1,8 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/llm/TermuxCommandViewModel.kt =====
 package com.jarvismini.ui.llm
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jarvismini.llm.TermuxLlamaClient
@@ -12,11 +14,13 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for Termux Command Generator
  * 
- * FIXED: Removed Termux intent execution
- * Now uses FIFO for ALL command execution (edited or generated)
+ * TWO EXECUTION PATHS:
+ * 1. Unedited commands → /execute endpoint (server-side execution)
+ * 2. Edited commands → File-based executor (jarvis_executor.sh)
  */
 class TermuxCommandViewModel(private val context: Context) : ViewModel() {
     private val llamaClient = TermuxLlamaClient(context = context)
+    private val tag = "TermuxCommandViewModel"
     
     private val _uiState = MutableStateFlow<LlamaUiState>(LlamaUiState.Idle)
     val uiState: StateFlow<LlamaUiState> = _uiState.asStateFlow()
@@ -109,26 +113,40 @@ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
         if (currentState is LlamaUiState.WaitingConfirmation) {
             _uiState.value = LlamaUiState.WaitingConfirmation(
                 command = newCommand,
-                isEdited = true
+                isEdited = true  // Mark as edited
             )
         }
     }
     
     /**
-     * ✅ FIXED: Execute command using FIFO for ALL commands
-     * No more conditional logic - always use llamaClient.executeCommand()
+     * Execute command with TWO PATHS:
+     * 
+     * PATH 1 (isEdited = false): Unedited LLM-generated command
+     *   → executeCommandViaServer() → /execute endpoint
+     *   → Server executes in Termux and returns result
+     * 
+     * PATH 2 (isEdited = true): User-edited command
+     *   → executeCommandViaFile() → jarvis_executor.sh
+     *   → File-based execution with immediate feedback
      */
     fun executeCommand(command: String, query: String, isEdited: Boolean) {
         viewModelScope.launch {
             try {
                 _uiState.value = LlamaUiState.Executing
                 
-                // ✅ ALWAYS use FIFO execution (works for generated AND edited commands)
-                val result = llamaClient.executeCommand(command)
+                val result = if (isEdited) {
+                    // EDITED COMMAND → File-based executor
+                    Log.d(tag, "Executing EDITED command via file-based executor")
+                    llamaClient.executeCommandViaFile(command)
+                } else {
+                    // UNEDITED COMMAND → Server /execute endpoint
+                    Log.d(tag, "Executing UNEDITED command via server /execute")
+                    llamaClient.executeCommandViaServer(command)
+                }
                 
                 if (result.success) {
                     _uiState.value = LlamaUiState.Success(
-                        output = result.output ?: "Command sent to Termux",
+                        output = result.output ?: "Command completed",
                         exitCode = result.exitCode ?: 0,
                         executionMethod = result.method
                     )
@@ -158,6 +176,7 @@ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
                     )
                 }
             } catch (e: Exception) {
+                Log.e(tag, "Execution error", e)
                 _uiState.value = LlamaUiState.Error(e.message ?: "Execution failed")
             }
         }
