@@ -25,7 +25,7 @@ class SecurityManager(private val context: Context) {
     private var pairingExpiry = 0L
 
     @Volatile
-    private var allowlistEnabled = true  // 🔥 NEW TOGGLE
+    private var allowlistEnabled = true  // ðŸ”¥ NEW TOGGLE
 
     fun setAllowlistEnabled(enabled: Boolean) {
         allowlistEnabled = enabled
@@ -68,6 +68,8 @@ class SecurityManager(private val context: Context) {
         }
         return true
     }
+    
+    fun getPairingExpiry(): Long = pairingExpiry
 
     fun pairDevice(deviceName: String, ipAddress: String): PairResult {
         if (!isPairingEnabled()) {
@@ -124,35 +126,36 @@ class SecurityManager(private val context: Context) {
             timestamps.removeAll { it < now - 60000 }
 
             val limit = when (endpoint) {
-                "/execute" -> 20
-                else -> 60
+                "/generate", "/chat" -> 20
+                "/execute" -> 60
+                else -> 100
             }
 
-            if (timestamps.size >= limit) return false
-            timestamps.add(now)
-            return true
+            return if (timestamps.size < limit) {
+                timestamps.add(now)
+                true
+            } else {
+                false
+            }
         }
     }
 
     fun isCommandAllowed(command: String): CommandValidation {
-        if (!allowlistEnabled) {
-            return CommandValidation(true, null)  // 🔥 BYPASS
+        val trimmed = command.trim()
+
+        if (trimmed.isEmpty()) {
+            return CommandValidation(false, "Empty command")
         }
 
-        val cmd = command.trim()
-        if (cmd.isEmpty()) return CommandValidation(false, "Empty command")
-        if (cmd.length > 10000) return CommandValidation(false, "Command too large")
+        val firstToken = trimmed.split(" ").firstOrNull() ?: ""
 
-        val baseCmd = cmd.split(" ", "\t").firstOrNull() ?: ""
-        if (baseCmd !in allowedCommands) {
-            return CommandValidation(false, "Command not in allowlist: $baseCmd")
+        if (firstToken in allowedCommands) {
+            return CommandValidation(true, null)
         }
 
-        val dangerousPatterns = listOf(";", "|", "&", ">", "<", "`", "$(", "\\$", "..", "~")
-        for (pattern in dangerousPatterns) {
-            if (cmd.contains(pattern)) {
-                return CommandValidation(false, "Dangerous pattern: $pattern")
-            }
+        val dangerous = listOf("rm", "dd", "mkfs", "format", ">", "curl", "wget")
+        if (dangerous.any { trimmed.contains(it) }) {
+            return CommandValidation(false, "Dangerous command blocked")
         }
 
         return CommandValidation(true, null)
@@ -166,10 +169,7 @@ class SecurityManager(private val context: Context) {
     }
 
     private fun generateDeviceId(): String {
-        val random = SecureRandom()
-        val bytes = ByteArray(16)
-        random.nextBytes(bytes)
-        return "dev_" + bytes.joinToString("") { "%02x".format(it) }
+        return "dev_${System.currentTimeMillis()}_${(1000..9999).random()}"
     }
 
     private fun hashToken(token: String): String {

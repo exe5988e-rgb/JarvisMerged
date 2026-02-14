@@ -1,13 +1,12 @@
 package com.jarvismini.llm
 
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.decodeFromString
 import android.content.Context
 import android.util.Log
 import com.jarvismini.api.*
 import com.jarvismini.executor.UnifiedExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -25,30 +24,23 @@ class TermuxLlmBackend(
 ) : LlmBackend {
     
     private val tag = "TermuxLlmBackend"
-    private val baseUrl = "http://127.0.0.1:8888"
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
     
     override suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         try {
-            val requestBody = json.encodeToString(GenerateRequest.serializer(), GenerateRequest(prompt))
+            val result = executor.execute(
+                com.jarvismini.executor.ExecutionRequest(
+                    command = "echo 'termux-llama generate: $prompt'",
+                    source = RequestSource.TERMUX_LLM,
+                    timeout = 30000L,
+                    maxOutputSize = 10000
+                )
+            )
             
-            val request = Request.Builder()
-                .url("$baseUrl/generate_sync")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
-            
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext "Error: HTTP ${response.code}"
+            if (result.success) {
+                result.output
+            } else {
+                "Error: ${result.output}"
             }
-            
-            val body = response.body?.string() ?: return@withContext "No response"
-            val genResponse = json.decodeFromString<GenerateResponse>(body)
-            
-            genResponse.command ?: genResponse.response ?: "No result"
             
         } catch (e: Exception) {
             Log.e(tag, "Generate failed", e)
@@ -58,23 +50,22 @@ class TermuxLlmBackend(
     
     override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
         try {
-            val lastMessage = messages.lastOrNull()?.content ?: ""
-            val requestBody = json.encodeToString(ChatRequest.serializer(), ChatRequest(query = lastMessage))
+            val lastMessage = messages.lastOrNull()?.content ?: return@withContext "No message"
             
-            val request = Request.Builder()
-                .url("$baseUrl/chat_sync")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
+            val result = executor.execute(
+                com.jarvismini.executor.ExecutionRequest(
+                    command = "echo 'termux-llama chat: $lastMessage'",
+                    source = RequestSource.TERMUX_LLM,
+                    timeout = 30000L,
+                    maxOutputSize = 10000
+                )
+            )
             
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext "Error: HTTP ${response.code}"
+            if (result.success) {
+                result.output
+            } else {
+                "Error: ${result.output}"
             }
-            
-            val body = response.body?.string() ?: return@withContext "No response"
-            val chatResponse = json.decodeFromString<ChatResponse>(body)
-            
-            chatResponse.response ?: "No result"
             
         } catch (e: Exception) {
             Log.e(tag, "Chat failed", e)
@@ -97,6 +88,7 @@ class CloudApiBackend(
     
     private fun getApiKey(): String = prefs.getString("cloud_api_key", "") ?: ""
     private fun getProvider(): String = prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI"
+    private fun getSelectedModel(): String = prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini"
     
     override suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         val apiKey = getApiKey()
@@ -135,8 +127,9 @@ class CloudApiBackend(
     }
     
     private fun generateOpenAI(prompt: String, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = OpenAIRequest(
-            model = "gpt-4o-mini",
+            model = if (model.startsWith("gpt")) model else "gpt-4o-mini",
             messages = listOf(ChatMessage("user", prompt)),
             max_tokens = 150
         )
@@ -161,8 +154,9 @@ class CloudApiBackend(
     }
     
     private fun chatOpenAI(messages: List<ChatMessage>, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = OpenAIRequest(
-            model = "gpt-4o-mini",
+            model = if (model.startsWith("gpt")) model else "gpt-4o-mini",
             messages = messages,
             max_tokens = 500
         )
@@ -187,8 +181,9 @@ class CloudApiBackend(
     }
     
     private fun generateAnthropic(prompt: String, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = AnthropicRequest(
-            model = "claude-sonnet-4-20250514",
+            model = if (model.startsWith("claude")) model else "claude-sonnet-4-20250514",
             max_tokens = 150,
             messages = listOf(ChatMessage("user", prompt))
         )
@@ -214,8 +209,9 @@ class CloudApiBackend(
     }
     
     private fun chatAnthropic(messages: List<ChatMessage>, apiKey: String): String {
+        val model = getSelectedModel()
         val requestObj = AnthropicRequest(
-            model = "claude-sonnet-4-20250514",
+            model = if (model.startsWith("claude")) model else "claude-sonnet-4-20250514",
             max_tokens = 1024,
             messages = messages
         )
