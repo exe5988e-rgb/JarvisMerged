@@ -15,8 +15,8 @@ Checking if the launcher JVM can be re-used for build. To be re-used, the launch
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.4/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
 Starting process 'Gradle build daemon'. Working directory: /home/runner/.gradle/daemon/8.4 Command: /usr/lib/jvm/temurin-17-jdk-amd64/bin/java --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED -Xmx4096m -Dfile.encoding=UTF-8 -Duser.country -Duser.language=en -Duser.variant -cp /home/runner/.gradle/wrapper/dists/gradle-8.4-all/56r6xik2f6skrm47et0ibifug/gradle-8.4/lib/gradle-launcher-8.4.jar -javaagent:/home/runner/.gradle/wrapper/dists/gradle-8.4-all/56r6xik2f6skrm47et0ibifug/gradle-8.4/lib/agents/gradle-instrumentation-agent-8.4.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.4
 Successfully started process 'Gradle build daemon'
-An attempt to start the daemon took 1.258 secs.
-The client will now receive all logging from the daemon (pid: 2722). The daemon log file: /home/runner/.gradle/daemon/8.4/daemon-2722.out.log
+An attempt to start the daemon took 0.885 secs.
+The client will now receive all logging from the daemon (pid: 2670). The daemon log file: /home/runner/.gradle/daemon/8.4/daemon-2670.out.log
 Closing daemon's stdin at end of input.
 The daemon will no longer process any standard input.
 Daemon will be stopped at the end of the build 
@@ -42,7 +42,16 @@ Caching disabled for Kotlin DSL plugin specs accessors for classpath '57e4c11dbb
 Skipping Kotlin DSL plugin specs accessors for classpath '57e4c11dbb61d74ae55034e0aa79815b' as it is up-to-date.
 Caching disabled for Kotlin DSL script compilation (Project/TopLevel/stage1) because:
   Build cache is disabled
-Skipping Kotlin DSL script compilation (Project/TopLevel/stage1) as it is up-to-date.
+Kotlin DSL script compilation (Project/TopLevel/stage1) is not up-to-date because:
+  No history is available.
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlin/plugin/serialization/org.jetbrains.kotlin.plugin.serialization.gradle.plugin/1.9.22/org.jetbrains.kotlin.plugin.serialization.gradle.plugin-1.9.22.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/plugin/serialization/org.jetbrains.kotlin.plugin.serialization.gradle.plugin/1.9.22/org.jetbrains.kotlin.plugin.serialization.gradle.plugin-1.9.22.pom to /home/runner/.gradle/.tmp/gradle_download15192735373882674061bin
+Resource missing. [HTTP HEAD: https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/plugin/serialization/org.jetbrains.kotlin.plugin.serialization.gradle.plugin/1.9.22/org.jetbrains.kotlin.plugin.serialization.gradle.plugin-1.9.22.jar]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlin/kotlin-serialization/1.9.22/kotlin-serialization-1.9.22.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-serialization/1.9.22/kotlin-serialization-1.9.22.pom to /home/runner/.gradle/.tmp/gradle_download11088551542468394831bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-serialization/1.9.22/kotlin-serialization-1.9.22.module to /home/runner/.gradle/.tmp/gradle_download15425361856049826251bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-serialization/1.9.22/kotlin-serialization-1.9.22-gradle82.jar to /home/runner/.gradle/.tmp/gradle_download5534643577603186704bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin-api/1.9.22/kotlin-gradle-plugin-api-1.9.22-gradle82.jar to /home/runner/.gradle/.tmp/gradle_download6701870426927112874bin
 
 > Configure project :app
 Evaluating project ':app' using build file '/home/runner/work/JarvisMerged/JarvisMerged/app/build.gradle.kts'.
