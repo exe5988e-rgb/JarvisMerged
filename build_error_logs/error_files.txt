@@ -1,3 +1,109 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-No error files detected
+//===== FILE: app/src/main/kotlin/com/jarvismini/server/LanServerService.kt =====
+
+// ❌ ERRORS IN THIS FILE (1 error(s)):
+// Line 53: Unresolved reference: NanoHTTPD
+
+   1    package com.jarvismini.server
+   2    
+   3    import android.app.Notification
+   4    import android.app.NotificationChannel
+   5    import android.app.NotificationManager
+   6    import android.app.Service
+   7    import android.content.Context
+   8    import android.content.Intent
+   9    import android.os.Build
+  10    import android.os.IBinder
+  11    import android.util.Log
+  12    import com.jarvismini.api.ApiGateway
+  13    import com.jarvismini.executor.FileBasedExecutor
+  14    import com.jarvismini.security.SecurityManager
+  15    
+  16    class LanServerService : Service() {
+  17        
+  18        private val tag = "LanServerService"
+  19        private var lanServer: LanServer? = null
+  20        
+  21        companion object {
+  22            private const val NOTIFICATION_ID = 1001
+  23            private const val CHANNEL_ID = "jarvis_lan_server"
+  24            
+  25            fun start(context: Context) {
+  26                val intent = Intent(context, LanServerService::class.java)
+  27                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+  28                    context.startForegroundService(intent)
+  29                } else {
+  30                    context.startService(intent)
+  31                }
+  32            }
+  33            
+  34            fun stop(context: Context) {
+  35                context.stopService(Intent(context, LanServerService::class.java))
+  36            }
+  37        }
+  38        
+  39        override fun onCreate() {
+  40            super.onCreate()
+  41            Log.d(tag, "Service created")
+  42            
+  43            createNotificationChannel()
+  44            startForeground(NOTIFICATION_ID, createNotification())
+  45            
+  46            val executor = FileBasedExecutor(this)
+  47            val securityManager = SecurityManager(this)
+  48            val apiGateway = ApiGateway(this, executor, securityManager)
+  49            
+  50            lanServer = LanServer(apiGateway, port = 8080)
+  51            
+  52            try {
+  53 ❌             lanServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
+  54                Log.i(tag, "LAN Server started on port 8080")
+  55            } catch (e: Exception) {
+  56                Log.e(tag, "Failed to start LAN server", e)
+  57            }
+  58        }
+  59        
+  60        override fun onDestroy() {
+  61            super.onDestroy()
+  62            Log.d(tag, "Service destroyed")
+  63            lanServer?.stop()
+  64            lanServer = null
+  65        }
+  66        
+  67        override fun onBind(intent: Intent?): IBinder? = null
+  68        
+  69        private fun createNotificationChannel() {
+  70            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+  71                val channel = NotificationChannel(
+  72                    CHANNEL_ID,
+  73                    "JARVIS LAN Server",
+  74                    NotificationManager.IMPORTANCE_LOW
+  75                ).apply {
+  76                    description = "Allows LAN devices to access JARVIS"
+  77                    setShowBadge(false)
+  78                }
+  79                
+  80                val notificationManager = getSystemService(NotificationManager::class.java)
+  81                notificationManager?.createNotificationChannel(channel)
+  82            }
+  83        }
+  84        
+  85        private fun createNotification(): Notification {
+  86            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+  87                Notification.Builder(this, CHANNEL_ID)
+  88            } else {
+  89                @Suppress("DEPRECATION")
+  90                Notification.Builder(this)
+  91            }
+  92            
+  93            return builder
+  94                .setContentTitle("JARVIS LAN Server")
+  95                .setContentText("Listening on port 8080")
+  96                .setSmallIcon(android.R.drawable.ic_dialog_info)
+  97                .setOngoing(true)
+  98                .build()
+  99        }
+ 100    }
+
+
