@@ -33,11 +33,6 @@ import kotlinx.coroutines.*
 
 private const val TAG = "JarvisChatScreen"
 
-/**
- * Main chat screen for interacting with J.A.R.V.I.S.
- * 
- * FIXED VERSION: Always uses /chat_sync endpoint, bypasses buggy command engine
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JarvisChatScreen(
@@ -47,49 +42,41 @@ fun JarvisChatScreen(
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
-    // ================= TERMUX LLM CLIENT =================
-    // FIXED: Pass context parameter to TermuxLlamaClient constructor
+    // ================= TERMUX CLIENT =================
     val llamaClient = remember { TermuxLlamaClient(context) }
 
-    // ================= INITIALIZATION =================
+    // ================= INIT =================
     LaunchedEffect(Unit) {
         Log.d(TAG, "Initializing JarvisChatScreen")
         JarvisState.init(context)
-        
-        // Check if Termux server is healthy
+
         val isHealthy = llamaClient.checkHealth()
         Log.d(TAG, "Termux server health: $isHealthy")
-        
-        Log.d(TAG, "Initialization complete")
     }
 
     // ================= PERMISSIONS =================
     LaunchedEffect(Unit) {
-        if (activity == null) {
-            Log.w(TAG, "Activity is null, cannot request permissions")
-            return@LaunchedEffect
-        }
-        
+        if (activity == null) return@LaunchedEffect
+
         val perms = mutableListOf<String>()
-        
+
         if (ContextCompat.checkSelfPermission(
-                context, 
+                context,
                 android.Manifest.permission.READ_CONTACTS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             perms += android.Manifest.permission.READ_CONTACTS
         }
-        
+
         if (ContextCompat.checkSelfPermission(
-                context, 
+                context,
                 android.Manifest.permission.SEND_SMS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             perms += android.Manifest.permission.SEND_SMS
         }
-        
+
         if (perms.isNotEmpty()) {
-            Log.d(TAG, "Requesting permissions: ${perms.joinToString()}")
             ActivityCompat.requestPermissions(activity, perms.toTypedArray(), 2001)
         }
     }
@@ -114,7 +101,11 @@ fun JarvisChatScreen(
     ) {
         GridBackground()
 
-        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+        ) {
 
             // ===== HEADER =====
             TopAppBar(
@@ -147,7 +138,9 @@ fun JarvisChatScreen(
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Select Mode", color = JarvisBlue) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -177,7 +170,6 @@ fun JarvisChatScreen(
                                 )
                             },
                             onClick = {
-                                // FIXED: Correct function signature - setMode(context, mode)
                                 JarvisState.setMode(context, mode)
                                 currentMode = mode
                                 expanded = false
@@ -188,7 +180,24 @@ fun JarvisChatScreen(
                 }
             }
 
-            Divider(
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ===== WORK MODE TOGGLE BUTTON =====
+            Button(
+                onClick = {
+                    WorkModeManager.toggle(context)
+                    currentMode = JarvisState.currentMode
+                    Log.d(TAG, "Work mode toggled")
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = JarvisBlue.copy(alpha = 0.7f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Toggle Work Mode", color = Color.Black)
+            }
+
+            HorizontalDivider(
                 color = JarvisBlue.copy(alpha = 0.3f),
                 modifier = Modifier.padding(vertical = 8.dp)
             )
@@ -200,7 +209,10 @@ fun JarvisChatScreen(
             ) {
                 items(messages.reversed()) { msg ->
                     Text(
-                        text = if (msg.isUser) "YOU ▸ ${msg.text}" else "JARVIS ▸ ${msg.text}",
+                        text = if (msg.isUser)
+                            "YOU ▸ ${msg.text}"
+                        else
+                            "JARVIS ▸ ${msg.text}",
                         color = JarvisBlue,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(6.dp)
@@ -227,7 +239,8 @@ fun JarvisChatScreen(
                     enabled = !isProcessing,
                     placeholder = {
                         Text(
-                            if (isProcessing) "Processing..." else "Chat with JARVIS…",
+                            if (isProcessing) "Processing..."
+                            else "Chat with JARVIS…",
                             fontFamily = FontFamily.Monospace,
                             color = JarvisBlue.copy(alpha = 0.7f)
                         )
@@ -246,90 +259,42 @@ fun JarvisChatScreen(
                     )
                 )
 
-                // ===== SEND BUTTON =====
                 IconButton(
                     onClick = {
                         val userText = input.trim()
-                        
-                        if (userText.isEmpty()) {
-                            Log.d(TAG, "❌ Ignoring empty input")
-                            return@IconButton
-                        }
-                        
-                        if (isProcessing) {
-                            Log.d(TAG, "⚠️ Already processing, ignoring click")
-                            return@IconButton
-                        }
+                        if (userText.isEmpty() || isProcessing) return@IconButton
 
-                        Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                        Log.d(TAG, "🚀 SEND BUTTON CLICKED")
-                        Log.d(TAG, "📝 User input: '$userText'")
-                        
                         isProcessing = true
                         messages.add(ChatMessage(userText, isUser = true))
                         messages.add(ChatMessage("Processing…", isUser = false))
 
                         scope.launch {
                             try {
-                                Log.d(TAG, "⏳ Starting message processing")
-                                
-                                // =================================================================
-                                // CRITICAL FIX: Skip the buggy command engine, go straight to chat
-                                // =================================================================
-                                // The command engine was incorrectly calling generateCommand()
-                                // which hits /generate_sync instead of /chat_sync
-                                //
-                                // OLD CODE (BUGGY):
-                                // val commandResult = EngineProvider.commandEngine.handle(userText)
-                                //
-                                // NEW CODE: Direct to chat endpoint
-                                // =================================================================
-                                
-                                Log.d(TAG, "🗨️ Using Termux LLM CHAT endpoint (/chat_sync)")
-                                
                                 val reply = withContext(Dispatchers.IO) {
-                                    try {
-                                        // IMPORTANT: Use chat() for conversations
-                                        // This hits /chat_sync endpoint with proper chat configuration
-                                        val result = llamaClient.chat(
-                                            query = userText,
-                                            timeoutSeconds = 150  // 2.5 min (within server's 120s limit + buffer)
-                                        )
-                                        
-                                        if (result.success && result.response != null) {
-                                            Log.d(TAG, "✅ Chat response: ${result.response.take(100)}...")
-                                            result.response
-                                        } else {
-                                            val errorMsg = result.error ?: "Unknown error"
-                                            Log.e(TAG, "❌ Chat error: $errorMsg")
-                                            "❌ $errorMsg"
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "❌ Chat exception", e)
-                                        "❌ Error: ${e.message ?: "Unknown error"}"
-                                    }
+                                    val result = llamaClient.chat(
+                                        query = userText,
+                                        timeoutSeconds = 150
+                                    )
+                                    if (result.success && result.response != null)
+                                        result.response
+                                    else
+                                        "❌ ${result.error ?: "Unknown error"}"
                                 }
-                                
-                                // Update UI with reply
+
                                 messages.removeLastOrNull()
                                 messages.add(ChatMessage(reply, isUser = false))
                                 input = ""
-                                Log.d(TAG, "✅ PROCESSING COMPLETE")
-                                
-                            } catch (e: CancellationException) {
-                                Log.w(TAG, "🚫 Processing cancelled")
-                                throw e
+
                             } catch (e: Exception) {
-                                Log.e(TAG, "❌ Processing error", e)
                                 messages.removeLastOrNull()
-                                messages.add(ChatMessage(
-                                    "❌ Error: ${e.message ?: "Unknown error occurred"}",
-                                    isUser = false
-                                ))
+                                messages.add(
+                                    ChatMessage(
+                                        "❌ ${e.message ?: "Unknown error"}",
+                                        isUser = false
+                                    )
+                                )
                             } finally {
-                                Log.d(TAG, "🔄 Resetting processing state")
                                 isProcessing = false
-                                Log.d(TAG, "✅ Cleanup complete")
                             }
                         }
                     },
@@ -338,9 +303,9 @@ fun JarvisChatScreen(
                     Icon(
                         Icons.Default.Send,
                         contentDescription = "Send",
-                        tint = if (isProcessing) 
-                            JarvisBlue.copy(alpha = 0.3f) 
-                        else 
+                        tint = if (isProcessing)
+                            JarvisBlue.copy(alpha = 0.3f)
+                        else
                             JarvisBlue
                     )
                 }
