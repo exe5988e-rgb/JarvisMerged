@@ -1982,6 +1982,7 @@ class WorkModeService : Service() {
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 package com.jarvismini.llm
 
 import android.content.Context
@@ -1994,14 +1995,15 @@ import java.io.File
 /**
  * Client for communicating with Termux LLaMA server and executor
  * 
- * FILE-BASED COMMUNICATION:
- * - Commands written to /sdcard/jarvis/command.txt
- * - Results read from /sdcard/jarvis/result.txt
- * - Status checked via /sdcard/jarvis/status.txt
+ * TWO EXECUTION PATHS:
+ * 1. Server-side (/execute endpoint) - for unedited LLM-generated commands
+ * 2. File-based (jarvis_executor.sh) - for user-edited commands
  * 
  * ARCHITECTURE:
- * 1. LLM (chat, generate) → HTTP (port 8888) → llamafile (port 8080)
- * 2. Command execution → File-based → jarvis_executor.sh in Termux
+ * - Chat: User → /chat_sync → LLM response
+ * - Generate: User query → /generate_sync → Command
+ * - Execute (unedited): Command → /execute → Server executes → Result
+ * - Execute (edited): Command → file-based → jarvis_executor.sh → Result
  */
 class TermuxLlamaClient(
     private val context: Context,
@@ -2011,7 +2013,7 @@ class TermuxLlamaClient(
     private val baseUrl = "http://$serverHost:$serverPort"
     private val tag = "TermuxLlamaClient"
     
-    // File-based executor configuration
+    // File-based executor configuration (for edited commands)
     private val EXECUTOR_DIR = "/sdcard/jarvis"
     private val COMMAND_FILE = "$EXECUTOR_DIR/command.txt"
     private val RESULT_FILE = "$EXECUTOR_DIR/result.txt"
@@ -2158,7 +2160,69 @@ class TermuxLlamaClient(
     }
 
     /**
-     * Execute command using file-based communication with jarvis_executor.sh
+     * Execute command via server /execute endpoint
+     * Used for UNEDITED LLM-generated commands
+     * 
+     * Server executes the command in Termux and returns result
+     */
+    suspend fun executeCommandViaServer(command: String): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "Execute via server: $command")
+            
+            val url = java.net.URL("$baseUrl/execute")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 70000 // 70 seconds (server has 60s timeout)
+            connection.doOutput = true
+
+            val jsonBody = """{"command": "$command"}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            when (responseCode) {
+                200 -> {
+                    val json = org.json.JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        val output = json.optString("output", "")
+                        val exitCode = json.optInt("exit_code", 0)
+                        Log.d(tag, "Server execution success: exitCode=$exitCode")
+                        CommandResult(
+                            success = exitCode == 0,
+                            output = output.ifEmpty { "✓ Command completed" },
+                            exitCode = exitCode,
+                            method = "server"
+                        )
+                    } else {
+                        val error = json.optString("error", "Unknown error")
+                        Log.e(tag, "Server execution failed: $error")
+                        CommandResult(success = false, error = error, method = "server")
+                    }
+                }
+                else -> {
+                    Log.e(tag, "HTTP error: $responseCode")
+                    CommandResult(success = false, error = "HTTP $responseCode", method = "server")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Server execution exception", e)
+            CommandResult(success = false, error = e.message ?: "Server error", method = "server")
+        }
+    }
+
+    /**
+     * Execute command via file-based executor (jarvis_executor.sh)
+     * Used for USER-EDITED commands
      * 
      * WORKFLOW:
      * 1. Write command to /sdcard/jarvis/command.txt
@@ -2166,9 +2230,9 @@ class TermuxLlamaClient(
      * 3. Result written to /sdcard/jarvis/result.txt
      * 4. Read result (format: "exit_code|output")
      */
-    suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
+    suspend fun executeCommandViaFile(command: String): CommandResult = withContext(Dispatchers.IO) {
         try {
-            Log.d(tag, "Execute command: $command")
+            Log.d(tag, "Execute via file: $command")
             
             val statusFile = File(STATUS_FILE)
             val commandFile = File(COMMAND_FILE)
@@ -2178,7 +2242,7 @@ class TermuxLlamaClient(
             if (!statusFile.exists()) {
                 return@withContext CommandResult(
                     success = false,
-                    error = "Executor not running. Run in Termux:\n  bash ~/jarvis_executor.sh &",
+                    error = "Executor not running. Run in Termux:\n  bash ~/jarvis_executor_file_based.sh &",
                     exitCode = -1,
                     method = "file-based"
                 )
@@ -2247,7 +2311,7 @@ class TermuxLlamaClient(
             val exitCode = parts[0].toIntOrNull() ?: -1
             val output = parts[1]
             
-            Log.d(tag, "Command executed: exitCode=$exitCode")
+            Log.d(tag, "File-based execution: exitCode=$exitCode")
             
             CommandResult(
                 success = exitCode == 0,
@@ -2257,7 +2321,7 @@ class TermuxLlamaClient(
             )
             
         } catch (e: Exception) {
-            Log.e(tag, "Execute command exception", e)
+            Log.e(tag, "File-based execution exception", e)
             CommandResult(
                 success = false,
                 error = "Execution failed: ${e.message}",
@@ -2265,6 +2329,14 @@ class TermuxLlamaClient(
                 method = "file-based"
             )
         }
+    }
+
+    /**
+     * LEGACY: Execute command (kept for backward compatibility)
+     * Defaults to file-based execution
+     */
+    suspend fun executeCommand(command: String): CommandResult {
+        return executeCommandViaFile(command)
     }
     
     /**
