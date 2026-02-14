@@ -1,6 +1,9 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -91,11 +94,15 @@ dependencies {
 
     // ViewModel + Compose integration
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
-
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+   
+    
     // Modules
     implementation(project(":modules:core"))
     implementation(project(":modules:automation"))
     implementation(project(":modules:engine"))
     implementation(project(":modules:smart"))
     implementation(project(":modules:callhandler"))
+
 }
