@@ -64,6 +64,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var pairingTimeLeft by remember { mutableStateOf(0) }
     var showPairingDialog by remember { mutableStateOf(false) }
     var showDeviceListDialog by remember { mutableStateOf(false) }
+    var showClientPairingScreen by remember { mutableStateOf(false) }
     
     // Pairing countdown timer
     LaunchedEffect(isPairingMode) {
@@ -236,6 +237,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                 }
                 
+                item {
+                    SettingsTile(
+                        title = "Pair As Client",
+                        subtitle = "Connect to another JARVIS device",
+                        icon = Icons.Default.DeviceHub,
+                        onClick = {
+                            showClientPairingScreen = true
+                        }
+                    )
+                }
+                
                 // Section: Other
                 item {
                     Spacer(Modifier.height(12.dp))
@@ -309,6 +321,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                 securityManager.unpairDevice(deviceId)
                 pairedDevices = securityManager.getPairedDevices()
             }
+        )
+    }
+    
+    // Client Pairing Screen
+    if (showClientPairingScreen) {
+        ClientPairingScreen(
+            onBack = { showClientPairingScreen = false }
         )
     }
 }
