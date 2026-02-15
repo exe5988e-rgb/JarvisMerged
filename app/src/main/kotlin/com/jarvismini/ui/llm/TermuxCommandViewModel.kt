@@ -1,4 +1,3 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/llm/TermuxCommandViewModel.kt =====
 package com.jarvismini.ui.llm
 
 import android.content.Context

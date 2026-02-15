@@ -1,122 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.jarvismini">
 
-    <!-- Internet & Network Permissions -->
+    <!-- ================= PERMISSIONS ================= -->
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
 
-    <!-- Foreground Service -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-
-    <!-- Phone & SMS -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.READ_SMS" />
-
-    <!-- Contacts & Call Logs -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-
-    <!-- Notifications -->
-    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
-    <!-- Storage (for models & files) -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+    <!-- Storage Permissions -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
-    <!-- Calendar -->
-    <uses-permission android:name="android.permission.READ_CALENDAR" />
-    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
 
-    <!-- Accessibility & Other -->
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"
-        tools:ignore="ProtectedPermissions" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- ================= PACKAGE VISIBILITY ================= -->
+
+    <queries>
+        <package android:name="xyz.penpencil.physicswala" />
+        <package android:name="com.pittvandewitt.wavelet" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.apple.android.music" />
+
+        <!-- Termux -->
+        <package android:name="com.termux" />
+        <package android:name="com.termux.api" />
+        <package android:name="com.termux.tasker" />
+    </queries>
+
+    <!-- ================= APPLICATION ================= -->
 
     <application
-        android:name=".CoreApp"
+        android:name="com.jarvismini.CoreApp"
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:networkSecurityConfig="@xml/network_security_config"
+        android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.JarvisMerged"
-        tools:targetApi="31">
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
+        android:preserveLegacyExternalStorage="true">
 
         <!-- Main Activity -->
         <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.JarvisMerged">
+            android:name="com.jarvismini.MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- LAN Server Service - FIXED: Changed from dataSync to connectedDevice -->
-        <service
-            android:name=".server.LanServerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+        <!-- ================= LAN SERVER SERVICE (NEW) ================= -->
 
-        <!-- Progress Reminder Service -->
         <service
-            android:name=".ProgressReminderService"
+            android:name="com.jarvismini.server.LanServerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Work Mode Service -->
-        <service
-            android:name=".core.workmode.WorkModeService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+        <!-- ================= EXISTING SERVICES ================= -->
 
-        <!-- Call Auto Reply Service -->
         <service
-            android:name=".callhandler.service.CallAutoReplyService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
-
-        <!-- Notification Listener -->
-        <service
-            android:name=".automation.WhatsAppNotificationListener"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
-            <meta-data
-                android:name="android.service.notification.listener_service"
-                android:resource="@xml/notification_listener" />
         </service>
 
-        <!-- Accessibility Services -->
+        <receiver
+            android:name="com.jarvismini.callhandler.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
         <service
-            android:name=".automation.AppAutomationService"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/call_accessibility_config" />
+        </service>
+
+        <service
+            android:name="com.jarvismini.automation.AppAutomationService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
@@ -126,218 +151,31 @@
         </service>
 
         <service
-            android:name=".callhandler.accessibility.CallAccessibilityService"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
+            android:name="com.jarvismini.core.workmode.WorkModeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
-        <!-- Quick Settings Tile -->
         <service
-            android:name=".service.WorkModeTileService"
-            android:exported="true"
+            android:name="com.jarvismini.service.WorkModeTileService"
             android:icon="@mipmap/ic_launcher"
             android:label="Work Mode"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
 
-        <!-- Call Screening Service -->
         <service
-            android:name=".callhandler.JarvisCallScreeningService"
-            android:exported="true"
-            android:permission="android.permission.BIND_SCREENING_SERVICE">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
+            android:name="com.jarvismini.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
 
-        <!-- Broadcast Receivers -->
-        <receiver
-            android:name=".callhandler.receiver.SmsReceiver"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BROADCAST_SMS">
-            <intent-filter android:priority="2147483647">
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
+        <service
+            android:name="com.jarvismini.ProgressReminderService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 
 </manifest>
-//===== FILE: app/src/main/kotlin/com/jarvismini/server/LanServerService.kt =====
-package com.jarvismini.server
-
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
-import android.content.Context
-import android.content.Intent
-import android.os.Build
-import android.os.IBinder
-import android.util.Log
-import com.jarvismini.MainActivity
-import com.jarvismini.R
-import com.jarvismini.api.ApiGateway
-import com.jarvismini.executor.FileBasedExecutor
-import com.jarvismini.security.SecurityManager
-import fi.iki.elonen.NanoHTTPD
-
-class LanServerService : Service() {
-
-    private val tag = "LanServerService"
-    private var lanServer: LanServer? = null
-
-    companion object {
-        private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "jarvis_lan_server"
-
-        fun start(context: Context) {
-            val intent = Intent(context, LanServerService::class.java)
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-                Log.i("LanServerService", "Service start requested")
-            } catch (e: Exception) {
-                Log.e("LanServerService", "Failed to start service", e)
-            }
-        }
-
-        fun stop(context: Context) {
-            try {
-                context.stopService(Intent(context, LanServerService::class.java))
-                Log.i("LanServerService", "Service stop requested")
-            } catch (e: Exception) {
-                Log.e("LanServerService", "Failed to stop service", e)
-            }
-        }
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        Log.i(tag, "Service onCreate()")
-
-        try {
-            // Create notification channel first
-            createNotificationChannel()
-            
-            // Start as foreground service IMMEDIATELY
-            val notification = createNotification()
-            startForeground(NOTIFICATION_ID, notification)
-            Log.i(tag, "Started as foreground service")
-
-            // Now initialize the server
-            val executor = FileBasedExecutor(this)
-            val securityManager = SecurityManager(this)
-            val apiGateway = ApiGateway(this, executor, securityManager)
-
-            lanServer = LanServer(apiGateway, port = 8080)
-
-            try {
-                lanServer?.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
-                Log.i(tag, "✅ LAN Server started successfully on port 8080")
-                
-                // Update notification to show success
-                val successNotification = createNotification("Running on port 8080")
-                val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager?.notify(NOTIFICATION_ID, successNotification)
-                
-            } catch (e: Exception) {
-                Log.e(tag, "❌ Failed to start LAN server", e)
-                
-                // Update notification to show error
-                val errorNotification = createNotification("Failed to start: ${e.message}")
-                val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager?.notify(NOTIFICATION_ID, errorNotification)
-            }
-            
-        } catch (e: Exception) {
-            Log.e(tag, "❌ Service onCreate failed", e)
-            stopSelf()
-        }
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.i(tag, "Service onStartCommand()")
-        return START_STICKY
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Log.i(tag, "Service onDestroy()")
-        
-        try {
-            lanServer?.stop()
-            lanServer = null
-            Log.i(tag, "✅ LAN Server stopped")
-        } catch (e: Exception) {
-            Log.e(tag, "Error stopping server", e)
-        }
-    }
-
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "JARVIS LAN Server",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Allows LAN devices to access JARVIS"
-                setShowBadge(false)
-                enableLights(false)
-                enableVibration(false)
-            }
-
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager?.createNotificationChannel(channel)
-            Log.d(tag, "Notification channel created")
-        }
-    }
-
-    private fun createNotification(contentText: String = "Starting..."): Notification {
-        // Create intent to open app when notification is tapped
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-
-        return builder
-            .setContentTitle("JARVIS LAN Server")
-            .setContentText(contentText)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setShowWhen(false)
-            .build()
-    }
-}
-

@@ -1,4 +1,3 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/Logger.kt =====
 package com.jarvismini.core
 
 import android.util.Log
