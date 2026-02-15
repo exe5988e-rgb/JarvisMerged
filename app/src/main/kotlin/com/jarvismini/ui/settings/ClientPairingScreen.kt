@@ -1,5 +1,7 @@
 package com.jarvismini.ui.settings
 
+import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -25,6 +28,7 @@ import java.net.URL
 
 @Composable
 fun ClientPairingScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
     var serverIp by remember { mutableStateOf("") }
     var serverPort by remember { mutableStateOf("8081") }
     var deviceName by remember { mutableStateOf("JARVIS-Client-${(1000..9999).random()}") }
@@ -38,8 +42,7 @@ fun ClientPairingScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .background(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-                )
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black))
             )
     ) {
         Column(
@@ -80,7 +83,7 @@ fun ClientPairingScreen(onBack: () -> Unit) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "📱 INSTRUCTIONS",
+                        text = "ðŸ“± INSTRUCTIONS",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp,
@@ -91,9 +94,9 @@ fun ClientPairingScreen(onBack: () -> Unit) {
                     Text(
                         text = """
                         1. On the MAIN JARVIS device:
-                           • Go to Settings
-                           • Start LAN Server
-                           • Enable Pairing Mode
+                           â€¢ Go to Settings
+                           â€¢ Start LAN Server
+                           â€¢ Enable Pairing Mode
                         
                         2. Enter the IP address shown
                         
@@ -175,8 +178,25 @@ fun ClientPairingScreen(onBack: () -> Unit) {
                         isPairing = true
                         pairingResult = null
                         try {
-                            val result = pairWithServer(serverIp, serverPort, deviceName)
+                            val result = pairWithServer(context, serverIp, serverPort, deviceName)
                             pairingResult = result
+                            
+                            // ðŸ†• SAVE PAIRING DATA TO SHAREDPREFERENCES
+                            if (result.success && result.deviceId != null && result.token != null) {
+                                val prefs = context.getSharedPreferences("jarvis_lan", Context.MODE_PRIVATE)
+                                prefs.edit().apply {
+                                    putString("server_ip", serverIp)
+                                    putString("server_port", serverPort)
+                                    putString("device_id", result.deviceId)
+                                    putString("auth_token", result.token)
+                                    putBoolean("is_paired", true)
+                                    apply()
+                                }
+                                
+                                Log.d("ClientPairing", "âœ… Saved pairing data: $serverIp:$serverPort")
+                                Log.d("ClientPairing", "   Device ID: ${result.deviceId}")
+                                Log.d("ClientPairing", "   Token: ${result.token.take(16)}...")
+                            }
                         } catch (e: Exception) {
                             pairingResult = PairingResult(
                                 success = false,
@@ -298,7 +318,7 @@ fun ClientPairingScreen(onBack: () -> Unit) {
                             
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                text = "✅ This device can now communicate with the main JARVIS device!",
+                                text = "âœ… This device can now communicate with the main JARVIS device!",
                                 fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.8f),
                                 textAlign = TextAlign.Center,
@@ -315,7 +335,7 @@ fun ClientPairingScreen(onBack: () -> Unit) {
                             
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                text = "Troubleshooting:\n• Ensure pairing mode is enabled on main device\n• Check IP address is correct\n• Verify both devices on same WiFi",
+                                text = "Troubleshooting:\nâ€¢ Ensure pairing mode is enabled on main device\nâ€¢ Check IP address is correct\nâ€¢ Verify both devices on same WiFi",
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.7f),
                                 fontFamily = FontFamily.Monospace,
@@ -336,7 +356,7 @@ data class PairingResult(
     val error: String? = null
 )
 
-suspend fun pairWithServer(ip: String, port: String, deviceName: String): PairingResult {
+suspend fun pairWithServer(context: Context, ip: String, port: String, deviceName: String): PairingResult {
     return withContext(Dispatchers.IO) {
         try {
             val url = URL("http://$ip:$port/api/v1/pair")
@@ -363,8 +383,6 @@ suspend fun pairWithServer(ip: String, port: String, deviceName: String): Pairin
                 val response = json.decodeFromString<PairResponse>(responseBody)
                 
                 if (response.success) {
-                    // Save token to SharedPreferences for future use
-                    // (You'll need to pass context here or use a repository pattern)
                     PairingResult(
                         success = true,
                         deviceId = response.data?.device_id,
@@ -377,6 +395,7 @@ suspend fun pairWithServer(ip: String, port: String, deviceName: String): Pairin
                 PairingResult(success = false, error = "HTTP $responseCode: $responseBody")
             }
         } catch (e: Exception) {
+            Log.e("ClientPairing", "Pairing failed", e)
             PairingResult(success = false, error = e.message ?: "Connection failed")
         }
     }
