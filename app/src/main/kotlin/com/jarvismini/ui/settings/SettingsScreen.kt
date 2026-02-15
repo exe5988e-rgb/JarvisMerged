@@ -40,7 +40,8 @@ import java.util.*
 fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
-    val securityManager = remember { SecurityManager(context) }
+    // 🔥 FIX: Use singleton instance instead of creating a new one
+    val securityManager = remember { SecurityManager.getInstance(context) }
     val scope = rememberCoroutineScope()
     
     // Model Selection State
@@ -879,4 +880,4 @@ fun getLocalIpAddress(): String {
         e.printStackTrace()
     }
     return "Unknown"
-}            
+}
