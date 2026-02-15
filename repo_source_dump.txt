@@ -2871,7 +2871,7 @@ class TermuxLlamaClient(
             val connection = url.openConnection() as java.net.HttpURLConnection
             connection.requestMethod = "GET"
             
-            // ðŸ†• Add auth token if paired
+            // 🆕 Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
             }
@@ -2897,7 +2897,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             
-            // ðŸ†• Add auth token if paired
+            // 🆕 Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
                 Log.d(tag, "Added auth token to request")
@@ -2959,7 +2959,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             
-            // ðŸ†• Add auth token if paired
+            // 🆕 Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
             }
@@ -3020,7 +3020,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             
-            // ðŸ†• Add auth token if paired
+            // 🆕 Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
             }
@@ -3074,6 +3074,262 @@ class TermuxLlamaClient(
         }
     }
 
+    /**
+     * Execute command via server /execute endpoint (for unedited LLM commands)
+     */
+    suspend fun executeCommandViaServer(command: String): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "Execute via server: $command")
+            
+            val url = java.net.URL("$baseUrl/execute")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            
+            // 🆕 Add auth token if paired
+            if (authToken != null) {
+                connection.setRequestProperty("Authorization", "Bearer $authToken")
+            }
+            
+            connection.connectTimeout = 10000
+            connection.readTimeout = 70000
+            connection.doOutput = true
+
+            val jsonBody = """{"command": "$command"}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            when (responseCode) {
+                200 -> {
+                    val json = org.json.JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        val output = json.optString("output", "")
+                        val exitCode = json.optInt("exit_code", 0)
+                        Log.d(tag, "Server execution success: exitCode=$exitCode")
+                        CommandResult(
+                            success = exitCode == 0,
+                            output = output.ifEmpty { "✓ Command completed" },
+                            exitCode = exitCode,
+                            method = "server"
+                        )
+                    } else {
+                        val error = json.optString("error", "Unknown error")
+                        Log.e(tag, "Server execution failed: $error")
+                        CommandResult(success = false, error = error, method = "server")
+                    }
+                }
+                401 -> {
+                    Log.e(tag, "Authentication failed - invalid or missing token")
+                    CommandResult(success = false, error = "Unauthorized - please pair device again", method = "server")
+                }
+                else -> {
+                    Log.e(tag, "HTTP error: $responseCode")
+                    CommandResult(success = false, error = "HTTP $responseCode", method = "server")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Server execution exception", e)
+            CommandResult(success = false, error = e.message ?: "Server error", method = "server")
+        }
+    }
+
+    /**
+     * Execute command via file-based executor (for edited commands)
+     * Uses jarvis_executor.sh with adaptive polling
+     */
+    suspend fun executeCommandViaFile(command: String): CommandResult = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        
+        try {
+            Log.d(tag, "========================================")
+            Log.d(tag, "Execute via file: $command")
+            
+            val statusFile = File(STATUS_FILE)
+            val commandFile = File(COMMAND_FILE)
+            val resultFile = File(RESULT_FILE)
+            
+            // Check if executor is running
+            if (!statusFile.exists()) {
+                Log.e(tag, "Status file not found")
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Executor not running.\nRun in Termux:\n  bash ~/jarvis_executor.sh &",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            val status = statusFile.readText().trim()
+            Log.d(tag, "Executor status: $status")
+            
+            if (status != "ready" && status != "executing") {
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Executor status: $status\n\nRestart executor in Termux",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            // Clear old result with forced sync
+            Log.d(tag, "Clearing old result...")
+            if (resultFile.exists()) {
+                resultFile.delete()
+                delay(30) // File deletion propagation
+            }
+            resultFile.createNewFile()
+            
+            // Write empty content with sync
+            RandomAccessFile(resultFile, "rw").use { raf ->
+                raf.setLength(0)
+                raf.fd.sync() // Force sync to storage
+            }
+            Log.d(tag, "Result file cleared and synced")
+            
+            // Write command
+            commandFile.writeText(command)
+            Log.d(tag, "Command written at ${System.currentTimeMillis() - startTime}ms")
+            
+            // Adaptive polling: start checking immediately
+            var resultContent: String? = null
+            var attempts = 0
+            
+            // Phase 1: Fast polling for quick commands (0-500ms, 50ms interval)
+            val phase1Attempts = 10
+            for (i in 0 until phase1Attempts) {
+                resultContent = readFileWithSync(resultFile)
+                
+                if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    Log.d(tag, "✓ Result found in Phase 1 (fast) after ${elapsed}ms")
+                    break
+                }
+                
+                delay(50)
+                attempts++
+            }
+            
+            // Phase 2: Medium polling (500-3000ms, 100ms interval)
+            if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
+                val phase2Attempts = 25
+                for (i in 0 until phase2Attempts) {
+                    resultContent = readFileWithSync(resultFile)
+                    
+                    if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        Log.d(tag, "✓ Result found in Phase 2 (medium) after ${elapsed}ms")
+                        break
+                    }
+                    
+                    delay(100)
+                    attempts++
+                }
+            }
+            
+            // Phase 3: Slow polling for long commands (3s-60s, 200ms interval)
+            if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
+                val phase3Attempts = 285 // Up to 60s total
+                for (i in 0 until phase3Attempts) {
+                    resultContent = readFileWithSync(resultFile)
+                    
+                    if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        Log.d(tag, "✓ Result found in Phase 3 (slow) after ${elapsed}ms")
+                        break
+                    }
+                    
+                    delay(200)
+                    attempts++
+                    
+                    // Log progress every 5 seconds
+                    if (i > 0 && i % 25 == 0) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        Log.d(tag, "⏳ Still waiting... ${elapsed}ms elapsed")
+                    }
+                }
+            }
+            
+            val actualElapsed = System.currentTimeMillis() - startTime
+            
+            // Final validation
+            if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
+                Log.e(tag, "❌ TIMEOUT or INVALID RESULT")
+                Log.e(tag, "  Actual time: ${actualElapsed}ms")
+                Log.e(tag, "  Total attempts: $attempts")
+                
+                return@withContext CommandResult(
+                    success = false,
+                    error = "No result after ${actualElapsed}ms ($attempts checks).\n\nManual check:\n  cat $RESULT_FILE",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            // Parse result: "exit_code|output"
+            val parts = resultContent.split("|", limit = 2)
+            
+            if (parts.size != 2) {
+                Log.e(tag, "❌ Invalid result format")
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Invalid format after ${actualElapsed}ms.\n\nExpected: exitcode|output",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            val exitCode = parts[0].toIntOrNull() ?: -1
+            val output = parts[1]
+            
+            Log.d(tag, "✓ Execution complete:")
+            Log.d(tag, "  Actual time: ${actualElapsed}ms")
+            Log.d(tag, "  Exit code: $exitCode")
+            Log.d(tag, "========================================")
+            
+            CommandResult(
+                success = exitCode == 0,
+                output = output.ifEmpty { "✓ Command completed (no output)" },
+                exitCode = exitCode,
+                method = "file-based"
+            )
+            
+        } catch (e: Exception) {
+            val elapsed = System.currentTimeMillis() - startTime
+            Log.e(tag, "❌ File-based execution exception after ${elapsed}ms", e)
+            CommandResult(
+                success = false,
+                error = "Execution failed: ${e.message}",
+                exitCode = -1,
+                method = "file-based"
+            )
+        }
+    }
+
+    /**
+     * Read file with forced sync to get latest content
+     */
+    private fun readFileWithSync(file: File): String? {
+        return try {
+            // Use RandomAccessFile to force cache invalidation
+            RandomAccessFile(file, "r").use { raf ->
+                val content = ByteArray(raf.length().toInt())
+                raf.readFully(content)
+                String(content).trim()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // File-based execution methods (keep existing implementation)
     suspend fun generateAndExecuteCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
         val generateResult = generateCommand(query)
@@ -3082,69 +3338,6 @@ class TermuxLlamaClient(
         }
         
         executeCommand(generateResult.command)
-    }
-
-    private fun readFileWithRetry(file: File, maxRetries: Int = 3): String {
-        repeat(maxRetries) { attempt ->
-            try {
-                RandomAccessFile(file, "r").use { raf ->
-                    raf.fd.sync()
-                    val content = raf.readLine() ?: ""
-                    if (content.isNotBlank()) {
-                        return content
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(tag, "Read attempt ${attempt + 1} failed: ${e.message}")
-            }
-            Thread.sleep(20)
-        }
-        return ""
-    }
-
-    private suspend fun waitForResult(timeoutSeconds: Int): String = withContext(Dispatchers.IO) {
-        val resultFile = File(RESULT_FILE)
-        val startTime = System.currentTimeMillis()
-        val timeoutMs = timeoutSeconds * 1000L
-        
-        var checkCount = 0
-        var lastSize = -1L
-        var sameCount = 0
-        
-        while (System.currentTimeMillis() - startTime < timeoutMs) {
-            checkCount++
-            
-            if (resultFile.exists()) {
-                val currentSize = resultFile.length()
-                
-                if (currentSize > 0) {
-                    if (currentSize == lastSize) {
-                        sameCount++
-                        if (sameCount >= 3) {
-                            val content = readFileWithRetry(resultFile)
-                            if (content.isNotBlank()) {
-                                val elapsed = System.currentTimeMillis() - startTime
-                                Log.d(tag, "Result ready after ${elapsed}ms (${checkCount} checks)")
-                                return@withContext content
-                            }
-                        }
-                    } else {
-                        sameCount = 0
-                    }
-                    lastSize = currentSize
-                }
-            }
-            
-            val interval = when {
-                checkCount <= 10 -> 50L
-                checkCount <= 30 -> 100L
-                else -> 200L
-            }
-            delay(interval)
-        }
-        
-        val elapsed = System.currentTimeMillis() - startTime
-        "Timeout after ${elapsed}ms (${checkCount} checks, file exists: ${resultFile.exists()})"
     }
 }
 
