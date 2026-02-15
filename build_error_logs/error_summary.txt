@@ -36,7 +36,7 @@ No Kotlin/Java errors
 -- BUILD TASK FAILURES --
 > Task :app:processDebugMainManifest FAILED
 FAILURE: Build failed with an exception.
-BUILD FAILED in 32s
+BUILD FAILED in 34s
 
 -- EXCEPTION STACK TRACES --
 > com.android.manifmerger.ManifestMerger2$MergeFailureException: Error parsing /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml
@@ -98,13 +98,13 @@ Caused by: com.android.manifmerger.ManifestMerger2$MergeFailureException: Error 
 	at com.android.manifmerger.ManifestMerger2$Invoker.merge(ManifestMerger2.java:2144)
 	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests(ManifestHelper.kt:121)
 	... 126 more
-Caused by: org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+Caused by: org.xml.sax.SAXParseException; lineNumber: 177; columnNumber: 1; Content is not allowed in trailing section.
 	at java.xml/com.sun.org.apache.xerces.internal.util.ErrorHandlerWrapper.createSAXParseException(ErrorHandlerWrapper.java:204)
 	at java.xml/com.sun.org.apache.xerces.internal.util.ErrorHandlerWrapper.fatalError(ErrorHandlerWrapper.java:178)
 	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLErrorReporter.reportError(XMLErrorReporter.java:400)
 	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLErrorReporter.reportError(XMLErrorReporter.java:327)
 	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLScanner.reportFatalError(XMLScanner.java:1465)
-	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLDocumentScannerImpl$PrologDriver.next(XMLDocumentScannerImpl.java:978)
+	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLDocumentScannerImpl$TrailingMiscDriver.next(XMLDocumentScannerImpl.java:1433)
 	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLDocumentScannerImpl.next(XMLDocumentScannerImpl.java:605)
 	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLNSDocumentScannerImpl.next(XMLNSDocumentScannerImpl.java:112)
 	at java.xml/com.sun.org.apache.xerces.internal.impl.XMLDocumentFragmentScannerImpl.scanDocument(XMLDocumentFragmentScannerImpl.java:542)
