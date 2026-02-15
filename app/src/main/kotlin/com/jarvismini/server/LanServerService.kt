@@ -64,7 +64,10 @@ class LanServerService : Service() {
             Log.i(tag, "Started as foreground service")
 
             val executor = FileBasedExecutor(this)
-            val securityManager = SecurityManager(this)
+            // 🔥 FIX: Use singleton instance instead of creating a new one
+            val securityManager = SecurityManager.getInstance(this)
+            Log.i(tag, "✅ Using SecurityManager singleton instance: ${securityManager.hashCode()}")
+            
             val apiGateway = ApiGateway(this, executor, securityManager)
 
             lanServer = LanServer(apiGateway, port = serverPort)

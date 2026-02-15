@@ -12,7 +12,21 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 
-class SecurityManager(private val context: Context) {
+class SecurityManager private constructor(private val context: Context) {
+
+    companion object {
+        @Volatile
+        private var INSTANCE: SecurityManager? = null
+
+        fun getInstance(context: Context): SecurityManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: SecurityManager(context.applicationContext).also { 
+                    INSTANCE = it
+                    Log.i("SecurityManager", "✅ Singleton instance created")
+                }
+            }
+        }
+    }
 
     private val tag = "SecurityManager"
     private val prefs: SharedPreferences =
@@ -48,31 +62,56 @@ class SecurityManager(private val context: Context) {
 
     init {
         loadDevices()
+        Log.d(tag, "SecurityManager initialized - Instance: ${this.hashCode()}")
     }
 
     fun enablePairingMode(durationSeconds: Int = 60) {
         pairingEnabled = true
         pairingExpiry = System.currentTimeMillis() + (durationSeconds * 1000)
+        Log.i(tag, "🔓 Pairing mode ENABLED for $durationSeconds seconds (Instance: ${this.hashCode()})")
+        Log.i(tag, "   Expiry timestamp: $pairingExpiry")
     }
 
     fun disablePairingMode() {
         pairingEnabled = false
         pairingExpiry = 0L
+        Log.i(tag, "🔒 Pairing mode DISABLED (Instance: ${this.hashCode()})")
     }
 
     fun isPairingEnabled(): Boolean {
-        if (!pairingEnabled) return false
-        if (System.currentTimeMillis() > pairingExpiry) {
+        val now = System.currentTimeMillis()
+        val remaining = (pairingExpiry - now) / 1000
+        
+        Log.d(tag, "🔍 Pairing check (Instance: ${this.hashCode()}):")
+        Log.d(tag, "   pairingEnabled: $pairingEnabled")
+        Log.d(tag, "   Expiry: $pairingExpiry")
+        Log.d(tag, "   Now: $now")
+        Log.d(tag, "   Remaining: ${remaining}s")
+        
+        if (!pairingEnabled) {
+            Log.w(tag, "❌ Pairing DENIED: pairingEnabled is false")
+            return false
+        }
+        
+        if (now > pairingExpiry) {
+            Log.w(tag, "❌ Pairing DENIED: Expired ${-remaining}s ago")
             disablePairingMode()
             return false
         }
+        
+        Log.i(tag, "✅ Pairing ALLOWED: ${remaining}s remaining")
         return true
     }
     
     fun getPairingExpiry(): Long = pairingExpiry
 
     fun pairDevice(deviceName: String, ipAddress: String): PairResult {
+        Log.i(tag, "📱 pairDevice called (Instance: ${this.hashCode()}):")
+        Log.i(tag, "   Device name: '$deviceName'")
+        Log.i(tag, "   IP address: '$ipAddress'")
+        
         if (!isPairingEnabled()) {
+            Log.e(tag, "❌ Pairing REJECTED: Pairing mode is disabled")
             return PairResult(false, error = "Pairing mode disabled.")
         }
 
@@ -93,6 +132,11 @@ class SecurityManager(private val context: Context) {
         tokenIndex[tokenHash] = deviceId
         saveDevices()
 
+        Log.i(tag, "✅ Device PAIRED successfully:")
+        Log.i(tag, "   Device ID: $deviceId")
+        Log.i(tag, "   Name: $deviceName")
+        Log.i(tag, "   Token (first 16 chars): ${token.take(16)}...")
+        
         return PairResult(true, deviceId, token)
     }
 
@@ -101,6 +145,7 @@ class SecurityManager(private val context: Context) {
         tokenIndex.remove(device.tokenHash)
         rateLimitMap.remove(deviceId)
         saveDevices()
+        Log.i(tag, "Device unpaired: $deviceId")
         return true
     }
 
