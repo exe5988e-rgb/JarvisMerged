@@ -1,16 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ✅ CREATE THIS FILE: app/src/main/res/xml/network_security_config.xml -->
+<!-- Network Security Configuration for JARVIS -->
+<!-- Allows HTTP traffic to localhost AND local network for LAN pairing -->
 <network-security-config>
-    <!-- ✅ Allow cleartext (HTTP) traffic to localhost for Termux server -->
+    
+    <!-- ✅ Allow cleartext (HTTP) traffic to local network addresses -->
     <domain-config cleartextTrafficPermitted="true">
+        <!-- Localhost -->
         <domain includeSubdomains="true">127.0.0.1</domain>
         <domain includeSubdomains="true">localhost</domain>
+        
+        <!-- Private network ranges (for LAN pairing) -->
+        <domain includeSubdomains="true">192.168.0.0</domain>
+        <domain includeSubdomains="true">10.0.0.0</domain>
+        <domain includeSubdomains="true">172.16.0.0</domain>
     </domain-config>
     
-    <!-- Optional: Keep default security for all other domains -->
+    <!-- ✅ Default: Require HTTPS for all other domains -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    
 </network-security-config>
