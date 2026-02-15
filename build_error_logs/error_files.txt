@@ -1,891 +1,209 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/settings/SettingsScreen.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/llm/TermuxCommandViewModel.kt =====
 
-// ❌ ERRORS IN THIS FILE (1 error(s)):
-// Line 43: Cannot access '<init>': it is private in 'SecurityManager'
+// ❌ ERRORS IN THIS FILE (2 error(s)):
+// Line 139: Unresolved reference: executeCommandViaFile
+// Line 143: Unresolved reference: executeCommandViaServer
 
-   1    package com.jarvismini.ui.settings
+   1    package com.jarvismini.ui.llm
    2    
    3    import android.content.Context
-   4    import androidx.compose.foundation.BorderStroke
-   5    import androidx.compose.foundation.background
-   6    import androidx.compose.foundation.border
-   7    import androidx.compose.foundation.clickable
-   8    import androidx.compose.foundation.layout.*
-   9    import androidx.compose.foundation.lazy.LazyColumn
-  10    import androidx.compose.foundation.lazy.items
-  11    import androidx.compose.foundation.shape.RoundedCornerShape
-  12    import androidx.compose.foundation.text.KeyboardOptions
-  13    import androidx.compose.material.icons.Icons
-  14    import androidx.compose.material.icons.filled.*
-  15    import androidx.compose.material3.*
-  16    import androidx.compose.runtime.*
-  17    import androidx.compose.ui.Alignment
-  18    import androidx.compose.ui.Modifier
-  19    import androidx.compose.ui.graphics.Brush
-  20    import androidx.compose.ui.graphics.Color
-  21    import androidx.compose.ui.graphics.vector.ImageVector
-  22    import androidx.compose.ui.platform.LocalContext
-  23    import androidx.compose.ui.text.font.FontFamily
-  24    import androidx.compose.ui.text.font.FontWeight
-  25    import androidx.compose.ui.text.input.KeyboardType
-  26    import androidx.compose.ui.text.input.PasswordVisualTransformation
-  27    import androidx.compose.ui.text.input.VisualTransformation
-  28    import androidx.compose.ui.unit.dp
-  29    import androidx.compose.ui.unit.sp
-  30    import androidx.compose.ui.window.Dialog
-  31    import com.jarvismini.security.SecurityManager
-  32    import com.jarvismini.server.LanServerService
-  33    import kotlinx.coroutines.delay
-  34    import kotlinx.coroutines.launch
-  35    import java.net.NetworkInterface
-  36    import java.text.SimpleDateFormat
-  37    import java.util.*
-  38    
-  39    @Composable
-  40    fun SettingsScreen(onBack: () -> Unit) {
-  41        val context = LocalContext.current
-  42        val prefs = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
-  43 ❌     val securityManager = remember { SecurityManager(context) }
-  44        val scope = rememberCoroutineScope()
-  45        
-  46        // Model Selection State
-  47        var selectedModel by remember { mutableStateOf(prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini") }
-  48        var showModelDialog by remember { mutableStateOf(false) }
+   4    import android.util.Log
+   5    import androidx.lifecycle.ViewModel
+   6    import androidx.lifecycle.viewModelScope
+   7    import com.jarvismini.llm.TermuxLlamaClient
+   8    import kotlinx.coroutines.flow.MutableStateFlow
+   9    import kotlinx.coroutines.flow.StateFlow
+  10    import kotlinx.coroutines.flow.asStateFlow
+  11    import kotlinx.coroutines.launch
+  12    
+  13    /**
+  14     * ViewModel for Termux Command Generator
+  15     * 
+  16     * TWO EXECUTION PATHS:
+  17     * 1. Unedited commands → /execute endpoint (server-side execution)
+  18     * 2. Edited commands → File-based executor (jarvis_executor.sh)
+  19     */
+  20    class TermuxCommandViewModel(private val context: Context) : ViewModel() {
+  21        private val llamaClient = TermuxLlamaClient(context = context)
+  22        private val tag = "TermuxCommandViewModel"
+  23        
+  24        private val _uiState = MutableStateFlow<LlamaUiState>(LlamaUiState.Idle)
+  25        val uiState: StateFlow<LlamaUiState> = _uiState.asStateFlow()
+  26        
+  27        private val _commandHistory = MutableStateFlow<List<CommandHistoryItem>>(emptyList())
+  28        val commandHistory: StateFlow<List<CommandHistoryItem>> = _commandHistory.asStateFlow()
+  29        
+  30        private val _serverStatus = MutableStateFlow<ServerStatus>(ServerStatus.Unknown)
+  31        val serverStatus: StateFlow<ServerStatus> = _serverStatus.asStateFlow()
+  32        
+  33        sealed class LlamaUiState {
+  34            object Idle : LlamaUiState()
+  35            object CheckingServer : LlamaUiState()
+  36            object Generating : LlamaUiState()
+  37            data class WaitingConfirmation(
+  38                val command: String,
+  39                val isEdited: Boolean = false
+  40            ) : LlamaUiState()
+  41            object Executing : LlamaUiState()
+  42            data class Success(
+  43                val output: String,
+  44                val exitCode: Int,
+  45                val executionMethod: String? = null
+  46            ) : LlamaUiState()
+  47            data class Error(val message: String) : LlamaUiState()
+  48        }
   49        
-  50        // Cloud API State
-  51        var cloudProvider by remember { mutableStateOf(prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI") }
-  52        var apiKey by remember { mutableStateOf(prefs.getString("cloud_api_key", "") ?: "") }
-  53        var showApiKeyDialog by remember { mutableStateOf(false) }
-  54        var showApiKey by remember { mutableStateOf(false) }
-  55        
-  56        // LAN Server State
-  57        var isServerRunning by remember { mutableStateOf(false) }
-  58        var serverIpAddress by remember { mutableStateOf(getLocalIpAddress()) }
-  59        
-  60        // Device Pairing State
-  61        var pairedDevices by remember { mutableStateOf(securityManager.getPairedDevices()) }
-  62        var isPairingMode by remember { mutableStateOf(false) }
-  63        var pairingTimeLeft by remember { mutableStateOf(0) }
-  64        var showPairingDialog by remember { mutableStateOf(false) }
-  65        var showDeviceListDialog by remember { mutableStateOf(false) }
-  66        
-  67        // Pairing countdown timer
-  68        LaunchedEffect(isPairingMode) {
-  69            while (isPairingMode) {
-  70                if (securityManager.isPairingEnabled()) {
-  71                    pairingTimeLeft = ((securityManager.getPairingExpiry() - System.currentTimeMillis()) / 1000).toInt()
-  72                    if (pairingTimeLeft <= 0) {
-  73                        isPairingMode = false
-  74                    }
-  75                } else {
-  76                    isPairingMode = false
-  77                }
-  78                delay(1000)
-  79            }
-  80        }
-  81        
-  82        Box(
-  83            modifier = Modifier
-  84                .fillMaxSize()
-  85                .background(
-  86                    brush = Brush.radialGradient(
-  87                        colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-  88                    )
-  89                )
-  90        ) {
-  91            Column(
-  92                modifier = Modifier
-  93                    .fillMaxSize()
-  94                    .padding(20.dp)
-  95            ) {
-  96                // Header
-  97                Row(
-  98                    modifier = Modifier.fillMaxWidth(),
-  99                    verticalAlignment = Alignment.CenterVertically
- 100                ) {
- 101                    IconButton(onClick = onBack) {
- 102                        Icon(
- 103                            imageVector = Icons.Default.ArrowBack,
- 104                            contentDescription = "Back",
- 105                            tint = Color(0xFF00E0FF)
- 106                        )
- 107                    }
- 108                    Text(
- 109                        text = "SETTINGS",
- 110                        fontSize = 24.sp,
- 111                        fontWeight = FontWeight.Light,
- 112                        letterSpacing = 4.sp,
- 113                        color = Color(0xFF00E0FF)
- 114                    )
- 115                }
- 116    
- 117                Spacer(Modifier.height(20.dp))
- 118    
- 119                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
- 120                    // Section: LLM Configuration
- 121                    item {
- 122                        Text(
- 123                            text = "LLM CONFIGURATION",
- 124                            fontSize = 14.sp,
- 125                            letterSpacing = 2.sp,
- 126                            color = Color(0xFF00E0FF),
- 127                            fontFamily = FontFamily.Monospace,
- 128                            modifier = Modifier.padding(bottom = 8.dp)
- 129                        )
- 130                    }
- 131                    
- 132                    // Model Selector
- 133                    item {
- 134                        SettingsTile(
- 135                            title = "AI Model",
- 136                            subtitle = getModelDisplayName(selectedModel),
- 137                            icon = Icons.Default.Psychology,
- 138                            onClick = { showModelDialog = true }
- 139                        )
- 140                    }
- 141                    
- 142                    // Cloud API Configuration
- 143                    item {
- 144                        SettingsTile(
- 145                            title = "Cloud API Provider",
- 146                            subtitle = cloudProvider,
- 147                            icon = Icons.Default.Cloud,
- 148                            onClick = { 
- 149                                cloudProvider = if (cloudProvider == "OPENAI") "ANTHROPIC" else "OPENAI"
- 150                                prefs.edit().putString("cloud_provider", cloudProvider).apply()
- 151                            }
- 152                        )
- 153                    }
- 154                    
- 155                    item {
- 156                        SettingsTile(
- 157                            title = "API Key",
- 158                            subtitle = if (apiKey.isEmpty()) "Not Configured" else "••••••••",
- 159                            icon = Icons.Default.Key,
- 160                            onClick = { showApiKeyDialog = true }
+  50        sealed class ServerStatus {
+  51            object Unknown : ServerStatus()
+  52            object Checking : ServerStatus()
+  53            object Online : ServerStatus()
+  54            object Offline : ServerStatus()
+  55        }
+  56        
+  57        data class CommandHistoryItem(
+  58            val query: String,
+  59            val command: String,
+  60            val output: String?,
+  61            val success: Boolean,
+  62            val executionMethod: String? = null,
+  63            val timestamp: Long = System.currentTimeMillis()
+  64        )
+  65        
+  66        init {
+  67            checkServerStatus()
+  68        }
+  69        
+  70        fun checkServerStatus() {
+  71            viewModelScope.launch {
+  72                _serverStatus.value = ServerStatus.Checking
+  73                val isHealthy = llamaClient.checkHealth()
+  74                _serverStatus.value = if (isHealthy) ServerStatus.Online else ServerStatus.Offline
+  75            }
+  76        }
+  77        
+  78        fun generateCommand(query: String) {
+  79            viewModelScope.launch {
+  80                try {
+  81                    _uiState.value = LlamaUiState.Generating
+  82                    
+  83                    val result = llamaClient.generateCommand(query)
+  84                    
+  85                    if (result.success && result.command != null) {
+  86                        _uiState.value = LlamaUiState.WaitingConfirmation(
+  87                            command = result.command,
+  88                            isEdited = false
+  89                        )
+  90                    } else {
+  91                        _uiState.value = LlamaUiState.Error(
+  92                            result.error ?: "Failed to generate command"
+  93                        )
+  94                        
+  95                        addToHistory(
+  96                            CommandHistoryItem(
+  97                                query = query,
+  98                                command = "",
+  99                                output = result.error,
+ 100                                success = false
+ 101                            )
+ 102                        )
+ 103                    }
+ 104                } catch (e: Exception) {
+ 105                    _uiState.value = LlamaUiState.Error(e.message ?: "Unknown error")
+ 106                }
+ 107            }
+ 108        }
+ 109        
+ 110        fun updateCommand(newCommand: String) {
+ 111            val currentState = _uiState.value
+ 112            if (currentState is LlamaUiState.WaitingConfirmation) {
+ 113                _uiState.value = LlamaUiState.WaitingConfirmation(
+ 114                    command = newCommand,
+ 115                    isEdited = true  // Mark as edited
+ 116                )
+ 117            }
+ 118        }
+ 119        
+ 120        /**
+ 121         * Execute command with TWO PATHS:
+ 122         * 
+ 123         * PATH 1 (isEdited = false): Unedited LLM-generated command
+ 124         *   → executeCommandViaServer() → /execute endpoint
+ 125         *   → Server executes in Termux and returns result
+ 126         * 
+ 127         * PATH 2 (isEdited = true): User-edited command
+ 128         *   → executeCommandViaFile() → jarvis_executor.sh
+ 129         *   → File-based execution with immediate feedback
+ 130         */
+ 131        fun executeCommand(command: String, query: String, isEdited: Boolean) {
+ 132            viewModelScope.launch {
+ 133                try {
+ 134                    _uiState.value = LlamaUiState.Executing
+ 135                    
+ 136                    val result = if (isEdited) {
+ 137                        // EDITED COMMAND → File-based executor
+ 138                        Log.d(tag, "Executing EDITED command via file-based executor")
+ 139 ❌                     llamaClient.executeCommandViaFile(command)
+ 140                    } else {
+ 141                        // UNEDITED COMMAND → Server /execute endpoint
+ 142                        Log.d(tag, "Executing UNEDITED command via server /execute")
+ 143 ❌                     llamaClient.executeCommandViaServer(command)
+ 144                    }
+ 145                    
+ 146                    if (result.success) {
+ 147                        _uiState.value = LlamaUiState.Success(
+ 148                            output = result.output ?: "Command completed",
+ 149                            exitCode = result.exitCode ?: 0,
+ 150                            executionMethod = result.method
+ 151                        )
+ 152                        
+ 153                        addToHistory(
+ 154                            CommandHistoryItem(
+ 155                                query = query,
+ 156                                command = command,
+ 157                                output = result.output,
+ 158                                success = true,
+ 159                                executionMethod = result.method
+ 160                            )
  161                        )
- 162                    }
- 163                    
- 164                    // Section: LAN Server
- 165                    item {
- 166                        Spacer(Modifier.height(12.dp))
- 167                        Text(
- 168                            text = "LAN SERVER",
- 169                            fontSize = 14.sp,
- 170                            letterSpacing = 2.sp,
- 171                            color = Color(0xFF00E0FF),
- 172                            fontFamily = FontFamily.Monospace,
- 173                            modifier = Modifier.padding(bottom = 8.dp)
- 174                        )
- 175                    }
- 176                    
- 177                    item {
- 178                        SettingsTile(
- 179                            title = "Server Status",
- 180                            subtitle = if (isServerRunning) "Running on $serverIpAddress:8081" else "Stopped",
- 181                            icon = if (isServerRunning) Icons.Default.CheckCircle else Icons.Default.Cancel,
- 182                            onClick = {
- 183                                if (isServerRunning) {
- 184                                    LanServerService.stop(context)
- 185                                    isServerRunning = false
- 186                                } else {
- 187                                    LanServerService.start(context)
- 188                                    isServerRunning = true
- 189                                    serverIpAddress = getLocalIpAddress()
- 190                                }
- 191                            }
- 192                        )
- 193                    }
- 194                    
- 195                    // Section: Device Pairing
- 196                    item {
- 197                        Spacer(Modifier.height(12.dp))
- 198                        Text(
- 199                            text = "DEVICE PAIRING",
- 200                            fontSize = 14.sp,
- 201                            letterSpacing = 2.sp,
- 202                            color = Color(0xFF00E0FF),
- 203                            fontFamily = FontFamily.Monospace,
- 204                            modifier = Modifier.padding(bottom = 8.dp)
- 205                        )
- 206                    }
- 207                    
- 208                    item {
- 209                        SettingsTile(
- 210                            title = "Pairing Mode",
- 211                            subtitle = if (isPairingMode) "Active ($pairingTimeLeft sec)" else "Disabled",
- 212                            icon = if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled,
- 213                            onClick = {
- 214                                if (isPairingMode) {
- 215                                    securityManager.disablePairingMode()
- 216                                    isPairingMode = false
- 217                                } else {
- 218                                    securityManager.enablePairingMode(60)
- 219                                    isPairingMode = true
- 220                                    showPairingDialog = true
- 221                                }
- 222                            }
- 223                        )
- 224                    }
- 225                    
- 226                    item {
- 227                        SettingsTile(
- 228                            title = "Paired Devices",
- 229                            subtitle = "${pairedDevices.size} device(s)",
- 230                            icon = Icons.Default.Devices,
- 231                            onClick = {
- 232                                pairedDevices = securityManager.getPairedDevices()
- 233                                showDeviceListDialog = true
- 234                            }
- 235                        )
- 236                    }
- 237                    
- 238                    // Section: Other
- 239                    item {
- 240                        Spacer(Modifier.height(12.dp))
- 241                        Text(
- 242                            text = "SYSTEM",
- 243                            fontSize = 14.sp,
- 244                            letterSpacing = 2.sp,
- 245                            color = Color(0xFF00E0FF),
- 246                            fontFamily = FontFamily.Monospace,
- 247                            modifier = Modifier.padding(bottom = 8.dp)
- 248                        )
- 249                    }
- 250                    
- 251                    item {
- 252                        SettingsTile("Permissions", "All Granted", Icons.Default.CheckCircle)
- 253                    }
- 254                    
- 255                    item {
- 256                        SettingsTile("Voice Engine", "ElevenLabs", Icons.Default.Mic)
- 257                    }
- 258                    
- 259                    item {
- 260                        SettingsTile("Vision Models", "Downloaded", Icons.Default.Visibility)
- 261                    }
- 262                }
- 263            }
- 264        }
- 265        
- 266        // Model Selection Dialog
- 267        if (showModelDialog) {
- 268            ModelSelectionDialog(
- 269                currentModel = selectedModel,
- 270                onDismiss = { showModelDialog = false },
- 271                onModelSelected = { model ->
- 272                    selectedModel = model
- 273                    prefs.edit().putString("selected_model", model).apply()
- 274                    showModelDialog = false
- 275                }
- 276            )
- 277        }
- 278        
- 279        // API Key Dialog
- 280        if (showApiKeyDialog) {
- 281            ApiKeyDialog(
- 282                provider = cloudProvider,
- 283                currentKey = apiKey,
- 284                onDismiss = { showApiKeyDialog = false },
- 285                onSave = { newKey ->
- 286                    apiKey = newKey
- 287                    prefs.edit().putString("cloud_api_key", newKey).apply()
- 288                    showApiKeyDialog = false
- 289                }
- 290            )
- 291        }
- 292        
- 293        // Pairing Instructions Dialog
- 294        if (showPairingDialog) {
- 295            PairingInstructionsDialog(
- 296                ipAddress = serverIpAddress,
- 297                timeLeft = pairingTimeLeft,
- 298                onDismiss = { showPairingDialog = false }
- 299            )
- 300        }
- 301        
- 302        // Device List Dialog
- 303        if (showDeviceListDialog) {
- 304            DeviceListDialog(
- 305                devices = pairedDevices,
- 306                onDismiss = { showDeviceListDialog = false },
- 307                onUnpair = { deviceId ->
- 308                    securityManager.unpairDevice(deviceId)
- 309                    pairedDevices = securityManager.getPairedDevices()
- 310                }
- 311            )
- 312        }
- 313    }
- 314    
- 315    @Composable
- 316    fun SettingsTile(
- 317        title: String,
- 318        subtitle: String,
- 319        icon: ImageVector,
- 320        onClick: (() -> Unit)? = null
- 321    ) {
- 322        Surface(
- 323            modifier = Modifier
- 324                .fillMaxWidth()
- 325                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
- 326                .background(
- 327                    color = Color.Black.copy(alpha = 0.5f),
- 328                    shape = RoundedCornerShape(8.dp)
- 329                )
- 330                .border(
- 331                    width = 1.dp,
- 332                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
- 333                    shape = RoundedCornerShape(8.dp)
- 334                )
- 335                .padding(16.dp),
- 336            color = Color.Transparent
- 337        ) {
- 338            Row(
- 339                verticalAlignment = Alignment.CenterVertically,
- 340                horizontalArrangement = Arrangement.SpaceBetween
- 341            ) {
- 342                Row(
- 343                    verticalAlignment = Alignment.CenterVertically,
- 344                    modifier = Modifier.weight(1f)
- 345                ) {
- 346                    Icon(
- 347                        imageVector = icon,
- 348                        contentDescription = null,
- 349                        tint = Color(0xFF00E0FF),
- 350                        modifier = Modifier.size(24.dp)
- 351                    )
- 352                    Spacer(Modifier.width(16.dp))
- 353                    Column {
- 354                        Text(
- 355                            text = title,
- 356                            fontSize = 14.sp,
- 357                            fontWeight = FontWeight.Bold,
- 358                            color = Color(0xFF00E0FF)
- 359                        )
- 360                        Spacer(Modifier.height(4.dp))
- 361                        Text(
- 362                            text = subtitle,
- 363                            fontSize = 12.sp,
- 364                            color = Color(0xFF00E0FF).copy(alpha = 0.6f)
- 365                        )
- 366                    }
- 367                }
- 368                if (onClick != null) {
- 369                    Icon(
- 370                        imageVector = Icons.Default.ChevronRight,
- 371                        contentDescription = null,
- 372                        tint = Color(0xFF00E0FF).copy(alpha = 0.4f)
- 373                    )
- 374                }
- 375            }
- 376        }
- 377    }
- 378    
- 379    @Composable
- 380    fun ModelSelectionDialog(
- 381        currentModel: String,
- 382        onDismiss: () -> Unit,
- 383        onModelSelected: (String) -> Unit
- 384    ) {
- 385        val models = listOf(
- 386            ModelOption("gpt-4o-mini", "GPT-4o Mini", "OpenAI - Fast & Efficient"),
- 387            ModelOption("gpt-4o", "GPT-4o", "OpenAI - Most Capable"),
- 388            ModelOption("gpt-3.5-turbo", "GPT-3.5 Turbo", "OpenAI - Legacy"),
- 389            ModelOption("claude-sonnet-4-20250514", "Claude Sonnet 4", "Anthropic - Balanced"),
- 390            ModelOption("claude-opus-4-5-20251101", "Claude Opus 4.5", "Anthropic - Most Intelligent"),
- 391            ModelOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5", "Anthropic - Fast"),
- 392            ModelOption("termux-llama", "Termux Llama", "Local - Privacy First")
- 393        )
- 394        
- 395        Dialog(onDismissRequest = onDismiss) {
- 396            Surface(
- 397                shape = RoundedCornerShape(16.dp),
- 398                color = Color(0xFF001520),
- 399                border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
- 400            ) {
- 401                Column(
- 402                    modifier = Modifier
- 403                        .padding(20.dp)
- 404                        .widthIn(max = 400.dp)
- 405                ) {
- 406                    Text(
- 407                        text = "SELECT AI MODEL",
- 408                        fontSize = 18.sp,
- 409                        fontWeight = FontWeight.Bold,
- 410                        letterSpacing = 2.sp,
- 411                        color = Color(0xFF00E0FF)
- 412                    )
- 413                    
- 414                    Spacer(Modifier.height(16.dp))
- 415                    
- 416                    LazyColumn(
- 417                        verticalArrangement = Arrangement.spacedBy(8.dp),
- 418                        modifier = Modifier.heightIn(max = 400.dp)
- 419                    ) {
- 420                        items(models) { model ->
- 421                            ModelOptionItem(
- 422                                model = model,
- 423                                isSelected = currentModel == model.id,
- 424                                onClick = { onModelSelected(model.id) }
- 425                            )
- 426                        }
- 427                    }
- 428                    
- 429                    Spacer(Modifier.height(16.dp))
- 430                    
- 431                    Button(
- 432                        onClick = onDismiss,
- 433                        modifier = Modifier.fillMaxWidth(),
- 434                        colors = ButtonDefaults.buttonColors(
- 435                            containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
- 436                        )
- 437                    ) {
- 438                        Text("CANCEL", color = Color(0xFF00E0FF))
- 439                    }
- 440                }
- 441            }
- 442        }
- 443    }
- 444    
- 445    @Composable
- 446    fun ModelOptionItem(
- 447        model: ModelOption,
- 448        isSelected: Boolean,
- 449        onClick: () -> Unit
- 450    ) {
- 451        Surface(
- 452            modifier = Modifier
- 453                .fillMaxWidth()
- 454                .clickable(onClick = onClick),
- 455            shape = RoundedCornerShape(8.dp),
- 456            color = if (isSelected) Color(0xFF00E0FF).copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.3f),
- 457            border = BorderStroke(
- 458                1.dp,
- 459                if (isSelected) Color(0xFF00E0FF) else Color(0xFF00E0FF).copy(alpha = 0.2f)
- 460            )
- 461        ) {
- 462            Row(
- 463                modifier = Modifier.padding(12.dp),
- 464                verticalAlignment = Alignment.CenterVertically
- 465            ) {
- 466                RadioButton(
- 467                    selected = isSelected,
- 468                    onClick = onClick,
- 469                    colors = RadioButtonDefaults.colors(
- 470                        selectedColor = Color(0xFF00E0FF),
- 471                        unselectedColor = Color(0xFF00E0FF).copy(alpha = 0.5f)
- 472                    )
- 473                )
- 474                Spacer(Modifier.width(8.dp))
- 475                Column {
- 476                    Text(
- 477                        text = model.displayName,
- 478                        fontSize = 14.sp,
- 479                        fontWeight = FontWeight.Bold,
- 480                        color = Color(0xFF00E0FF)
- 481                    )
- 482                    Text(
- 483                        text = model.description,
- 484                        fontSize = 11.sp,
- 485                        color = Color(0xFF00E0FF).copy(alpha = 0.6f)
- 486                    )
- 487                }
- 488            }
- 489        }
- 490    }
- 491    
- 492    @Composable
- 493    fun ApiKeyDialog(
- 494        provider: String,
- 495        currentKey: String,
- 496        onDismiss: () -> Unit,
- 497        onSave: (String) -> Unit
- 498    ) {
- 499        var apiKey by remember { mutableStateOf(currentKey) }
- 500        var showKey by remember { mutableStateOf(false) }
- 501        
- 502        Dialog(onDismissRequest = onDismiss) {
- 503            Surface(
- 504                shape = RoundedCornerShape(16.dp),
- 505                color = Color(0xFF001520),
- 506                border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
- 507            ) {
- 508                Column(
- 509                    modifier = Modifier.padding(20.dp)
- 510                ) {
- 511                    Text(
- 512                        text = "$provider API KEY",
- 513                        fontSize = 18.sp,
- 514                        fontWeight = FontWeight.Bold,
- 515                        letterSpacing = 2.sp,
- 516                        color = Color(0xFF00E0FF)
- 517                    )
- 518                    
- 519                    Spacer(Modifier.height(16.dp))
- 520                    
- 521                    OutlinedTextField(
- 522                        value = apiKey,
- 523                        onValueChange = { apiKey = it },
- 524                        label = { Text("API Key", color = Color(0xFF00E0FF).copy(alpha = 0.6f)) },
- 525                        visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
- 526                        trailingIcon = {
- 527                            IconButton(onClick = { showKey = !showKey }) {
- 528                                Icon(
- 529                                    imageVector = if (showKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
- 530                                    contentDescription = if (showKey) "Hide" else "Show",
- 531                                    tint = Color(0xFF00E0FF)
- 532                                )
- 533                            }
- 534                        },
- 535                        colors = OutlinedTextFieldDefaults.colors(
- 536                            focusedTextColor = Color(0xFF00E0FF),
- 537                            unfocusedTextColor = Color(0xFF00E0FF).copy(alpha = 0.8f),
- 538                            focusedBorderColor = Color(0xFF00E0FF),
- 539                            unfocusedBorderColor = Color(0xFF00E0FF).copy(alpha = 0.4f),
- 540                            cursorColor = Color(0xFF00E0FF)
- 541                        ),
- 542                        modifier = Modifier.fillMaxWidth(),
- 543                        singleLine = true
- 544                    )
- 545                    
- 546                    Spacer(Modifier.height(8.dp))
- 547                    
- 548                    Text(
- 549                        text = if (provider == "OPENAI") 
- 550                            "Get your key from platform.openai.com"
- 551                        else 
- 552                            "Get your key from console.anthropic.com",
- 553                        fontSize = 11.sp,
- 554                        color = Color(0xFF00E0FF).copy(alpha = 0.5f),
- 555                        fontFamily = FontFamily.Monospace
- 556                    )
- 557                    
- 558                    Spacer(Modifier.height(20.dp))
- 559                    
- 560                    Row(
- 561                        modifier = Modifier.fillMaxWidth(),
- 562                        horizontalArrangement = Arrangement.spacedBy(8.dp)
- 563                    ) {
- 564                        Button(
- 565                            onClick = onDismiss,
- 566                            modifier = Modifier.weight(1f),
- 567                            colors = ButtonDefaults.buttonColors(
- 568                                containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
- 569                            )
- 570                        ) {
- 571                            Text("CANCEL", color = Color(0xFF00E0FF))
- 572                        }
- 573                        
- 574                        Button(
- 575                            onClick = { onSave(apiKey) },
- 576                            modifier = Modifier.weight(1f),
- 577                            colors = ButtonDefaults.buttonColors(
- 578                                containerColor = Color(0xFF00E0FF)
- 579                            )
- 580                        ) {
- 581                            Text("SAVE", color = Color.Black)
- 582                        }
- 583                    }
- 584                }
- 585            }
- 586        }
- 587    }
- 588    
- 589    @Composable
- 590    fun PairingInstructionsDialog(
- 591        ipAddress: String,
- 592        timeLeft: Int,
- 593        onDismiss: () -> Unit
- 594    ) {
- 595        Dialog(onDismissRequest = onDismiss) {
- 596            Surface(
- 597                shape = RoundedCornerShape(16.dp),
- 598                color = Color(0xFF001520),
- 599                border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
- 600            ) {
- 601                Column(
- 602                    modifier = Modifier.padding(20.dp)
- 603                ) {
- 604                    Text(
- 605                        text = "PAIRING MODE ACTIVE",
- 606                        fontSize = 18.sp,
- 607                        fontWeight = FontWeight.Bold,
- 608                        letterSpacing = 2.sp,
- 609                        color = Color(0xFF00E0FF)
- 610                    )
- 611                    
- 612                    Spacer(Modifier.height(16.dp))
- 613                    
- 614                    Text(
- 615                        text = "Time Remaining: $timeLeft seconds",
- 616                        fontSize = 14.sp,
- 617                        color = Color(0xFF00FF00),
- 618                        fontFamily = FontFamily.Monospace
- 619                    )
- 620                    
- 621                    Spacer(Modifier.height(12.dp))
- 622                    
- 623                    Text(
- 624                        text = "To pair a device, send a POST request to:",
- 625                        fontSize = 12.sp,
- 626                        color = Color(0xFF00E0FF).copy(alpha = 0.8f)
- 627                    )
- 628                    
- 629                    Spacer(Modifier.height(8.dp))
- 630                    
- 631                    Surface(
- 632                        shape = RoundedCornerShape(8.dp),
- 633                        color = Color.Black.copy(alpha = 0.5f),
- 634                        modifier = Modifier.fillMaxWidth()
- 635                    ) {
- 636                        Text(
- 637                            text = "http://$ipAddress:8081/api/v1/pair",
- 638                            fontSize = 11.sp,
- 639                            color = Color(0xFF00FF00),
- 640                            fontFamily = FontFamily.Monospace,
- 641                            modifier = Modifier.padding(12.dp)
- 642                        )
- 643                    }
- 644                    
- 645                    Spacer(Modifier.height(8.dp))
- 646                    
- 647                    Text(
- 648                        text = "With JSON body:",
- 649                        fontSize = 12.sp,
- 650                        color = Color(0xFF00E0FF).copy(alpha = 0.8f)
- 651                    )
- 652                    
- 653                    Spacer(Modifier.height(8.dp))
- 654                    
- 655                    Surface(
- 656                        shape = RoundedCornerShape(8.dp),
- 657                        color = Color.Black.copy(alpha = 0.5f),
- 658                        modifier = Modifier.fillMaxWidth()
- 659                    ) {
- 660                        Text(
- 661                            text = """{"device_name": "My Device"}""",
- 662                            fontSize = 11.sp,
- 663                            color = Color(0xFF00FF00),
- 664                            fontFamily = FontFamily.Monospace,
- 665                            modifier = Modifier.padding(12.dp)
- 666                        )
- 667                    }
- 668                    
- 669                    Spacer(Modifier.height(16.dp))
- 670                    
- 671                    Button(
- 672                        onClick = onDismiss,
- 673                        modifier = Modifier.fillMaxWidth(),
- 674                        colors = ButtonDefaults.buttonColors(
- 675                            containerColor = Color(0xFF00E0FF)
- 676                        )
- 677                    ) {
- 678                        Text("GOT IT", color = Color.Black)
- 679                    }
- 680                }
- 681            }
- 682        }
- 683    }
- 684    
- 685    @Composable
- 686    fun DeviceListDialog(
- 687        devices: List<com.jarvismini.security.TrustedDevice>,
- 688        onDismiss: () -> Unit,
- 689        onUnpair: (String) -> Unit
- 690    ) {
- 691        var deviceToUnpair by remember { mutableStateOf<String?>(null) }
- 692        
- 693        Dialog(onDismissRequest = onDismiss) {
- 694            Surface(
- 695                shape = RoundedCornerShape(16.dp),
- 696                color = Color(0xFF001520),
- 697                border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
- 698            ) {
- 699                Column(
- 700                    modifier = Modifier
- 701                        .padding(20.dp)
- 702                        .widthIn(max = 400.dp)
- 703                ) {
- 704                    Text(
- 705                        text = "PAIRED DEVICES",
- 706                        fontSize = 18.sp,
- 707                        fontWeight = FontWeight.Bold,
- 708                        letterSpacing = 2.sp,
- 709                        color = Color(0xFF00E0FF)
- 710                    )
- 711                    
- 712                    Spacer(Modifier.height(16.dp))
- 713                    
- 714                    if (devices.isEmpty()) {
- 715                        Box(
- 716                            modifier = Modifier
- 717                                .fillMaxWidth()
- 718                                .height(100.dp),
- 719                            contentAlignment = Alignment.Center
- 720                        ) {
- 721                            Text(
- 722                                text = "No devices paired",
- 723                                fontSize = 14.sp,
- 724                                color = Color(0xFF00E0FF).copy(alpha = 0.5f)
- 725                            )
- 726                        }
- 727                    } else {
- 728                        LazyColumn(
- 729                            verticalArrangement = Arrangement.spacedBy(8.dp),
- 730                            modifier = Modifier.heightIn(max = 400.dp)
- 731                        ) {
- 732                            items(devices) { device ->
- 733                                DeviceItem(
- 734                                    device = device,
- 735                                    onUnpair = { deviceToUnpair = device.id }
- 736                                )
- 737                            }
- 738                        }
- 739                    }
- 740                    
- 741                    Spacer(Modifier.height(16.dp))
- 742                    
- 743                    Button(
- 744                        onClick = onDismiss,
- 745                        modifier = Modifier.fillMaxWidth(),
- 746                        colors = ButtonDefaults.buttonColors(
- 747                            containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
- 748                        )
- 749                    ) {
- 750                        Text("CLOSE", color = Color(0xFF00E0FF))
- 751                    }
- 752                }
- 753            }
- 754        }
- 755        
- 756        // Confirm unpair dialog
- 757        deviceToUnpair?.let { deviceId ->
- 758            AlertDialog(
- 759                onDismissRequest = { deviceToUnpair = null },
- 760                title = {
- 761                    Text("Unpair Device?", color = Color(0xFF00E0FF))
- 762                },
- 763                text = {
- 764                    Text(
- 765                        "This device will lose access to this server.",
- 766                        color = Color(0xFF00E0FF).copy(alpha = 0.8f)
- 767                    )
- 768                },
- 769                confirmButton = {
- 770                    TextButton(
- 771                        onClick = {
- 772                            onUnpair(deviceId)
- 773                            deviceToUnpair = null
- 774                        }
- 775                    ) {
- 776                        Text("UNPAIR", color = Color(0xFFFF4444))
- 777                    }
- 778                },
- 779                dismissButton = {
- 780                    TextButton(onClick = { deviceToUnpair = null }) {
- 781                        Text("CANCEL", color = Color(0xFF00E0FF))
- 782                    }
- 783                },
- 784                containerColor = Color(0xFF001520)
- 785            )
- 786        }
- 787    }
- 788    
- 789    @Composable
- 790    fun DeviceItem(
- 791        device: com.jarvismini.security.TrustedDevice,
- 792        onUnpair: () -> Unit
- 793    ) {
- 794        val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
- 795        
- 796        Surface(
- 797            shape = RoundedCornerShape(8.dp),
- 798            color = Color.Black.copy(alpha = 0.3f),
- 799            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.2f)),
- 800            modifier = Modifier.fillMaxWidth()
- 801        ) {
- 802            Row(
- 803                modifier = Modifier.padding(12.dp),
- 804                verticalAlignment = Alignment.CenterVertically
- 805            ) {
- 806                Icon(
- 807                    imageVector = Icons.Default.Devices,
- 808                    contentDescription = null,
- 809                    tint = Color(0xFF00E0FF),
- 810                    modifier = Modifier.size(24.dp)
- 811                )
- 812                
- 813                Spacer(Modifier.width(12.dp))
- 814                
- 815                Column(modifier = Modifier.weight(1f)) {
- 816                    Text(
- 817                        text = device.name,
- 818                        fontSize = 14.sp,
- 819                        fontWeight = FontWeight.Bold,
- 820                        color = Color(0xFF00E0FF)
- 821                    )
- 822                    Text(
- 823                        text = device.ipAddress,
- 824                        fontSize = 11.sp,
- 825                        color = Color(0xFF00E0FF).copy(alpha = 0.6f),
- 826                        fontFamily = FontFamily.Monospace
- 827                    )
- 828                    Text(
- 829                        text = "Last seen: ${dateFormat.format(Date(device.lastSeen))}",
- 830                        fontSize = 10.sp,
- 831                        color = Color(0xFF00E0FF).copy(alpha = 0.5f)
- 832                    )
- 833                }
- 834                
- 835                IconButton(onClick = onUnpair) {
- 836                    Icon(
- 837                        imageVector = Icons.Default.Delete,
- 838                        contentDescription = "Unpair",
- 839                        tint = Color(0xFFFF4444)
- 840                    )
- 841                }
- 842            }
- 843        }
- 844    }
- 845    
- 846    data class ModelOption(
- 847        val id: String,
- 848        val displayName: String,
- 849        val description: String
- 850    )
- 851    
- 852    fun getModelDisplayName(modelId: String): String {
- 853        return when (modelId) {
- 854            "gpt-4o-mini" -> "GPT-4o Mini"
- 855            "gpt-4o" -> "GPT-4o"
- 856            "gpt-3.5-turbo" -> "GPT-3.5 Turbo"
- 857            "claude-sonnet-4-20250514" -> "Claude Sonnet 4"
- 858            "claude-opus-4-5-20251101" -> "Claude Opus 4.5"
- 859            "claude-haiku-4-5-20251001" -> "Claude Haiku 4.5"
- 860            "termux-llama" -> "Termux Llama (Local)"
- 861            else -> modelId
- 862        }
- 863    }
- 864    
- 865    fun getLocalIpAddress(): String {
- 866        try {
- 867            val interfaces = NetworkInterface.getNetworkInterfaces()
- 868            while (interfaces.hasMoreElements()) {
- 869                val networkInterface = interfaces.nextElement()
- 870                val addresses = networkInterface.inetAddresses
- 871                while (addresses.hasMoreElements()) {
- 872                    val address = addresses.nextElement()
- 873                    if (!address.isLoopbackAddress && address is java.net.Inet4Address) {
- 874                        return address.hostAddress ?: "Unknown"
- 875                    }
- 876                }
- 877            }
- 878        } catch (e: Exception) {
- 879            e.printStackTrace()
- 880        }
- 881        return "Unknown"
- 882    }            
+ 162                    } else {
+ 163                        _uiState.value = LlamaUiState.Error(
+ 164                            result.error ?: "Execution failed"
+ 165                        )
+ 166                        
+ 167                        addToHistory(
+ 168                            CommandHistoryItem(
+ 169                                query = query,
+ 170                                command = command,
+ 171                                output = result.error,
+ 172                                success = false,
+ 173                                executionMethod = result.method
+ 174                            )
+ 175                        )
+ 176                    }
+ 177                } catch (e: Exception) {
+ 178                    Log.e(tag, "Execution error", e)
+ 179                    _uiState.value = LlamaUiState.Error(e.message ?: "Execution failed")
+ 180                }
+ 181            }
+ 182        }
+ 183        
+ 184        fun cancelCommand() {
+ 185            _uiState.value = LlamaUiState.Idle
+ 186        }
+ 187        
+ 188        fun reset() {
+ 189            _uiState.value = LlamaUiState.Idle
+ 190        }
+ 191        
+ 192        private fun addToHistory(item: CommandHistoryItem) {
+ 193            _commandHistory.value = listOf(item) + _commandHistory.value
+ 194        }
+ 195        
+ 196        fun clearHistory() {
+ 197            _commandHistory.value = emptyList()
+ 198        }
+ 199    }
 
 
