@@ -1,3 +1,4 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 package com.jarvismini.llm
 
 import android.content.Context
@@ -90,7 +91,7 @@ class TermuxLlamaClient(
             val connection = url.openConnection() as java.net.HttpURLConnection
             connection.requestMethod = "GET"
             
-            // 🆕 Add auth token if paired
+            // ðŸ†• Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
             }
@@ -116,7 +117,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             
-            // 🆕 Add auth token if paired
+            // ðŸ†• Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
                 Log.d(tag, "Added auth token to request")
@@ -140,14 +141,24 @@ class TermuxLlamaClient(
             }
 
             Log.d(tag, "Chat response code: $responseCode")
+            Log.d(tag, "Chat response body: $response")
 
             when (responseCode) {
                 200 -> {
                     val json = org.json.JSONObject(response)
                     if (json.getBoolean("success")) {
-                        val chatResponse = json.getString("response")
-                        Log.d(tag, "Chat success: ${chatResponse.take(100)}...")
-                        CommandResult(success = true, response = chatResponse)
+                        // Handle nested "data" object (LAN API format) or flat format
+                        val data = json.optJSONObject("data")
+                        val chatResponse = data?.optString("response") 
+                            ?: json.optString("response", "")
+                        
+                        if (chatResponse.isEmpty()) {
+                            Log.e(tag, "Empty response in JSON: $response")
+                            CommandResult(success = false, error = "Empty response from server")
+                        } else {
+                            Log.d(tag, "Chat success: ${chatResponse.take(100)}...")
+                            CommandResult(success = true, response = chatResponse)
+                        }
                     } else {
                         val errorMsg = json.optString("error", "Unknown error")
                         Log.e(tag, "Chat error: $errorMsg")
@@ -178,7 +189,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             
-            // 🆕 Add auth token if paired
+            // ðŸ†• Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
             }
@@ -201,14 +212,24 @@ class TermuxLlamaClient(
             }
 
             Log.d(tag, "Generate response code: $responseCode")
+            Log.d(tag, "Generate response body: $response")
 
             when (responseCode) {
                 200 -> {
                     val json = org.json.JSONObject(response)
                     if (json.getBoolean("success")) {
-                        val command = json.getString("command")
-                        Log.d(tag, "Generated command: $command")
-                        CommandResult(success = true, command = command, response = command)
+                        // Handle nested "data" object or flat format
+                        val data = json.optJSONObject("data")
+                        val command = data?.optString("command") 
+                            ?: json.optString("command", "")
+                        
+                        if (command.isEmpty()) {
+                            Log.e(tag, "Empty command in JSON: $response")
+                            CommandResult(success = false, error = "Empty command from server")
+                        } else {
+                            Log.d(tag, "Generated command: $command")
+                            CommandResult(success = true, command = command, response = command)
+                        }
                     } else {
                         val errorMsg = json.optString("error", "Unknown error")
                         Log.e(tag, "Generate error: $errorMsg")
@@ -239,7 +260,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             
-            // 🆕 Add auth token if paired
+            // ðŸ†• Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
             }
@@ -305,7 +326,7 @@ class TermuxLlamaClient(
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             
-            // 🆕 Add auth token if paired
+            // ðŸ†• Add auth token if paired
             if (authToken != null) {
                 connection.setRequestProperty("Authorization", "Bearer $authToken")
             }
@@ -336,7 +357,7 @@ class TermuxLlamaClient(
                         Log.d(tag, "Server execution success: exitCode=$exitCode")
                         CommandResult(
                             success = exitCode == 0,
-                            output = output.ifEmpty { "✓ Command completed" },
+                            output = output.ifEmpty { "âœ“ Command completed" },
                             exitCode = exitCode,
                             method = "server"
                         )
@@ -429,7 +450,7 @@ class TermuxLlamaClient(
                 
                 if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
                     val elapsed = System.currentTimeMillis() - startTime
-                    Log.d(tag, "✓ Result found in Phase 1 (fast) after ${elapsed}ms")
+                    Log.d(tag, "âœ“ Result found in Phase 1 (fast) after ${elapsed}ms")
                     break
                 }
                 
@@ -445,7 +466,7 @@ class TermuxLlamaClient(
                     
                     if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
                         val elapsed = System.currentTimeMillis() - startTime
-                        Log.d(tag, "✓ Result found in Phase 2 (medium) after ${elapsed}ms")
+                        Log.d(tag, "âœ“ Result found in Phase 2 (medium) after ${elapsed}ms")
                         break
                     }
                     
@@ -462,7 +483,7 @@ class TermuxLlamaClient(
                     
                     if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
                         val elapsed = System.currentTimeMillis() - startTime
-                        Log.d(tag, "✓ Result found in Phase 3 (slow) after ${elapsed}ms")
+                        Log.d(tag, "âœ“ Result found in Phase 3 (slow) after ${elapsed}ms")
                         break
                     }
                     
@@ -472,7 +493,7 @@ class TermuxLlamaClient(
                     // Log progress every 5 seconds
                     if (i > 0 && i % 25 == 0) {
                         val elapsed = System.currentTimeMillis() - startTime
-                        Log.d(tag, "⏳ Still waiting... ${elapsed}ms elapsed")
+                        Log.d(tag, "â³ Still waiting... ${elapsed}ms elapsed")
                     }
                 }
             }
@@ -481,7 +502,7 @@ class TermuxLlamaClient(
             
             // Final validation
             if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
-                Log.e(tag, "❌ TIMEOUT or INVALID RESULT")
+                Log.e(tag, "âŒ TIMEOUT or INVALID RESULT")
                 Log.e(tag, "  Actual time: ${actualElapsed}ms")
                 Log.e(tag, "  Total attempts: $attempts")
                 
@@ -497,7 +518,7 @@ class TermuxLlamaClient(
             val parts = resultContent.split("|", limit = 2)
             
             if (parts.size != 2) {
-                Log.e(tag, "❌ Invalid result format")
+                Log.e(tag, "âŒ Invalid result format")
                 return@withContext CommandResult(
                     success = false,
                     error = "Invalid format after ${actualElapsed}ms.\n\nExpected: exitcode|output",
@@ -509,21 +530,21 @@ class TermuxLlamaClient(
             val exitCode = parts[0].toIntOrNull() ?: -1
             val output = parts[1]
             
-            Log.d(tag, "✓ Execution complete:")
+            Log.d(tag, "âœ“ Execution complete:")
             Log.d(tag, "  Actual time: ${actualElapsed}ms")
             Log.d(tag, "  Exit code: $exitCode")
             Log.d(tag, "========================================")
             
             CommandResult(
                 success = exitCode == 0,
-                output = output.ifEmpty { "✓ Command completed (no output)" },
+                output = output.ifEmpty { "âœ“ Command completed (no output)" },
                 exitCode = exitCode,
                 method = "file-based"
             )
             
         } catch (e: Exception) {
             val elapsed = System.currentTimeMillis() - startTime
-            Log.e(tag, "❌ File-based execution exception after ${elapsed}ms", e)
+            Log.e(tag, "âŒ File-based execution exception after ${elapsed}ms", e)
             CommandResult(
                 success = false,
                 error = "Execution failed: ${e.message}",
