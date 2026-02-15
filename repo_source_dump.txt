@@ -3064,15 +3064,23 @@ class TermuxLlamaClient(
             }
 
             Log.d(tag, "Execute response code: $responseCode")
+            Log.d(tag, "Execute response body: $response")
 
             when (responseCode) {
                 200 -> {
                     val json = org.json.JSONObject(response)
                     val success = json.getBoolean("success")
-                    val output = json.optString("output", "")
-                    val exitCode = json.optInt("exit_code", -1)
+                    
+                    // Handle nested "data" object or flat format
+                    val data = json.optJSONObject("data")
+                    val output = data?.optString("output") 
+                        ?: json.optString("output", "")
+                    val exitCode = data?.optInt("exit_code") 
+                        ?: json.optInt("exit_code", -1)
                     
                     Log.d(tag, "Execution ${if (success) "succeeded" else "failed"}: exit $exitCode")
+                    Log.d(tag, "Output: ${output.take(200)}")
+                    
                     CommandResult(
                         success = success,
                         output = output,
@@ -3129,13 +3137,23 @@ class TermuxLlamaClient(
                 connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
             }
 
+            Log.d(tag, "Server execution response code: $responseCode")
+            Log.d(tag, "Server execution response body: $response")
+
             when (responseCode) {
                 200 -> {
                     val json = org.json.JSONObject(response)
                     if (json.getBoolean("success")) {
-                        val output = json.optString("output", "")
-                        val exitCode = json.optInt("exit_code", 0)
+                        // Handle nested "data" object or flat format
+                        val data = json.optJSONObject("data")
+                        val output = data?.optString("output") 
+                            ?: json.optString("output", "")
+                        val exitCode = data?.optInt("exit_code") 
+                            ?: json.optInt("exit_code", 0)
+                        
                         Log.d(tag, "Server execution success: exitCode=$exitCode")
+                        Log.d(tag, "Server execution output: ${output.take(200)}")
+                        
                         CommandResult(
                             success = exitCode == 0,
                             output = output.ifEmpty { "âœ“ Command completed" },
