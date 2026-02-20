@@ -1,0 +1,702 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/MainActivity.kt =====
+package com.jarvismini.devtools
+
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.provider.Settings
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
+import androidx.appcompat.app.AppCompatActivity
+import com.jarvismini.devtools.autobuild.AutoBuildService
+import com.jarvismini.devtools.autobuild.models.AutoBuildState
+import com.jarvismini.devtools.databinding.ActivityMainBinding
+
+/**
+ * Minimal UI: start/stop buttons, status dot, scrolling log.
+ *
+ * The AutoBuildService is an AccessibilityService — it cannot be started
+ * programmatically. The Start button opens Accessibility Settings so the user
+ * can toggle it once. After that the service self-manages via the loop.
+ *
+ * Status updates are received via AutoBuildService.onStatusUpdate, which is
+ * a static lambda set here and cleared in onDestroy.
+ */
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityMainBinding
+    private val logBuilder = SpannableStringBuilder()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        setupButtons()
+        registerCallbacks()
+        refreshServiceState()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshServiceState()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        AutoBuildService.onStatusUpdate = null
+        AutoBuildService.onLogLine = null
+    }
+
+    // ── Buttons ───────────────────────────────────────────────────────────────
+
+    private fun setupButtons() {
+        // "Start" = open Accessibility Settings so user can enable the service
+        binding.btnStart.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+
+        binding.btnStop.setOnClickListener {
+            AutoBuildService.requestStop()
+            appendLog("Stop requested by user.", Color.YELLOW)
+            binding.btnStop.isEnabled = false
+        }
+
+        binding.btnAccessibility.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+    }
+
+    // ── Service callbacks ─────────────────────────────────────────────────────
+
+    private fun registerCallbacks() {
+        AutoBuildService.onStatusUpdate = { iteration, state ->
+            runOnUiThread { updateStatus(iteration, state) }
+        }
+        AutoBuildService.onLogLine = { line, isError ->
+            runOnUiThread { appendLog(line, if (isError) Color.RED else Color.WHITE) }
+        }
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────────────────
+
+    private fun refreshServiceState() {
+        val enabled = isAccessibilityServiceEnabled()
+        if (enabled) {
+            binding.tvAccessibilityHint.visibility = android.view.View.GONE
+            binding.btnStart.isEnabled = false
+            binding.btnStop.isEnabled = true
+
+            // If the loop is already running (e.g. we returned from another app),
+            // immediately sync the dot and status text from the live state snapshot
+            // rather than leaving them at the layout default ("Idle — enable service…").
+            if (AutoBuildService.isLoopRunning) {
+                updateStatus(
+                    AutoBuildService.currentIteration,
+                    AutoBuildService.currentState
+                )
+            }
+        } else {
+            binding.tvAccessibilityHint.visibility = android.view.View.VISIBLE
+            binding.btnStart.isEnabled = true
+            binding.btnStop.isEnabled = false
+            setStatusDot(Color.GRAY)
+            binding.tvStatus.text = getString(R.string.status_idle)
+        }
+    }
+
+    private fun updateStatus(iteration: Int, state: AutoBuildState) {
+        binding.tvIteration.text = "Iter: $iteration"
+        binding.tvStatus.text = state.displayName()
+        setStatusDot(state.dotColor())
+    }
+
+    private fun setStatusDot(color: Int) {
+        binding.statusDot.backgroundTintList =
+            android.content.res.ColorStateList.valueOf(color)
+    }
+
+    private fun appendLog(line: String, color: Int) {
+        val start = logBuilder.length
+        logBuilder.append(line).append("\n")
+        logBuilder.setSpan(
+            ForegroundColorSpan(color),
+            start, logBuilder.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        binding.tvLog.text = logBuilder
+        binding.scrollLog.post {
+            binding.scrollLog.fullScroll(android.view.View.FOCUS_DOWN)
+        }
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        // Android may store either the short form   "com.pkg/.Service"
+        // or the fully-qualified form               "com.pkg/com.pkg.path.Service"
+        // and may pad entries with whitespace. Match both to be safe.
+        val shortComponent = "${packageName}/.autobuild.AutoBuildService"
+        val fullComponent  = "${packageName}/com.jarvismini.devtools.autobuild.AutoBuildService"
+
+        return enabledServices.split(":").any { entry ->
+            val trimmed = entry.trim()
+            trimmed.equals(shortComponent, ignoreCase = true) ||
+            trimmed.equals(fullComponent,  ignoreCase = true)
+        }
+    }
+
+    // ── State display helpers ─────────────────────────────────────────────────
+
+    private fun AutoBuildState.displayName() = when (this) {
+        AutoBuildState.IDLE                      -> "Idle"
+        AutoBuildState.WAITING_FOR_RESPONSE      -> "Waiting for Claude response…"
+        AutoBuildState.EXTRACTING_CODE           -> "Extracting code blocks…"
+        AutoBuildState.WRITING_OUTPUT            -> "Writing ai-output.txt…"
+        AutoBuildState.TRIGGERING_BUILD          -> "Pushing to GitHub via Termux…"
+        AutoBuildState.WAITING_FOR_BUILD         -> "Waiting for Apk.yml to finish…"
+        AutoBuildState.CHECKING_ERROR_FRESHNESS  -> "Checking if errors are new…"
+        AutoBuildState.READING_ERROR_LOGS        -> "Pulling error logs (git pull)…"
+        AutoBuildState.ATTACHING_FILES           -> "Attaching error logs to Claude…"
+        AutoBuildState.SUBMITTING_PROMPT         -> "Submitting prompt to Claude…"
+        AutoBuildState.BUILD_SUCCEEDED           -> "✅ Build succeeded!"
+        AutoBuildState.TIMEOUT_ERROR             -> "⚠ Timeout — retrying…"
+    }
+
+    private fun AutoBuildState.dotColor() = when (this) {
+        AutoBuildState.BUILD_SUCCEEDED           -> Color.GREEN
+        AutoBuildState.TIMEOUT_ERROR             -> Color.RED
+        AutoBuildState.IDLE                      -> Color.GRAY
+        AutoBuildState.WAITING_FOR_BUILD,
+        AutoBuildState.TRIGGERING_BUILD          -> Color.YELLOW
+        else                                     -> Color.CYAN
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/AutoBuildService.kt =====
+package com.jarvismini.devtools.autobuild
+
+import android.accessibilityservice.AccessibilityService
+import android.app.Service
+import android.content.Intent
+import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import com.jarvismini.devtools.autobuild.models.AutoBuildState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+
+/**
+ * AccessibilityService entry point for the AutoBuild loop.
+ *
+ * Enable via: Android Settings → Accessibility → DevTools → AutoBuild Service
+ *
+ * Static callbacks (onStatusUpdate, onLogLine) are set by MainActivity so the
+ * UI receives live updates without binding to the service. They are nullable to
+ * avoid memory leaks when MainActivity is destroyed.
+ *
+ * requestStop() sets a flag read by OrchestrationController on every iteration,
+ * allowing a clean exit without killing the coroutine forcibly.
+ */
+class AutoBuildService : AccessibilityService() {
+
+    companion object {
+        private const val TAG = "DevTools:Service"
+
+        /** Called on every state transition: (iteration, state) */
+        var onStatusUpdate: ((Int, AutoBuildState) -> Unit)? = null
+
+        /** Called for every log line emitted by the orchestrator: (message, isError) */
+        var onLogLine: ((String, Boolean) -> Unit)? = null
+
+        /** Weak reference to the running service instance for stop requests. */
+        private var instance: AutoBuildService? = null
+
+        /**
+         * Live state snapshot — updated on every loop iteration so MainActivity
+         * can display the correct status when it resumes after being in the background.
+         */
+        @Volatile var currentState: AutoBuildState = AutoBuildState.IDLE
+        @Volatile var currentIteration: Int = 0
+
+        /** True only while the loop coroutine is actively running. */
+        val isLoopRunning: Boolean get() = instance?.loopJob?.isActive == true
+
+        fun requestStop() {
+            instance?.orchestrator?.requestStop()
+            Log.d(TAG, "Stop requested")
+        }
+    }
+
+    private lateinit var uiWatcher:    UIWatcherModule
+    private lateinit var orchestrator: OrchestrationController
+    private lateinit var notifier:     BuildNotifier
+
+    private val scope = CoroutineScope(Dispatchers.Main)
+    private var loopJob: Job? = null
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance     = this
+        uiWatcher    = UIWatcherModule(this)
+        orchestrator = OrchestrationController(this, uiWatcher)
+        notifier     = BuildNotifier(this)
+
+        // Reset snapshot so stale state from a previous session isn't shown
+        currentState     = AutoBuildState.IDLE
+        currentIteration = 0
+
+        // Clear the crash-recovery checkpoint so the loop always starts fresh
+        // from WAITING_FOR_RESPONSE rather than resuming from a stale state like
+        // WAITING_FOR_BUILD (which would poll forever for a flag that never arrives).
+        FileManagerModule().clearCheckpoint()
+
+        // Run as foreground service to survive long builds
+        startForeground(
+            BuildNotifier.NOTIFICATION_ID,
+            notifier.buildNotification(0, AutoBuildState.IDLE)
+        )
+
+        loopJob = scope.launch {
+            try {
+                orchestrator.runLoop()
+            } catch (e: Exception) {
+                Log.e(TAG, "Loop crashed", e)
+                notifier.error("Crashed: ${e.message}")
+                onLogLine?.invoke("CRASH: ${e.message}", true)
+            }
+        }
+
+        Log.i(TAG, "AutoBuildService connected and loop started")
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        event ?: return
+        if (::uiWatcher.isInitialized) {
+            uiWatcher.onAccessibilityEvent(event.packageName?.toString())
+        }
+    }
+
+    override fun onInterrupt() {
+        Log.w(TAG, "Service interrupted")
+        loopJob?.cancel()
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        instance = null
+        loopJob?.cancel()
+        currentState     = AutoBuildState.IDLE
+        currentIteration = 0
+        stopForeground(Service.STOP_FOREGROUND_REMOVE)
+        return super.onUnbind(intent)
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/OrchestrationController.kt =====
+package com.jarvismini.devtools.autobuild
+
+import android.content.Context
+import android.util.Log
+import com.jarvismini.devtools.autobuild.models.AutoBuildState
+import com.jarvismini.devtools.autobuild.models.BuildResult
+import com.jarvismini.devtools.autobuild.models.ErrorLogBundle
+import com.jarvismini.devtools.autobuild.models.LoopState
+import kotlinx.coroutines.delay
+
+/**
+ * State machine + main loop.
+ *
+ * Full state flow:
+ *
+ *   WAITING_FOR_RESPONSE
+ *     → EXTRACTING_CODE
+ *     → WRITING_OUTPUT             (writes /sdcard/ai-automation/ai-output.txt)
+ *     → TRIGGERING_BUILD           (Termux git push → Ai-codegen → main → Apk.yml)
+ *     → WAITING_FOR_BUILD          (polls build_complete.flag)
+ *         ├── SUCCESS → BUILD_SUCCEEDED → exit
+ *         └── FAILURE → CHECKING_ERROR_FRESHNESS
+ *                          ├── STALE  → SUBMITTING_PROMPT (no attachment, nudge prompt)
+ *                          └── NEW    → READING_ERROR_LOGS (git pull already done by Termux)
+ *                                         → ATTACHING_FILES (error_summary + error_files)
+ *                                         → SUBMITTING_PROMPT
+ *                                             → WAITING_FOR_RESPONSE  (loop)
+ */
+class OrchestrationController(
+    context: Context,
+    private val uiWatcher: UIWatcherModule
+) {
+    companion object {
+        private const val TAG = "DevTools:Orchestrator"
+
+        const val LOOP_MAX_ITERATIONS    = 50
+        const val MAX_RETRIES_PER_STATE  = 3
+        const val BETWEEN_ITER_DELAY_MS  = 500L
+
+        // Prompt when stale errors: same logs as last time, no file attachment
+        const val STALE_ERROR_PROMPT =
+            "The build is still failing with the same errors as the previous attempt. " +
+            "Please try a different approach or check for structural issues."
+
+        // Prompt when fresh errors are being attached
+        const val FRESH_ERROR_PROMPT =
+            "The build failed. The error logs are attached below. " +
+            "Please analyze the errors and provide corrected code."
+    }
+
+    private val fm       = FileManagerModule()
+    private val termux   = TermuxBridgeModule(context)
+    private val notifier = BuildNotifier(context)
+
+    private var retryCount  = 0
+    private var errorBundle: ErrorLogBundle? = null
+
+    @Volatile private var stopRequested = false
+
+    fun requestStop() { stopRequested = true }
+
+    // ── Main loop ─────────────────────────────────────────────────────────────
+
+    suspend fun runLoop() {
+        val checkpoint = fm.loadState()
+        var state      = checkpoint?.state    ?: AutoBuildState.WAITING_FOR_RESPONSE
+        var iteration  = checkpoint?.iteration ?: 0
+        stopRequested  = false
+
+        log("Loop started — state=$state iter=$iteration")
+        notifier.update(iteration, state)
+
+        while (iteration < LOOP_MAX_ITERATIONS && !stopRequested) {
+            fm.saveState(LoopState(state, iteration))
+
+            state = when (state) {
+
+                AutoBuildState.IDLE ->
+                    AutoBuildState.WAITING_FOR_RESPONSE
+
+                AutoBuildState.WAITING_FOR_RESPONSE -> {
+                    val done = uiWatcher.waitForResponseComplete()
+                    if (done) AutoBuildState.EXTRACTING_CODE
+                    else      timeout(state)
+                }
+
+                AutoBuildState.EXTRACTING_CODE -> {
+                    val root   = uiWatcher.service.rootInActiveWindow
+                    val blocks = uiWatcher.extractCodeBlocks(root)
+                    if (blocks.isNotEmpty()) {
+                        fm.writeAiOutput(
+                            blocks.joinToString("\n\n// ===== next block =====\n\n")
+                        )
+                        log("Code extracted (${blocks.size} block(s)) → ai-output.txt written")
+                        AutoBuildState.TRIGGERING_BUILD
+                    } else {
+                        retry(state)
+                    }
+                }
+
+                // Explicit state kept for crash-recovery resume
+                AutoBuildState.WRITING_OUTPUT ->
+                    AutoBuildState.TRIGGERING_BUILD
+
+                AutoBuildState.TRIGGERING_BUILD -> {
+                    log("Triggering build (iteration=$iteration) via Termux…")
+                    termux.triggerBuild()
+                    retryCount = 0
+                    AutoBuildState.WAITING_FOR_BUILD
+                }
+
+                AutoBuildState.WAITING_FOR_BUILD -> {
+                    log("Polling for Apk.yml completion…")
+                    when (termux.pollForCompletion()) {
+                        BuildResult.SUCCESS -> AutoBuildState.BUILD_SUCCEEDED
+                        BuildResult.FAILURE -> AutoBuildState.CHECKING_ERROR_FRESHNESS
+                        BuildResult.TIMEOUT -> timeout(state)
+                    }
+                }
+
+                AutoBuildState.BUILD_SUCCEEDED -> {
+                    log("✅ Build succeeded after $iteration iteration(s)")
+                    notifier.success(iteration)
+                    return
+                }
+
+                // ── Freshness gate ────────────────────────────────────────────
+                // Error logs are already on disk (git pull done by build_runner.sh).
+                // Only forward to READING_ERROR_LOGS if they are genuinely new.
+                AutoBuildState.CHECKING_ERROR_FRESHNESS -> {
+                    if (fm.hasNewErrors(iteration)) {
+                        log("New error logs detected — reading logs")
+                        AutoBuildState.READING_ERROR_LOGS
+                    } else {
+                        log("Error logs unchanged — skipping attachment, sending nudge prompt")
+                        uiWatcher.fillPromptField(STALE_ERROR_PROMPT)
+                        iteration++
+                        AutoBuildState.SUBMITTING_PROMPT
+                    }
+                }
+                // ─────────────────────────────────────────────────────────────
+
+                AutoBuildState.READING_ERROR_LOGS -> {
+                    val bundle = fm.readErrorLogs()
+                    if (bundle != null) {
+                        // Save fingerprint NOW — before next build could overwrite files
+                        fm.saveErrorFingerprint(fm.computeErrorFingerprint(iteration))
+                        errorBundle = bundle
+                        log("Error logs read (summary=${bundle.errorSummaryContent.length} chars)")
+                        AutoBuildState.ATTACHING_FILES
+                    } else {
+                        log("Error logs missing after FAILURE signal — retrying", isError = true)
+                        timeout(state)
+                    }
+                }
+
+                AutoBuildState.ATTACHING_FILES -> {
+                    val ok = attachErrorFiles()
+                    if (ok) {
+                        iteration++
+                        AutoBuildState.SUBMITTING_PROMPT
+                    } else {
+                        retry(state)
+                    }
+                }
+
+                AutoBuildState.SUBMITTING_PROMPT -> {
+                    uiWatcher.tapSendButton()
+                    delay(UIWatcherModule.POST_TAP_DELAY_MS)
+                    AutoBuildState.WAITING_FOR_RESPONSE
+                }
+
+                AutoBuildState.TIMEOUT_ERROR -> {
+                    val backoff = 1_000L * (1 shl minOf(retryCount, 3))
+                    log("Timeout recovery — waiting ${backoff}ms (retry=$retryCount)", isError = true)
+                    delay(backoff)
+                    if (++retryCount > MAX_RETRIES_PER_STATE) {
+                        notifier.error("Too many retries — stopped at $state")
+                        return
+                    }
+                    AutoBuildState.WAITING_FOR_RESPONSE
+                }
+            }
+
+            // Update static snapshot BEFORE invoking the UI callback so that
+            // if MainActivity resumes during this exact window it sees the new state.
+            AutoBuildService.currentState     = state
+            AutoBuildService.currentIteration = iteration
+
+            notifier.update(iteration, state)
+            AutoBuildService.onStatusUpdate?.invoke(iteration, state)
+            delay(BETWEEN_ITER_DELAY_MS)
+        }
+
+        if (stopRequested) log("Loop stopped by user request")
+        else log("Max iterations ($LOOP_MAX_ITERATIONS) reached — stopping", isError = true)
+        notifier.error(if (stopRequested) "Stopped by user" else "Max iterations reached")
+    }
+
+    // ── File attachment ───────────────────────────────────────────────────────
+
+    private suspend fun attachErrorFiles(): Boolean {
+        // Attach error_files.txt
+        if (!uiWatcher.tapAddFilesButton()) { log("tapAddFilesButton failed (1)", isError = true); return false }
+        if (!uiWatcher.selectFileInPicker(FileManagerModule.ERROR_FILES_FILE.name)) {
+            log("selectFileInPicker(error_files.txt) failed", isError = true); return false
+        }
+        delay(UIWatcherModule.POST_TAP_DELAY_MS)
+
+        // Attach error_summary.txt
+        if (!uiWatcher.tapAddFilesButton()) { log("tapAddFilesButton failed (2)", isError = true); return false }
+        if (!uiWatcher.selectFileInPicker(FileManagerModule.ERROR_SUMMARY_FILE.name)) {
+            log("selectFileInPicker(error_summary.txt) failed", isError = true); return false
+        }
+        delay(UIWatcherModule.POST_TAP_DELAY_MS)
+
+        // Fill the prompt text
+        uiWatcher.fillPromptField(FRESH_ERROR_PROMPT)
+        log("Both error files attached, prompt filled")
+        return true
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun timeout(state: AutoBuildState): AutoBuildState {
+        log("Timeout in $state", isError = true)
+        return AutoBuildState.TIMEOUT_ERROR
+    }
+
+    private fun retry(state: AutoBuildState): AutoBuildState {
+        return if (++retryCount <= MAX_RETRIES_PER_STATE) {
+            log("Retrying $state (attempt $retryCount)")
+            state
+        } else {
+            log("Max retries exceeded for $state", isError = true)
+            AutoBuildState.TIMEOUT_ERROR
+        }
+    }
+
+    private fun log(msg: String, isError: Boolean = false) {
+        if (isError) Log.e(TAG, msg) else Log.d(TAG, msg)
+        AutoBuildService.onLogLine?.invoke(msg, isError)
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/FileManagerModule.kt =====
+package com.jarvismini.devtools.autobuild
+
+import android.util.Log
+import com.jarvismini.devtools.autobuild.models.ErrorFingerprint
+import com.jarvismini.devtools.autobuild.models.ErrorLogBundle
+import com.jarvismini.devtools.autobuild.models.LoopState
+import java.io.File
+import java.security.MessageDigest
+
+/**
+ * All file I/O for the AutoBuild loop.
+ *
+ * Shared storage layout (all under BASE_DIR):
+ *
+ *   /sdcard/ai-automation/
+ *     ai-output.txt                  Claude code response → pushed by Termux to JarvisMini repo
+ *     loop_state.json                Crash-recovery checkpoint
+ *     last_error_fingerprint.json    SHA-256 + mtime of last processed error_summary.txt
+ *     build_error_logs/
+ *       error_summary.txt            Written by Apk.yml on failure, committed + pushed to main
+ *       error_files.txt              Written by Apk.yml on failure, committed + pushed to main
+ *
+ * Termux pulls both files from the JarvisMini repo via `git pull` after each
+ * failed Apk.yml run. clearBuildFlags() wipes them before a new build starts
+ * but intentionally preserves last_error_fingerprint.json for the freshness check.
+ */
+class FileManagerModule {
+
+    companion object {
+        private const val TAG = "DevTools:FileManager"
+
+        val BASE_DIR             = File("/sdcard/ai-automation")
+        val LOG_DIR              = File(BASE_DIR, "build_error_logs")
+        val AI_OUTPUT_FILE       = File(BASE_DIR, "ai-output.txt")
+        val LOOP_STATE_FILE      = File(BASE_DIR, "loop_state.json")
+        val FINGERPRINT_FILE     = File(BASE_DIR, "last_error_fingerprint.json")
+        val ERROR_SUMMARY_FILE   = File(LOG_DIR,  "error_summary.txt")
+        val ERROR_FILES_FILE     = File(LOG_DIR,  "error_files.txt")
+    }
+
+    // ── ai-output.txt ─────────────────────────────────────────────────────────
+
+    /** Atomically write Claude's extracted code to ai-output.txt. */
+    fun writeAiOutput(content: String) {
+        BASE_DIR.mkdirs()
+        val tmp = File(BASE_DIR, "ai-output.tmp")
+        tmp.writeText(content)
+        tmp.renameTo(AI_OUTPUT_FILE)
+        Log.d(TAG, "ai-output.txt written (${content.length} chars)")
+    }
+
+    // ── Error log reads ───────────────────────────────────────────────────────
+
+    /**
+     * Reads error_summary.txt and error_files.txt from build_error_logs/.
+     * These files are committed by Apk.yml on failure and pulled by Termux.
+     * Returns null if either file is missing.
+     */
+    fun readErrorLogs(): ErrorLogBundle? {
+        if (!ERROR_SUMMARY_FILE.exists() || !ERROR_FILES_FILE.exists()) {
+            Log.w(TAG, "readErrorLogs: files not present in ${LOG_DIR.absolutePath}")
+            return null
+        }
+        return ErrorLogBundle(
+            errorFilesContent   = ERROR_FILES_FILE.readText(),
+            errorSummaryContent = ERROR_SUMMARY_FILE.readText()
+        )
+    }
+
+    /** True when error_summary.txt exists — Apk.yml only writes it on failure. */
+    fun buildFailed(): Boolean = ERROR_SUMMARY_FILE.exists()
+
+    // ── Build flag management ─────────────────────────────────────────────────
+
+    /**
+     * Clears error log files before a new build trigger.
+     * Does NOT delete last_error_fingerprint.json — it must survive across
+     * build iterations so CHECKING_ERROR_FRESHNESS can compare correctly.
+     */
+    fun clearBuildFlags() {
+        LOG_DIR.listFiles()?.forEach { it.delete() }
+        LOG_DIR.mkdirs()
+        Log.d(TAG, "build_error_logs/ cleared (fingerprint preserved)")
+    }
+
+    /**
+     * Deletes the crash-recovery checkpoint so the loop always starts fresh
+     * from WAITING_FOR_RESPONSE on the next service connect, rather than
+     * resuming from a stale mid-build state (e.g. WAITING_FOR_BUILD) that
+     * would poll forever for a flag that will never arrive.
+     *
+     * Called by AutoBuildService.onServiceConnected().
+     */
+    fun clearCheckpoint() {
+        if (LOOP_STATE_FILE.delete()) {
+            Log.d(TAG, "loop_state.json cleared — loop will start fresh")
+        }
+        // Also clear the build_complete flag so pollForCompletion starts clean
+        TermuxBridgeModule.COMPLETE_FLAG.delete()
+    }
+
+    // ── Error fingerprint ─────────────────────────────────────────────────────
+
+    fun computeErrorFingerprint(iteration: Int): ErrorFingerprint {
+        val mtime = if (ERROR_SUMMARY_FILE.exists()) ERROR_SUMMARY_FILE.lastModified() else 0L
+        val bytes = runCatching { ERROR_SUMMARY_FILE.readBytes() }.getOrElse { ByteArray(0) }
+        val hash  = MessageDigest.getInstance("SHA-256")
+            .digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+        return ErrorFingerprint(mtime, hash, iteration)
+    }
+
+    fun readErrorFingerprint(): ErrorFingerprint? {
+        if (!FINGERPRINT_FILE.exists()) return null
+        return ErrorFingerprint.fromJson(FINGERPRINT_FILE.readText())
+    }
+
+    fun saveErrorFingerprint(fp: ErrorFingerprint) {
+        val tmp = File(BASE_DIR, "fingerprint.tmp")
+        tmp.writeText(fp.toJson())
+        tmp.renameTo(FINGERPRINT_FILE)
+        Log.d(TAG, "Fingerprint saved iter=${fp.buildIteration} hash=${fp.contentHash.take(8)}…")
+    }
+
+    /**
+     * Returns true when error_summary.txt is genuinely new compared to the
+     * stored fingerprint (different mtime OR different SHA-256).
+     * Always true on first ever failure (no stored fingerprint).
+     */
+    fun hasNewErrors(iteration: Int): Boolean {
+        if (!ERROR_SUMMARY_FILE.exists()) return false
+        val stored  = readErrorFingerprint() ?: return true   // first failure
+        val current = computeErrorFingerprint(iteration)
+        val isNew   = current.lastModifiedMs != stored.lastModifiedMs ||
+                      current.contentHash    != stored.contentHash
+        Log.d(TAG, "hasNewErrors=$isNew (stored=${stored.contentHash.take(8)}… current=${current.contentHash.take(8)}…)")
+        return isNew
+    }
+
+    // ── Loop state ────────────────────────────────────────────────────────────
+
+    fun saveState(state: LoopState) {
+        runCatching {
+            BASE_DIR.mkdirs()
+            LOOP_STATE_FILE.writeText(state.toJson())
+        }.onFailure { Log.e(TAG, "saveState failed", it) }
+    }
+
+    fun loadState(): LoopState? = runCatching {
+        if (!LOOP_STATE_FILE.exists()) null
+        else LoopState.fromJson(LOOP_STATE_FILE.readText())
+    }.getOrNull()
+}
