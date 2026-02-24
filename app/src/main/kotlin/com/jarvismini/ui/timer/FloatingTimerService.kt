@@ -1,3 +1,4 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/timer/FloatingTimerService.kt =====
 package com.jarvismini.ui.timer
 
 import android.app.*
@@ -34,6 +35,7 @@ import androidx.lifecycle.*
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner  // ← FIX: was missing
 import com.jarvismini.core.routine.TaskTimerManager
 
 /**
@@ -271,11 +273,11 @@ private fun FloatingTimerOverlay(
                 maxLines   = 1
             )
             Text(
-                text      = "✕",
-                fontSize  = 12.sp,
-                color     = FRed,
+                text       = "✕",
+                fontSize   = 12.sp,
+                color      = FRed,
                 fontFamily = FontFamily.Monospace,
-                modifier  = Modifier
+                modifier   = Modifier
                     .padding(start = 8.dp)
                     .clickable(
                         indication        = null,
