@@ -6,22 +6,32 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- NEW: Required for floating overlay window -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application>
-        
+
         <!-- Existing StopwatchService -->
         <service
             android:name="com.jarvismini.core.stopwatch.StopwatchService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-        
-        <!-- NEW: TaskTimerService for per-task duration timers -->
+
+        <!-- Existing TaskTimerService for per-task notification timers -->
         <service
             android:name="com.jarvismini.core.routine.TaskTimerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-        
+
+        <!-- NEW: FloatingTimerService for draggable overlay timer -->
+        <service
+            android:name="com.jarvismini.core.routine.FloatingTimerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
     </application>
 
 </manifest>

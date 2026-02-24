@@ -1,7 +1,10 @@
 package com.jarvismini
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,18 +12,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.StoragePermissionHelper
+import com.jarvismini.core.routine.FloatingTimerService
 import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.ui.main.MainScreen
 
 class MainActivity : ComponentActivity() {
-    
+
+    companion object {
+        private const val REQUEST_CODE_OVERLAY = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // Initialize Jarvis state
         JarvisState.init(applicationContext)
-        
+
         // Initialize progress system
         ProgressInitializer.registerAllBlocks(this)
 
@@ -29,12 +37,14 @@ class MainActivity : ComponentActivity() {
             NotificationPermissionHelper.requestPermission(this)
         }
 
+        // NEW: Request "Display over other apps" permission for floating timer overlay
+        // If denied, the notification timer still works — overlay is simply skipped.
+        requestOverlayPermissionIfNeeded()
+
         // CRITICAL FIX: Request storage permissions if not granted
-        // This is required to access /storage/emulated/0/JarvisModels/ on Android 11+
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
         } else {
-            // Permission already granted, initialize engine
             initializeEngine()
         }
 
@@ -46,25 +56,36 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    
+
     /**
-     * Initialize the LLM engine
-     * This loads the AI models from /storage/emulated/0/JarvisModels/
+     * Sends the user to the system "Display over other apps" settings screen
+     * if the permission has not been granted yet. Only needs to be done once.
      */
+    private fun requestOverlayPermissionIfNeeded() {
+        if (!FloatingTimerService.canDrawOverlays(this)) {
+            Toast.makeText(
+                this,
+                "Grant 'Display over other apps' for floating timer overlay",
+                Toast.LENGTH_LONG
+            ).show()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivityForResult(intent, REQUEST_CODE_OVERLAY)
+            }
+        }
+    }
+
     private fun initializeEngine() {
         try {
             EngineProvider.init(applicationContext)
-            
-            // Debug: Log models directory status
             val debug = StoragePermissionHelper.debugModelsDirectory()
             android.util.Log.i("MainActivity", "Models directory debug:\n$debug")
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "Error initializing engine", e)
-            Toast.makeText(
-                this,
-                "Error loading AI models: ${e.message}",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Error loading AI models: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -75,68 +96,44 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        // Handle notification permission
         if (requestCode == NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS) {
             if (NotificationPermissionHelper.isPermissionGranted(this)) {
-                Toast.makeText(
-                    this,
-                    "Notification permission granted! Stopwatch will work in background.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, "Notification permission granted!", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(
-                    this,
-                    "Notification permission denied. Stopwatch notifications won't be visible.",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_LONG).show()
             }
         }
 
-        // Handle storage permission (Android 6-10)
         StoragePermissionHelper.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults,
+            requestCode, permissions, grantResults,
             onGranted = {
-                Toast.makeText(
-                    this,
-                    "Storage permission granted! Loading AI models...",
-                    Toast.LENGTH_SHORT
-                ).show()
-                // Initialize engine now that we have permission
+                Toast.makeText(this, "Storage permission granted! Loading AI models...", Toast.LENGTH_SHORT).show()
                 initializeEngine()
             },
             onDenied = {
-                Toast.makeText(
-                    this,
-                    "Storage permission denied. AI models cannot be loaded.",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "Storage permission denied. AI models cannot be loaded.", Toast.LENGTH_LONG).show()
             }
         )
     }
-    
-    /**
-     * Handle result from Android 11+ "All Files Access" settings screen
-     */
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        
+
+        // Overlay permission result
+        if (requestCode == REQUEST_CODE_OVERLAY) {
+            if (FloatingTimerService.canDrawOverlays(this)) {
+                Toast.makeText(this, "Overlay permission granted. Floating timer enabled!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Overlay denied. Timer still works via notification.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
         if (requestCode == StoragePermissionHelper.REQUEST_CODE_MANAGE_STORAGE) {
             if (StoragePermissionHelper.hasStoragePermission(this)) {
-                Toast.makeText(
-                    this, 
-                    "All Files Access granted! Loading AI models...", 
-                    Toast.LENGTH_SHORT
-                ).show()
-                // Initialize engine now that we have permission
+                Toast.makeText(this, "All Files Access granted! Loading AI models...", Toast.LENGTH_SHORT).show()
                 initializeEngine()
             } else {
-                Toast.makeText(
-                    this,
-                    "All Files Access is required to load AI models. Please grant permission in Settings.",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "All Files Access is required to load AI models.", Toast.LENGTH_LONG).show()
             }
         }
     }
