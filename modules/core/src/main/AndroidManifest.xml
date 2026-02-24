@@ -1,36 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Existing permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- NEW: Required for floating overlay window -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
     <application>
 
-        <!-- Existing StopwatchService -->
         <service
             android:name="com.jarvismini.core.stopwatch.StopwatchService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Existing TaskTimerService for per-task notification timers -->
         <service
             android:name="com.jarvismini.core.routine.TaskTimerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- NEW: FloatingTimerService for draggable overlay timer -->
-        <service
-            android:name="com.jarvismini.core.routine.FloatingTimerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+        <!-- FloatingTimerService is declared in app/AndroidManifest.xml
+             because it lives in :app (needs Compose deps) -->
 
     </application>
 

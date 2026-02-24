@@ -12,10 +12,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.StoragePermissionHelper
-import com.jarvismini.core.routine.FloatingTimerService
 import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.ui.main.MainScreen
+import com.jarvismini.ui.timer.FloatingTimerService
 
 class MainActivity : ComponentActivity() {
 
@@ -26,22 +26,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize Jarvis state
         JarvisState.init(applicationContext)
-
-        // Initialize progress system
         ProgressInitializer.registerAllBlocks(this)
 
-        // Request notification permission on startup if needed (Android 13+)
         if (NotificationPermissionHelper.shouldRequestPermission(this)) {
             NotificationPermissionHelper.requestPermission(this)
         }
 
-        // NEW: Request "Display over other apps" permission for floating timer overlay
-        // If denied, the notification timer still works — overlay is simply skipped.
+        // Request "Display over other apps" permission for floating timer overlay.
+        // If denied the overlay is silently skipped; notification timer still works.
         requestOverlayPermissionIfNeeded()
 
-        // CRITICAL FIX: Request storage permissions if not granted
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
         } else {
@@ -57,10 +52,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Sends the user to the system "Display over other apps" settings screen
-     * if the permission has not been granted yet. Only needs to be done once.
-     */
     private fun requestOverlayPermissionIfNeeded() {
         if (!FloatingTimerService.canDrawOverlays(this)) {
             Toast.makeText(
@@ -69,11 +60,13 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_LONG
             ).show()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
+                startActivityForResult(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    ),
+                    REQUEST_CODE_OVERLAY
                 )
-                startActivityForResult(intent, REQUEST_CODE_OVERLAY)
             }
         }
     }
@@ -119,7 +112,6 @@ class MainActivity : ComponentActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
-        // Overlay permission result
         if (requestCode == REQUEST_CODE_OVERLAY) {
             if (FloatingTimerService.canDrawOverlays(this)) {
                 Toast.makeText(this, "Overlay permission granted. Floating timer enabled!", Toast.LENGTH_SHORT).show()

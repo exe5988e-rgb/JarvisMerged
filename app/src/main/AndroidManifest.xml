@@ -20,6 +20,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
+    <!-- NEW: Required for floating overlay window -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Storage Permissions -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -49,8 +52,6 @@
         <package android:name="com.oneplus.deskclock" />
         <package android:name="com.sec.android.app.clockpackage" />
         <package android:name="com.apple.android.music" />
-
-        <!-- Termux -->
         <package android:name="com.termux" />
         <package android:name="com.termux.api" />
         <package android:name="com.termux.tasker" />
@@ -81,7 +82,7 @@
             </intent-filter>
         </activity>
 
-        <!-- ================= LAN SERVER SERVICE (NEW) ================= -->
+        <!-- ================= LAN SERVER SERVICE ================= -->
 
         <service
             android:name="com.jarvismini.server.LanServerService"
@@ -173,6 +174,13 @@
 
         <service
             android:name="com.jarvismini.ProgressReminderService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- NEW: Floating overlay timer service -->
+        <service
+            android:name="com.jarvismini.ui.timer.FloatingTimerService"
+            android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

@@ -1,33 +1,32 @@
 package com.jarvismini
 
 import android.app.Application
-import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
-import com.jarvismini.core.JarvisPrefs
+import android.content.Context
 import com.jarvismini.core.JarvisState
-import com.jarvismini.core.TimeAnchorManager
-import com.jarvismini.core.progress.AppContextProvider
-import com.jarvismini.engine.ai.LlamaNative
+import com.jarvismini.core.routine.TaskTimerManager
+import com.jarvismini.ui.timer.FloatingTimerService
 
 class CoreApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-
-        // ✅ Global application context for background engines
-        AppContextProvider.appContext = applicationContext
-
-        JarvisPrefs.init(this)
-        TimeAnchorManager.init()
         JarvisState.init(this)
-        AutoReplyOrchestrator.init()
-        
-        // ✅ CRITICAL: Initialize llama backend ONCE here
-        LlamaNative.initBackend()
-    }
-    
-    override fun onTerminate() {
-        super.onTerminate()
-        // ✅ Clean up backend on app termination
-        LlamaNative.freeBackend()
+
+        // Register the floating timer delegate so TaskTimerManager (in :core)
+        // can launch FloatingTimerService (in :app) without a Compose dependency.
+        TaskTimerManager.floatingTimerDelegate = object : TaskTimerManager.FloatingTimerDelegate {
+            override fun startFloating(
+                context: Context,
+                taskId: String,
+                taskName: String,
+                totalSeconds: Long
+            ) {
+                FloatingTimerService.start(context, taskId, taskName, totalSeconds)
+            }
+
+            override fun stopFloating(context: Context) {
+                FloatingTimerService.stop(context)
+            }
+        }
     }
 }
