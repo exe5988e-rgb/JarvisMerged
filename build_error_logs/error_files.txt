@@ -1,815 +1,445 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/MainActivity.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/FloatingTimerService.kt =====
 
-// ❌ ERRORS IN THIS FILE (22 error(s)):
-// Line 12: Unresolved reference: models
-// Line 13: Unresolved reference: databinding
-// Line 27: Unresolved reference: ActivityMainBinding
-// Line 32: Unresolved reference: ActivityMainBinding
-// Line 62: Variable expected
-// Line 73: Cannot infer a type for this parameter. Please specify it explicitly.
-// Line 86: Variable expected
-// Line 87: Variable expected
-// Line 88: Variable expected
-// Line 100: Variable expected
-// Line 101: Variable expected
-// Line 102: Variable expected
-// Line 104: Unresolved reference: R
-// Line 104: Variable expected
-// Line 108: Unresolved reference: AutoBuildState
-// Line 109: Variable expected
-// Line 110: Variable expected
-// Line 115: Variable expected
-// Line 127: Variable expected
-// Line 154: 'when' expression must be exhaustive, add necessary 'else' branch
-// Line 154: Unresolved reference: AutoBuildState
-// Line 169: Unresolved reference: AutoBuildState
+// ❌ ERRORS IN THIS FILE (99 error(s)):
+// Line 13: Unresolved reference: compose
+// Line 14: Unresolved reference: compose
+// Line 15: Unresolved reference: compose
+// Line 16: Unresolved reference: compose
+// Line 17: Unresolved reference: compose
+// Line 18: Unresolved reference: compose
+// Line 19: Unresolved reference: compose
+// Line 20: Unresolved reference: compose
+// Line 21: Unresolved reference: compose
+// Line 22: Unresolved reference: compose
+// Line 23: Unresolved reference: compose
+// Line 24: Unresolved reference: compose
+// Line 25: Unresolved reference: compose
+// Line 26: Unresolved reference: compose
+// Line 27: Unresolved reference: compose
+// Line 28: Unresolved reference: compose
+// Line 29: Unresolved reference: compose
+// Line 32: Unresolved reference: savedstate
+// Line 33: Unresolved reference: savedstate
+// Line 34: Unresolved reference: savedstate
+// Line 47: Class 'FloatingTimerService' is not abstract and does not implement abstract member public abstract fun getLifecycle(): Lifecycle defined in androidx.lifecycle.LifecycleOwner
+// Line 49: Unresolved reference: ViewModelStoreOwner
+// Line 50: Unresolved reference: SavedStateRegistryOwner
+// Line 54: 'lifecycle' overrides nothing
+// Line 56: Unresolved reference: ViewModelStore
+// Line 57: 'viewModelStore' overrides nothing
+// Line 57: Unresolved reference: ViewModelStore
+// Line 59: Unresolved reference: SavedStateRegistryController
+// Line 60: 'savedStateRegistry' overrides nothing
+// Line 60: Unresolved reference: SavedStateRegistry
+// Line 65: Unresolved reference: ComposeView
+// Line 152: Unresolved reference: ComposeView
+// Line 153: Unresolved reference: setViewTreeLifecycleOwner
+// Line 154: Unresolved reference: setViewTreeViewModelStoreOwner
+// Line 155: Unresolved reference: setViewTreeSavedStateRegistryOwner
+// Line 156: Unresolved reference: setContent
+// Line 169: Cannot infer a type for this parameter. Please specify it explicitly.
+// Line 191: Unresolved reference: it
+// Line 225: Unresolved reference: Color
+// Line 226: Unresolved reference: Color
+// Line 227: Unresolved reference: Color
+// Line 228: Unresolved reference: Color
+// Line 230: Unresolved reference: Composable
+// Line 237: Unresolved reference: collectAsState
+// Line 242: Unresolved reference: rememberInfiniteTransition
+// Line 246: Unresolved reference: infiniteRepeatable
+// Line 247: Unresolved reference: LinearEasing
+// Line 247: Unresolved reference: tween
+// Line 248: Unresolved reference: RepeatMode
+// Line 253: Unresolved reference: Column
+// Line 254: Unresolved reference: Modifier
+// Line 255: Unresolved reference: dp
+// Line 256: Unresolved reference: RoundedCornerShape
+// Line 256: Unresolved reference: dp
+// Line 259: Unresolved reference: dp
+// Line 261: Unresolved reference: RoundedCornerShape
+// Line 261: Unresolved reference: dp
+// Line 263: Unresolved reference: dp
+// Line 266: Unresolved reference: Row
+// Line 267: Unresolved reference: Modifier
+// Line 268: Unresolved reference: Arrangement
+// Line 269: Unresolved reference: Alignment
+// Line 271: Unresolved reference: Text
+// Line 273: Unresolved reference: sp
+// Line 275: Unresolved reference: FontFamily
+// Line 276: Unresolved reference: FontWeight
+// Line 280: Unresolved reference: compose
+// Line 282: Unresolved reference: compose
+// Line 282: Unresolved reference: remember
+// Line 285: Unresolved reference: Text
+// Line 287: Unresolved reference: sp
+// Line 289: Unresolved reference: FontFamily
+// Line 290: Unresolved reference: Modifier
+// Line 290: Unresolved reference: dp
+// Line 295: Unresolved reference: Modifier
+// Line 295: Unresolved reference: Spacer
+// Line 295: Unresolved reference: dp
+// Line 298: Unresolved reference: Text
+// Line 300: Unresolved reference: sp
+// Line 302: Unresolved reference: FontFamily
+// Line 303: Unresolved reference: FontWeight
+// Line 304: Unresolved reference: Alignment
+// Line 304: Unresolved reference: Modifier
+// Line 307: Unresolved reference: Modifier
+// Line 307: Unresolved reference: Spacer
+// Line 307: Unresolved reference: dp
+// Line 310: Unresolved reference: LinearProgressIndicator
+// Line 312: Unresolved reference: Modifier
+// Line 314: Unresolved reference: dp
+// Line 315: Unresolved reference: RoundedCornerShape
+// Line 315: Unresolved reference: dp
+// Line 320: Unresolved reference: Modifier
+// Line 320: Unresolved reference: Spacer
+// Line 320: Unresolved reference: dp
+// Line 322: Unresolved reference: Text
+// Line 324: Unresolved reference: sp
+// Line 326: Unresolved reference: FontFamily
+// Line 327: Unresolved reference: Alignment
+// Line 327: Unresolved reference: Modifier
 
-   1    package com.jarvismini.devtools
+   1    package com.jarvismini.core.routine
    2    
-   3    import android.content.Intent
-   4    import android.graphics.Color
-   5    import android.os.Bundle
-   6    import android.provider.Settings
-   7    import android.text.Spannable
-   8    import android.text.SpannableStringBuilder
-   9    import android.text.style.ForegroundColorSpan
-  10    import androidx.appcompat.app.AppCompatActivity
-  11    import com.jarvismini.devtools.autobuild.AutoBuildService
-  12 ❌ import com.jarvismini.devtools.autobuild.models.AutoBuildState
-  13 ❌ import com.jarvismini.devtools.databinding.ActivityMainBinding
-  14    
-  15    /**
-  16     * Minimal UI: start/stop buttons, status dot, scrolling log.
-  17     *
-  18     * The AutoBuildService is an AccessibilityService — it cannot be started
-  19     * programmatically. The Start button opens Accessibility Settings so the user
-  20     * can toggle it once. After that the service self-manages via the loop.
-  21     *
-  22     * Status updates are received via AutoBuildService.onStatusUpdate, which is
-  23     * a static lambda set here and cleared in onDestroy.
-  24     */
-  25    class MainActivity : AppCompatActivity() {
-  26    
-  27 ❌     private lateinit var binding: ActivityMainBinding
-  28        private val logBuilder = SpannableStringBuilder()
-  29    
-  30        override fun onCreate(savedInstanceState: Bundle?) {
-  31            super.onCreate(savedInstanceState)
-  32 ❌         binding = ActivityMainBinding.inflate(layoutInflater)
-  33            setContentView(binding.root)
-  34    
-  35            setupButtons()
-  36            registerCallbacks()
-  37            refreshServiceState()
-  38        }
-  39    
-  40        override fun onResume() {
-  41            super.onResume()
-  42            refreshServiceState()
-  43        }
-  44    
-  45        override fun onDestroy() {
-  46            super.onDestroy()
-  47            AutoBuildService.onStatusUpdate = null
-  48            AutoBuildService.onLogLine = null
-  49        }
-  50    
-  51        // ── Buttons ───────────────────────────────────────────────────────────────
-  52    
-  53        private fun setupButtons() {
-  54            // "Start" = open Accessibility Settings so user can enable the service
-  55            binding.btnStart.setOnClickListener {
-  56                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-  57            }
-  58    
-  59            binding.btnStop.setOnClickListener {
-  60                AutoBuildService.requestStop()
-  61                appendLog("Stop requested by user.", Color.YELLOW)
-  62 ❌             binding.btnStop.isEnabled = false
-  63            }
-  64    
-  65            binding.btnAccessibility.setOnClickListener {
-  66                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-  67            }
-  68        }
-  69    
-  70        // ── Service callbacks ─────────────────────────────────────────────────────
-  71    
-  72        private fun registerCallbacks() {
-  73 ❌         AutoBuildService.onStatusUpdate = { iteration, state ->
-  74                runOnUiThread { updateStatus(iteration, state) }
-  75            }
-  76            AutoBuildService.onLogLine = { line, isError ->
-  77                runOnUiThread { appendLog(line, if (isError) Color.RED else Color.WHITE) }
-  78            }
-  79        }
-  80    
-  81        // ── UI helpers ────────────────────────────────────────────────────────────
-  82    
-  83        private fun refreshServiceState() {
-  84            val enabled = isAccessibilityServiceEnabled()
-  85            if (enabled) {
-  86 ❌             binding.tvAccessibilityHint.visibility = android.view.View.GONE
-  87 ❌             binding.btnStart.isEnabled = false
-  88 ❌             binding.btnStop.isEnabled = true
-  89    
-  90                // If the loop is already running (e.g. we returned from another app),
-  91                // immediately sync the dot and status text from the live state snapshot
-  92                // rather than leaving them at the layout default ("Idle — enable service…").
-  93                if (AutoBuildService.isLoopRunning) {
-  94                    updateStatus(
-  95                        AutoBuildService.currentIteration,
-  96                        AutoBuildService.currentState
-  97                    )
-  98                }
-  99            } else {
- 100 ❌             binding.tvAccessibilityHint.visibility = android.view.View.VISIBLE
- 101 ❌             binding.btnStart.isEnabled = true
- 102 ❌             binding.btnStop.isEnabled = false
- 103                setStatusDot(Color.GRAY)
- 104 ❌             binding.tvStatus.text = getString(R.string.status_idle)
- 105            }
- 106        }
- 107    
- 108 ❌     private fun updateStatus(iteration: Int, state: AutoBuildState) {
- 109 ❌         binding.tvIteration.text = "Iter: $iteration"
- 110 ❌         binding.tvStatus.text = state.displayName()
- 111            setStatusDot(state.dotColor())
- 112        }
- 113    
- 114        private fun setStatusDot(color: Int) {
- 115 ❌         binding.statusDot.backgroundTintList =
- 116                android.content.res.ColorStateList.valueOf(color)
- 117        }
- 118    
- 119        private fun appendLog(line: String, color: Int) {
- 120            val start = logBuilder.length
- 121            logBuilder.append(line).append("\n")
- 122            logBuilder.setSpan(
- 123                ForegroundColorSpan(color),
- 124                start, logBuilder.length,
- 125                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
- 126            )
- 127 ❌         binding.tvLog.text = logBuilder
- 128            binding.scrollLog.post {
- 129                binding.scrollLog.fullScroll(android.view.View.FOCUS_DOWN)
- 130            }
- 131        }
- 132    
- 133        private fun isAccessibilityServiceEnabled(): Boolean {
- 134            val enabledServices = Settings.Secure.getString(
- 135                contentResolver,
- 136                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
- 137            ) ?: return false
- 138    
- 139            // Android may store either the short form   "com.pkg/.Service"
- 140            // or the fully-qualified form               "com.pkg/com.pkg.path.Service"
- 141            // and may pad entries with whitespace. Match both to be safe.
- 142            val shortComponent = "${packageName}/.autobuild.AutoBuildService"
- 143            val fullComponent  = "${packageName}/com.jarvismini.devtools.autobuild.AutoBuildService"
- 144    
- 145            return enabledServices.split(":").any { entry ->
- 146                val trimmed = entry.trim()
- 147                trimmed.equals(shortComponent, ignoreCase = true) ||
- 148                trimmed.equals(fullComponent,  ignoreCase = true)
- 149            }
- 150        }
- 151    
- 152        // ── State display helpers ─────────────────────────────────────────────────
- 153    
- 154 ❌     private fun AutoBuildState.displayName() = when (this) {
- 155            AutoBuildState.IDLE                      -> "Idle"
- 156            AutoBuildState.WAITING_FOR_RESPONSE      -> "Waiting for Claude response…"
- 157            AutoBuildState.EXTRACTING_CODE           -> "Extracting code blocks…"
- 158            AutoBuildState.WRITING_OUTPUT            -> "Writing ai-output.txt…"
- 159            AutoBuildState.TRIGGERING_BUILD          -> "Pushing to GitHub via Termux…"
- 160            AutoBuildState.WAITING_FOR_BUILD         -> "Waiting for Apk.yml to finish…"
- 161            AutoBuildState.CHECKING_ERROR_FRESHNESS  -> "Checking if errors are new…"
- 162            AutoBuildState.READING_ERROR_LOGS        -> "Pulling error logs (git pull)…"
- 163            AutoBuildState.ATTACHING_FILES           -> "Attaching error logs to Claude…"
- 164            AutoBuildState.SUBMITTING_PROMPT         -> "Submitting prompt to Claude…"
- 165            AutoBuildState.BUILD_SUCCEEDED           -> "✅ Build succeeded!"
- 166            AutoBuildState.TIMEOUT_ERROR             -> "⚠ Timeout — retrying…"
- 167        }
- 168    
- 169 ❌     private fun AutoBuildState.dotColor() = when (this) {
- 170            AutoBuildState.BUILD_SUCCEEDED           -> Color.GREEN
- 171            AutoBuildState.TIMEOUT_ERROR             -> Color.RED
- 172            AutoBuildState.IDLE                      -> Color.GRAY
- 173            AutoBuildState.WAITING_FOR_BUILD,
- 174            AutoBuildState.TRIGGERING_BUILD          -> Color.YELLOW
- 175            else                                     -> Color.CYAN
- 176        }
- 177    }
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/AutoBuildService.kt =====
-
-// ❌ ERRORS IN THIS FILE (11 error(s)):
-// Line 8: Unresolved reference: models
-// Line 32: Unresolved reference: AutoBuildState
-// Line 44: Unresolved reference: AutoBuildState
-// Line 56: Unresolved reference: UIWatcherModule
-// Line 58: Unresolved reference: BuildNotifier
-// Line 66: Unresolved reference: UIWatcherModule
-// Line 68: Unresolved reference: BuildNotifier
-// Line 71: Unresolved reference: AutoBuildState
-// Line 81: Unresolved reference: BuildNotifier
-// Line 82: Unresolved reference: AutoBuildState
-// Line 113: Unresolved reference: AutoBuildState
-
-   1    package com.jarvismini.devtools.autobuild
-   2    
-   3    import android.accessibilityservice.AccessibilityService
-   4    import android.app.Service
+   3    import android.app.*
+   4    import android.content.Context
    5    import android.content.Intent
-   6    import android.util.Log
-   7    import android.view.accessibility.AccessibilityEvent
-   8 ❌ import com.jarvismini.devtools.autobuild.models.AutoBuildState
-   9    import kotlinx.coroutines.CoroutineScope
-  10    import kotlinx.coroutines.Dispatchers
-  11    import kotlinx.coroutines.Job
-  12    import kotlinx.coroutines.launch
-  13    
-  14    /**
-  15     * AccessibilityService entry point for the AutoBuild loop.
-  16     *
-  17     * Enable via: Android Settings → Accessibility → DevTools → AutoBuild Service
-  18     *
-  19     * Static callbacks (onStatusUpdate, onLogLine) are set by MainActivity so the
-  20     * UI receives live updates without binding to the service. They are nullable to
-  21     * avoid memory leaks when MainActivity is destroyed.
-  22     *
-  23     * requestStop() sets a flag read by OrchestrationController on every iteration,
-  24     * allowing a clean exit without killing the coroutine forcibly.
-  25     */
-  26    class AutoBuildService : AccessibilityService() {
-  27    
-  28        companion object {
-  29            private const val TAG = "DevTools:Service"
-  30    
-  31            /** Called on every state transition: (iteration, state) */
-  32 ❌         var onStatusUpdate: ((Int, AutoBuildState) -> Unit)? = null
-  33    
-  34            /** Called for every log line emitted by the orchestrator: (message, isError) */
-  35            var onLogLine: ((String, Boolean) -> Unit)? = null
-  36    
-  37            /** Weak reference to the running service instance for stop requests. */
-  38            private var instance: AutoBuildService? = null
-  39    
-  40            /**
-  41             * Live state snapshot — updated on every loop iteration so MainActivity
-  42             * can display the correct status when it resumes after being in the background.
-  43             */
-  44 ❌         @Volatile var currentState: AutoBuildState = AutoBuildState.IDLE
-  45            @Volatile var currentIteration: Int = 0
-  46    
-  47            /** True only while the loop coroutine is actively running. */
-  48            val isLoopRunning: Boolean get() = instance?.loopJob?.isActive == true
-  49    
-  50            fun requestStop() {
-  51                instance?.orchestrator?.requestStop()
-  52                Log.d(TAG, "Stop requested")
-  53            }
-  54        }
+   6    import android.graphics.PixelFormat
+   7    import android.os.Build
+   8    import android.os.IBinder
+   9    import android.provider.Settings
+  10    import android.view.Gravity
+  11    import android.view.MotionEvent
+  12    import android.view.WindowManager
+  13 ❌ import androidx.compose.animation.core.*
+  14 ❌ import androidx.compose.foundation.background
+  15 ❌ import androidx.compose.foundation.border
+  16 ❌ import androidx.compose.foundation.layout.*
+  17 ❌ import androidx.compose.foundation.shape.RoundedCornerShape
+  18 ❌ import androidx.compose.material3.LinearProgressIndicator
+  19 ❌ import androidx.compose.material3.Text
+  20 ❌ import androidx.compose.runtime.*
+  21 ❌ import androidx.compose.ui.Alignment
+  22 ❌ import androidx.compose.ui.Modifier
+  23 ❌ import androidx.compose.ui.draw.clip
+  24 ❌ import androidx.compose.ui.graphics.Color
+  25 ❌ import androidx.compose.ui.platform.ComposeView
+  26 ❌ import androidx.compose.ui.text.font.FontFamily
+  27 ❌ import androidx.compose.ui.text.font.FontWeight
+  28 ❌ import androidx.compose.ui.unit.dp
+  29 ❌ import androidx.compose.ui.unit.sp
+  30    import androidx.core.app.NotificationCompat
+  31    import androidx.lifecycle.*
+  32 ❌ import androidx.savedstate.SavedStateRegistry
+  33 ❌ import androidx.savedstate.SavedStateRegistryController
+  34 ❌ import androidx.savedstate.SavedStateRegistryOwner
+  35    
+  36    /**
+  37     * FloatingTimerService
+  38     *
+  39     * Draws a compact draggable JARVIS countdown overlay via WindowManager + ComposeView.
+  40     * Launched automatically alongside TaskTimerService from TaskTimerManager.startTimer()
+  41     * — same single TIMER button, no separate toggle needed.
+  42     *
+  43     * Requires: android.permission.SYSTEM_ALERT_WINDOW
+  44     * Permission is requested at startup in MainActivity via Settings.canDrawOverlays().
+  45     * If permission is not granted, start() silently skips — notification timer still works.
+  46     */
+  47 ❌ class FloatingTimerService : Service(),
+  48        LifecycleOwner,
+  49 ❌     ViewModelStoreOwner,
+  50 ❌     SavedStateRegistryOwner {
+  51    
+  52        // ── Lifecycle plumbing needed by ComposeView ────────────────────────
+  53        private val lifecycleRegistry = LifecycleRegistry(this)
+  54 ❌     override val lifecycle: Lifecycle get() = lifecycleRegistry
   55    
-  56 ❌     private lateinit var uiWatcher:    UIWatcherModule
-  57        private lateinit var orchestrator: OrchestrationController
-  58 ❌     private lateinit var notifier:     BuildNotifier
-  59    
-  60        private val scope = CoroutineScope(Dispatchers.Main)
-  61        private var loopJob: Job? = null
+  56 ❌     private val vmStore = ViewModelStore()
+  57 ❌     override val viewModelStore: ViewModelStore get() = vmStore
+  58    
+  59 ❌     private val savedStateController = SavedStateRegistryController.create(this)
+  60 ❌     override val savedStateRegistry: SavedStateRegistry
+  61            get() = savedStateController.savedStateRegistry
   62    
-  63        override fun onServiceConnected() {
-  64            super.onServiceConnected()
-  65            instance     = this
-  66 ❌         uiWatcher    = UIWatcherModule(this)
-  67            orchestrator = OrchestrationController(this, uiWatcher)
-  68 ❌         notifier     = BuildNotifier(this)
-  69    
-  70            // Reset snapshot so stale state from a previous session isn't shown
-  71 ❌         currentState     = AutoBuildState.IDLE
-  72            currentIteration = 0
+  63        // ── Window ──────────────────────────────────────────────────────────
+  64        private lateinit var windowManager: WindowManager
+  65 ❌     private var overlayView: ComposeView? = null
+  66    
+  67        companion object {
+  68            private const val CHANNEL_ID      = "floating_timer_channel"
+  69            private const val NOTIF_ID        = 8877
+  70            const val EXTRA_TASK_ID           = "ft_task_id"
+  71            const val EXTRA_TASK_NAME         = "ft_task_name"
+  72            const val EXTRA_TOTAL_SECONDS     = "ft_total_seconds"
   73    
-  74            // Clear the crash-recovery checkpoint so the loop always starts fresh
-  75            // from WAITING_FOR_RESPONSE rather than resuming from a stale state like
-  76            // WAITING_FOR_BUILD (which would poll forever for a flag that never arrives).
-  77            FileManagerModule().clearCheckpoint()
-  78    
-  79            // Run as foreground service to survive long builds
-  80            startForeground(
-  81 ❌             BuildNotifier.NOTIFICATION_ID,
-  82 ❌             notifier.buildNotification(0, AutoBuildState.IDLE)
-  83            )
-  84    
-  85            loopJob = scope.launch {
-  86                try {
-  87                    orchestrator.runLoop()
-  88                } catch (e: Exception) {
-  89                    Log.e(TAG, "Loop crashed", e)
-  90                    notifier.error("Crashed: ${e.message}")
-  91                    onLogLine?.invoke("CRASH: ${e.message}", true)
-  92                }
-  93            }
-  94    
-  95            Log.i(TAG, "AutoBuildService connected and loop started")
+  74            fun canDrawOverlays(context: Context): Boolean =
+  75                Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+  76                        Settings.canDrawOverlays(context)
+  77    
+  78            /** Called from TaskTimerManager.startTimer() — no extra UI needed. */
+  79            fun start(context: Context, taskId: String, taskName: String, totalSeconds: Long) {
+  80                if (!canDrawOverlays(context)) return   // graceful: notification timer still runs
+  81                val intent = Intent(context, FloatingTimerService::class.java).apply {
+  82                    putExtra(EXTRA_TASK_ID,       taskId)
+  83                    putExtra(EXTRA_TASK_NAME,     taskName)
+  84                    putExtra(EXTRA_TOTAL_SECONDS, totalSeconds)
+  85                }
+  86                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+  87                    context.startForegroundService(intent)
+  88                else
+  89                    context.startService(intent)
+  90            }
+  91    
+  92            /** Called from TaskTimerManager.stopTimer() */
+  93            fun stop(context: Context) {
+  94                context.stopService(Intent(context, FloatingTimerService::class.java))
+  95            }
   96        }
   97    
-  98        override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-  99            event ?: return
- 100            if (::uiWatcher.isInitialized) {
- 101                uiWatcher.onAccessibilityEvent(event.packageName?.toString())
- 102            }
- 103        }
- 104    
- 105        override fun onInterrupt() {
- 106            Log.w(TAG, "Service interrupted")
- 107            loopJob?.cancel()
- 108        }
- 109    
- 110        override fun onUnbind(intent: Intent?): Boolean {
- 111            instance = null
- 112            loopJob?.cancel()
- 113 ❌         currentState     = AutoBuildState.IDLE
- 114            currentIteration = 0
- 115            stopForeground(Service.STOP_FOREGROUND_REMOVE)
- 116            return super.onUnbind(intent)
- 117        }
- 118    }
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/FileManagerModule.kt =====
-
-// ❌ ERRORS IN THIS FILE (17 error(s)):
-// Line 4: Unresolved reference: models
-// Line 5: Unresolved reference: models
-// Line 6: Unresolved reference: models
-// Line 59: Unresolved reference: ErrorLogBundle
-// Line 64: Unresolved reference: ErrorLogBundle
-// Line 99: Unresolved reference: TermuxBridgeModule
-// Line 104: Unresolved reference: ErrorFingerprint
-// Line 110: Unresolved reference: ErrorFingerprint
-// Line 113: Unresolved reference: ErrorFingerprint
-// Line 115: Unresolved reference: ErrorFingerprint
-// Line 118: Unresolved reference: ErrorFingerprint
-// Line 134: Unresolved reference: lastModifiedMs
-// Line 135: Unresolved reference: contentHash
-// Line 136: Unresolved reference: contentHash
-// Line 142: Unresolved reference: LoopState
-// Line 149: Unresolved reference: LoopState
-// Line 151: Unresolved reference: LoopState
-
-   1    package com.jarvismini.devtools.autobuild
-   2    
-   3    import android.util.Log
-   4 ❌ import com.jarvismini.devtools.autobuild.models.ErrorFingerprint
-   5 ❌ import com.jarvismini.devtools.autobuild.models.ErrorLogBundle
-   6 ❌ import com.jarvismini.devtools.autobuild.models.LoopState
-   7    import java.io.File
-   8    import java.security.MessageDigest
-   9    
-  10    /**
-  11     * All file I/O for the AutoBuild loop.
-  12     *
-  13     * Shared storage layout (all under BASE_DIR):
-  14     *
-  15     *   /sdcard/ai-automation/
-  16     *     ai-output.txt                  Claude code response → pushed by Termux to JarvisMini repo
-  17     *     loop_state.json                Crash-recovery checkpoint
-  18     *     last_error_fingerprint.json    SHA-256 + mtime of last processed error_summary.txt
-  19     *     build_error_logs/
-  20     *       error_summary.txt            Written by Apk.yml on failure, committed + pushed to main
-  21     *       error_files.txt              Written by Apk.yml on failure, committed + pushed to main
-  22     *
-  23     * Termux pulls both files from the JarvisMini repo via `git pull` after each
-  24     * failed Apk.yml run. clearBuildFlags() wipes them before a new build starts
-  25     * but intentionally preserves last_error_fingerprint.json for the freshness check.
-  26     */
-  27    class FileManagerModule {
-  28    
-  29        companion object {
-  30            private const val TAG = "DevTools:FileManager"
-  31    
-  32            val BASE_DIR             = File("/sdcard/ai-automation")
-  33            val LOG_DIR              = File(BASE_DIR, "build_error_logs")
-  34            val AI_OUTPUT_FILE       = File(BASE_DIR, "ai-output.txt")
-  35            val LOOP_STATE_FILE      = File(BASE_DIR, "loop_state.json")
-  36            val FINGERPRINT_FILE     = File(BASE_DIR, "last_error_fingerprint.json")
-  37            val ERROR_SUMMARY_FILE   = File(LOG_DIR,  "error_summary.txt")
-  38            val ERROR_FILES_FILE     = File(LOG_DIR,  "error_files.txt")
-  39        }
-  40    
-  41        // ── ai-output.txt ─────────────────────────────────────────────────────────
-  42    
-  43        /** Atomically write Claude's extracted code to ai-output.txt. */
-  44        fun writeAiOutput(content: String) {
-  45            BASE_DIR.mkdirs()
-  46            val tmp = File(BASE_DIR, "ai-output.tmp")
-  47            tmp.writeText(content)
-  48            tmp.renameTo(AI_OUTPUT_FILE)
-  49            Log.d(TAG, "ai-output.txt written (${content.length} chars)")
-  50        }
-  51    
-  52        // ── Error log reads ───────────────────────────────────────────────────────
-  53    
-  54        /**
-  55         * Reads error_summary.txt and error_files.txt from build_error_logs/.
-  56         * These files are committed by Apk.yml on failure and pulled by Termux.
-  57         * Returns null if either file is missing.
-  58         */
-  59 ❌     fun readErrorLogs(): ErrorLogBundle? {
-  60            if (!ERROR_SUMMARY_FILE.exists() || !ERROR_FILES_FILE.exists()) {
-  61                Log.w(TAG, "readErrorLogs: files not present in ${LOG_DIR.absolutePath}")
-  62                return null
-  63            }
-  64 ❌         return ErrorLogBundle(
-  65                errorFilesContent   = ERROR_FILES_FILE.readText(),
-  66                errorSummaryContent = ERROR_SUMMARY_FILE.readText()
-  67            )
-  68        }
-  69    
-  70        /** True when error_summary.txt exists — Apk.yml only writes it on failure. */
-  71        fun buildFailed(): Boolean = ERROR_SUMMARY_FILE.exists()
-  72    
-  73        // ── Build flag management ─────────────────────────────────────────────────
-  74    
-  75        /**
-  76         * Clears error log files before a new build trigger.
-  77         * Does NOT delete last_error_fingerprint.json — it must survive across
-  78         * build iterations so CHECKING_ERROR_FRESHNESS can compare correctly.
-  79         */
-  80        fun clearBuildFlags() {
-  81            LOG_DIR.listFiles()?.forEach { it.delete() }
-  82            LOG_DIR.mkdirs()
-  83            Log.d(TAG, "build_error_logs/ cleared (fingerprint preserved)")
-  84        }
-  85    
-  86        /**
-  87         * Deletes the crash-recovery checkpoint so the loop always starts fresh
-  88         * from WAITING_FOR_RESPONSE on the next service connect, rather than
-  89         * resuming from a stale mid-build state (e.g. WAITING_FOR_BUILD) that
-  90         * would poll forever for a flag that will never arrive.
-  91         *
-  92         * Called by AutoBuildService.onServiceConnected().
-  93         */
-  94        fun clearCheckpoint() {
-  95            if (LOOP_STATE_FILE.delete()) {
-  96                Log.d(TAG, "loop_state.json cleared — loop will start fresh")
-  97            }
-  98            // Also clear the build_complete flag so pollForCompletion starts clean
-  99 ❌         TermuxBridgeModule.COMPLETE_FLAG.delete()
- 100        }
- 101    
- 102        // ── Error fingerprint ─────────────────────────────────────────────────────
- 103    
- 104 ❌     fun computeErrorFingerprint(iteration: Int): ErrorFingerprint {
- 105            val mtime = if (ERROR_SUMMARY_FILE.exists()) ERROR_SUMMARY_FILE.lastModified() else 0L
- 106            val bytes = runCatching { ERROR_SUMMARY_FILE.readBytes() }.getOrElse { ByteArray(0) }
- 107            val hash  = MessageDigest.getInstance("SHA-256")
- 108                .digest(bytes)
- 109                .joinToString("") { "%02x".format(it) }
- 110 ❌         return ErrorFingerprint(mtime, hash, iteration)
- 111        }
+  98        // ── Service lifecycle ───────────────────────────────────────────────
+  99        override fun onCreate() {
+ 100            savedStateController.performAttach()
+ 101            savedStateController.performRestore(null)
+ 102            lifecycleRegistry.currentState = Lifecycle.State.CREATED
+ 103            super.onCreate()
+ 104            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+ 105            createNotificationChannel()
+ 106        }
+ 107    
+ 108        override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+ 109            val taskId       = intent?.getStringExtra(EXTRA_TASK_ID)           ?: "task"
+ 110            val taskName     = intent?.getStringExtra(EXTRA_TASK_NAME)         ?: "Task"
+ 111            val totalSeconds = intent?.getLongExtra(EXTRA_TOTAL_SECONDS, 3600) ?: 3600
  112    
- 113 ❌     fun readErrorFingerprint(): ErrorFingerprint? {
- 114            if (!FINGERPRINT_FILE.exists()) return null
- 115 ❌         return ErrorFingerprint.fromJson(FINGERPRINT_FILE.readText())
- 116        }
- 117    
- 118 ❌     fun saveErrorFingerprint(fp: ErrorFingerprint) {
- 119            val tmp = File(BASE_DIR, "fingerprint.tmp")
- 120            tmp.writeText(fp.toJson())
- 121            tmp.renameTo(FINGERPRINT_FILE)
- 122            Log.d(TAG, "Fingerprint saved iter=${fp.buildIteration} hash=${fp.contentHash.take(8)}…")
- 123        }
- 124    
- 125        /**
- 126         * Returns true when error_summary.txt is genuinely new compared to the
- 127         * stored fingerprint (different mtime OR different SHA-256).
- 128         * Always true on first ever failure (no stored fingerprint).
- 129         */
- 130        fun hasNewErrors(iteration: Int): Boolean {
- 131            if (!ERROR_SUMMARY_FILE.exists()) return false
- 132            val stored  = readErrorFingerprint() ?: return true   // first failure
- 133            val current = computeErrorFingerprint(iteration)
- 134 ❌         val isNew   = current.lastModifiedMs != stored.lastModifiedMs ||
- 135 ❌                       current.contentHash    != stored.contentHash
- 136 ❌         Log.d(TAG, "hasNewErrors=$isNew (stored=${stored.contentHash.take(8)}… current=${current.contentHash.take(8)}…)")
- 137            return isNew
- 138        }
- 139    
- 140        // ── Loop state ────────────────────────────────────────────────────────────
- 141    
- 142 ❌     fun saveState(state: LoopState) {
- 143            runCatching {
- 144                BASE_DIR.mkdirs()
- 145                LOOP_STATE_FILE.writeText(state.toJson())
- 146            }.onFailure { Log.e(TAG, "saveState failed", it) }
- 147        }
- 148    
- 149 ❌     fun loadState(): LoopState? = runCatching {
- 150            if (!LOOP_STATE_FILE.exists()) null
- 151 ❌         else LoopState.fromJson(LOOP_STATE_FILE.readText())
- 152        }.getOrNull()
- 153    }
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/OrchestrationController.kt =====
-
-// ❌ ERRORS IN THIS FILE (47 error(s)):
-// Line 5: Unresolved reference: models
-// Line 6: Unresolved reference: models
-// Line 7: Unresolved reference: models
-// Line 8: Unresolved reference: models
-// Line 31: Unresolved reference: UIWatcherModule
-// Line 52: Unresolved reference: TermuxBridgeModule
-// Line 53: Unresolved reference: BuildNotifier
-// Line 56: Unresolved reference: ErrorLogBundle
-// Line 66: Unresolved reference: AutoBuildState
-// Line 74: Unresolved reference: LoopState
-// Line 76: 'when' expression must be exhaustive, add necessary 'else' branch
-// Line 78: Unresolved reference: AutoBuildState
-// Line 79: Unresolved reference: AutoBuildState
-// Line 81: Unresolved reference: AutoBuildState
-// Line 83: Unresolved reference: AutoBuildState
-// Line 87: Unresolved reference: AutoBuildState
-// Line 95: Unresolved reference: AutoBuildState
-// Line 102: Unresolved reference: AutoBuildState
-// Line 103: Unresolved reference: AutoBuildState
-// Line 105: Unresolved reference: AutoBuildState
-// Line 109: Unresolved reference: AutoBuildState
-// Line 112: Unresolved reference: AutoBuildState
-// Line 114: 'when' expression must be exhaustive, add necessary 'else' branch
-// Line 115: Unresolved reference: AutoBuildState
-// Line 115: Unresolved reference: BuildResult
-// Line 116: Unresolved reference: AutoBuildState
-// Line 116: Unresolved reference: BuildResult
-// Line 117: Unresolved reference: BuildResult
-// Line 121: Unresolved reference: AutoBuildState
-// Line 130: Unresolved reference: AutoBuildState
-// Line 133: Unresolved reference: AutoBuildState
-// Line 138: Unresolved reference: AutoBuildState
-// Line 143: Unresolved reference: AutoBuildState
-// Line 150: Unresolved reference: AutoBuildState
-// Line 157: Unresolved reference: AutoBuildState
-// Line 161: Unresolved reference: AutoBuildState
-// Line 167: Unresolved reference: AutoBuildState
-// Line 169: Unresolved reference: UIWatcherModule
-// Line 170: Unresolved reference: AutoBuildState
-// Line 173: Unresolved reference: AutoBuildState
-// Line 181: Unresolved reference: AutoBuildState
-// Line 208: Unresolved reference: UIWatcherModule
-// Line 215: Unresolved reference: UIWatcherModule
-// Line 225: Unresolved reference: AutoBuildState
-// Line 227: Unresolved reference: AutoBuildState
-// Line 230: Unresolved reference: AutoBuildState
-// Line 236: Unresolved reference: AutoBuildState
-
-   1    package com.jarvismini.devtools.autobuild
-   2    
-   3    import android.content.Context
-   4    import android.util.Log
-   5 ❌ import com.jarvismini.devtools.autobuild.models.AutoBuildState
-   6 ❌ import com.jarvismini.devtools.autobuild.models.BuildResult
-   7 ❌ import com.jarvismini.devtools.autobuild.models.ErrorLogBundle
-   8 ❌ import com.jarvismini.devtools.autobuild.models.LoopState
-   9    import kotlinx.coroutines.delay
-  10    
-  11    /**
-  12     * State machine + main loop.
-  13     *
-  14     * Full state flow:
-  15     *
-  16     *   WAITING_FOR_RESPONSE
-  17     *     → EXTRACTING_CODE
-  18     *     → WRITING_OUTPUT             (writes /sdcard/ai-automation/ai-output.txt)
-  19     *     → TRIGGERING_BUILD           (Termux git push → Ai-codegen → main → Apk.yml)
-  20     *     → WAITING_FOR_BUILD          (polls build_complete.flag)
-  21     *         ├── SUCCESS → BUILD_SUCCEEDED → exit
-  22     *         └── FAILURE → CHECKING_ERROR_FRESHNESS
-  23     *                          ├── STALE  → SUBMITTING_PROMPT (no attachment, nudge prompt)
-  24     *                          └── NEW    → READING_ERROR_LOGS (git pull already done by Termux)
-  25     *                                         → ATTACHING_FILES (error_summary + error_files)
-  26     *                                         → SUBMITTING_PROMPT
-  27     *                                             → WAITING_FOR_RESPONSE  (loop)
-  28     */
-  29    class OrchestrationController(
-  30        context: Context,
-  31 ❌     private val uiWatcher: UIWatcherModule
-  32    ) {
-  33        companion object {
-  34            private const val TAG = "DevTools:Orchestrator"
-  35    
-  36            const val LOOP_MAX_ITERATIONS    = 50
-  37            const val MAX_RETRIES_PER_STATE  = 3
-  38            const val BETWEEN_ITER_DELAY_MS  = 500L
-  39    
-  40            // Prompt when stale errors: same logs as last time, no file attachment
-  41            const val STALE_ERROR_PROMPT =
-  42                "The build is still failing with the same errors as the previous attempt. " +
-  43                "Please try a different approach or check for structural issues."
-  44    
-  45            // Prompt when fresh errors are being attached
-  46            const val FRESH_ERROR_PROMPT =
-  47                "The build failed. The error logs are attached below. " +
-  48                "Please analyze the errors and provide corrected code."
-  49        }
-  50    
-  51        private val fm       = FileManagerModule()
-  52 ❌     private val termux   = TermuxBridgeModule(context)
-  53 ❌     private val notifier = BuildNotifier(context)
-  54    
-  55        private var retryCount  = 0
-  56 ❌     private var errorBundle: ErrorLogBundle? = null
-  57    
-  58        @Volatile private var stopRequested = false
-  59    
-  60        fun requestStop() { stopRequested = true }
-  61    
-  62        // ── Main loop ─────────────────────────────────────────────────────────────
-  63    
-  64        suspend fun runLoop() {
-  65            val checkpoint = fm.loadState()
-  66 ❌         var state      = checkpoint?.state    ?: AutoBuildState.WAITING_FOR_RESPONSE
-  67            var iteration  = checkpoint?.iteration ?: 0
-  68            stopRequested  = false
-  69    
-  70            log("Loop started — state=$state iter=$iteration")
-  71            notifier.update(iteration, state)
-  72    
-  73            while (iteration < LOOP_MAX_ITERATIONS && !stopRequested) {
-  74 ❌             fm.saveState(LoopState(state, iteration))
-  75    
-  76 ❌             state = when (state) {
-  77    
-  78 ❌                 AutoBuildState.IDLE ->
-  79 ❌                     AutoBuildState.WAITING_FOR_RESPONSE
-  80    
-  81 ❌                 AutoBuildState.WAITING_FOR_RESPONSE -> {
-  82                        val done = uiWatcher.waitForResponseComplete()
-  83 ❌                     if (done) AutoBuildState.EXTRACTING_CODE
-  84                        else      timeout(state)
-  85                    }
-  86    
-  87 ❌                 AutoBuildState.EXTRACTING_CODE -> {
-  88                        val root   = uiWatcher.service.rootInActiveWindow
-  89                        val blocks = uiWatcher.extractCodeBlocks(root)
-  90                        if (blocks.isNotEmpty()) {
-  91                            fm.writeAiOutput(
-  92                                blocks.joinToString("\n\n// ===== next block =====\n\n")
-  93                            )
-  94                            log("Code extracted (${blocks.size} block(s)) → ai-output.txt written")
-  95 ❌                         AutoBuildState.TRIGGERING_BUILD
-  96                        } else {
-  97                            retry(state)
-  98                        }
-  99                    }
- 100    
- 101                    // Explicit state kept for crash-recovery resume
- 102 ❌                 AutoBuildState.WRITING_OUTPUT ->
- 103 ❌                     AutoBuildState.TRIGGERING_BUILD
- 104    
- 105 ❌                 AutoBuildState.TRIGGERING_BUILD -> {
- 106                        log("Triggering build (iteration=$iteration) via Termux…")
- 107                        termux.triggerBuild()
- 108                        retryCount = 0
- 109 ❌                     AutoBuildState.WAITING_FOR_BUILD
- 110                    }
- 111    
- 112 ❌                 AutoBuildState.WAITING_FOR_BUILD -> {
- 113                        log("Polling for Apk.yml completion…")
- 114 ❌                     when (termux.pollForCompletion()) {
- 115 ❌                         BuildResult.SUCCESS -> AutoBuildState.BUILD_SUCCEEDED
- 116 ❌                         BuildResult.FAILURE -> AutoBuildState.CHECKING_ERROR_FRESHNESS
- 117 ❌                         BuildResult.TIMEOUT -> timeout(state)
- 118                        }
- 119                    }
+ 113            startForeground(NOTIF_ID, buildForegroundNotif(taskName))
+ 114            lifecycleRegistry.currentState = Lifecycle.State.STARTED
+ 115            lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+ 116    
+ 117            showOverlay(taskId, taskName, totalSeconds)
+ 118            return START_NOT_STICKY
+ 119        }
  120    
- 121 ❌                 AutoBuildState.BUILD_SUCCEEDED -> {
- 122                        log("✅ Build succeeded after $iteration iteration(s)")
- 123                        notifier.success(iteration)
- 124                        return
- 125                    }
- 126    
- 127                    // ── Freshness gate ────────────────────────────────────────────
- 128                    // Error logs are already on disk (git pull done by build_runner.sh).
- 129                    // Only forward to READING_ERROR_LOGS if they are genuinely new.
- 130 ❌                 AutoBuildState.CHECKING_ERROR_FRESHNESS -> {
- 131                        if (fm.hasNewErrors(iteration)) {
- 132                            log("New error logs detected — reading logs")
- 133 ❌                         AutoBuildState.READING_ERROR_LOGS
- 134                        } else {
- 135                            log("Error logs unchanged — skipping attachment, sending nudge prompt")
- 136                            uiWatcher.fillPromptField(STALE_ERROR_PROMPT)
- 137                            iteration++
- 138 ❌                         AutoBuildState.SUBMITTING_PROMPT
- 139                        }
- 140                    }
- 141                    // ─────────────────────────────────────────────────────────────
- 142    
- 143 ❌                 AutoBuildState.READING_ERROR_LOGS -> {
- 144                        val bundle = fm.readErrorLogs()
- 145                        if (bundle != null) {
- 146                            // Save fingerprint NOW — before next build could overwrite files
- 147                            fm.saveErrorFingerprint(fm.computeErrorFingerprint(iteration))
- 148                            errorBundle = bundle
- 149                            log("Error logs read (summary=${bundle.errorSummaryContent.length} chars)")
- 150 ❌                         AutoBuildState.ATTACHING_FILES
- 151                        } else {
- 152                            log("Error logs missing after FAILURE signal — retrying", isError = true)
- 153                            timeout(state)
- 154                        }
- 155                    }
- 156    
- 157 ❌                 AutoBuildState.ATTACHING_FILES -> {
- 158                        val ok = attachErrorFiles()
- 159                        if (ok) {
- 160                            iteration++
- 161 ❌                         AutoBuildState.SUBMITTING_PROMPT
- 162                        } else {
- 163                            retry(state)
- 164                        }
- 165                    }
- 166    
- 167 ❌                 AutoBuildState.SUBMITTING_PROMPT -> {
- 168                        uiWatcher.tapSendButton()
- 169 ❌                     delay(UIWatcherModule.POST_TAP_DELAY_MS)
- 170 ❌                     AutoBuildState.WAITING_FOR_RESPONSE
- 171                    }
- 172    
- 173 ❌                 AutoBuildState.TIMEOUT_ERROR -> {
- 174                        val backoff = 1_000L * (1 shl minOf(retryCount, 3))
- 175                        log("Timeout recovery — waiting ${backoff}ms (retry=$retryCount)", isError = true)
- 176                        delay(backoff)
- 177                        if (++retryCount > MAX_RETRIES_PER_STATE) {
- 178                            notifier.error("Too many retries — stopped at $state")
- 179                            return
- 180                        }
- 181 ❌                     AutoBuildState.WAITING_FOR_RESPONSE
- 182                    }
+ 121        override fun onDestroy() {
+ 122            lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+ 123            removeOverlay()
+ 124            vmStore.clear()
+ 125            super.onDestroy()
+ 126        }
+ 127    
+ 128        override fun onBind(intent: Intent?): IBinder? = null
+ 129    
+ 130        // ── Overlay ─────────────────────────────────────────────────────────
+ 131        private fun showOverlay(taskId: String, taskName: String, totalSeconds: Long) {
+ 132            removeOverlay()
+ 133    
+ 134            val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+ 135                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+ 136            else
+ 137                @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+ 138    
+ 139            val params = WindowManager.LayoutParams(
+ 140                WindowManager.LayoutParams.WRAP_CONTENT,
+ 141                WindowManager.LayoutParams.WRAP_CONTENT,
+ 142                overlayType,
+ 143                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+ 144                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+ 145                PixelFormat.TRANSLUCENT
+ 146            ).apply {
+ 147                gravity = Gravity.TOP or Gravity.START
+ 148                x = 24
+ 149                y = 200
+ 150            }
+ 151    
+ 152 ❌         val composeView = ComposeView(this).apply {
+ 153 ❌             setViewTreeLifecycleOwner(this@FloatingTimerService)
+ 154 ❌             setViewTreeViewModelStoreOwner(this@FloatingTimerService)
+ 155 ❌             setViewTreeSavedStateRegistryOwner(this@FloatingTimerService)
+ 156 ❌             setContent {
+ 157                    FloatingTimerOverlay(
+ 158                        taskId       = taskId,
+ 159                        taskName     = taskName,
+ 160                        totalSeconds = totalSeconds,
+ 161                        onClose      = { stopSelf() }
+ 162                    )
+ 163                }
+ 164            }
+ 165    
+ 166            // Drag via raw touch on the View (avoids competing with Compose pointer input)
+ 167            var initX = 0; var initY = 0
+ 168            var rawX  = 0f; var rawY = 0f
+ 169 ❌         composeView.setOnTouchListener { _, event ->
+ 170                when (event.action) {
+ 171                    MotionEvent.ACTION_DOWN -> {
+ 172                        initX = params.x; initY = params.y
+ 173                        rawX  = event.rawX; rawY = event.rawY
+ 174                        true
+ 175                    }
+ 176                    MotionEvent.ACTION_MOVE -> {
+ 177                        params.x = initX + (event.rawX - rawX).toInt()
+ 178                        params.y = initY + (event.rawY - rawY).toInt()
+ 179                        runCatching { windowManager.updateViewLayout(composeView, params) }
+ 180                        true
+ 181                    }
+ 182                    else -> false
  183                }
- 184    
- 185                // Update static snapshot BEFORE invoking the UI callback so that
- 186                // if MainActivity resumes during this exact window it sees the new state.
- 187                AutoBuildService.currentState     = state
- 188                AutoBuildService.currentIteration = iteration
+ 184            }
+ 185    
+ 186            overlayView = composeView
+ 187            runCatching { windowManager.addView(composeView, params) }
+ 188        }
  189    
- 190                notifier.update(iteration, state)
- 191                AutoBuildService.onStatusUpdate?.invoke(iteration, state)
- 192                delay(BETWEEN_ITER_DELAY_MS)
- 193            }
+ 190        private fun removeOverlay() {
+ 191 ❌         overlayView?.let { runCatching { windowManager.removeView(it) } }
+ 192            overlayView = null
+ 193        }
  194    
- 195            if (stopRequested) log("Loop stopped by user request")
- 196            else log("Max iterations ($LOOP_MAX_ITERATIONS) reached — stopping", isError = true)
- 197            notifier.error(if (stopRequested) "Stopped by user" else "Max iterations reached")
- 198        }
- 199    
- 200        // ── File attachment ───────────────────────────────────────────────────────
- 201    
- 202        private suspend fun attachErrorFiles(): Boolean {
- 203            // Attach error_files.txt
- 204            if (!uiWatcher.tapAddFilesButton()) { log("tapAddFilesButton failed (1)", isError = true); return false }
- 205            if (!uiWatcher.selectFileInPicker(FileManagerModule.ERROR_FILES_FILE.name)) {
- 206                log("selectFileInPicker(error_files.txt) failed", isError = true); return false
- 207            }
- 208 ❌         delay(UIWatcherModule.POST_TAP_DELAY_MS)
- 209    
- 210            // Attach error_summary.txt
- 211            if (!uiWatcher.tapAddFilesButton()) { log("tapAddFilesButton failed (2)", isError = true); return false }
- 212            if (!uiWatcher.selectFileInPicker(FileManagerModule.ERROR_SUMMARY_FILE.name)) {
- 213                log("selectFileInPicker(error_summary.txt) failed", isError = true); return false
- 214            }
- 215 ❌         delay(UIWatcherModule.POST_TAP_DELAY_MS)
- 216    
- 217            // Fill the prompt text
- 218            uiWatcher.fillPromptField(FRESH_ERROR_PROMPT)
- 219            log("Both error files attached, prompt filled")
- 220            return true
- 221        }
+ 195        // ── Foreground notification (keeps service alive in background) ─────
+ 196        private fun buildForegroundNotif(taskName: String): Notification =
+ 197            NotificationCompat.Builder(this, CHANNEL_ID)
+ 198                .setContentTitle("⏱ $taskName — floating timer active")
+ 199                .setContentText("Tap timer to dismiss")
+ 200                .setSmallIcon(android.R.drawable.ic_menu_recent_history)
+ 201                .setPriority(NotificationCompat.PRIORITY_MIN)
+ 202                .setSilent(true)
+ 203                .build()
+ 204    
+ 205        private fun createNotificationChannel() {
+ 206            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+ 207                val channel = NotificationChannel(
+ 208                    CHANNEL_ID,
+ 209                    "Floating Timer",
+ 210                    NotificationManager.IMPORTANCE_MIN
+ 211                ).apply {
+ 212                    description = "Keeps the floating timer overlay alive"
+ 213                    setShowBadge(false)
+ 214                    enableLights(false)
+ 215                    enableVibration(false)
+ 216                }
+ 217                (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+ 218                    .createNotificationChannel(channel)
+ 219            }
+ 220        }
+ 221    }
  222    
- 223        // ── Helpers ───────────────────────────────────────────────────────────────
+ 223    // ── Floating overlay Composable ──────────────────────────────────────────────
  224    
- 225 ❌     private fun timeout(state: AutoBuildState): AutoBuildState {
- 226            log("Timeout in $state", isError = true)
- 227 ❌         return AutoBuildState.TIMEOUT_ERROR
- 228        }
+ 225 ❌ private val FBlue  = Color(0xFF00E0FF)
+ 226 ❌ private val FGreen = Color(0xFF00FF00)
+ 227 ❌ private val FRed   = Color(0xFFFF4444)
+ 228 ❌ private val FBg    = Color(0xE6001520) // ~90 % opaque dark
  229    
- 230 ❌     private fun retry(state: AutoBuildState): AutoBuildState {
- 231            return if (++retryCount <= MAX_RETRIES_PER_STATE) {
- 232                log("Retrying $state (attempt $retryCount)")
- 233                state
- 234            } else {
- 235                log("Max retries exceeded for $state", isError = true)
- 236 ❌             AutoBuildState.TIMEOUT_ERROR
- 237            }
- 238        }
- 239    
- 240        private fun log(msg: String, isError: Boolean = false) {
- 241            if (isError) Log.e(TAG, msg) else Log.d(TAG, msg)
- 242            AutoBuildService.onLogLine?.invoke(msg, isError)
- 243        }
- 244    }
+ 230 ❌ @Composable
+ 231    private fun FloatingTimerOverlay(
+ 232        taskId: String,
+ 233        taskName: String,
+ 234        totalSeconds: Long,
+ 235        onClose: () -> Unit
+ 236    ) {
+ 237 ❌     val activeTimers by TaskTimerManager.activeTimers.collectAsState()
+ 238        val remaining    = activeTimers[taskId]?.remainingSeconds ?: totalSeconds
+ 239        val progress     = 1f - (remaining.toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
+ 240        val isLowTime    = remaining < 120
+ 241    
+ 242 ❌     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+ 243        val pulseAlpha by infiniteTransition.animateFloat(
+ 244            initialValue  = 0.4f,
+ 245            targetValue   = 1f,
+ 246 ❌         animationSpec = infiniteRepeatable(
+ 247 ❌             animation  = tween(800, easing = LinearEasing),
+ 248 ❌             repeatMode = RepeatMode.Reverse
+ 249            ),
+ 250            label = "pulse"
+ 251        )
+ 252    
+ 253 ❌     Column(
+ 254 ❌         modifier = Modifier
+ 255 ❌             .width(200.dp)
+ 256 ❌             .clip(RoundedCornerShape(12.dp))
+ 257                .background(FBg)
+ 258                .border(
+ 259 ❌                 width = 1.dp,
+ 260                    color = if (isLowTime) FRed.copy(alpha = pulseAlpha) else FBlue.copy(alpha = 0.8f),
+ 261 ❌                 shape = RoundedCornerShape(12.dp)
+ 262                )
+ 263 ❌             .padding(horizontal = 12.dp, vertical = 8.dp)
+ 264        ) {
+ 265            // ── Header: name + close ──────────────────────────────────────
+ 266 ❌         Row(
+ 267 ❌             modifier = Modifier.fillMaxWidth(),
+ 268 ❌             horizontalArrangement = Arrangement.SpaceBetween,
+ 269 ❌             verticalAlignment = Alignment.CenterVertically
+ 270            ) {
+ 271 ❌             Text(
+ 272                    text       = taskName.uppercase().take(16),
+ 273 ❌                 fontSize   = 9.sp,
+ 274                    color      = FBlue,
+ 275 ❌                 fontFamily = FontFamily.Monospace,
+ 276 ❌                 fontWeight = FontWeight.Bold,
+ 277                    maxLines   = 1
+ 278                )
+ 279                // Close button — uses clickable modifier so it works alongside drag on parent View
+ 280 ❌             androidx.compose.foundation.clickable(
+ 281                    indication             = null,
+ 282 ❌                 interactionSource      = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+ 283                    onClick                = onClose
+ 284                ) {
+ 285 ❌                 Text(
+ 286                        text       = "✕",
+ 287 ❌                     fontSize   = 12.sp,
+ 288                        color      = FRed,
+ 289 ❌                     fontFamily = FontFamily.Monospace,
+ 290 ❌                     modifier   = Modifier.padding(start = 8.dp)
+ 291                    )
+ 292                }
+ 293            }
+ 294    
+ 295 ❌         Spacer(modifier = Modifier.height(4.dp))
+ 296    
+ 297            // ── Countdown digits ─────────────────────────────────────────
+ 298 ❌         Text(
+ 299                text       = formatFTime(remaining),
+ 300 ❌             fontSize   = 28.sp,
+ 301                color      = if (isLowTime) FRed else FGreen,
+ 302 ❌             fontFamily = FontFamily.Monospace,
+ 303 ❌             fontWeight = FontWeight.Bold,
+ 304 ❌             modifier   = Modifier.align(Alignment.CenterHorizontally)
+ 305            )
+ 306    
+ 307 ❌         Spacer(modifier = Modifier.height(6.dp))
+ 308    
+ 309            // ── Progress bar ─────────────────────────────────────────────
+ 310 ❌         LinearProgressIndicator(
+ 311                progress   = { progress },
+ 312 ❌             modifier   = Modifier
+ 313                    .fillMaxWidth()
+ 314 ❌                 .height(4.dp)
+ 315 ❌                 .clip(RoundedCornerShape(2.dp)),
+ 316                color      = if (isLowTime) FRed else FGreen,
+ 317                trackColor = FBlue.copy(alpha = 0.15f)
+ 318            )
+ 319    
+ 320 ❌         Spacer(modifier = Modifier.height(3.dp))
+ 321    
+ 322 ❌         Text(
+ 323                text     = "⏱ JARVIS TIMER — DRAG TO MOVE",
+ 324 ❌             fontSize = 7.sp,
+ 325                color    = FBlue.copy(alpha = 0.45f),
+ 326 ❌             fontFamily = FontFamily.Monospace,
+ 327 ❌             modifier = Modifier.align(Alignment.CenterHorizontally)
+ 328            )
+ 329        }
+ 330    }
+ 331    
+ 332    private fun formatFTime(seconds: Long): String {
+ 333        val h = seconds / 3600
+ 334        val m = (seconds % 3600) / 60
+ 335        val s = seconds % 60
+ 336        return if (h > 0) "%d:%02d:%02d".format(h, m, s)
+ 337        else              "%02d:%02d".format(m, s)
+ 338    }
 
 
