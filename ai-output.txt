@@ -1,5 +1,96 @@
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/FloatingTimerService.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt =====
 package com.jarvismini.core.routine
+
+import android.content.Context
+import android.content.Intent
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Manages active task timers across the app.
+ *
+ * Uses a FloatingTimerDelegate interface so the :core module doesn't need
+ * Compose dependencies. The :app module registers the delegate at startup
+ * via CoreApp, and FloatingTimerService (in :app) is started/stopped through it.
+ *
+ * Result: same single TIMER button starts both the notification timer
+ * (TaskTimerService) AND the floating overlay (FloatingTimerService).
+ */
+object TaskTimerManager {
+
+    data class TimerState(
+        val taskId: String,
+        val taskName: String,
+        val totalSeconds: Long,
+        val remainingSeconds: Long,
+        val isActive: Boolean = true
+    )
+
+    /** Implemented in :app by FloatingTimerService companion / CoreApp */
+    interface FloatingTimerDelegate {
+        fun startFloating(context: Context, taskId: String, taskName: String, totalSeconds: Long)
+        fun stopFloating(context: Context)
+    }
+
+    /** Set once from CoreApp.onCreate() */
+    var floatingTimerDelegate: FloatingTimerDelegate? = null
+
+    private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
+    val activeTimers: StateFlow<Map<String, TimerState>> = _activeTimers.asStateFlow()
+
+    /**
+     * Start a new timer for a task.
+     * Launches TaskTimerService (notification) AND FloatingTimerService (overlay)
+     * via delegate — same single TIMER button, no extra UI needed.
+     */
+    fun startTimer(context: Context, taskId: String, taskName: String, durationMinutes: Long) {
+        val totalSeconds = durationMinutes * 60
+
+        _activeTimers.value = _activeTimers.value + (taskId to TimerState(
+            taskId           = taskId,
+            taskName         = taskName,
+            totalSeconds     = totalSeconds,
+            remainingSeconds = totalSeconds,
+            isActive         = true
+        ))
+
+        // Notification-based countdown (existing)
+        TaskTimerService.start(context, taskName, durationMinutes)
+
+        // Floating overlay via delegate (new) — no-op if delegate not set or permission missing
+        floatingTimerDelegate?.startFloating(context, taskId, taskName, totalSeconds)
+    }
+
+    /**
+     * Update timer remaining time (called by TaskTimerService every second).
+     */
+    fun updateTimer(taskId: String, remainingSeconds: Long) {
+        val current = _activeTimers.value[taskId] ?: return
+        _activeTimers.value = _activeTimers.value + (taskId to current.copy(
+            remainingSeconds = remainingSeconds
+        ))
+    }
+
+    /**
+     * Stop and remove a timer. Also stops the floating overlay.
+     */
+    fun stopTimer(context: Context, taskId: String) {
+        _activeTimers.value = _activeTimers.value - taskId
+        context.stopService(Intent(context, TaskTimerService::class.java))
+        floatingTimerDelegate?.stopFloating(context)
+    }
+
+    fun getTimerState(taskId: String): TimerState? = _activeTimers.value[taskId]
+
+    fun hasActiveTimer(taskId: String): Boolean = _activeTimers.value.containsKey(taskId)
+
+    fun clearAll() { _activeTimers.value = emptyMap() }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/timer/FloatingTimerService.kt =====
+package com.jarvismini.ui.timer
 
 import android.app.*
 import android.content.Context
@@ -14,6 +105,8 @@ import android.view.WindowManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,24 +126,25 @@ import androidx.lifecycle.*
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
+import com.jarvismini.core.routine.TaskTimerManager
 
 /**
- * FloatingTimerService
+ * FloatingTimerService (lives in :app — has Compose dependencies)
  *
  * Draws a compact draggable JARVIS countdown overlay via WindowManager + ComposeView.
- * Launched automatically alongside TaskTimerService from TaskTimerManager.startTimer()
- * — same single TIMER button, no separate toggle needed.
+ * Started automatically alongside TaskTimerService when the TIMER button is pressed,
+ * via TaskTimerManager.FloatingTimerDelegate registered in CoreApp.
  *
  * Requires: android.permission.SYSTEM_ALERT_WINDOW
- * Permission is requested at startup in MainActivity via Settings.canDrawOverlays().
- * If permission is not granted, start() silently skips — notification timer still works.
+ * Permission is requested at startup in MainActivity.
+ * If not granted, start() silently skips — notification timer still works.
  */
 class FloatingTimerService : Service(),
     LifecycleOwner,
     ViewModelStoreOwner,
     SavedStateRegistryOwner {
 
-    // ── Lifecycle plumbing needed by ComposeView ────────────────────────
+    // ── Lifecycle plumbing required by ComposeView inside a Service ─────
     private val lifecycleRegistry = LifecycleRegistry(this)
     override val lifecycle: Lifecycle get() = lifecycleRegistry
 
@@ -61,24 +155,22 @@ class FloatingTimerService : Service(),
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateController.savedStateRegistry
 
-    // ── Window ──────────────────────────────────────────────────────────
     private lateinit var windowManager: WindowManager
     private var overlayView: ComposeView? = null
 
     companion object {
-        private const val CHANNEL_ID      = "floating_timer_channel"
-        private const val NOTIF_ID        = 8877
-        const val EXTRA_TASK_ID           = "ft_task_id"
-        const val EXTRA_TASK_NAME         = "ft_task_name"
-        const val EXTRA_TOTAL_SECONDS     = "ft_total_seconds"
+        private const val CHANNEL_ID  = "floating_timer_channel"
+        private const val NOTIF_ID    = 8877
+        const val EXTRA_TASK_ID       = "ft_task_id"
+        const val EXTRA_TASK_NAME     = "ft_task_name"
+        const val EXTRA_TOTAL_SECONDS = "ft_total_seconds"
 
         fun canDrawOverlays(context: Context): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
                     Settings.canDrawOverlays(context)
 
-        /** Called from TaskTimerManager.startTimer() — no extra UI needed. */
         fun start(context: Context, taskId: String, taskName: String, totalSeconds: Long) {
-            if (!canDrawOverlays(context)) return   // graceful: notification timer still runs
+            if (!canDrawOverlays(context)) return
             val intent = Intent(context, FloatingTimerService::class.java).apply {
                 putExtra(EXTRA_TASK_ID,       taskId)
                 putExtra(EXTRA_TASK_NAME,     taskName)
@@ -90,13 +182,11 @@ class FloatingTimerService : Service(),
                 context.startService(intent)
         }
 
-        /** Called from TaskTimerManager.stopTimer() */
         fun stop(context: Context) {
             context.stopService(Intent(context, FloatingTimerService::class.java))
         }
     }
 
-    // ── Service lifecycle ───────────────────────────────────────────────
     override fun onCreate() {
         savedStateController.performAttach()
         savedStateController.performRestore(null)
@@ -128,7 +218,6 @@ class FloatingTimerService : Service(),
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ── Overlay ─────────────────────────────────────────────────────────
     private fun showOverlay(taskId: String, taskName: String, totalSeconds: Long) {
         removeOverlay()
 
@@ -164,14 +253,14 @@ class FloatingTimerService : Service(),
             }
         }
 
-        // Drag via raw touch on the View (avoids competing with Compose pointer input)
+        // Drag via raw touch — avoids competing with Compose pointer input
         var initX = 0; var initY = 0
-        var rawX  = 0f; var rawY = 0f
+        var rawX = 0f; var rawY = 0f
         composeView.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initX = params.x; initY = params.y
-                    rawX  = event.rawX; rawY = event.rawY
+                    rawX = event.rawX; rawY = event.rawY
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -189,15 +278,14 @@ class FloatingTimerService : Service(),
     }
 
     private fun removeOverlay() {
-        overlayView?.let { runCatching { windowManager.removeView(it) } }
+        overlayView?.let { v -> runCatching { windowManager.removeView(v) } }
         overlayView = null
     }
 
-    // ── Foreground notification (keeps service alive in background) ─────
     private fun buildForegroundNotif(taskName: String): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("⏱ $taskName — floating timer active")
-            .setContentText("Tap timer to dismiss")
+            .setContentText("Tap ✕ on the overlay to dismiss")
             .setSmallIcon(android.R.drawable.ic_menu_recent_history)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setSilent(true)
@@ -206,9 +294,7 @@ class FloatingTimerService : Service(),
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Floating Timer",
-                NotificationManager.IMPORTANCE_MIN
+                CHANNEL_ID, "Floating Timer", NotificationManager.IMPORTANCE_MIN
             ).apply {
                 description = "Keeps the floating timer overlay alive"
                 setShowBadge(false)
@@ -226,7 +312,7 @@ class FloatingTimerService : Service(),
 private val FBlue  = Color(0xFF00E0FF)
 private val FGreen = Color(0xFF00FF00)
 private val FRed   = Color(0xFFFF4444)
-private val FBg    = Color(0xE6001520) // ~90 % opaque dark
+private val FBg    = Color(0xE6001520)
 
 @Composable
 private fun FloatingTimerOverlay(
@@ -263,7 +349,6 @@ private fun FloatingTimerOverlay(
             )
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        // ── Header: name + close ──────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -277,25 +362,23 @@ private fun FloatingTimerOverlay(
                 fontWeight = FontWeight.Bold,
                 maxLines   = 1
             )
-            // Close button — uses clickable modifier so it works alongside drag on parent View
-            androidx.compose.foundation.clickable(
-                indication             = null,
-                interactionSource      = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                onClick                = onClose
-            ) {
-                Text(
-                    text       = "✕",
-                    fontSize   = 12.sp,
-                    color      = FRed,
-                    fontFamily = FontFamily.Monospace,
-                    modifier   = Modifier.padding(start = 8.dp)
-                )
-            }
+            Text(
+                text      = "✕",
+                fontSize  = 12.sp,
+                color     = FRed,
+                fontFamily = FontFamily.Monospace,
+                modifier  = Modifier
+                    .padding(start = 8.dp)
+                    .clickable(
+                        indication        = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick           = onClose
+                    )
+            )
         }
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // ── Countdown digits ─────────────────────────────────────────
         Text(
             text       = formatFTime(remaining),
             fontSize   = 28.sp,
@@ -307,7 +390,6 @@ private fun FloatingTimerOverlay(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // ── Progress bar ─────────────────────────────────────────────
         LinearProgressIndicator(
             progress   = { progress },
             modifier   = Modifier
@@ -321,11 +403,11 @@ private fun FloatingTimerOverlay(
         Spacer(modifier = Modifier.height(3.dp))
 
         Text(
-            text     = "⏱ JARVIS TIMER — DRAG TO MOVE",
-            fontSize = 7.sp,
-            color    = FBlue.copy(alpha = 0.45f),
+            text       = "⏱ JARVIS TIMER — DRAG TO MOVE",
+            fontSize   = 7.sp,
+            color      = FBlue.copy(alpha = 0.45f),
             fontFamily = FontFamily.Monospace,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            modifier   = Modifier.align(Alignment.CenterHorizontally)
         )
     }
 }
@@ -335,128 +417,228 @@ private fun formatFTime(seconds: Long): String {
     val m = (seconds % 3600) / 60
     val s = seconds % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, s)
-    else              "%02d:%02d".format(m, s)
+    else "%02d:%02d".format(m, s)
 }
 
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/TaskTimerManager.kt =====
-package com.jarvismini.core.routine
+//===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
+package com.jarvismini
 
+import android.app.Application
 import android.content.Context
-import android.content.Intent
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.routine.TaskTimerManager
+import com.jarvismini.ui.timer.FloatingTimerService
 
-/**
- * Manages active task timers across the app.
- * Tracks which tasks have active timers and their remaining time.
- *
- * CHANGED: startTimer() now also launches FloatingTimerService so the
- * floating overlay starts automatically from the same TIMER button.
- * stopTimer() stops the floating overlay as well.
- */
-object TaskTimerManager {
+class CoreApp : Application() {
 
-    data class TimerState(
-        val taskId: String,
-        val taskName: String,
-        val totalSeconds: Long,
-        val remainingSeconds: Long,
-        val isActive: Boolean = true
-    )
+    override fun onCreate() {
+        super.onCreate()
+        JarvisState.init(this)
 
-    private val _activeTimers = MutableStateFlow<Map<String, TimerState>>(emptyMap())
-    val activeTimers: StateFlow<Map<String, TimerState>> = _activeTimers.asStateFlow()
+        // Register the floating timer delegate so TaskTimerManager (in :core)
+        // can launch FloatingTimerService (in :app) without a Compose dependency.
+        TaskTimerManager.floatingTimerDelegate = object : TaskTimerManager.FloatingTimerDelegate {
+            override fun startFloating(
+                context: Context,
+                taskId: String,
+                taskName: String,
+                totalSeconds: Long
+            ) {
+                FloatingTimerService.start(context, taskId, taskName, totalSeconds)
+            }
 
-    /**
-     * Start a new timer for a task.
-     * Launches TaskTimerService (notification) AND FloatingTimerService (overlay)
-     * from the same call — no extra button required.
-     */
-    fun startTimer(context: Context, taskId: String, taskName: String, durationMinutes: Long) {
-        val totalSeconds = durationMinutes * 60
-
-        _activeTimers.value = _activeTimers.value + (taskId to TimerState(
-            taskId           = taskId,
-            taskName         = taskName,
-            totalSeconds     = totalSeconds,
-            remainingSeconds = totalSeconds,
-            isActive         = true
-        ))
-
-        // Notification-based countdown (existing)
-        TaskTimerService.start(context, taskName, durationMinutes)
-
-        // Floating overlay (new) — silently skipped if SYSTEM_ALERT_WINDOW not granted
-        FloatingTimerService.start(context, taskId, taskName, totalSeconds)
-    }
-
-    /**
-     * Update timer remaining time (called by TaskTimerService every second).
-     */
-    fun updateTimer(taskId: String, remainingSeconds: Long) {
-        val current = _activeTimers.value[taskId] ?: return
-        _activeTimers.value = _activeTimers.value + (taskId to current.copy(
-            remainingSeconds = remainingSeconds
-        ))
-    }
-
-    /**
-     * Stop and remove a timer.
-     * Also stops the floating overlay.
-     */
-    fun stopTimer(context: Context, taskId: String) {
-        _activeTimers.value = _activeTimers.value - taskId
-
-        val intent = Intent(context, TaskTimerService::class.java)
-        context.stopService(intent)
-
-        // Stop floating overlay
-        FloatingTimerService.stop(context)
-    }
-
-    fun getTimerState(taskId: String): TimerState? = _activeTimers.value[taskId]
-
-    fun hasActiveTimer(taskId: String): Boolean = _activeTimers.value.containsKey(taskId)
-
-    fun clearAll() {
-        _activeTimers.value = emptyMap()
+            override fun stopFloating(context: Context) {
+                FloatingTimerService.stop(context)
+            }
+        }
     }
 }
 
 
-//===== FILE: modules/core/src/main/AndroidManifest.xml =====
+//===== FILE: app/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.jarvismini">
 
-    <!-- Existing permissions -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- ================= PERMISSIONS ================= -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
     <!-- NEW: Required for floating overlay window -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <application>
+    <!-- Storage Permissions -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
-        <!-- Existing StopwatchService -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
+    <!-- ================= PACKAGE VISIBILITY ================= -->
+
+    <queries>
+        <package android:name="xyz.penpencil.physicswala" />
+        <package android:name="com.pittvandewitt.wavelet" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.apple.android.music" />
+        <package android:name="com.termux" />
+        <package android:name="com.termux.api" />
+        <package android:name="com.termux.tasker" />
+    </queries>
+
+    <!-- ================= APPLICATION ================= -->
+
+    <application
+        android:name="com.jarvismini.CoreApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JarvisMerged"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
+        android:preserveLegacyExternalStorage="true">
+
+        <!-- Main Activity -->
+        <activity
+            android:name="com.jarvismini.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ================= LAN SERVER SERVICE ================= -->
+
         <service
-            android:name="com.jarvismini.core.stopwatch.StopwatchService"
+            android:name="com.jarvismini.server.LanServerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Existing TaskTimerService for per-task notification timers -->
+        <!-- ================= EXISTING SERVICES ================= -->
+
         <service
-            android:name="com.jarvismini.core.routine.TaskTimerService"
-            android:enabled="true"
+            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="com.jarvismini.callhandler.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/call_accessibility_config" />
+        </service>
+
+        <service
+            android:name="com.jarvismini.automation.AppAutomationService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service" />
+        </service>
+
+        <service
+            android:name="com.jarvismini.core.workmode.WorkModeService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- NEW: FloatingTimerService for draggable overlay timer -->
         <service
-            android:name="com.jarvismini.core.routine.FloatingTimerService"
+            android:name="com.jarvismini.service.WorkModeTileService"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Work Mode"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.jarvismini.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <service
+            android:name="com.jarvismini.ProgressReminderService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- NEW: Floating overlay timer service -->
+        <service
+            android:name="com.jarvismini.ui.timer.FloatingTimerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
@@ -481,10 +663,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.StoragePermissionHelper
-import com.jarvismini.core.routine.FloatingTimerService
 import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.ui.main.MainScreen
+import com.jarvismini.ui.timer.FloatingTimerService
 
 class MainActivity : ComponentActivity() {
 
@@ -495,22 +677,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize Jarvis state
         JarvisState.init(applicationContext)
-
-        // Initialize progress system
         ProgressInitializer.registerAllBlocks(this)
 
-        // Request notification permission on startup if needed (Android 13+)
         if (NotificationPermissionHelper.shouldRequestPermission(this)) {
             NotificationPermissionHelper.requestPermission(this)
         }
 
-        // NEW: Request "Display over other apps" permission for floating timer overlay
-        // If denied, the notification timer still works — overlay is simply skipped.
+        // Request "Display over other apps" permission for floating timer overlay.
+        // If denied the overlay is silently skipped; notification timer still works.
         requestOverlayPermissionIfNeeded()
 
-        // CRITICAL FIX: Request storage permissions if not granted
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
         } else {
@@ -526,10 +703,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Sends the user to the system "Display over other apps" settings screen
-     * if the permission has not been granted yet. Only needs to be done once.
-     */
     private fun requestOverlayPermissionIfNeeded() {
         if (!FloatingTimerService.canDrawOverlays(this)) {
             Toast.makeText(
@@ -538,11 +711,13 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_LONG
             ).show()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
+                startActivityForResult(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    ),
+                    REQUEST_CODE_OVERLAY
                 )
-                startActivityForResult(intent, REQUEST_CODE_OVERLAY)
             }
         }
     }
@@ -588,7 +763,6 @@ class MainActivity : ComponentActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
-        // Overlay permission result
         if (requestCode == REQUEST_CODE_OVERLAY) {
             if (FloatingTimerService.canDrawOverlays(this)) {
                 Toast.makeText(this, "Overlay permission granted. Floating timer enabled!", Toast.LENGTH_SHORT).show()
@@ -607,3 +781,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+
+//===== FILE: modules/core/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+
+        <service
+            android:name="com.jarvismini.core.stopwatch.StopwatchService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name="com.jarvismini.core.routine.TaskTimerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- FloatingTimerService is declared in app/AndroidManifest.xml
+             because it lives in :app (needs Compose deps) -->
+
+    </application>
+
+</manifest>
