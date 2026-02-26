@@ -1489,58 +1489,28 @@ import java.util.Calendar
 
 object ProgressInitializer {
 
-    /**
-     * Registers all today's routines as ProgressBlocks.
-     * Safe for daily use and after 3 AM reset.
-     */
     fun registerAllBlocks(context: Context) = runBlocking {
-        // Ensure the store is initialized and old entries cleaned
         ProgressRepository.hydrate(context)
 
-        // Reset today's blocks if current time is after 3 AM but before next reset
-        val now = System.currentTimeMillis()
-        val todayReset = getTodayStartMs()
-        if (now >= todayReset) {
-            ProgressRepository.resetTodayBlocks(context)
-        }
-
-        // Load today's routines and register them
+        // The "day" resets at 3 AM. If now >= sessionStart, we're in a fresh session.
+        // cleanupOldEntries inside hydrate() already removed stale entries, so we
+        // just need to register today's routines (register() is idempotent — it skips
+        // blockIds that already exist in the current session).
         val todayRoutines = ProgressRepository.getTodayRoutines(context)
         todayRoutines.forEach { routine ->
-            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
+            val scheduledTime = routine.trigger?.time
+                ?.let { ProgressRepository.parseTimeToMs(it) }
+                ?: System.currentTimeMillis()
             ProgressRepository.register(
                 context,
                 ProgressEntry(
-                    routineId = routine.id,
-                    blockId = routine.id,
+                    routineId   = routine.id,
+                    blockId     = routine.id,
                     scheduledAt = scheduledTime,
-                    state = ProgressState.PENDING
+                    state       = ProgressState.PENDING
                 )
             )
         }
-    }
-
-    private fun parseTimeToMs(timeStr: String): Long {
-        return try {
-            val cal = Calendar.getInstance()
-            val parts = timeStr.split(":")
-            cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-            cal.set(Calendar.MINUTE, parts[1].toInt())
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        } catch (_: Exception) {
-            System.currentTimeMillis()
-        }
-    }
-
-    private fun getTodayStartMs(): Long {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 3) // 3 AM reset
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
     }
 }
 
@@ -5343,40 +5313,36 @@ import com.jarvismini.ui.timer.TaskTimerDialog
 import com.jarvismini.ui.timer.TaskTimerDisplay
 import java.util.*
 
-private val JarvisBlue = Color(0xFF00E0FF)
+private val JarvisBlue  = Color(0xFF00E0FF)
 private val JarvisGreen = Color(0xFF00FF00)
-private val JarvisRed = Color(0xFFFF4444)
+private val JarvisRed   = Color(0xFFFF4444)
 
-/**
- * FULLY WORKING JarvisChecklistScreen
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JarvisChecklistScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    
-    // State with refresh trigger
+
     var refreshTrigger by remember { mutableStateOf(0) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+
+    // FIX: day-of-week must also respect the 3 AM boundary
     val today = remember { getCurrentDayOfWeek() }
 
-    // Load data whenever refreshTrigger changes
     LaunchedEffect(refreshTrigger) {
         routines = RoutineProvider.getAllRoutines(context).filter { routine ->
             routine.enabled && routine.trigger?.days?.contains(today) == true
         }.sortedBy { routine ->
-            parseTimeToMinutes(routine.trigger?.time ?: "00:00")
+            // FIX: times 00:00–02:59 sort AFTER 23:59 by adding 24*60 minutes
+            parseTimeToMinutesOrdered(routine.trigger?.time ?: "00:00")
         }
         blocks = ProgressRepository.getTodayBlocks()
     }
 
-    // Track active timers
     val activeTimers by TaskTimerManager.activeTimers.collectAsState()
 
-    // Dialog state
-    var showTimerDialog by remember { mutableStateOf(false) }
-    var selectedTaskId by remember { mutableStateOf("") }
+    var showTimerDialog  by remember { mutableStateOf(false) }
+    var selectedTaskId   by remember { mutableStateOf("") }
     var selectedTaskName by remember { mutableStateOf("") }
 
     Box(
@@ -5388,17 +5354,14 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                 )
             )
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // ===== TOP APP BAR WITH BACK BUTTON =====
+        Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
                 title = {
                     Text(
                         "J.A.R.V.I.S TASK MATRIX",
-                        color = JarvisBlue,
+                        color      = JarvisBlue,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 20.sp,
+                        fontSize   = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -5417,34 +5380,30 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                // Completion percentage
-                val completedCount = blocks.count { it.completed }
-                val totalCount = routines.size
+                val completedCount    = blocks.count { it.completed }
+                val totalCount        = routines.size
                 val completionPercent = if (totalCount > 0) (completedCount * 100) / totalCount else 0
 
                 Text(
-                    text = "SYSTEM COMPLETION: $completionPercent% ($completedCount/$totalCount)",
-                    fontSize = 14.sp,
-                    color = JarvisBlue.copy(alpha = 0.7f),
+                    text       = "SYSTEM COMPLETION: $completionPercent% ($completedCount/$totalCount)",
+                    fontSize   = 14.sp,
+                    color      = JarvisBlue.copy(alpha = 0.7f),
                     fontFamily = FontFamily.Monospace
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Task list
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(routines) { routine ->
                         val block = blocks.find { it.id == routine.id }
                         TaskCard(
-                            routine = routine,
-                            block = block,
-                            timerState = activeTimers[routine.id],
+                            routine      = routine,
+                            block        = block,
+                            timerState   = activeTimers[routine.id],
                             onTimerClick = {
-                                selectedTaskId = routine.id
+                                selectedTaskId   = routine.id
                                 selectedTaskName = routine.name
-                                showTimerDialog = true
+                                showTimerDialog  = true
                             },
                             onStopTimer = {
                                 TaskTimerManager.stopTimer(context, routine.id)
@@ -5453,12 +5412,12 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                             onMarkComplete = {
                                 ProgressRepository.markComplete(context, routine.id)
                                 AssistantTTS.speak(context, "${routine.name} marked as complete")
-                                refreshTrigger++ // Force refresh
+                                refreshTrigger++
                             },
                             onMarkMissed = {
                                 ProgressRepository.markIncomplete(context, routine.id)
                                 AssistantTTS.speak(context, "${routine.name} marked as missed")
-                                refreshTrigger++ // Force refresh
+                                refreshTrigger++
                             }
                         )
                     }
@@ -5467,13 +5426,10 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
         }
     }
 
-    // Timer dialog
     if (showTimerDialog) {
         TaskTimerDialog(
-            taskName = selectedTaskName,
-            onDismiss = { 
-                showTimerDialog = false
-            },
+            taskName  = selectedTaskName,
+            onDismiss = { showTimerDialog = false },
             onStartTimer = { durationMinutes ->
                 TaskTimerManager.startTimer(
                     context,
@@ -5499,31 +5455,28 @@ fun TaskCard(
     onMarkMissed: () -> Unit
 ) {
     val isCompleted = block?.completed == true
-    val isMissed = block?.missedAt != null && !isCompleted
+    val isMissed    = block?.missedAt != null && !isCompleted
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
+        shape    = RoundedCornerShape(8.dp),
+        colors   = CardDefaults.cardColors(
             containerColor = when {
                 isCompleted -> Color(0xFF001520).copy(alpha = 0.5f)
-                isMissed -> Color(0xFF200505)
-                else -> Color(0xFF001520)
+                isMissed    -> Color(0xFF200505)
+                else        -> Color(0xFF001520)
             }
         ),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
             color = when {
                 isCompleted -> JarvisGreen.copy(alpha = 0.5f)
-                isMissed -> JarvisRed.copy(alpha = 0.5f)
-                else -> JarvisBlue.copy(alpha = 0.5f)
+                isMissed    -> JarvisRed.copy(alpha = 0.5f)
+                else        -> JarvisBlue.copy(alpha = 0.5f)
             }
         )
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // Status indicator + Title and timer button
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -5533,64 +5486,49 @@ fun TaskCard(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Status icon
                     Text(
                         text = when {
                             isCompleted -> "✓ "
-                            isMissed -> "✗ "
-                            else -> "○ "
+                            isMissed    -> "✗ "
+                            else        -> "○ "
                         },
                         color = when {
                             isCompleted -> JarvisGreen
-                            isMissed -> JarvisRed
-                            else -> JarvisBlue
+                            isMissed    -> JarvisRed
+                            else        -> JarvisBlue
                         },
-                        fontSize = 20.sp,
+                        fontSize   = 20.sp,
                         fontFamily = FontFamily.Monospace
                     )
-                    
                     Text(
-                        text = routine.name,
-                        fontSize = 18.sp,
+                        text       = routine.name,
+                        fontSize   = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = when {
+                        color      = when {
                             isCompleted -> JarvisGreen.copy(alpha = 0.7f)
-                            isMissed -> JarvisRed.copy(alpha = 0.7f)
-                            else -> JarvisBlue
+                            isMissed    -> JarvisRed.copy(alpha = 0.7f)
+                            else        -> JarvisBlue
                         },
                         fontFamily = FontFamily.Monospace
                     )
                 }
 
-                // Timer button (only show if not completed/missed)
                 if (!isCompleted && !isMissed) {
                     if (timerState == null) {
                         OutlinedButton(
                             onClick = onTimerClick,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = JarvisGreen
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                            colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
+                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
                         ) {
-                            Text(
-                                "⏱️ TIMER",
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
+                            Text("⏱️ TIMER", fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         }
                     } else {
                         OutlinedButton(
                             onClick = onStopTimer,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = JarvisRed
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                            colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
+                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
                         ) {
-                            Text(
-                                "■ STOP",
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
+                            Text("■ STOP", fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -5598,37 +5536,28 @@ fun TaskCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Timer display (if active)
             timerState?.let {
                 TaskTimerDisplay(
                     remainingSeconds = it.remainingSeconds,
-                    totalSeconds = it.totalSeconds
+                    totalSeconds     = it.totalSeconds
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Actions list
             routine.actions.forEach { action ->
-                Row(
-                    modifier = Modifier.padding(vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "• ",
-                        color = JarvisGreen,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
+                Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                    Text("• ", color = JarvisGreen, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     Text(
                         text = when (action.type) {
-                            "speak" -> "Speak: ${action.params["message"]}"
-                            "notify" -> "Notify: ${action.params["message"]}"
-                            "set_mode" -> "Set mode: ${action.params["mode"]}"
-                            "set_dnd" -> "Set dnd: ${action.params["dnd"]}"
+                            "speak"       -> "Speak: ${action.params["message"]}"
+                            "notify"      -> "Notify: ${action.params["message"]}"
+                            "set_mode"    -> "Set mode: ${action.params["mode"]}"
+                            "set_dnd"     -> "Set dnd: ${action.params["dnd"]}"
                             "start_timer" -> "Timer: ${action.params["task"]} (${action.params["duration"]} min)"
-                            else -> "${action.type}: ${action.params}"
+                            else          -> "${action.type}: ${action.params}"
                         },
-                        color = JarvisGreen.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
+                        color      = JarvisGreen.copy(alpha = 0.7f),
+                        fontSize   = 12.sp,
                         fontFamily = FontFamily.Monospace
                     )
                 }
@@ -5636,93 +5565,80 @@ fun TaskCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Scheduled time
             routine.trigger?.time?.let { time ->
                 Text(
-                    text = "Scheduled: $time",
-                    color = JarvisBlue.copy(alpha = 0.7f),
-                    fontSize = 11.sp,
+                    text       = "Scheduled: $time",
+                    color      = JarvisBlue.copy(alpha = 0.7f),
+                    fontSize   = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Action buttons (only show if not already marked)
-            if (!isCompleted && !isMissed) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onMarkComplete,
+                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
+                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen),
+                    modifier = Modifier.padding(end = 8.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = onMarkComplete,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = JarvisGreen
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
-                    ) {
-                        Text(
-                            "DONE",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = onMarkMissed,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = JarvisRed
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
-                    ) {
-                        Text(
-                            "MISSED",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp
-                        )
-                    }
+                    Text("DONE", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
-            } else if (isCompleted) {
-                Text(
-                    text = "✓ COMPLETED",
-                    color = JarvisGreen,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-            } else if (isMissed) {
-                Text(
-                    text = "✗ MISSED",
-                    color = JarvisRed,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
+                OutlinedButton(
+                    onClick = onMarkMissed,
+                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
+                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                ) {
+                    Text("MISSED", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                }
             }
         }
     }
 }
 
-private fun getCurrentDayOfWeek(): String {
-    val cal = Calendar.getInstance()
-    return when (cal.get(Calendar.DAY_OF_WEEK)) {
-        Calendar.SUNDAY -> "SUN"
-        Calendar.MONDAY -> "MON"
-        Calendar.TUESDAY -> "TUE"
-        Calendar.WEDNESDAY -> "WED"
-        Calendar.THURSDAY -> "THU"
-        Calendar.FRIDAY -> "FRI"
-        Calendar.SATURDAY -> "SAT"
-        else -> "SUN"
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * FIX: Sort key for display order respecting 3 AM boundary.
+ * Times 00:00–02:59 get +1440 so they appear AFTER 23:59.
+ * Result: 08:00(480) → 19:00(1140) → 23:30(1410) → 00:20(1460) → 00:50(1490) → 01:00(1500)
+ */
+private fun parseTimeToMinutesOrdered(time: String): Int {
+    return try {
+        val parts   = time.split(":")
+        val hours   = parts[0].toInt()
+        val minutes = parts[1].toInt()
+        val raw     = hours * 60 + minutes
+        // Anything before 03:00 belongs to the tail end of the previous evening
+        if (hours < 3) raw + 1440 else raw
+    } catch (_: Exception) {
+        0
     }
 }
 
-private fun parseTimeToMinutes(time: String): Int {
-    return try {
-        val parts = time.split(":")
-        parts[0].toInt() * 60 + parts[1].toInt()
-    } catch (e: Exception) {
-        0
+/**
+ * FIX: day-of-week respects 3 AM boundary.
+ * Before 03:00, we're still in "yesterday's" session.
+ */
+private fun getCurrentDayOfWeek(): String {
+    val cal = Calendar.getInstance()
+    if (cal.get(Calendar.HOUR_OF_DAY) < 3) {
+        cal.add(Calendar.DAY_OF_YEAR, -1)
+    }
+    return when (cal.get(Calendar.DAY_OF_WEEK)) {
+        Calendar.SUNDAY    -> "SUN"
+        Calendar.MONDAY    -> "MON"
+        Calendar.TUESDAY   -> "TUE"
+        Calendar.WEDNESDAY -> "WED"
+        Calendar.THURSDAY  -> "THU"
+        Calendar.FRIDAY    -> "FRI"
+        Calendar.SATURDAY  -> "SAT"
+        else               -> "SUN"
     }
 }
 
@@ -12561,48 +12477,57 @@ object ProgressRepository {
         return allRoutines.filter { it.trigger?.days?.contains(today) == true }
     }
 
-    /**
-     * Reset all blocks at 3 AM by setting state back to PENDING.
-     * Does not rely on any app module.
-     */
     fun resetTodayBlocks(context: Context) = runBlocking {
         val todayBlocks = getTodayBlocks()
-
         todayBlocks.forEach { block ->
-            // Re-register block with state PENDING
             register(
                 context,
                 ProgressEntry(
-                    routineId = block.id,
-                    blockId = block.id,
+                    routineId   = block.id,
+                    blockId     = block.id,
                     scheduledAt = block.scheduledAt,
-                    state = ProgressState.PENDING
+                    state       = ProgressState.PENDING
                 )
             )
         }
-
-        // Re-register today's routines in case any new routine is added
         getTodayRoutines(context).forEach { routine ->
-            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
+            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) }
+                ?: System.currentTimeMillis()
             register(
                 context,
                 ProgressEntry(
-                    routineId = routine.id,
-                    blockId = routine.id,
+                    routineId   = routine.id,
+                    blockId     = routine.id,
                     scheduledAt = scheduledTime,
-                    state = ProgressState.PENDING
+                    state       = ProgressState.PENDING
                 )
             )
         }
     }
 
-    private fun parseTimeToMs(timeStr: String): Long {
+    /**
+     * FIX: Times before 03:00 (00:xx, 01:xx, 02:xx) belong to the NEXT calendar
+     * day relative to the session start (i.e. the night side of the 3 AM window).
+     * We always compute the timestamp relative to sessionStart so it lands inside
+     * the correct [sessionStart, sessionStart+24h) window.
+     */
+    internal fun parseTimeToMs(timeStr: String): Long {
         return try {
-            val cal = Calendar.getInstance()
-            val parts = timeStr.split(":")
-            cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-            cal.set(Calendar.MINUTE, parts[1].toInt())
-            cal.set(Calendar.SECOND, 0)
+            val parts  = timeStr.split(":")
+            val hour   = parts[0].toInt()
+            val minute = parts[1].toInt()
+
+            val sessionStart = ProgressStore.getSessionStart()
+            val cal = Calendar.getInstance().apply { timeInMillis = sessionStart }
+
+            // Session starts at 03:00. Times from 03:00–23:59 are the same calendar
+            // day as sessionStart. Times from 00:00–02:59 are the NEXT calendar day.
+            if (hour < 3) {
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+            cal.set(Calendar.HOUR_OF_DAY, hour)
+            cal.set(Calendar.MINUTE,      minute)
+            cal.set(Calendar.SECOND,      0)
             cal.set(Calendar.MILLISECOND, 0)
             cal.timeInMillis
         } catch (_: Exception) {
@@ -12611,32 +12536,28 @@ object ProgressRepository {
     }
 
     private fun cleanupOldEntries(context: Context) {
-        val todayStart = getTodayStartMs()
-        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
+        val sessionStart = ProgressStore.getSessionStart()
+        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < sessionStart }
         old.forEach { ProgressStore.remove(context, it.blockId) }
     }
 
     private fun getCurrentDayOfWeek(): String {
+        // FIX: if it's currently before 03:00, "today's routines" are actually
+        // yesterday's day-of-week (we're still in the same 3 AM session).
         val cal = Calendar.getInstance()
-        return when (cal.get(Calendar.DAY_OF_WEEK)) {
-            Calendar.SUNDAY -> "SUN"
-            Calendar.MONDAY -> "MON"
-            Calendar.TUESDAY -> "TUE"
-            Calendar.WEDNESDAY -> "WED"
-            Calendar.THURSDAY -> "THU"
-            Calendar.FRIDAY -> "FRI"
-            Calendar.SATURDAY -> "SAT"
-            else -> "SUN"
+        if (cal.get(Calendar.HOUR_OF_DAY) < 3) {
+            cal.add(Calendar.DAY_OF_YEAR, -1)
         }
-    }
-
-    private fun getTodayStartMs(): Long {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 3) // Reset at 3 AM
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
+        return when (cal.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.SUNDAY    -> "SUN"
+            Calendar.MONDAY    -> "MON"
+            Calendar.TUESDAY   -> "TUE"
+            Calendar.WEDNESDAY -> "WED"
+            Calendar.THURSDAY  -> "THU"
+            Calendar.FRIDAY    -> "FRI"
+            Calendar.SATURDAY  -> "SAT"
+            else               -> "SUN"
+        }
     }
 }
 
@@ -12691,7 +12612,7 @@ import java.util.Calendar
 
 object ProgressStore {
 
-    private const val PREFS = "jarvis_progress"
+    private const val PREFS      = "jarvis_progress"
     private const val KEY_ENTRIES = "entries"
 
     private val entries = mutableListOf<ProgressEntry>()
@@ -12702,7 +12623,7 @@ object ProgressStore {
     }
 
     fun register(context: Context, entry: ProgressEntry) {
-        if (entries.none { it.blockId == entry.blockId && isToday(it.scheduledAt) }) {
+        if (entries.none { it.blockId == entry.blockId && isCurrentSession(it.scheduledAt) }) {
             entries.add(entry)
             save(context)
         }
@@ -12710,19 +12631,13 @@ object ProgressStore {
 
     fun markComplete(context: Context, blockId: String) {
         update(context, blockId) {
-            it.copy(
-                state = ProgressState.COMPLETED,
-                completedAt = System.currentTimeMillis()
-            )
+            it.copy(state = ProgressState.COMPLETED, completedAt = System.currentTimeMillis())
         }
     }
 
     fun markIncomplete(context: Context, blockId: String) {
         update(context, blockId) {
-            it.copy(
-                state = ProgressState.INCOMPLETE,
-                missedAt = System.currentTimeMillis()
-            )
+            it.copy(state = ProgressState.INCOMPLETE, missedAt = System.currentTimeMillis())
         }
     }
 
@@ -12731,32 +12646,32 @@ object ProgressStore {
         save(context)
     }
 
-    fun getAllEntries(): List<ProgressEntry> =
-        entries.toList()
+    fun getAllEntries(): List<ProgressEntry> = entries.toList()
 
     fun getTodayEntries(): List<ProgressEntry> =
-        entries.filter { isToday(it.scheduledAt) }
+        entries.filter { isCurrentSession(it.scheduledAt) }
 
     fun getTodayBlocks(): List<ProgressBlock> =
         getTodayEntries().map {
             ProgressBlock(
-                id = it.blockId,
-                completed = it.state == ProgressState.COMPLETED,
+                id          = it.blockId,
+                completed   = it.state == ProgressState.COMPLETED,
                 scheduledAt = it.scheduledAt,
                 completedAt = it.completedAt,
-                missedAt = it.missedAt
+                missedAt    = it.missedAt
             )
         }
 
-    // ---------------- INTERNAL ----------------
+    // ── Internal ────────────────────────────────────────────────────────
 
     private fun update(
         context: Context,
         blockId: String,
         transform: (ProgressEntry) -> ProgressEntry
     ) {
+        // FIX: use isCurrentSession (3 AM boundary) instead of isToday (midnight boundary)
         val index = entries.indexOfFirst {
-            it.blockId == blockId && isToday(it.scheduledAt)
+            it.blockId == blockId && isCurrentSession(it.scheduledAt)
         }
         if (index != -1) {
             entries[index] = transform(entries[index])
@@ -12767,18 +12682,15 @@ object ProgressStore {
     private fun save(context: Context) {
         val array = JSONArray()
         entries.forEach {
-            array.put(
-                JSONObject().apply {
-                    put("routineId", it.routineId)
-                    put("blockId", it.blockId)
-                    put("scheduledAt", it.scheduledAt)
-                    put("state", it.state.name)
-                    put("completedAt", it.completedAt ?: 0L)
-                    put("missedAt", it.missedAt ?: 0L)
-                }
-            )
+            array.put(JSONObject().apply {
+                put("routineId",   it.routineId)
+                put("blockId",     it.blockId)
+                put("scheduledAt", it.scheduledAt)
+                put("state",       it.state.name)
+                put("completedAt", it.completedAt ?: 0L)
+                put("missedAt",    it.missedAt    ?: 0L)
+            })
         }
-
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_ENTRIES, array.toString())
@@ -12786,29 +12698,54 @@ object ProgressStore {
     }
 
     private fun load(context: Context) {
-        val json = context
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val json = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_ENTRIES, null) ?: return
 
         val array = JSONArray(json)
         for (i in 0 until array.length()) {
             val o = array.getJSONObject(i)
             entries += ProgressEntry(
-                routineId = o.getString("routineId"),
-                blockId = o.getString("blockId"),
+                routineId   = o.getString("routineId"),
+                blockId     = o.getString("blockId"),
                 scheduledAt = o.getLong("scheduledAt"),
-                state = ProgressState.valueOf(o.getString("state")),
+                state       = ProgressState.valueOf(o.getString("state")),
                 completedAt = o.optLong("completedAt").takeIf { it != 0L },
-                missedAt = o.optLong("missedAt").takeIf { it != 0L }
+                missedAt    = o.optLong("missedAt").takeIf    { it != 0L }
             )
         }
     }
 
-    private fun isToday(timestamp: Long): Boolean {
-        val now = Calendar.getInstance()
-        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-        return now.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
-                now.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
+    /**
+     * FIX: "today" = current 3 AM session window (3 AM yesterday → 3 AM today).
+     *
+     * The day resets at 03:00, NOT at midnight. So tasks at 00:20, 00:50, 01:00
+     * belong to the SAME session as 19:00, 21:00, 23:30 the previous calendar night.
+     *
+     * Session window = [ sessionStart, sessionStart + 24h )
+     * where sessionStart = most recent 03:00 that has already passed.
+     */
+    private fun isCurrentSession(timestamp: Long): Boolean {
+        val sessionStart = getSessionStart()
+        val sessionEnd   = sessionStart + 24 * 60 * 60 * 1000L
+        return timestamp in sessionStart until sessionEnd
+    }
+
+    /**
+     * Returns the epoch-ms of the most recent 03:00:00 that has already passed.
+     * e.g. if now is Wed 01:30, this returns Tue 03:00 (same "day" session).
+     * e.g. if now is Wed 09:00, this returns Wed 03:00.
+     */
+    internal fun getSessionStart(): Long {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 3)
+        cal.set(Calendar.MINUTE,      0)
+        cal.set(Calendar.SECOND,      0)
+        cal.set(Calendar.MILLISECOND, 0)
+        // If we haven't reached 03:00 yet today, go back to yesterday's 03:00
+        if (System.currentTimeMillis() < cal.timeInMillis) {
+            cal.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        return cal.timeInMillis
     }
 }
 
