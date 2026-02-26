@@ -1,338 +1,142 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/timer/FloatingTimerService.kt =====
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
 
-// ❌ ERRORS IN THIS FILE (1 error(s)):
-// Line 153: Unresolved reference: setViewTreeSavedStateRegistryOwner
+// ❌ ERRORS IN THIS FILE (2 error(s)):
+// Line 115: No value passed for parameter 'durationMinutes'
+// Line 115: Type mismatch: inferred type is Long but String was expected
 
-   1    package com.jarvismini.ui.timer
+   1    package com.jarvismini.core.routine
    2    
-   3    import android.app.*
-   4    import android.content.Context
-   5    import android.content.Intent
-   6    import android.graphics.PixelFormat
-   7    import android.os.Build
-   8    import android.os.IBinder
-   9    import android.provider.Settings
-  10    import android.view.Gravity
-  11    import android.view.MotionEvent
-  12    import android.view.WindowManager
-  13    import androidx.compose.animation.core.*
-  14    import androidx.compose.foundation.background
-  15    import androidx.compose.foundation.border
-  16    import androidx.compose.foundation.clickable
-  17    import androidx.compose.foundation.interaction.MutableInteractionSource
-  18    import androidx.compose.foundation.layout.*
-  19    import androidx.compose.foundation.shape.RoundedCornerShape
-  20    import androidx.compose.material3.LinearProgressIndicator
-  21    import androidx.compose.material3.Text
-  22    import androidx.compose.runtime.*
-  23    import androidx.compose.ui.Alignment
-  24    import androidx.compose.ui.Modifier
-  25    import androidx.compose.ui.draw.clip
-  26    import androidx.compose.ui.graphics.Color
-  27    import androidx.compose.ui.platform.ComposeView
-  28    import androidx.compose.ui.text.font.FontFamily
-  29    import androidx.compose.ui.text.font.FontWeight
-  30    import androidx.compose.ui.unit.dp
-  31    import androidx.compose.ui.unit.sp
-  32    import androidx.core.app.NotificationCompat
-  33    import androidx.lifecycle.*
-  34    import androidx.savedstate.SavedStateRegistry
-  35    import androidx.savedstate.SavedStateRegistryController
-  36    import androidx.savedstate.SavedStateRegistryOwner
-  37    import com.jarvismini.core.routine.TaskTimerManager
-  38    
-  39    /**
-  40     * FloatingTimerService (lives in :app — has Compose dependencies)
-  41     *
-  42     * Draws a compact draggable JARVIS countdown overlay via WindowManager + ComposeView.
-  43     * Started automatically alongside TaskTimerService when the TIMER button is pressed,
-  44     * via TaskTimerManager.FloatingTimerDelegate registered in CoreApp.
-  45     *
-  46     * Requires: android.permission.SYSTEM_ALERT_WINDOW
-  47     * Permission is requested at startup in MainActivity.
-  48     * If not granted, start() silently skips — notification timer still works.
-  49     */
-  50    class FloatingTimerService : Service(),
-  51        LifecycleOwner,
-  52        ViewModelStoreOwner,
-  53        SavedStateRegistryOwner {
-  54    
-  55        // ── Lifecycle plumbing required by ComposeView inside a Service ─────
-  56        private val lifecycleRegistry = LifecycleRegistry(this)
-  57        override val lifecycle: Lifecycle get() = lifecycleRegistry
-  58    
-  59        private val vmStore = ViewModelStore()
-  60        override val viewModelStore: ViewModelStore get() = vmStore
-  61    
-  62        private val savedStateController = SavedStateRegistryController.create(this)
-  63        override val savedStateRegistry: SavedStateRegistry
-  64            get() = savedStateController.savedStateRegistry
-  65    
-  66        private lateinit var windowManager: WindowManager
-  67        private var overlayView: ComposeView? = null
-  68    
-  69        companion object {
-  70            private const val CHANNEL_ID  = "floating_timer_channel"
-  71            private const val NOTIF_ID    = 8877
-  72            const val EXTRA_TASK_ID       = "ft_task_id"
-  73            const val EXTRA_TASK_NAME     = "ft_task_name"
-  74            const val EXTRA_TOTAL_SECONDS = "ft_total_seconds"
-  75    
-  76            fun canDrawOverlays(context: Context): Boolean =
-  77                Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-  78                        Settings.canDrawOverlays(context)
-  79    
-  80            fun start(context: Context, taskId: String, taskName: String, totalSeconds: Long) {
-  81                if (!canDrawOverlays(context)) return
-  82                val intent = Intent(context, FloatingTimerService::class.java).apply {
-  83                    putExtra(EXTRA_TASK_ID,       taskId)
-  84                    putExtra(EXTRA_TASK_NAME,     taskName)
-  85                    putExtra(EXTRA_TOTAL_SECONDS, totalSeconds)
-  86                }
-  87                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-  88                    context.startForegroundService(intent)
-  89                else
-  90                    context.startService(intent)
-  91            }
-  92    
-  93            fun stop(context: Context) {
-  94                context.stopService(Intent(context, FloatingTimerService::class.java))
-  95            }
-  96        }
-  97    
-  98        override fun onCreate() {
-  99            savedStateController.performAttach()
- 100            savedStateController.performRestore(null)
- 101            lifecycleRegistry.currentState = Lifecycle.State.CREATED
- 102            super.onCreate()
- 103            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
- 104            createNotificationChannel()
- 105        }
- 106    
- 107        override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
- 108            val taskId       = intent?.getStringExtra(EXTRA_TASK_ID)           ?: "task"
- 109            val taskName     = intent?.getStringExtra(EXTRA_TASK_NAME)         ?: "Task"
- 110            val totalSeconds = intent?.getLongExtra(EXTRA_TOTAL_SECONDS, 3600) ?: 3600
+   3    import android.app.NotificationChannel
+   4    import android.app.NotificationManager
+   5    import android.content.Context
+   6    import android.os.Build
+   7    import androidx.core.app.NotificationCompat
+   8    import com.jarvismini.core.JarvisMode
+   9    import com.jarvismini.core.JarvisState
+  10    import com.jarvismini.core.WorkModeManager
+  11    import com.jarvismini.core.routine.model.RoutineAction
+  12    import com.jarvismini.core.tts.AssistantTTS
+  13    
+  14    /**
+  15     * FIXED ActionDispatcher - now actually executes routine actions
+  16     *
+  17     * Supports all action types from routine JSON files:
+  18     * - speak: TTS voice announcements
+  19     * - notify: Show notification
+  20     * - set_mode: Change Jarvis mode (WORK, FOCUS, NORMAL)
+  21     * - set_dnd: Enable/disable Do Not Disturb
+  22     * - network_time_sync: Sync time from network
+  23     * - start_timer: NEW - Start task-specific countdown timer
+  24     */
+  25    object ActionDispatcher {
+  26    
+  27        private const val CHANNEL_ID = "jarvis_routine_actions"
+  28        private const val TAG = "ActionDispatcher"
+  29    
+  30        fun dispatch(context: Context, action: RoutineAction) {
+  31            android.util.Log.d(TAG, "Dispatching action: ${action.type} with params: ${action.params}")
+  32    
+  33            when (action.type) {
+  34                "speak" -> handleSpeak(context, action)
+  35                "notify" -> handleNotify(context, action)
+  36                "set_mode" -> handleSetMode(context, action)
+  37                "set_dnd" -> handleSetDnd(context, action)
+  38                "network_time_sync" -> handleNetworkTimeSync()
+  39                "start_timer" -> handleStartTimer(context, action)
+  40                else -> {
+  41                    android.util.Log.w(TAG, "Unknown action type: ${action.type}")
+  42                }
+  43            }
+  44        }
+  45    
+  46        private fun handleSpeak(context: Context, action: RoutineAction) {
+  47            val message = action.params["message"] ?: return
+  48            android.util.Log.d(TAG, "Speaking: $message")
+  49            AssistantTTS.speak(context, message)
+  50        }
+  51    
+  52        private fun handleNotify(context: Context, action: RoutineAction) {
+  53            val message = action.params["message"] ?: return
+  54            val title = action.params["title"] ?: "Jarvis Routine"
+  55    
+  56            android.util.Log.d(TAG, "Showing notification: $title - $message")
+  57    
+  58            createNotificationChannel(context)
+  59    
+  60            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+  61                .setContentTitle(title)
+  62                .setContentText(message)
+  63                .setSmallIcon(android.R.drawable.ic_dialog_info)
+  64                .setPriority(NotificationCompat.PRIORITY_HIGH)
+  65                .setAutoCancel(true)
+  66                .build()
+  67    
+  68            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+  69            notificationManager.notify(message.hashCode(), notification)
+  70        }
+  71    
+  72        private fun handleSetMode(context: Context, action: RoutineAction) {
+  73            val modeName = action.params["mode"] ?: return
+  74    
+  75            val mode = when (modeName.uppercase()) {
+  76                "WORK" -> JarvisMode.WORK
+  77                "FOCUS" -> JarvisMode.FOCUS
+  78                "NORMAL" -> JarvisMode.NORMAL
+  79                "DRIVING" -> JarvisMode.DRIVING
+  80                "SLEEP" -> JarvisMode.SLEEP
+  81                else -> {
+  82                    android.util.Log.w(TAG, "Unknown mode: $modeName")
+  83                    return
+  84                }
+  85            }
+  86    
+  87            android.util.Log.d(TAG, "Setting mode to: $mode")
+  88            JarvisState.setMode(context, mode)
+  89        }
+  90    
+  91        private fun handleSetDnd(context: Context, action: RoutineAction) {
+  92            val dndEnabled = action.params["dnd"]?.toBoolean() ?: return
+  93    
+  94            android.util.Log.d(TAG, "Setting DND to: $dndEnabled")
+  95    
+  96            if (dndEnabled) {
+  97                WorkModeManager.activate(context)
+  98            } else {
+  99                WorkModeManager.deactivate(context)
+ 100            }
+ 101        }
+ 102    
+ 103        private fun handleNetworkTimeSync() {
+ 104            // Network time sync - can be implemented later
+ 105            android.util.Log.d(TAG, "Network time sync requested (not yet implemented)")
+ 106        }
+ 107    
+ 108        private fun handleStartTimer(context: Context, action: RoutineAction) {
+ 109            val durationMinutes = action.params["duration"]?.toLongOrNull() ?: return
+ 110            val taskName = action.params["task"] ?: "Task"
  111    
- 112            startForeground(NOTIF_ID, buildForegroundNotif(taskName))
- 113            lifecycleRegistry.currentState = Lifecycle.State.STARTED
- 114            lifecycleRegistry.currentState = Lifecycle.State.RESUMED
- 115    
- 116            showOverlay(taskId, taskName, totalSeconds)
- 117            return START_NOT_STICKY
- 118        }
- 119    
- 120        override fun onDestroy() {
- 121            lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
- 122            removeOverlay()
- 123            vmStore.clear()
- 124            super.onDestroy()
- 125        }
- 126    
- 127        override fun onBind(intent: Intent?): IBinder? = null
- 128    
- 129        private fun showOverlay(taskId: String, taskName: String, totalSeconds: Long) {
- 130            removeOverlay()
- 131    
- 132            val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
- 133                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
- 134            else
- 135                @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
- 136    
- 137            val params = WindowManager.LayoutParams(
- 138                WindowManager.LayoutParams.WRAP_CONTENT,
- 139                WindowManager.LayoutParams.WRAP_CONTENT,
- 140                overlayType,
- 141                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
- 142                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
- 143                PixelFormat.TRANSLUCENT
- 144            ).apply {
- 145                gravity = Gravity.TOP or Gravity.START
- 146                x = 24
- 147                y = 200
- 148            }
- 149    
- 150            val composeView = ComposeView(this).apply {
- 151                setViewTreeLifecycleOwner(this@FloatingTimerService)
- 152                setViewTreeViewModelStoreOwner(this@FloatingTimerService)
- 153 ❌             setViewTreeSavedStateRegistryOwner(this@FloatingTimerService)
- 154                setContent {
- 155                    FloatingTimerOverlay(
- 156                        taskId       = taskId,
- 157                        taskName     = taskName,
- 158                        totalSeconds = totalSeconds,
- 159                        onClose      = { stopSelf() }
- 160                    )
- 161                }
- 162            }
- 163    
- 164            // Drag via raw touch — avoids competing with Compose pointer input
- 165            var initX = 0; var initY = 0
- 166            var rawX = 0f; var rawY = 0f
- 167            composeView.setOnTouchListener { _, event ->
- 168                when (event.action) {
- 169                    MotionEvent.ACTION_DOWN -> {
- 170                        initX = params.x; initY = params.y
- 171                        rawX = event.rawX; rawY = event.rawY
- 172                        true
- 173                    }
- 174                    MotionEvent.ACTION_MOVE -> {
- 175                        params.x = initX + (event.rawX - rawX).toInt()
- 176                        params.y = initY + (event.rawY - rawY).toInt()
- 177                        runCatching { windowManager.updateViewLayout(composeView, params) }
- 178                        true
- 179                    }
- 180                    else -> false
- 181                }
- 182            }
- 183    
- 184            overlayView = composeView
- 185            runCatching { windowManager.addView(composeView, params) }
- 186        }
- 187    
- 188        private fun removeOverlay() {
- 189            overlayView?.let { v -> runCatching { windowManager.removeView(v) } }
- 190            overlayView = null
- 191        }
- 192    
- 193        private fun buildForegroundNotif(taskName: String): Notification =
- 194            NotificationCompat.Builder(this, CHANNEL_ID)
- 195                .setContentTitle("⏱ $taskName — floating timer active")
- 196                .setContentText("Tap ✕ on the overlay to dismiss")
- 197                .setSmallIcon(android.R.drawable.ic_menu_recent_history)
- 198                .setPriority(NotificationCompat.PRIORITY_MIN)
- 199                .setSilent(true)
- 200                .build()
- 201    
- 202        private fun createNotificationChannel() {
- 203            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
- 204                val channel = NotificationChannel(
- 205                    CHANNEL_ID, "Floating Timer", NotificationManager.IMPORTANCE_MIN
- 206                ).apply {
- 207                    description = "Keeps the floating timer overlay alive"
- 208                    setShowBadge(false)
- 209                    enableLights(false)
- 210                    enableVibration(false)
- 211                }
- 212                (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
- 213                    .createNotificationChannel(channel)
- 214            }
- 215        }
- 216    }
- 217    
- 218    // ── Floating overlay Composable ──────────────────────────────────────────────
- 219    
- 220    private val FBlue  = Color(0xFF00E0FF)
- 221    private val FGreen = Color(0xFF00FF00)
- 222    private val FRed   = Color(0xFFFF4444)
- 223    private val FBg    = Color(0xE6001520)
- 224    
- 225    @Composable
- 226    private fun FloatingTimerOverlay(
- 227        taskId: String,
- 228        taskName: String,
- 229        totalSeconds: Long,
- 230        onClose: () -> Unit
- 231    ) {
- 232        val activeTimers by TaskTimerManager.activeTimers.collectAsState()
- 233        val remaining    = activeTimers[taskId]?.remainingSeconds ?: totalSeconds
- 234        val progress     = 1f - (remaining.toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
- 235        val isLowTime    = remaining < 120
- 236    
- 237        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
- 238        val pulseAlpha by infiniteTransition.animateFloat(
- 239            initialValue  = 0.4f,
- 240            targetValue   = 1f,
- 241            animationSpec = infiniteRepeatable(
- 242                animation  = tween(800, easing = LinearEasing),
- 243                repeatMode = RepeatMode.Reverse
- 244            ),
- 245            label = "pulse"
- 246        )
- 247    
- 248        Column(
- 249            modifier = Modifier
- 250                .width(200.dp)
- 251                .clip(RoundedCornerShape(12.dp))
- 252                .background(FBg)
- 253                .border(
- 254                    width = 1.dp,
- 255                    color = if (isLowTime) FRed.copy(alpha = pulseAlpha) else FBlue.copy(alpha = 0.8f),
- 256                    shape = RoundedCornerShape(12.dp)
- 257                )
- 258                .padding(horizontal = 12.dp, vertical = 8.dp)
- 259        ) {
- 260            Row(
- 261                modifier = Modifier.fillMaxWidth(),
- 262                horizontalArrangement = Arrangement.SpaceBetween,
- 263                verticalAlignment = Alignment.CenterVertically
- 264            ) {
- 265                Text(
- 266                    text       = taskName.uppercase().take(16),
- 267                    fontSize   = 9.sp,
- 268                    color      = FBlue,
- 269                    fontFamily = FontFamily.Monospace,
- 270                    fontWeight = FontWeight.Bold,
- 271                    maxLines   = 1
- 272                )
- 273                Text(
- 274                    text      = "✕",
- 275                    fontSize  = 12.sp,
- 276                    color     = FRed,
- 277                    fontFamily = FontFamily.Monospace,
- 278                    modifier  = Modifier
- 279                        .padding(start = 8.dp)
- 280                        .clickable(
- 281                            indication        = null,
- 282                            interactionSource = remember { MutableInteractionSource() },
- 283                            onClick           = onClose
- 284                        )
- 285                )
- 286            }
- 287    
- 288            Spacer(modifier = Modifier.height(4.dp))
- 289    
- 290            Text(
- 291                text       = formatFTime(remaining),
- 292                fontSize   = 28.sp,
- 293                color      = if (isLowTime) FRed else FGreen,
- 294                fontFamily = FontFamily.Monospace,
- 295                fontWeight = FontWeight.Bold,
- 296                modifier   = Modifier.align(Alignment.CenterHorizontally)
- 297            )
- 298    
- 299            Spacer(modifier = Modifier.height(6.dp))
- 300    
- 301            LinearProgressIndicator(
- 302                progress   = { progress },
- 303                modifier   = Modifier
- 304                    .fillMaxWidth()
- 305                    .height(4.dp)
- 306                    .clip(RoundedCornerShape(2.dp)),
- 307                color      = if (isLowTime) FRed else FGreen,
- 308                trackColor = FBlue.copy(alpha = 0.15f)
- 309            )
- 310    
- 311            Spacer(modifier = Modifier.height(3.dp))
- 312    
- 313            Text(
- 314                text       = "⏱ JARVIS TIMER — DRAG TO MOVE",
- 315                fontSize   = 7.sp,
- 316                color      = FBlue.copy(alpha = 0.45f),
- 317                fontFamily = FontFamily.Monospace,
- 318                modifier   = Modifier.align(Alignment.CenterHorizontally)
- 319            )
- 320        }
- 321    }
- 322    
- 323    private fun formatFTime(seconds: Long): String {
- 324        val h = seconds / 3600
- 325        val m = (seconds % 3600) / 60
- 326        val s = seconds % 60
- 327        return if (h > 0) "%d:%02d:%02d".format(h, m, s)
- 328        else "%02d:%02d".format(m, s)
- 329    }
+ 112            android.util.Log.d(TAG, "Starting timer: $taskName for $durationMinutes minutes")
+ 113    
+ 114            // Start the task timer service
+ 115 ❌         TaskTimerService.start(context, taskName, durationMinutes)
+ 116        }
+ 117    
+ 118        private fun createNotificationChannel(context: Context) {
+ 119            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+ 120                val channel = NotificationChannel(
+ 121                    CHANNEL_ID,
+ 122                    "Routine Actions",
+ 123                    NotificationManager.IMPORTANCE_HIGH
+ 124                ).apply {
+ 125                    description = "Notifications from Jarvis routine actions"
+ 126                }
+ 127    
+ 128                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+ 129                notificationManager.createNotificationChannel(channel)
+ 130            }
+ 131        }
+ 132    }
 
 
