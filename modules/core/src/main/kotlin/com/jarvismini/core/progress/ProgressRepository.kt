@@ -30,48 +30,57 @@ object ProgressRepository {
         return allRoutines.filter { it.trigger?.days?.contains(today) == true }
     }
 
-    /**
-     * Reset all blocks at 3 AM by setting state back to PENDING.
-     * Does not rely on any app module.
-     */
     fun resetTodayBlocks(context: Context) = runBlocking {
         val todayBlocks = getTodayBlocks()
-
         todayBlocks.forEach { block ->
-            // Re-register block with state PENDING
             register(
                 context,
                 ProgressEntry(
-                    routineId = block.id,
-                    blockId = block.id,
+                    routineId   = block.id,
+                    blockId     = block.id,
                     scheduledAt = block.scheduledAt,
-                    state = ProgressState.PENDING
+                    state       = ProgressState.PENDING
                 )
             )
         }
-
-        // Re-register today's routines in case any new routine is added
         getTodayRoutines(context).forEach { routine ->
-            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) } ?: System.currentTimeMillis()
+            val scheduledTime = routine.trigger?.time?.let { parseTimeToMs(it) }
+                ?: System.currentTimeMillis()
             register(
                 context,
                 ProgressEntry(
-                    routineId = routine.id,
-                    blockId = routine.id,
+                    routineId   = routine.id,
+                    blockId     = routine.id,
                     scheduledAt = scheduledTime,
-                    state = ProgressState.PENDING
+                    state       = ProgressState.PENDING
                 )
             )
         }
     }
 
-    private fun parseTimeToMs(timeStr: String): Long {
+    /**
+     * FIX: Times before 03:00 (00:xx, 01:xx, 02:xx) belong to the NEXT calendar
+     * day relative to the session start (i.e. the night side of the 3 AM window).
+     * We always compute the timestamp relative to sessionStart so it lands inside
+     * the correct [sessionStart, sessionStart+24h) window.
+     */
+    internal fun parseTimeToMs(timeStr: String): Long {
         return try {
-            val cal = Calendar.getInstance()
-            val parts = timeStr.split(":")
-            cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-            cal.set(Calendar.MINUTE, parts[1].toInt())
-            cal.set(Calendar.SECOND, 0)
+            val parts  = timeStr.split(":")
+            val hour   = parts[0].toInt()
+            val minute = parts[1].toInt()
+
+            val sessionStart = ProgressStore.getSessionStart()
+            val cal = Calendar.getInstance().apply { timeInMillis = sessionStart }
+
+            // Session starts at 03:00. Times from 03:00–23:59 are the same calendar
+            // day as sessionStart. Times from 00:00–02:59 are the NEXT calendar day.
+            if (hour < 3) {
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+            cal.set(Calendar.HOUR_OF_DAY, hour)
+            cal.set(Calendar.MINUTE,      minute)
+            cal.set(Calendar.SECOND,      0)
             cal.set(Calendar.MILLISECOND, 0)
             cal.timeInMillis
         } catch (_: Exception) {
@@ -80,31 +89,27 @@ object ProgressRepository {
     }
 
     private fun cleanupOldEntries(context: Context) {
-        val todayStart = getTodayStartMs()
-        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < todayStart }
+        val sessionStart = ProgressStore.getSessionStart()
+        val old = ProgressStore.getAllEntries().filter { it.scheduledAt < sessionStart }
         old.forEach { ProgressStore.remove(context, it.blockId) }
     }
 
     private fun getCurrentDayOfWeek(): String {
+        // FIX: if it's currently before 03:00, "today's routines" are actually
+        // yesterday's day-of-week (we're still in the same 3 AM session).
         val cal = Calendar.getInstance()
-        return when (cal.get(Calendar.DAY_OF_WEEK)) {
-            Calendar.SUNDAY -> "SUN"
-            Calendar.MONDAY -> "MON"
-            Calendar.TUESDAY -> "TUE"
-            Calendar.WEDNESDAY -> "WED"
-            Calendar.THURSDAY -> "THU"
-            Calendar.FRIDAY -> "FRI"
-            Calendar.SATURDAY -> "SAT"
-            else -> "SUN"
+        if (cal.get(Calendar.HOUR_OF_DAY) < 3) {
+            cal.add(Calendar.DAY_OF_YEAR, -1)
         }
-    }
-
-    private fun getTodayStartMs(): Long {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 3) // Reset at 3 AM
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
+        return when (cal.get(Calendar.DAY_OF_WEEK)) {
+            Calendar.SUNDAY    -> "SUN"
+            Calendar.MONDAY    -> "MON"
+            Calendar.TUESDAY   -> "TUE"
+            Calendar.WEDNESDAY -> "WED"
+            Calendar.THURSDAY  -> "THU"
+            Calendar.FRIDAY    -> "FRI"
+            Calendar.SATURDAY  -> "SAT"
+            else               -> "SUN"
+        }
     }
 }
