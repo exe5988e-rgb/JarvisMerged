@@ -31,12 +31,12 @@ object ActionDispatcher {
         android.util.Log.d(TAG, "Dispatching action: ${action.type} with params: ${action.params}")
 
         when (action.type) {
-            "speak" -> handleSpeak(context, action)
-            "notify" -> handleNotify(context, action)
-            "set_mode" -> handleSetMode(context, action)
-            "set_dnd" -> handleSetDnd(context, action)
+            "speak"             -> handleSpeak(context, action)
+            "notify"            -> handleNotify(context, action)
+            "set_mode"          -> handleSetMode(context, action)
+            "set_dnd"           -> handleSetDnd(context, action)
             "network_time_sync" -> handleNetworkTimeSync()
-            "start_timer" -> handleStartTimer(context, action)
+            "start_timer"       -> handleStartTimer(context, action)
             else -> {
                 android.util.Log.w(TAG, "Unknown action type: ${action.type}")
             }
@@ -51,7 +51,7 @@ object ActionDispatcher {
 
     private fun handleNotify(context: Context, action: RoutineAction) {
         val message = action.params["message"] ?: return
-        val title = action.params["title"] ?: "Jarvis Routine"
+        val title   = action.params["title"] ?: "Jarvis Routine"
 
         android.util.Log.d(TAG, "Showing notification: $title - $message")
 
@@ -73,11 +73,11 @@ object ActionDispatcher {
         val modeName = action.params["mode"] ?: return
 
         val mode = when (modeName.uppercase()) {
-            "WORK" -> JarvisMode.WORK
-            "FOCUS" -> JarvisMode.FOCUS
-            "NORMAL" -> JarvisMode.NORMAL
+            "WORK"    -> JarvisMode.WORK
+            "FOCUS"   -> JarvisMode.FOCUS
+            "NORMAL"  -> JarvisMode.NORMAL
             "DRIVING" -> JarvisMode.DRIVING
-            "SLEEP" -> JarvisMode.SLEEP
+            "SLEEP"   -> JarvisMode.SLEEP
             else -> {
                 android.util.Log.w(TAG, "Unknown mode: $modeName")
                 return
@@ -93,26 +93,23 @@ object ActionDispatcher {
 
         android.util.Log.d(TAG, "Setting DND to: $dndEnabled")
 
-        if (dndEnabled) {
-            WorkModeManager.activate(context)
-        } else {
-            WorkModeManager.deactivate(context)
-        }
+        if (dndEnabled) WorkModeManager.activate(context)
+        else            WorkModeManager.deactivate(context)
     }
 
     private fun handleNetworkTimeSync() {
-        // Network time sync - can be implemented later
         android.util.Log.d(TAG, "Network time sync requested (not yet implemented)")
     }
 
     private fun handleStartTimer(context: Context, action: RoutineAction) {
         val durationMinutes = action.params["duration"]?.toLongOrNull() ?: return
-        val taskName = action.params["task"] ?: "Task"
+        val taskName        = action.params["task"] ?: "Task"
 
         android.util.Log.d(TAG, "Starting timer: $taskName for $durationMinutes minutes")
 
-        // Start the task timer service
-        TaskTimerService.start(context, taskName, durationMinutes)
+        // FIX: TaskTimerService.start() now requires (context, taskId, taskName, durationMinutes)
+        // Use taskName as taskId — unique enough for routine-triggered timers
+        TaskTimerService.start(context, taskName, taskName, durationMinutes)
     }
 
     private fun createNotificationChannel(context: Context) {
@@ -124,7 +121,6 @@ object ActionDispatcher {
             ).apply {
                 description = "Notifications from Jarvis routine actions"
             }
-
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
