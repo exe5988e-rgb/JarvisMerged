@@ -59,12 +59,11 @@ object ProgressRepository {
     }
 
     /**
-     * FIX: Times before 03:00 (00:xx, 01:xx, 02:xx) belong to the NEXT calendar
-     * day relative to the session start (i.e. the night side of the 3 AM window).
-     * We always compute the timestamp relative to sessionStart so it lands inside
-     * the correct [sessionStart, sessionStart+24h) window.
+     * FIX: public (was internal) so ProgressInitializer in :app can call it.
+     * Times before 03:00 (00:xx, 01:xx, 02:xx) are placed on the next calendar
+     * day relative to sessionStart — still inside the same 3 AM session window.
      */
-    internal fun parseTimeToMs(timeStr: String): Long {
+    fun parseTimeToMs(timeStr: String): Long {
         return try {
             val parts  = timeStr.split(":")
             val hour   = parts[0].toInt()
@@ -73,8 +72,7 @@ object ProgressRepository {
             val sessionStart = ProgressStore.getSessionStart()
             val cal = Calendar.getInstance().apply { timeInMillis = sessionStart }
 
-            // Session starts at 03:00. Times from 03:00–23:59 are the same calendar
-            // day as sessionStart. Times from 00:00–02:59 are the NEXT calendar day.
+            // Session starts at 03:00. Times 00:00–02:59 are the next calendar day.
             if (hour < 3) {
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
@@ -95,8 +93,6 @@ object ProgressRepository {
     }
 
     private fun getCurrentDayOfWeek(): String {
-        // FIX: if it's currently before 03:00, "today's routines" are actually
-        // yesterday's day-of-week (we're still in the same 3 AM session).
         val cal = Calendar.getInstance()
         if (cal.get(Calendar.HOUR_OF_DAY) < 3) {
             cal.add(Calendar.DAY_OF_YEAR, -1)
