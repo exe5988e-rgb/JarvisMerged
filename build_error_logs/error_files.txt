@@ -1,142 +1,43 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/routine/ActionDispatcher.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ProgressInitializer.kt =====
 
-// ❌ ERRORS IN THIS FILE (2 error(s)):
-// Line 115: No value passed for parameter 'durationMinutes'
-// Line 115: Type mismatch: inferred type is Long but String was expected
+// ❌ ERRORS IN THIS FILE (1 error(s)):
+// Line 21: Cannot access 'parseTimeToMs': it is internal in 'ProgressRepository'
 
-   1    package com.jarvismini.core.routine
+   1    package com.jarvismini
    2    
-   3    import android.app.NotificationChannel
-   4    import android.app.NotificationManager
-   5    import android.content.Context
-   6    import android.os.Build
-   7    import androidx.core.app.NotificationCompat
-   8    import com.jarvismini.core.JarvisMode
-   9    import com.jarvismini.core.JarvisState
-  10    import com.jarvismini.core.WorkModeManager
-  11    import com.jarvismini.core.routine.model.RoutineAction
-  12    import com.jarvismini.core.tts.AssistantTTS
+   3    import android.content.Context
+   4    import com.jarvismini.core.progress.*
+   5    import com.jarvismini.core.routine.RoutineProvider
+   6    import kotlinx.coroutines.runBlocking
+   7    import java.util.Calendar
+   8    
+   9    object ProgressInitializer {
+  10    
+  11        fun registerAllBlocks(context: Context) = runBlocking {
+  12            ProgressRepository.hydrate(context)
   13    
-  14    /**
-  15     * FIXED ActionDispatcher - now actually executes routine actions
-  16     *
-  17     * Supports all action types from routine JSON files:
-  18     * - speak: TTS voice announcements
-  19     * - notify: Show notification
-  20     * - set_mode: Change Jarvis mode (WORK, FOCUS, NORMAL)
-  21     * - set_dnd: Enable/disable Do Not Disturb
-  22     * - network_time_sync: Sync time from network
-  23     * - start_timer: NEW - Start task-specific countdown timer
-  24     */
-  25    object ActionDispatcher {
-  26    
-  27        private const val CHANNEL_ID = "jarvis_routine_actions"
-  28        private const val TAG = "ActionDispatcher"
-  29    
-  30        fun dispatch(context: Context, action: RoutineAction) {
-  31            android.util.Log.d(TAG, "Dispatching action: ${action.type} with params: ${action.params}")
-  32    
-  33            when (action.type) {
-  34                "speak" -> handleSpeak(context, action)
-  35                "notify" -> handleNotify(context, action)
-  36                "set_mode" -> handleSetMode(context, action)
-  37                "set_dnd" -> handleSetDnd(context, action)
-  38                "network_time_sync" -> handleNetworkTimeSync()
-  39                "start_timer" -> handleStartTimer(context, action)
-  40                else -> {
-  41                    android.util.Log.w(TAG, "Unknown action type: ${action.type}")
-  42                }
-  43            }
-  44        }
-  45    
-  46        private fun handleSpeak(context: Context, action: RoutineAction) {
-  47            val message = action.params["message"] ?: return
-  48            android.util.Log.d(TAG, "Speaking: $message")
-  49            AssistantTTS.speak(context, message)
-  50        }
-  51    
-  52        private fun handleNotify(context: Context, action: RoutineAction) {
-  53            val message = action.params["message"] ?: return
-  54            val title = action.params["title"] ?: "Jarvis Routine"
-  55    
-  56            android.util.Log.d(TAG, "Showing notification: $title - $message")
-  57    
-  58            createNotificationChannel(context)
-  59    
-  60            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-  61                .setContentTitle(title)
-  62                .setContentText(message)
-  63                .setSmallIcon(android.R.drawable.ic_dialog_info)
-  64                .setPriority(NotificationCompat.PRIORITY_HIGH)
-  65                .setAutoCancel(true)
-  66                .build()
-  67    
-  68            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-  69            notificationManager.notify(message.hashCode(), notification)
-  70        }
-  71    
-  72        private fun handleSetMode(context: Context, action: RoutineAction) {
-  73            val modeName = action.params["mode"] ?: return
-  74    
-  75            val mode = when (modeName.uppercase()) {
-  76                "WORK" -> JarvisMode.WORK
-  77                "FOCUS" -> JarvisMode.FOCUS
-  78                "NORMAL" -> JarvisMode.NORMAL
-  79                "DRIVING" -> JarvisMode.DRIVING
-  80                "SLEEP" -> JarvisMode.SLEEP
-  81                else -> {
-  82                    android.util.Log.w(TAG, "Unknown mode: $modeName")
-  83                    return
-  84                }
-  85            }
-  86    
-  87            android.util.Log.d(TAG, "Setting mode to: $mode")
-  88            JarvisState.setMode(context, mode)
-  89        }
-  90    
-  91        private fun handleSetDnd(context: Context, action: RoutineAction) {
-  92            val dndEnabled = action.params["dnd"]?.toBoolean() ?: return
-  93    
-  94            android.util.Log.d(TAG, "Setting DND to: $dndEnabled")
-  95    
-  96            if (dndEnabled) {
-  97                WorkModeManager.activate(context)
-  98            } else {
-  99                WorkModeManager.deactivate(context)
- 100            }
- 101        }
- 102    
- 103        private fun handleNetworkTimeSync() {
- 104            // Network time sync - can be implemented later
- 105            android.util.Log.d(TAG, "Network time sync requested (not yet implemented)")
- 106        }
- 107    
- 108        private fun handleStartTimer(context: Context, action: RoutineAction) {
- 109            val durationMinutes = action.params["duration"]?.toLongOrNull() ?: return
- 110            val taskName = action.params["task"] ?: "Task"
- 111    
- 112            android.util.Log.d(TAG, "Starting timer: $taskName for $durationMinutes minutes")
- 113    
- 114            // Start the task timer service
- 115 ❌         TaskTimerService.start(context, taskName, durationMinutes)
- 116        }
- 117    
- 118        private fun createNotificationChannel(context: Context) {
- 119            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
- 120                val channel = NotificationChannel(
- 121                    CHANNEL_ID,
- 122                    "Routine Actions",
- 123                    NotificationManager.IMPORTANCE_HIGH
- 124                ).apply {
- 125                    description = "Notifications from Jarvis routine actions"
- 126                }
- 127    
- 128                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
- 129                notificationManager.createNotificationChannel(channel)
- 130            }
- 131        }
- 132    }
+  14            // The "day" resets at 3 AM. If now >= sessionStart, we're in a fresh session.
+  15            // cleanupOldEntries inside hydrate() already removed stale entries, so we
+  16            // just need to register today's routines (register() is idempotent — it skips
+  17            // blockIds that already exist in the current session).
+  18            val todayRoutines = ProgressRepository.getTodayRoutines(context)
+  19            todayRoutines.forEach { routine ->
+  20                val scheduledTime = routine.trigger?.time
+  21 ❌                 ?.let { ProgressRepository.parseTimeToMs(it) }
+  22                    ?: System.currentTimeMillis()
+  23                ProgressRepository.register(
+  24                    context,
+  25                    ProgressEntry(
+  26                        routineId   = routine.id,
+  27                        blockId     = routine.id,
+  28                        scheduledAt = scheduledTime,
+  29                        state       = ProgressState.PENDING
+  30                    )
+  31                )
+  32            }
+  33        }
+  34    }
 
 
