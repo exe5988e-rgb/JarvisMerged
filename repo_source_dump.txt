@@ -48,9 +48,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   ├── StoragePermissionHelper.kt
 │   │   │   │   │   │   │   ├── workmode
 │   │   │   │   │   │   │   │   ├── WorkModeService.kt
-│   │   │   │   │   │   ├── devtools
-│   │   │   │   │   │   │   ├── autobuild
-│   │   │   │   │   │   │   │   ├── UIWatcherModule.kt
 │   │   │   │   │   │   ├── executor
 │   │   │   │   │   │   │   ├── UnifiedExecutor.kt
 │   │   │   │   │   │   ├── llm
@@ -1527,82 +1524,6 @@ class WorkModeService : Service() {
         val min = (totalSec % 3600) / 60
         val sec = totalSec % 60
         return "%02d:%02d:%02d".format(hrs, min, sec)
-    }
-}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/UIWatcherModule.kt =====
-// TYPE: SNAPSHOT (LARGE FILE)
-package com.jarvismini.devtools.autobuild
-
-import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
-import android.graphics.Path
-import android.graphics.Rect
-import android.util.Log
-import android.view.accessibility.AccessibilityNodeInfo
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import java.io.File
-
-class UIWatcherModule(
-    private val service: AccessibilityService
-) {
-    companion object {
-        private const val TAG = "UIWatcherModule"
-        private const val CLAUDE_PKG = "com.anthropic.claude"
-        private const val DOWNLOADS_DIR = "/sdcard/Download"
-        private const val CANONICAL_DOWNLOAD_PATH = "$DOWNLOADS_DIR/ai-output.txt"
-        private const val MAX_DOWNLOAD_WAIT_MS = 60_000L
-        private const val POLL_INTERVAL_MS = 500L
-        private const val MESSAGE_CONFIRM_TEXT = "Build failed. See attached error report."
-        private const val MESSAGE_VISIBLE_POLL_INTERVAL_MS = 500L
-        private const val MESSAGE_VISIBLE_TIMEOUT_MS = 15_000L
-
-        // File card geometry thresholds
-        private const val CARD_MIN_HEIGHT_PX = 120
-        private const val CARD_MAX_HEIGHT_PX = 400
-        private const val CARD_MIN_WIDTH_FRACTION = 0.60f
-        private const val CARD_MAX_HEIGHT_FRACTION = 0.60f
-
-        // Keywords that confirm a geometric candidate is a file card
-        private val CARD_CONFIDENCE_KEYWORDS = listOf("output", "txt", "code", "ai-output", "ai_output")
-    }
-
-    var fileManager: FileManagerModule? = null
-
-    suspend fun handleDownloadAiOutput(): Boolean = withContext(Dispatchers.IO) {
-        if (!bringClaudeToFront()) {
-            Log.e(TAG, "Failed to bring Claude to foreground")
-            return@withContext false
-        }
-
-        // Race guard — let Claude fully render file card after response completion
-        delay(2000)
-
-        val rootNode = service.rootInActiveWindow
-        if (rootNode == null) {
-
-// ... FILE TRUNCATED ...
-
-            if (result != null) return result
-            child.recycle()
-        }
-        return null
-    }
-
-    private fun bringClaudeToFront(): Boolean {
-        return try {
-            val intent = service.packageManager.getLaunchIntentForPackage(CLAUDE_PKG)
-            if (intent != null) {
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                service.startActivity(intent)
-                true
-            } else false
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to launch Claude", e)
-            false
-        }
     }
 }
 
