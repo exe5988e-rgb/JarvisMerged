@@ -1,4 +1,559 @@
-//===== FILE: test-header-file.txt =====
-This is a test text file.
-If this gets committed correctly,
-the AI Code Generator header format is working.
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/UIWatcherModule.kt =====
+package com.jarvismini.devtools.autobuild
+
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
+import android.graphics.Rect
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import java.io.File
+
+class UIWatcherModule(
+    private val service: AccessibilityService
+) {
+    companion object {
+        private const val TAG = "UIWatcherModule"
+        private const val CLAUDE_PKG = "com.anthropic.claude"
+        private const val DOWNLOADS_DIR = "/sdcard/Download"
+        private const val CANONICAL_DOWNLOAD_PATH = "$DOWNLOADS_DIR/ai-output.txt"
+        private const val MAX_DOWNLOAD_WAIT_MS = 60_000L
+        private const val POLL_INTERVAL_MS = 500L
+        private const val MESSAGE_CONFIRM_TEXT = "Build failed. See attached error report."
+        private const val MESSAGE_VISIBLE_POLL_INTERVAL_MS = 500L
+        private const val MESSAGE_VISIBLE_TIMEOUT_MS = 15_000L
+
+        // File card geometry thresholds
+        private const val CARD_MIN_HEIGHT_PX = 120
+        private const val CARD_MAX_HEIGHT_PX = 400
+        private const val CARD_MIN_WIDTH_FRACTION = 0.60f
+        private const val CARD_MAX_HEIGHT_FRACTION = 0.60f
+
+        // Keywords that confirm a geometric candidate is a file card
+        private val CARD_CONFIDENCE_KEYWORDS = listOf("output", "txt", "code", "ai-output", "ai_output")
+    }
+
+    var fileManager: FileManagerModule? = null
+
+    suspend fun handleDownloadAiOutput(): Boolean = withContext(Dispatchers.IO) {
+        if (!bringClaudeToFront()) {
+            Log.e(TAG, "Failed to bring Claude to foreground")
+            return@withContext false
+        }
+
+        // Race guard — let Claude fully render file card after response completion
+        delay(2000)
+
+        val rootNode = service.rootInActiveWindow
+        if (rootNode == null) {
+            Log.e(TAG, "No accessibility root node")
+            return@withContext false
+        }
+
+        // Record click timestamp BEFORE snapshot so timestamp comparison is conservative
+        val clickTimestamp = System.currentTimeMillis()
+
+        // Snapshot downloads dir by name for name-diff detection
+        val downloadsDir = File(DOWNLOADS_DIR)
+        val beforeSnapshot = downloadsDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
+        Log.d(TAG, "Downloads snapshot: ${beforeSnapshot.size} files, clickTimestamp=$clickTimestamp")
+
+        // ── Step 1: Guaranteed scroll to absolute bottom ───────────────────────
+        val scrollContainer = findScrollContainer(rootNode)
+        if (scrollContainer != null) {
+            var scrolled = true
+            while (scrolled) {
+                scrolled = scrollContainer.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                if (scrolled) Thread.sleep(250)
+            }
+            Log.d(TAG, "Reached absolute bottom of chat")
+            scrollContainer.recycle()
+        } else {
+            Log.w(TAG, "No scroll container found — proceeding without scroll")
+        }
+        rootNode.recycle()
+
+        delay(500)
+
+        // ── Step 2: Refresh root after scroll ─────────────────────────────────
+        val rootNode2 = service.rootInActiveWindow
+        if (rootNode2 == null) {
+            Log.e(TAG, "No root node after scroll")
+            return@withContext false
+        }
+
+        val screenWidth = service.resources.displayMetrics.widthPixels
+        val screenHeight = service.resources.displayMetrics.heightPixels
+
+        // ── Step 3: Semantic fast path ─────────────────────────────────────────
+        var clickDispatched = false
+        var gestureTarget: Rect? = null
+
+        val semanticNode = findSemanticDownloadCard(rootNode2)
+        if (semanticNode != null) {
+            val bounds = Rect()
+            semanticNode.getBoundsInScreen(bounds)
+            Log.d(TAG, "Semantic card found at $bounds")
+            if (semanticNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                Log.d(TAG, "Semantic ACTION_CLICK succeeded")
+                clickDispatched = true
+            } else {
+                Log.w(TAG, "Semantic ACTION_CLICK failed — queuing gesture")
+                gestureTarget = bounds
+            }
+            semanticNode.recycle()
+        }
+
+        // ── Step 4: Geometric fallback with semantic validation ────────────────
+        if (!clickDispatched && gestureTarget == null) {
+            Log.w(TAG, "Semantic search failed — using geometric search")
+            val candidate = findGeometricDownloadCard(rootNode2, screenWidth, screenHeight)
+            if (candidate != null) {
+                val bounds = Rect()
+                candidate.getBoundsInScreen(bounds)
+
+                // Semantic validation: check subtree for file card keywords
+                val confidence = subtreeContainsKeyword(candidate, CARD_CONFIDENCE_KEYWORDS)
+                Log.d(TAG, "Geometric card at $bounds — keyword confidence=$confidence")
+
+                if (candidate.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    Log.d(TAG, "Geometric ACTION_CLICK succeeded (confidence=$confidence)")
+                    clickDispatched = true
+                } else {
+                    Log.w(TAG, "Geometric ACTION_CLICK failed — queuing gesture")
+                    gestureTarget = bounds
+                }
+                candidate.recycle()
+            } else {
+                Log.e(TAG, "Geometric search exhausted — no card found")
+                rootNode2.recycle()
+                return@withContext false
+            }
+        }
+
+        rootNode2.recycle()
+
+        // ── Step 5: Gesture tap fallback ──────────────────────────────────────
+        if (!clickDispatched && gestureTarget != null) {
+            val tapX = gestureTarget.centerX().toFloat()
+            val tapY = gestureTarget.centerY().toFloat()
+            Log.d(TAG, "Dispatching gesture tap at ($tapX, $tapY)")
+            dispatchTap(tapX, tapY)
+            clickDispatched = true
+        }
+
+        // ── Step 6: Dismiss resolver if it appears ─────────────────────────────
+        delay(1500)
+        dismissResolverIfPresent()
+
+        // ── Step 7: Dual-mode download detection ───────────────────────────────
+        // Primary: name-diff (new file not in snapshot)
+        // Fallback: timestamp (newest file modified after clickTimestamp)
+        // Both must confirm file is non-empty.
+        val newFile = waitForNewDownload(downloadsDir, beforeSnapshot, clickTimestamp)
+        if (newFile == null) {
+            Log.e(TAG, "Download timeout — no new file appeared in $DOWNLOADS_DIR")
+            return@withContext false
+        }
+
+        // Rename to canonical name so the rest of the pipeline is stable
+        val canonical = File(CANONICAL_DOWNLOAD_PATH)
+        if (newFile.absolutePath != canonical.absolutePath) {
+            newFile.renameTo(canonical)
+            Log.d(TAG, "Renamed '${newFile.name}' → 'ai-output.txt'")
+        }
+
+        Log.d(TAG, "Download complete: ${canonical.absolutePath} (${canonical.length()} bytes)")
+        true
+    }
+
+    /**
+     * Dual-mode download detection:
+     *
+     * Mode A (primary) — name diff: any non-empty file not in beforeSnapshot.
+     * Mode B (fallback) — timestamp: newest non-empty file modified after clickTimestamp.
+     *
+     * Mode B catches the ultra-fast download case where the file lands before
+     * the snapshot was taken, making it invisible to name-diff.
+     */
+    private suspend fun waitForNewDownload(
+        dir: File,
+        beforeSnapshot: Set<String>,
+        clickTimestamp: Long
+    ): File? = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < MAX_DOWNLOAD_WAIT_MS) {
+            val allFiles = dir.listFiles()?.filter { it.length() > 0 } ?: emptyList()
+
+            // Mode A: name diff
+            val newByName = allFiles.firstOrNull { it.name !in beforeSnapshot }
+            if (newByName != null) {
+                Log.d(TAG, "Download detected (name-diff): ${newByName.name}")
+                return@withContext newByName
+            }
+
+            // Mode B: timestamp — newest file modified after click
+            val newByTimestamp = allFiles
+                .filter { it.lastModified() > clickTimestamp }
+                .maxByOrNull { it.lastModified() }
+            if (newByTimestamp != null) {
+                Log.d(TAG, "Download detected (timestamp): ${newByTimestamp.name}")
+                return@withContext newByTimestamp
+            }
+
+            delay(POLL_INTERVAL_MS)
+        }
+        null
+    }
+
+    /**
+     * Semantic search: fuzzy text match on "output", walks up to clickable ancestor.
+     * Also checks content-desc variants.
+     */
+    private fun findSemanticDownloadCard(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val byText = findClickableAncestorByFuzzyText(root, "output")
+        if (byText != null) return byText
+
+        for (desc in listOf("output", "ai-output", "ai_output")) {
+            val byDesc = findNodeByContentDescriptionFuzzy(root, desc)
+            if (byDesc != null) return byDesc
+        }
+        return null
+    }
+
+    /**
+     * Geometric fallback: bottom-most large clickable rectangle.
+     * After selecting candidate, logs keyword confidence for debugging.
+     * Picks highest-confidence candidate if multiple exist.
+     */
+    private fun findGeometricDownloadCard(
+        root: AccessibilityNodeInfo,
+        screenWidth: Int,
+        screenHeight: Int
+    ): AccessibilityNodeInfo? {
+        val candidates = mutableListOf<Pair<AccessibilityNodeInfo, Rect>>()
+        collectGeometricCandidates(root, screenWidth, screenHeight, candidates)
+
+        if (candidates.isEmpty()) {
+            Log.w(TAG, "No geometric candidates found")
+            return null
+        }
+
+        // Sort: prefer candidates with keyword matches, then by centerY (bottom-most)
+        candidates.sortWith(
+            compareByDescending<Pair<AccessibilityNodeInfo, Rect>> {
+                if (subtreeContainsKeyword(it.first, CARD_CONFIDENCE_KEYWORDS)) 1 else 0
+            }.thenByDescending { it.second.centerY() }
+        )
+
+        Log.d(TAG, "Geometric candidates (${candidates.size}):")
+        candidates.forEach {
+            val hasKeyword = subtreeContainsKeyword(it.first, CARD_CONFIDENCE_KEYWORDS)
+            Log.d(TAG, "  bounds=${it.second} keyword=$hasKeyword")
+        }
+
+        val winner = candidates.first()
+        candidates.drop(1).forEach { it.first.recycle() }
+        return winner.first
+    }
+
+    private fun collectGeometricCandidates(
+        node: AccessibilityNodeInfo,
+        screenWidth: Int,
+        screenHeight: Int,
+        results: MutableList<Pair<AccessibilityNodeInfo, Rect>>
+    ) {
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+
+        val height = bounds.height()
+        val width = bounds.width()
+        val centerY = bounds.centerY()
+        val minCardWidth = (screenWidth * CARD_MIN_WIDTH_FRACTION).toInt()
+        val maxCardHeight = minOf(CARD_MAX_HEIGHT_PX, (screenHeight * CARD_MAX_HEIGHT_FRACTION).toInt())
+        val className = node.className?.toString() ?: ""
+
+        if (node.isClickable
+            && !node.isScrollable
+            && height >= CARD_MIN_HEIGHT_PX
+            && height <= maxCardHeight
+            && width >= minCardWidth
+            && centerY > screenHeight * 0.30f
+            && className.contains("View")
+            && !className.contains("EditText")
+            && !className.contains("Button")
+        ) {
+            results.add(Pair(node, Rect(bounds)))
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            collectGeometricCandidates(child, screenWidth, screenHeight, results)
+        }
+    }
+
+    /**
+     * Returns true if any node in this subtree contains one of the given keywords
+     * in its text or content-desc. Used for semantic validation of geometric candidates.
+     */
+    private fun subtreeContainsKeyword(
+        node: AccessibilityNodeInfo,
+        keywords: List<String>
+    ): Boolean {
+        val text = node.text?.toString() ?: ""
+        val desc = node.contentDescription?.toString() ?: ""
+        if (keywords.any { text.contains(it, ignoreCase = true) || desc.contains(it, ignoreCase = true) }) {
+            return true
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = subtreeContainsKeyword(child, keywords)
+            child.recycle()
+            if (found) return true
+        }
+        return false
+    }
+
+    private fun dispatchTap(x: Float, y: Float) {
+        try {
+            val path = Path().apply { moveTo(x, y) }
+            val stroke = GestureDescription.StrokeDescription(path, 0, 50)
+            val gesture = GestureDescription.Builder().addStroke(stroke).build()
+            service.dispatchGesture(gesture, null, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "dispatchTap failed", e)
+        }
+    }
+
+    private fun dismissResolverIfPresent() {
+        val root = service.rootInActiveWindow ?: return
+        if (root.packageName?.toString() != "android") {
+            root.recycle()
+            return
+        }
+        Log.d(TAG, "Resolver detected — dismissing")
+        val cancelNode = findClickableAncestorByFuzzyText(root, "Cancel")
+            ?: findNodeByContentDescriptionFuzzy(root, "Cancel")
+        if (cancelNode != null) {
+            cancelNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            cancelNode.recycle()
+            Log.d(TAG, "Dismissed resolver via Cancel")
+        } else {
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            Log.w(TAG, "Cancel not found — dismissed resolver via BACK")
+        }
+        root.recycle()
+    }
+
+    suspend fun handleBuildFailure(): Boolean = withContext(Dispatchers.IO) {
+        if (!bringClaudeToFront()) {
+            Log.e(TAG, "Failed to bring Claude to foreground")
+            return@withContext false
+        }
+
+        delay(1000)
+
+        val errorReportPath = "/sdcard/ai-automation/build-error-report.txt"
+        if (!File(errorReportPath).exists()) {
+            Log.e(TAG, "build-error-report.txt not found")
+            return@withContext false
+        }
+
+        // ── Step 1: "Add to chat" ─────────────────────────────────────────────
+        val rootNode = service.rootInActiveWindow ?: run {
+            Log.e(TAG, "No accessibility root node"); return@withContext false
+        }
+
+        val addButton = findClickableAncestorByFuzzyText(rootNode, "Add to chat")
+            ?: findNodeByContentDescriptionFuzzy(rootNode, "Add to chat")
+        if (addButton == null) {
+            Log.e(TAG, "'Add to chat' button not found")
+            rootNode.recycle(); return@withContext false
+        }
+        if (!addButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            Log.e(TAG, "Failed to click 'Add to chat'")
+            addButton.recycle(); rootNode.recycle(); return@withContext false
+        }
+        Log.d(TAG, "Clicked 'Add to chat'")
+        addButton.recycle(); rootNode.recycle()
+        delay(1000)
+
+        // ── Step 2: "Files" ───────────────────────────────────────────────────
+        val rootNode2 = service.rootInActiveWindow ?: run {
+            Log.e(TAG, "No root node after Add to chat"); return@withContext false
+        }
+        val filesButton = findClickableAncestorByFuzzyText(rootNode2, "Files")
+        if (filesButton == null) {
+            Log.e(TAG, "'Files' button not found")
+            rootNode2.recycle(); return@withContext false
+        }
+        if (!filesButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            Log.e(TAG, "Failed to click 'Files'")
+            filesButton.recycle(); rootNode2.recycle(); return@withContext false
+        }
+        Log.d(TAG, "Clicked 'Files'")
+        filesButton.recycle(); rootNode2.recycle()
+        delay(2000)
+
+        // ── Step 3: Select build-error-report.txt ─────────────────────────────
+        val rootNode3 = service.rootInActiveWindow ?: run {
+            Log.e(TAG, "No root node in file picker"); return@withContext false
+        }
+        val fileItem = findClickableAncestorByFuzzyText(rootNode3, "build-error-report")
+        if (fileItem == null) {
+            Log.e(TAG, "build-error-report.txt not found in picker")
+            rootNode3.recycle(); return@withContext false
+        }
+        if (!fileItem.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            Log.e(TAG, "Failed to select build-error-report.txt")
+            fileItem.recycle(); rootNode3.recycle(); return@withContext false
+        }
+        Log.d(TAG, "Selected build-error-report.txt")
+        fileItem.recycle(); rootNode3.recycle()
+        delay(1000)
+
+        // ── Step 4: Set message text ──────────────────────────────────────────
+        val rootNode4 = service.rootInActiveWindow ?: run {
+            Log.e(TAG, "No root node after file selection"); return@withContext false
+        }
+        val inputField = findEditableNode(rootNode4)
+        if (inputField == null) {
+            Log.e(TAG, "Message input field not found")
+            rootNode4.recycle(); return@withContext false
+        }
+        val message = MESSAGE_CONFIRM_TEXT
+        if (!inputField.performAction(
+                AccessibilityNodeInfo.ACTION_SET_TEXT,
+                android.os.Bundle().apply {
+                    putCharSequence(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                        message
+                    )
+                }
+            )
+        ) {
+            Log.e(TAG, "Failed to set message text")
+            inputField.recycle(); rootNode4.recycle(); return@withContext false
+        }
+        Log.d(TAG, "Message text set")
+        inputField.recycle(); rootNode4.recycle()
+        delay(500)
+
+        // ── Step 5: Tap Send ──────────────────────────────────────────────────
+        val rootNode5 = service.rootInActiveWindow ?: run {
+            Log.e(TAG, "No root node for send"); return@withContext false
+        }
+        val sendButton = findNodeByContentDescriptionFuzzy(rootNode5, "Send")
+        if (sendButton == null) {
+            Log.e(TAG, "Send button not found")
+            rootNode5.recycle(); return@withContext false
+        }
+        val sendClicked = sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        sendButton.recycle(); rootNode5.recycle()
+        if (!sendClicked) {
+            Log.e(TAG, "Failed to click Send"); return@withContext false
+        }
+        Log.d(TAG, "Send button tapped — waiting for message to appear in chat")
+
+        // ── Step 6: Confirm message visible in chat ───────────────────────────
+        if (!waitForMessageVisible(message)) {
+            Log.e(TAG, "Message did not appear — NOT deleting error report")
+            return@withContext false
+        }
+        Log.d(TAG, "Message confirmed — clearing error report files")
+        fileManager?.clearErrorReport()
+            ?: Log.w(TAG, "fileManager not set — error report not cleared")
+
+        true
+    }
+
+    private suspend fun waitForMessageVisible(expectedText: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTime < MESSAGE_VISIBLE_TIMEOUT_MS) {
+                delay(MESSAGE_VISIBLE_POLL_INTERVAL_MS)
+                val root = service.rootInActiveWindow ?: continue
+                val nodes = root.findAccessibilityNodeInfosByText(expectedText)
+                val found = nodes.isNotEmpty()
+                nodes.forEach { it.recycle() }
+                root.recycle()
+                if (found) { Log.d(TAG, "Message visible in chat"); return@withContext true }
+            }
+            Log.e(TAG, "Timeout waiting for message")
+            false
+        }
+
+    private fun findScrollContainer(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (root.isScrollable && root.packageName?.toString() == CLAUDE_PKG) return root
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i) ?: continue
+            val result = findScrollContainer(child)
+            if (result != null) { child.recycle(); return result }
+            child.recycle()
+        }
+        return null
+    }
+
+    private fun findClickableAncestorByFuzzyText(
+        root: AccessibilityNodeInfo,
+        keyword: String
+    ): AccessibilityNodeInfo? {
+        val nodes = root.findAccessibilityNodeInfosByText(keyword)
+        for (node in nodes) {
+            if (node.text?.toString()?.contains(keyword, ignoreCase = true) == true) {
+                if (node.isClickable) return node
+                var parent = node.parent
+                while (parent != null) {
+                    if (parent.isClickable) return parent
+                    val next = parent.parent
+                    if (next == parent) break
+                    parent = next
+                }
+            }
+        }
+        return null
+    }
+
+    private fun findNodeByContentDescriptionFuzzy(
+        root: AccessibilityNodeInfo,
+        keyword: String
+    ): AccessibilityNodeInfo? {
+        val desc = root.contentDescription?.toString() ?: ""
+        if (desc.contains(keyword, ignoreCase = true) && root.isClickable) return root
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i) ?: continue
+            val result = findNodeByContentDescriptionFuzzy(child, keyword)
+            if (result != null) return result
+            child.recycle()
+        }
+        return null
+    }
+
+    private fun findEditableNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (root.isEditable) return root
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i) ?: continue
+            val result = findEditableNode(child)
+            if (result != null) return result
+            child.recycle()
+        }
+        return null
+    }
+
+    private fun bringClaudeToFront(): Boolean {
+        return try {
+            val intent = service.packageManager.getLaunchIntentForPackage(CLAUDE_PKG)
+            if (intent != null) {
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                service.startActivity(intent)
+                true
+            } else false
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch Claude", e)
+            false
+        }
+    }
+}
