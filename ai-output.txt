@@ -1,559 +1,3224 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/UIWatcherModule.kt =====
-package com.jarvismini.devtools.autobuild
+//===== TERMUXFILE: jarvis_setup.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# =============================================================
+#  jarvis_setup.sh  — Full Jarvis Agent + Server Setup
+#  Run ONCE in Termux.
+#
+#  What this does:
+#    1. Install packages (python, android-tools, inotify-tools, wget)
+#    2. Download llamafile binary (if missing)
+#    3. Connect ADB to device
+#    4. Create /sdcard/jarvis/ IPC directory
+#    5. Deploy all Python agent files
+#    6. Deploy server scripts (jarvis_server_init.sh, proxies, executor)
+#    7. Smoke-test imports
+#
+#  After setup, start the system:
+#    bash ~/jarvis_server_init.sh      # starts llamafile + proxy
+#    bash ~/jarvis_executor.sh &       # starts file IPC daemon
+#    cd ~/jarvis-agent && python agent/controller.py
+# =============================================================
 
-import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
-import android.graphics.Path
-import android.graphics.Rect
+set -e
+
+AGENT_DIR="$HOME/jarvis-agent"
+WORKSPACE="$HOME/ai-workspace"
+MODEL_DIR="$WORKSPACE/llama.cpp/models"
+JARVIS_IPC="/sdcard/jarvis"
+ADB_DEVICE="192.168.29.48:39281"
+LLAMAFILE_BIN="$HOME/llamafile"
+LLAMAFILE_URL="https://github.com/Mozilla-Ocho/llamafile/releases/download/0.8.13/llamafile-0.8.13"
+
+GREEN="\033[0;32m"; YELLOW="\033[1;33m"; RED="\033[0;31m"; NC="\033[0m"
+log()  { echo -e "${GREEN}[setup]${NC} $*"; }
+warn() { echo -e "${YELLOW}[warn]${NC}  $*"; }
+err()  { echo -e "${RED}[error]${NC} $*"; exit 1; }
+
+echo ""
+echo "╔══════════════════════════════════════════════════╗"
+echo "║     JARVIS FULL SYSTEM SETUP                     ║"
+echo "╚══════════════════════════════════════════════════╝"
+echo ""
+
+# ── 1. Packages ──────────────────────────────────────────
+log "Installing packages..."
+pkg update -y -q
+pkg install -y python android-tools inotify-tools wget curl
+pip install --quiet requests pillow
+log "✓ Packages ready"
+
+# ── 2. llamafile binary ──────────────────────────────────
+if [ -f "$LLAMAFILE_BIN" ]; then
+    log "✓ llamafile already present"
+else
+    log "Downloading llamafile..."
+    wget -q --show-progress -O "$LLAMAFILE_BIN" "$LLAMAFILE_URL"
+    chmod +x "$LLAMAFILE_BIN"
+    log "✓ llamafile downloaded"
+fi
+
+# Add llamafile to PATH for this session
+export PATH="$HOME:$PATH"
+
+# ── 3. ADB ───────────────────────────────────────────────
+log "Connecting ADB to $ADB_DEVICE ..."
+adb connect "$ADB_DEVICE" 2>&1 | grep -q "connected" && log "✓ ADB connected" \
+    || warn "ADB connect may have failed — check device IP"
+
+# ── 4. IPC directory ─────────────────────────────────────
+log "Creating IPC dir at $JARVIS_IPC ..."
+mkdir -p "$JARVIS_IPC"
+chmod 777 "$JARVIS_IPC" 2>/dev/null || true
+touch "$JARVIS_IPC/command.txt" "$JARVIS_IPC/result.txt"
+chmod 666 "$JARVIS_IPC/command.txt" "$JARVIS_IPC/result.txt" 2>/dev/null || true
+echo "ready" > "$JARVIS_IPC/status.txt"
+log "✓ IPC dir ready"
+
+# ── 5. Create model dir ──────────────────────────────────
+mkdir -p "$MODEL_DIR"
+MODEL_FILE="$MODEL_DIR/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
+if [ -f "$MODEL_FILE" ]; then
+    SIZE=$(du -sh "$MODEL_FILE" | cut -f1)
+    log "✓ Model found ($SIZE)"
+else
+    warn "Model not found: $MODEL_FILE"
+    warn "Download it:"
+    warn "  cd $MODEL_DIR"
+    warn "  wget https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+fi
+
+# ── 6. Deploy agent Python files ─────────────────────────
+log "Deploying agent files to $AGENT_DIR ..."
+mkdir -p "$AGENT_DIR"/{agent,perception,reasoning,executor}
+
+# ─ agent/__init__.py ─
+cat > "$AGENT_DIR/agent/__init__.py" << 'PYEOF'
+PYEOF
+
+# ─ agent/state.py ─
+cat > "$AGENT_DIR/agent/state.py" << 'PYEOF'
+from dataclasses import dataclass, field
+
+@dataclass
+class AgentState:
+    task: str
+    step: int = 0
+    history: list = field(default_factory=list)
+    last_screen: str = ""
+    last_ui: list = field(default_factory=list)
+    done: bool = False
+    max_steps: int = 20
+
+    def record(self, action: dict, ui_elements: list) -> None:
+        act = action.get("action", "?")
+        if act == "tap":
+            tid = action.get("target")
+            label = next((e["text"] for e in ui_elements if e["id"] == tid), f"id={tid}")
+            self.history.append(f"tap [{tid}] {label}")
+        else:
+            self.history.append(act)
+        self.step += 1
+
+    def is_finished(self) -> bool:
+        return self.done or self.step >= self.max_steps
+
+    def summary(self) -> str:
+        return f"Task: {self.task} | Step: {self.step}/{self.max_steps} | History: {self.history}"
+PYEOF
+
+# ─ agent/controller.py ─
+cat > "$AGENT_DIR/agent/controller.py" << 'PYEOF'
+import sys, os, time, argparse
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+from perception.screen_capture import capture_screen
+from perception.ui_mock_parser  import parse_ui
+from reasoning.prompt_builder   import build_prompt
+from reasoning.llm_client       import generate, health_check
+from reasoning.action_parser    import parse_action
+from executor.adb_executor      import execute
+from agent.state                import AgentState
+
+DEFAULT_DEVICE = "192.168.29.48:39281"
+DEFAULT_TASK   = "Open WhatsApp"
+DEFAULT_MODEL  = os.path.expanduser(
+    "~/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
+)
+LOOP_SLEEP_SEC = 1.5
+
+def run_step(state, device, model_path):
+    print(f"\n{'='*55}\n  STEP {state.step+1}  |  {state.task}\n{'='*55}")
+    img_path = capture_screen(adb_device=device)
+    state.last_screen = img_path
+    ui = parse_ui(img_path)
+    state.last_ui = ui
+    prompt = build_prompt(state.task, ui, history=state.history)
+    llm_output = generate(prompt, model_path=model_path)
+    print(f"[step] LLM decision: {llm_output!r}")
+    action = parse_action(llm_output)
+    print(f"[step] Parsed action: {action}")
+    execute(action, ui, adb_device=device)
+    state.record(action, ui)
+    if action.get("action") == "done":
+        state.done = True
+    print(f"[step] {state.summary()}")
+
+def run(task, device, model_path, max_steps=20):
+    print(f"\n{'#'*55}")
+    print(f"  JARVIS AGENT  —  {task}")
+    print(f"  Device : {device}")
+    print(f"  Model  : {os.path.basename(model_path)}")
+    print(f"{'#'*55}\n")
+
+    hc = health_check()
+    print(f"[init] LLM backends: {hc}")
+    if not any([hc["proxy"], hc["llamafile"], hc["binary"]]):
+        print("[init] ⚠ WARNING: No LLM backend available. Start: bash ~/jarvis_server_init.sh")
+
+    state = AgentState(task=task, max_steps=max_steps)
+    while not state.is_finished():
+        try:
+            run_step(state, device=device, model_path=model_path)
+        except KeyboardInterrupt:
+            print("\n[controller] Interrupted."); break
+        except Exception as e:
+            print(f"[controller] Step error: {e}\nRetrying in 3s...")
+            time.sleep(3); state.step += 1; continue
+        if state.done:
+            print(f"\n[controller] ✓ Task complete in {state.step} steps."); break
+        time.sleep(LOOP_SLEEP_SEC)
+
+    print(f"\n[controller] Final history:")
+    for i, h in enumerate(state.history, 1):
+        print(f"  {i}. {h}")
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Jarvis Agent Controller")
+    p.add_argument("--task",      default=DEFAULT_TASK)
+    p.add_argument("--device",    default=DEFAULT_DEVICE)
+    p.add_argument("--model",     default=DEFAULT_MODEL)
+    p.add_argument("--max-steps", default=20, type=int)
+    args = p.parse_args()
+    run(args.task, args.device, args.model, args.max_steps)
+PYEOF
+
+# ─ perception/__init__.py ─
+cat > "$AGENT_DIR/perception/__init__.py" << 'PYEOF'
+PYEOF
+
+# ─ perception/screen_capture.py ─
+cat > "$AGENT_DIR/perception/screen_capture.py" << 'PYEOF'
+import subprocess, os
+
+LOCAL_PATH = os.path.join(os.path.dirname(__file__), "..", "screen.png")
+
+def capture_screen(adb_device: str, local_path: str = LOCAL_PATH) -> str:
+    local_path = os.path.abspath(local_path)
+    result = subprocess.run(
+        ["adb", "-s", adb_device, "exec-out", "screencap", "-p"],
+        capture_output=True, timeout=15
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"screencap failed: {result.stderr.decode().strip()}")
+    if len(result.stdout) < 100:
+        raise RuntimeError("screencap returned empty data")
+    with open(local_path, "wb") as f:
+        f.write(result.stdout)
+    print(f"[capture] Screenshot saved ({len(result.stdout)} bytes)")
+    return local_path
+PYEOF
+
+# ─ perception/ui_mock_parser.py ─
+cat > "$AGENT_DIR/perception/ui_mock_parser.py" << 'PYEOF'
+MOCK_ELEMENTS = [
+    {"id": 1, "text": "WhatsApp",  "x": 160,  "y": 1200},
+    {"id": 2, "text": "Chrome",    "x": 480,  "y": 1200},
+    {"id": 3, "text": "Camera",    "x": 800,  "y": 1200},
+    {"id": 4, "text": "Settings",  "x": 160,  "y": 1600},
+    {"id": 5, "text": "YouTube",   "x": 480,  "y": 1600},
+    {"id": 6, "text": "Files",     "x": 800,  "y": 1600},
+    {"id": 7, "text": "Search",    "x": 540,  "y": 200},
+]
+
+def parse_ui(image_path: str) -> list:
+    print(f"[parser] mock UI — {len(MOCK_ELEMENTS)} elements")
+    return [dict(e) for e in MOCK_ELEMENTS]
+PYEOF
+
+# ─ reasoning/__init__.py ─
+cat > "$AGENT_DIR/reasoning/__init__.py" << 'PYEOF'
+PYEOF
+
+# ─ reasoning/prompt_builder.py ─
+cat > "$AGENT_DIR/reasoning/prompt_builder.py" << 'PYEOF'
+SYSTEM_HEADER = "You are an Android control agent.\nChoose ONE action. Reply with ONLY the action. No explanation."
+ACTION_MENU = "Actions:\n  tap <id>\n  back\n  home\n  done"
+
+def build_prompt(task: str, ui_elements: list, history: list = None) -> str:
+    lines = [SYSTEM_HEADER, "", f"TASK: {task}", "", "SCREEN:"]
+    for el in ui_elements:
+        lines.append(f"  [{el['id']}] {el['text']}")
+    if history:
+        lines += ["", "DONE SO FAR:"] + [f"  {h}" for h in history[-4:]]
+    lines += ["", ACTION_MENU, "", "Your action:"]
+    return "\n".join(lines)
+PYEOF
+
+# ─ reasoning/llm_client.py ─
+cat > "$AGENT_DIR/reasoning/llm_client.py" << 'PYEOF'
+import json, os, subprocess, shutil, urllib.request
+
+PROXY_URL     = "http://127.0.0.1:8888"
+LLAMAFILE_URL = "http://127.0.0.1:8080"
+DEFAULT_MODEL = os.path.expanduser("~/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf")
+LLAMA_BINS    = ["llama-cli", "llama-simple-chat", "llamafile", "main"]
+
+def _post(url, payload, timeout=60):
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type":"application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
+def _ok(url, t=3):
+    try:
+        with urllib.request.urlopen(url, timeout=t) as r: return r.status == 200
+    except: return False
+
+def generate(prompt, model_path=DEFAULT_MODEL, max_tokens=64, temperature=0.1, timeout=60):
+    print(f"[llm] Generating... tail: ...{prompt[-80:].strip()!r}")
+
+    if _ok(f"{PROXY_URL}/health"):
+        try:
+            d = _post(f"{PROXY_URL}/chat_sync", {"query": prompt}, timeout=timeout)
+            if d.get("success"):
+                out = (d.get("response") or "").strip()
+                print(f"[llm] ✓ proxy: {out!r}"); return out
+        except Exception as e: print(f"[llm] proxy err: {e}")
+
+    if _ok(f"{LLAMAFILE_URL}/health"):
+        try:
+            d = _post(f"{LLAMAFILE_URL}/v1/chat/completions",
+                      {"messages":[{"role":"user","content":prompt}],
+                       "max_tokens":max_tokens,"temperature":temperature}, timeout=timeout)
+            out = d["choices"][0]["message"]["content"].strip()
+            print(f"[llm] ✓ llamafile: {out!r}"); return out
+        except Exception as e: print(f"[llm] llamafile err: {e}")
+
+    mp = os.path.expanduser(model_path)
+    binary = next((shutil.which(b) for b in LLAMA_BINS if shutil.which(b)), None)
+    if not binary or not os.path.isfile(mp):
+        raise RuntimeError("No LLM backend. Run: bash ~/jarvis_server_init.sh")
+    r = subprocess.run([binary,"-m",mp,"-p",prompt,"-n",str(max_tokens),
+                        "--temp",str(temperature),"--no-display-prompt","-e","--log-disable"],
+                       capture_output=True, text=True, timeout=timeout)
+    out = "\n".join(l for l in r.stdout.strip().splitlines()
+                    if not l.startswith("llama") and not l.startswith("[")).strip()
+    print(f"[llm] ✓ subprocess: {out!r}"); return out
+
+def health_check():
+    return {"proxy":_ok(f"{PROXY_URL}/health"), "llamafile":_ok(f"{LLAMAFILE_URL}/health"),
+            "binary":next((shutil.which(b) for b in LLAMA_BINS if shutil.which(b)),None)}
+PYEOF
+
+# ─ reasoning/action_parser.py ─
+cat > "$AGENT_DIR/reasoning/action_parser.py" << 'PYEOF'
+import re
+_TAP  = re.compile(r"\btap\s+(\d+)", re.I)
+_BACK = re.compile(r"\bback\b", re.I)
+_HOME = re.compile(r"\bhome\b", re.I)
+_DONE = re.compile(r"\bdone\b", re.I)
+
+def parse_action(text: str) -> dict:
+    if not text or not text.strip():
+        return {"action": "home"}
+    for line in text.splitlines():
+        m = _TAP.search(line)
+        if m: return {"action":"tap","target":int(m.group(1))}
+        if _BACK.search(line): return {"action":"back"}
+        if _HOME.search(line): return {"action":"home"}
+        if _DONE.search(line): return {"action":"done"}
+    print(f"[parser] unrecognised: {text!r} → home")
+    return {"action": "home"}
+PYEOF
+
+# ─ executor/__init__.py ─
+cat > "$AGENT_DIR/executor/__init__.py" << 'PYEOF'
+PYEOF
+
+# ─ executor/adb_executor.py ─
+cat > "$AGENT_DIR/executor/adb_executor.py" << 'PYEOF'
+import subprocess, time
+
+def _adb(device, *args, timeout=10):
+    cmd = ["adb", "-s", device] + list(args)
+    print(f"[adb] {' '.join(cmd)}")
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+def execute(action: dict, ui_elements: list, adb_device: str) -> bool:
+    act = action.get("action", "").lower()
+    if act == "tap":
+        tid = action.get("target")
+        el = next((e for e in ui_elements if e["id"] == tid), None)
+        if not el: print(f"[executor] element {tid} not found"); return False
+        print(f"[executor] Tapping [{tid}] {el['text']} at ({el['x']},{el['y']})")
+        _adb(adb_device, "shell", "input", "tap", str(el["x"]), str(el["y"]))
+        time.sleep(0.5); return True
+    elif act == "back":
+        _adb(adb_device, "shell", "input", "keyevent", "4"); time.sleep(0.3); return True
+    elif act == "home":
+        _adb(adb_device, "shell", "input", "keyevent", "3"); time.sleep(0.3); return True
+    elif act == "done":
+        return False
+    print(f"[executor] unknown action: {act!r}"); return False
+PYEOF
+
+log "✓ Agent files deployed"
+
+# ── 7. Deploy server scripts ──────────────────────────────
+log "Deploying server scripts..."
+
+# llamafile_server.sh — wrapper to launch model
+cat > "$HOME/llamafile_server.sh" << SHEOF2
+#!/data/data/com.termux/files/usr/bin/bash
+MODEL="$MODEL_DIR/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
+if [ ! -f "\$MODEL" ]; then echo "Model not found: \$MODEL"; exit 1; fi
+echo "Starting llamafile server on port 8080..."
+\$HOME/llamafile -m "\$MODEL" --server --port 8080 --host 127.0.0.1 \
+  --ctx-size 4096 --threads 4 --n-predict 256 --log-disable
+SHEOF2
+chmod +x "$HOME/llamafile_server.sh"
+log "✓ llamafile_server.sh"
+
+# ── 8. Smoke test ─────────────────────────────────────────
+log "Running smoke test..."
+cd "$AGENT_DIR"
+python3 - << 'SMOKEEOF'
+import sys; sys.path.insert(0, ".")
+from perception.ui_mock_parser import parse_ui
+from reasoning.prompt_builder  import build_prompt
+from reasoning.action_parser   import parse_action
+from reasoning.llm_client      import health_check
+from executor.adb_executor     import execute
+from agent.state               import AgentState
+
+ui      = parse_ui("x.png")
+prompt  = build_prompt("Open WhatsApp", ui)
+action  = parse_action("tap 1")
+state   = AgentState(task="test")
+state.record(action, ui)
+hc      = health_check()
+
+print("✓ Imports OK")
+print(f"✓ UI elements: {[e['text'] for e in ui]}")
+print(f"✓ parse_action('tap 1'): {action}")
+print(f"✓ state: {state.summary()}")
+print(f"✓ LLM backends: {hc}")
+SMOKEEOF
+
+# ── Done ──────────────────────────────────────────────────
+echo ""
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║  ✅  JARVIS SETUP COMPLETE                               ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo ""
+echo "  NEXT STEPS:"
+echo ""
+echo "  1. Start the LLM server + proxy:"
+echo "       bash ~/jarvis_server_init.sh"
+echo ""
+echo "  2. Start the file executor daemon (separate session):"
+echo "       bash ~/jarvis_executor.sh"
+echo ""
+echo "  3. Run the agent:"
+echo "       cd $AGENT_DIR"
+echo "       python3 agent/controller.py"
+echo ""
+echo "  Custom task:"
+echo "       python3 agent/controller.py --task 'Open Chrome' --device $ADB_DEVICE"
+echo ""
+
+//===== TERMUXFILE: jarvis_server_init.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# ================================================================
+#  jarvis_server_init.sh  —  Phone A startup
+#  Starts full JARVIS stack:
+#    1. ADB connect Phone A + Phone B
+#    2. llamafile server         :8080
+#    3. llamafile_proxy.py       :8888  (agent, no-auth)
+#    4. llamafile_proxy_lan.py   :8889  (Android app, auth)
+#    5. agent_http_bridge.py     :8891  (voice bridge)
+#
+#  Phone A : 192.168.29.48:39281
+#  Phone B : 192.168.29.110:43241  (Claude brain)
+#
+#  Usage:
+#    bash ~/jarvis_server_init.sh          # start all
+#    bash ~/jarvis_server_init.sh --stop   # kill all
+#    bash ~/jarvis_server_init.sh --pair   # start + LAN pairing
+# ================================================================
+
+PHONE_A="192.168.29.48:39281"
+PHONE_B="192.168.29.110:43241"
+
+MODEL="$HOME/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
+LLAMAFILE="$HOME/llamafile"
+PROXY_LOCAL="$HOME/llamafile_proxy.py"
+PROXY_LAN="$HOME/llamafile_proxy_lan.py"
+AGENT_BRIDGE="$HOME/agent_http_bridge.py"
+
+LOG_DIR="$HOME/.jarvis_logs"
+mkdir -p "$LOG_DIR"
+
+GREEN="\033[0;32m"; YELLOW="\033[1;33m"; RED="\033[0;31m"; NC="\033[0m"
+log()  { echo -e "${GREEN}[jarvis]${NC} $*"; }
+warn() { echo -e "${YELLOW}[jarvis]${NC} $*"; }
+
+# ── Stop mode ────────────────────────────────────────────────
+if [ "$1" = "--stop" ]; then
+    log "Stopping all JARVIS processes..."
+    pkill -f "llamafile"          2>/dev/null && log "  ✓ llamafile stopped"    || true
+    pkill -f "llamafile_proxy"    2>/dev/null && log "  ✓ proxies stopped"      || true
+    pkill -f "agent_http_bridge"  2>/dev/null && log "  ✓ agent bridge stopped" || true
+    log "Done."; exit 0
+fi
+
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║   🚀 JARVIS SERVER INIT                              ║"
+echo "╚══════════════════════════════════════════════════════╝"
+echo ""
+
+# ── 1. ADB connections ───────────────────────────────────────
+log "Connecting ADB devices..."
+
+adb connect "$PHONE_A" 2>&1 | grep -q "connected" \
+    && log "  ✓ Phone A connected ($PHONE_A)" \
+    || warn "  ✗ Phone A failed ($PHONE_A)"
+
+adb connect "$PHONE_B" 2>&1 | grep -q "connected" \
+    && log "  ✓ Phone B connected ($PHONE_B)" \
+    || warn "  ✗ Phone B failed — Claude brain offline"
+
+echo ""
+log "Connected devices:"
+adb devices | grep -v "^List" | grep -v "^$" | while read line; do
+    log "  $line"
+done
+
+# ── 2. Kill stale processes ──────────────────────────────────
+log "Cleaning up stale processes..."
+pkill -f "llamafile"         2>/dev/null || true
+pkill -f "llamafile_proxy"   2>/dev/null || true
+pkill -f "agent_http_bridge" 2>/dev/null || true
+sleep 1
+
+# ── 3. llamafile server ──────────────────────────────────────
+if [ -f "$MODEL" ] && [ -f "$LLAMAFILE" ]; then
+    log "Starting llamafile server (port 8080)..."
+    nohup "$LLAMAFILE" -m "$MODEL" \
+        --server --port 8080 --host 127.0.0.1 \
+        --ctx-size 4096 --threads 4 \
+        --n-predict 256 --log-disable \
+        > "$LOG_DIR/llamafile.log" 2>&1 &
+    LLAMAFILE_PID=$!
+    log "  PID $LLAMAFILE_PID — waiting for model to load..."
+    READY=0
+    for i in $(seq 1 30); do
+        sleep 2
+        if curl -sf "http://127.0.0.1:8080/health" > /dev/null 2>&1; then
+            log "  ✓ llamafile ready after ${i}×2s"; READY=1; break
+        fi
+        printf "."
+    done
+    echo ""
+    [ $READY -eq 1 ] || warn "llamafile still loading — proxy will retry"
+else
+    warn "llamafile/model missing — local LLM disabled (Phone B is primary)"
+fi
+
+# ── 4. Local proxy :8888 ─────────────────────────────────────
+if [ -f "$PROXY_LOCAL" ]; then
+    log "Starting local proxy (port 8888)..."
+    nohup python3 "$PROXY_LOCAL" > "$LOG_DIR/proxy_local.log" 2>&1 &
+    sleep 1
+    curl -sf "http://127.0.0.1:8888/health" > /dev/null 2>&1 \
+        && log "  ✓ local proxy ready" \
+        || warn "  proxy still starting"
+fi
+
+# ── 5. LAN proxy :8889 ───────────────────────────────────────
+if [ -f "$PROXY_LAN" ]; then
+    log "Starting LAN proxy (port 8889)..."
+    PAIR_FLAG=""
+    [ "$1" = "--pair" ] && PAIR_FLAG="--pair --duration 300"
+    nohup python3 "$PROXY_LAN" $PAIR_FLAG > "$LOG_DIR/proxy_lan.log" 2>&1 &
+    sleep 1
+    curl -sf "http://127.0.0.1:8889/health" > /dev/null 2>&1 \
+        && log "  ✓ LAN proxy ready" \
+        || warn "  LAN proxy still starting"
+fi
+
+# ── 6. Agent HTTP bridge :8891 ───────────────────────────────
+if [ -f "$AGENT_BRIDGE" ]; then
+    log "Starting agent HTTP bridge (port 8891)..."
+    nohup python3 "$AGENT_BRIDGE" > "$LOG_DIR/agent_bridge.log" 2>&1 &
+    sleep 1
+    curl -sf "http://127.0.0.1:8891/health" > /dev/null 2>&1 \
+        && log "  ✓ agent bridge ready" \
+        || warn "  agent bridge still starting"
+fi
+
+# ── 7. Check Phone B bridge ──────────────────────────────────
+log "Checking Phone B Claude bridge..."
+curl -sf "http://192.168.29.110:8890/health" > /dev/null 2>&1 \
+    && log "  ✓ Phone B bridge online — Claude brain ACTIVE" \
+    || warn "  ✗ Phone B bridge offline — start on Phone B: python3 ~/claude_bridge.py"
+
+# ── Summary ──────────────────────────────────────────────────
+echo ""
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║  ✅  JARVIS STACK RUNNING                                ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo ""
+log "Devices:"
+log "  Phone A (agent)  : $PHONE_A"
+log "  Phone B (brain)  : $PHONE_B"
+echo ""
+log "Endpoints:"
+log "  Phone B Claude   : http://192.168.29.110:8890   ← PRIMARY"
+log "  local proxy      : http://127.0.0.1:8888         ← fallback"
+log "  llamafile        : http://127.0.0.1:8080         ← fallback"
+log "  LAN proxy        : http://127.0.0.1:8889"
+log "  agent bridge     : http://127.0.0.1:8891"
+echo ""
+log "Logs: $LOG_DIR/"
+echo ""
+log "Next:"
+log "  bash ~/jarvis_executor.sh &"
+log "  cd ~/jarvis-agent && python3 agent/controller.py --task 'Open WhatsApp'"
+echo ""
+[ "$1" = "--pair" ] && log "⚡ Pairing mode ON for 5 minutes"
+echo ""
+
+//===== TERMUXFILE: jarvis_executor.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# ================================================================
+# jarvis_executor.sh  —  File IPC daemon (Phone A)
+# Watches /sdcard/jarvis/command.txt for shell commands
+# Writes result back to /sdcard/jarvis/result.txt
+# Used by JarvisMerged UnifiedExecutor / FileBasedExecutor
+# ================================================================
+
+JARVIS_DIR="/sdcard/jarvis"
+CMD_FILE="$JARVIS_DIR/command.txt"
+RESULT_FILE="$JARVIS_DIR/result.txt"
+STATUS_FILE="$JARVIS_DIR/status.txt"
+AGENT_TASK="$JARVIS_DIR/agent_task.txt"
+AGENT_RESULT="$JARVIS_DIR/agent_result.txt"
+
+mkdir -p "$JARVIS_DIR"
+echo "ready" > "$STATUS_FILE"
+> "$CMD_FILE"
+> "$RESULT_FILE"
+
+GREEN="\033[0;32m"; NC="\033[0m"
+log() { echo -e "${GREEN}[executor]${NC} $*"; }
+
+log "Jarvis executor daemon started"
+log "  Watching : $CMD_FILE"
+log "  Status   : $STATUS_FILE"
+log "  Agent IPC: $AGENT_TASK / $AGENT_RESULT"
+echo ""
+
+while true; do
+    # ── Command executor (JarvisMerged FileBasedExecutor) ──
+    if [ -s "$CMD_FILE" ]; then
+        CMD=$(cat "$CMD_FILE")
+        > "$CMD_FILE"
+        log "Executing: $CMD"
+        START=$(date +%s%3N)
+        OUTPUT=$(eval "$CMD" 2>&1)
+        EXIT_CODE=$?
+        END=$(date +%s%3N)
+        echo "${EXIT_CODE}|${OUTPUT}" > "$RESULT_FILE"
+        log "Done (${EXIT_CODE}) in $((END-START))ms"
+    fi
+    sleep 0.1
+done
+
+//===== TERMUXFILE: llamafile_proxy.py =====
+#!/usr/bin/env python3
+"""
+llamafile_proxy.py  —  Local proxy, no auth (port 8888)
+Bridges agent loop → llamafile server on :8080
+"""
+import json
+import urllib.request
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+LLAMAFILE_URL = "http://127.0.0.1:8080"
+PORT = 8888
+
+def _post(url, payload, timeout=60):
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=body,
+                                 headers={"Content-Type": "application/json"},
+                                 method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
+class ProxyHandler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args): pass
+
+    def send_json(self, code, data):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == "/health":
+            try:
+                urllib.request.urlopen(f"{LLAMAFILE_URL}/health", timeout=2)
+                self.send_json(200, {"success": True, "backend": "llamafile"})
+            except:
+                self.send_json(200, {"success": False, "backend": "llamafile_down"})
+        else:
+            self.send_json(404, {"error": "not found"})
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        data = json.loads(body.decode())
+
+        if self.path == "/chat_sync":
+            query = data.get("query", "")
+            try:
+                r = _post(f"{LLAMAFILE_URL}/v1/chat/completions",
+                          {"messages": [{"role": "user", "content": query}],
+                           "max_tokens": 256, "temperature": 0.1},
+                          timeout=60)
+                text = r["choices"][0]["message"]["content"].strip()
+                self.send_json(200, {"success": True, "response": text})
+            except Exception as e:
+                self.send_json(500, {"success": False, "error": str(e)})
+        else:
+            self.send_json(404, {"error": "not found"})
+
+if __name__ == "__main__":
+    print(f"[proxy] Local proxy on port {PORT} → {LLAMAFILE_URL}")
+    HTTPServer(("127.0.0.1", PORT), ProxyHandler).serve_forever()
+
+//===== TERMUXFILE: llamafile_proxy_lan.py =====
+#!/usr/bin/env python3
+"""
+llamafile_proxy_lan.py  —  LAN proxy with auth (port 8889)
+For JarvisMerged Android app access from same WiFi network.
+"""
+import json
+import os
+import secrets
+import urllib.request
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+LLAMAFILE_URL = "http://127.0.0.1:8080"
+PORT          = 8889
+TOKEN_FILE    = Path.home() / ".jarvis_lan_token"
+
+def get_or_create_token():
+    if TOKEN_FILE.exists():
+        return TOKEN_FILE.read_text().strip()
+    token = secrets.token_hex(16)
+    TOKEN_FILE.write_text(token)
+    return token
+
+TOKEN = get_or_create_token()
+
+def _post(url, payload, timeout=60):
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=body,
+                                 headers={"Content-Type": "application/json"},
+                                 method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
+class LanProxyHandler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args): pass
+
+    def send_json(self, code, data):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def check_auth(self):
+        auth = self.headers.get("Authorization", "")
+        return auth == f"Bearer {TOKEN}"
+
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_json(200, {"success": True, "port": PORT})
+        elif self.path == "/token":
+            # Show token for pairing (on local request only)
+            host = self.headers.get("Host", "")
+            if "127.0.0.1" in host or "localhost" in host:
+                self.send_json(200, {"token": TOKEN})
+            else:
+                self.send_json(403, {"error": "local access only"})
+        else:
+            self.send_json(404, {"error": "not found"})
+
+    def do_POST(self):
+        if not self.check_auth():
+            self.send_json(401, {"error": "unauthorized"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        data = json.loads(body.decode())
+
+        if self.path in ("/chat_sync", "/chat"):
+            query = data.get("query", data.get("prompt", ""))
+            try:
+                r = _post(f"{LLAMAFILE_URL}/v1/chat/completions",
+                          {"messages": [{"role": "user", "content": query}],
+                           "max_tokens": 256, "temperature": 0.1},
+                          timeout=60)
+                text = r["choices"][0]["message"]["content"].strip()
+                self.send_json(200, {"success": True, "response": text})
+            except Exception as e:
+                self.send_json(500, {"success": False, "error": str(e)})
+        else:
+            self.send_json(404, {"error": "not found"})
+
+if __name__ == "__main__":
+    import socket
+    ip = socket.gethostbyname(socket.gethostname())
+    print(f"[proxy-lan] LAN proxy on port {PORT}")
+    print(f"[proxy-lan] Token: {TOKEN}")
+    print(f"[proxy-lan] Pair:  http://{ip}:{PORT}  Bearer {TOKEN}")
+    HTTPServer(("0.0.0.0", PORT), LanProxyHandler).serve_forever()
+
+//===== TERMUXFILE: agent_http_bridge.py =====
+#!/usr/bin/env python3
+"""
+agent_http_bridge.py
+
+Runs in Termux on Phone A.
+Receives task POST from JarvisMerged (AgentBridge.kt LAN mode)
+and runs the agent loop, returning the result.
+
+Port: 8891
+Endpoint: POST /agent_task  {"task": "Open WhatsApp"}
+Response: {"success": true, "result": "Opened WhatsApp successfully"}
+
+Also writes status to /sdcard/jarvis/agent_status.txt
+so AgentBridge file-IPC mode can poll it too.
+
+Start:
+  python3 ~/agent_http_bridge.py &
+
+Auto-started by jarvis_server_init.sh
+"""
+
+import json
+import os
+import sys
+import time
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+ROOT       = Path(__file__).parent / "jarvis-agent"
+JARVIS_DIR = Path("/sdcard/jarvis")
+TASK_FILE  = JARVIS_DIR / "agent_task.txt"
+RESULT_FILE= JARVIS_DIR / "agent_result.txt"
+STATUS_FILE= JARVIS_DIR / "agent_status.txt"
+
+PORT       = 8891
+ADB_DEVICE = "192.168.29.48:39281"
+
+sys.path.insert(0, str(ROOT))
+
+# ── Agent runner ──────────────────────────────────────────────────────────────
+
+def run_agent_task(task: str) -> str:
+    """
+    Run one agent loop iteration for the given task.
+    Returns human-readable result string.
+    """
+    try:
+        from agent.state             import AgentState
+        from perception.screen_capture import capture_screen
+        from perception.ui_mock_parser  import parse_ui
+        from reasoning.prompt_builder   import build_prompt
+        from reasoning.llm_client       import generate
+        from reasoning.action_parser    import parse_action
+        from executor.adb_executor      import execute
+
+        STATUS_FILE.write_text("running")
+
+        state = AgentState(task=task, max_steps=20)
+        last_action_label = "none"
+
+        while not state.is_finished():
+            try:
+                img    = capture_screen(adb_device=ADB_DEVICE)
+                ui     = parse_ui(img)
+                prompt = build_prompt(task, ui, history=state.history)
+                out    = generate(prompt)
+                action = parse_action(out)
+
+                execute(action, ui, adb_device=ADB_DEVICE)
+                state.record(action, ui)
+
+                if action.get("action") == "done":
+                    state.done = True
+                    break
+
+                # Build readable last action
+                act = action.get("action", "?")
+                if act == "tap" and action.get("target"):
+                    tid = action.get("target")
+                    label = next((e["text"] for e in ui if e["id"] == tid), f"item {tid}")
+                    last_action_label = f"tapped {label}"
+                elif act == "type":
+                    last_action_label = f"typed '{action.get('text','')}'"
+                else:
+                    last_action_label = act
+
+                time.sleep(1.5)
+
+            except Exception as e:
+                print(f"[bridge] step error: {e}")
+                time.sleep(3)
+                state.step += 1
+                continue
+
+        # Build result message for TTS
+        if state.done:
+            result = f"Done. {task} completed in {state.step} steps."
+        elif state.step >= state.max_steps:
+            result = f"Reached maximum steps. Last action: {last_action_label}."
+        else:
+            result = f"Task stopped. Last action: {last_action_label}."
+
+        STATUS_FILE.write_text("ready")
+        return result
+
+    except Exception as e:
+        STATUS_FILE.write_text("error")
+        return f"Agent error: {str(e)}"
+
+
+# ── File IPC watcher (for same-device mode) ───────────────────────────────────
+
+def file_ipc_watcher():
+    """
+    Watches TASK_FILE for new tasks written by AgentBridge (file IPC mode).
+    Runs in background thread.
+    """
+    print("[bridge] File IPC watcher started")
+    last_task = ""
+    JARVIS_DIR.mkdir(exist_ok=True)
+
+    while True:
+        try:
+            if TASK_FILE.exists() and TASK_FILE.stat().st_size > 0:
+                task = TASK_FILE.read_text().strip()
+                if task and task != last_task:
+                    last_task = task
+                    print(f"[bridge] File IPC task: {task}")
+                    TASK_FILE.write_text("")   # clear
+                    result = run_agent_task(task)
+                    RESULT_FILE.write_text(result)
+                    print(f"[bridge] File IPC result: {result}")
+        except Exception as e:
+            print(f"[bridge] File IPC error: {e}")
+        time.sleep(0.5)
+
+
+# ── HTTP server ───────────────────────────────────────────────────────────────
+
+class BridgeHandler(BaseHTTPRequestHandler):
+
+    def log_message(self, fmt, *args):
+        print(f"[bridge] {fmt % args}")
+
+    def send_json(self, code, data):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_json(200, {
+                "success": True,
+                "status":  STATUS_FILE.read_text().strip() if STATUS_FILE.exists() else "ready"
+            })
+        else:
+            self.send_json(404, {"success": False, "error": "not found"})
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body   = self.rfile.read(length)
+        data   = json.loads(body.decode())
+
+        if self.path == "/agent_task":
+            task = data.get("task", "").strip()
+            if not task:
+                self.send_json(400, {"success": False, "error": "missing task"})
+                return
+
+            print(f"\n[bridge] ══ TASK: {task} ══")
+            result = run_agent_task(task)
+            print(f"[bridge] ══ RESULT: {result} ══\n")
+
+            self.send_json(200, {"success": True, "result": result})
+        else:
+            self.send_json(404, {"success": False, "error": "not found"})
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    JARVIS_DIR.mkdir(exist_ok=True)
+    STATUS_FILE.write_text("ready")
+
+    # Start file IPC watcher in background
+    t = threading.Thread(target=file_ipc_watcher, daemon=True)
+    t.start()
+
+    print(f"╔══════════════════════════════════════════════════════╗")
+    print(f"║  JARVIS AGENT HTTP BRIDGE                            ║")
+    print(f"╚══════════════════════════════════════════════════════╝")
+    print(f"  Port    : {PORT}")
+    print(f"  Device  : {ADB_DEVICE}")
+    print(f"  Agent   : {ROOT}")
+    print(f"  File IPC: {JARVIS_DIR}")
+    print(f"")
+    print(f"  Endpoints:")
+    print(f"    GET  /health")
+    print(f"    POST /agent_task  {{\"task\": \"Open WhatsApp\"}}")
+    print(f"")
+    print(f"  JarvisMerged config ({JARVIS_DIR}/agent_bridge.conf):")
+    print(f"    Same device:  mode=file")
+    print(f"    Two devices:  mode=lan")
+    print(f"                  lan_host=<Phone A IP>")
+    print(f"                  lan_port={PORT}")
+    print(f"")
+
+    server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[bridge] Stopped.")
+        server.shutdown()
+
+//===== TERMUXFILE: jarvis-agent/agent/__init__.py =====
+
+//===== TERMUXFILE: jarvis-agent/perception/__init__.py =====
+
+//===== TERMUXFILE: jarvis-agent/reasoning/__init__.py =====
+
+//===== TERMUXFILE: jarvis-agent/executor/__init__.py =====
+
+//===== TERMUXFILE: jarvis-agent/agent/state.py =====
+from dataclasses import dataclass, field
+
+@dataclass
+class AgentState:
+    task: str
+    step: int = 0
+    history: list = field(default_factory=list)
+    last_screen: str = ""
+    last_ui: list = field(default_factory=list)
+    done: bool = False
+    max_steps: int = 20
+
+    def record(self, action: dict, ui_elements: list) -> None:
+        act = action.get("action", "?")
+        if act == "tap":
+            tid = action.get("target")
+            if tid is not None:
+                label = next((e["text"] for e in ui_elements if e["id"] == tid), f"id={tid}")
+                self.history.append(f"tap [{tid}] {label}")
+            else:
+                self.history.append(f"tap ({action.get('x')},{action.get('y')})")
+        elif act == "type":
+            self.history.append(f"type {action.get('text','')!r}")
+        elif act == "swipe":
+            self.history.append(f"swipe ({action.get('x1')},{action.get('y1')})→({action.get('x2')},{action.get('y2')})")
+        else:
+            self.history.append(act)
+        self.step += 1
+
+    def is_finished(self) -> bool:
+        return self.done or self.step >= self.max_steps
+
+    def summary(self) -> str:
+        return f"step={self.step}/{self.max_steps} done={self.done} history={self.history}"
+
+//===== TERMUXFILE: jarvis-agent/agent/controller.py =====
+"""agent/controller.py — Main Jarvis agent loop"""
+import sys, os, time, argparse
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+from perception.screen_capture  import capture_screen
+from perception.ui_mock_parser  import parse_ui
+from reasoning.prompt_builder   import build_prompt
+from reasoning.llm_client       import generate, health_check
+from reasoning.action_parser    import parse_action
+from executor.adb_executor      import execute
+from agent.state                import AgentState
+
+DEFAULT_DEVICE = "192.168.29.48:39281"
+DEFAULT_TASK   = "Open WhatsApp"
+DEFAULT_MODEL  = os.path.expanduser(
+    "~/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf")
+LOOP_SLEEP = 1.5
+
+def run_step(state, device, model_path):
+    print(f"\n{'='*56}\n  STEP {state.step+1}  —  {state.task}\n{'='*56}")
+    img  = capture_screen(adb_device=device)
+    state.last_screen = img
+    ui   = parse_ui(img)
+    state.last_ui = ui
+    print(f"[step] UI: {[e['text'] for e in ui]}")
+    prompt   = build_prompt(state.task, ui, history=state.history)
+    llm_out  = generate(prompt, model_path=model_path)
+    print(f"[step] LLM: {llm_out!r}")
+    action   = parse_action(llm_out)
+    print(f"[step] Action: {action}")
+    execute(action, ui, adb_device=device)
+    state.record(action, ui)
+    if action.get("action") == "done":
+        state.done = True
+    print(f"[step] {state.summary()}")
+
+def run(task, device, model_path, max_steps=20):
+    print(f"\n{'#'*56}\n  JARVIS  |  {task}\n  Device: {device}\n{'#'*56}\n")
+    hc = health_check()
+    print(f"[init] backends: {hc}")
+    if not any([hc["proxy"], hc["llamafile"], hc["binary"]]):
+        print("[init] ⚠ No LLM backend! Run: bash ~/jarvis_server_init.sh")
+    state = AgentState(task=task, max_steps=max_steps)
+    while not state.is_finished():
+        try:
+            run_step(state, device=device, model_path=model_path)
+        except KeyboardInterrupt:
+            print("\n[controller] interrupted"); break
+        except Exception as e:
+            print(f"[controller] step error: {e}")
+            import traceback; traceback.print_exc()
+            time.sleep(3); state.step += 1; continue
+        if state.done:
+            print(f"\n[controller] ✓ done in {state.step} steps"); break
+        time.sleep(LOOP_SLEEP)
+    print(f"\n[controller] history:")
+    for i, h in enumerate(state.history, 1):
+        print(f"  {i}. {h}")
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser()
+    p.add_argument("--task",      default=DEFAULT_TASK)
+    p.add_argument("--device",    default=DEFAULT_DEVICE)
+    p.add_argument("--model",     default=DEFAULT_MODEL)
+    p.add_argument("--max-steps", default=20, type=int)
+    a = p.parse_args()
+    run(a.task, a.device, a.model, a.max_steps)
+
+//===== TERMUXFILE: jarvis-agent/perception/screen_capture.py =====
+"""perception/screen_capture.py — wraps Device.take_screenshot()"""
+import os, sys
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from executor.device import Device
+
+_cache = {}
+
+def capture_screen(adb_device: str, filename="screen.png") -> str:
+    if adb_device not in _cache:
+        _cache[adb_device] = Device(
+            device_serial = adb_device,
+            output_dir    = os.path.join(ROOT, "screenshots")
+        )
+    return _cache[adb_device].take_screenshot(filename=filename)
+
+//===== TERMUXFILE: jarvis-agent/perception/ui_mock_parser.py =====
+"""
+perception/ui_mock_parser.py
+Mock until OmniParser integration.
+Same interface: parse_ui(image_path) -> list[{id,text,x,y}]
+"""
+MOCK_ELEMENTS = [
+    {"id": 1,  "text": "WhatsApp",   "x": 160,  "y": 1200},
+    {"id": 2,  "text": "Chrome",     "x": 480,  "y": 1200},
+    {"id": 3,  "text": "Camera",     "x": 800,  "y": 1200},
+    {"id": 4,  "text": "Settings",   "x": 160,  "y": 1600},
+    {"id": 5,  "text": "YouTube",    "x": 480,  "y": 1600},
+    {"id": 6,  "text": "Files",      "x": 800,  "y": 1600},
+    {"id": 7,  "text": "Search bar", "x": 540,  "y": 200},
+    {"id": 8,  "text": "Gmail",      "x": 160,  "y": 800},
+    {"id": 9,  "text": "Maps",       "x": 480,  "y": 800},
+    {"id": 10, "text": "Clock",      "x": 800,  "y": 800},
+]
+
+def parse_ui(image_path: str) -> list:
+    print(f"[parser] mock — {len(MOCK_ELEMENTS)} elements")
+    return [dict(e) for e in MOCK_ELEMENTS]
+
+//===== TERMUXFILE: jarvis-agent/reasoning/prompt_builder.py =====
+"""
+reasoning/prompt_builder.py
+
+Informed by UI-TARS/codes/ui_tars/prompt.py
+Source: https://github.com/bytedance/UI-TARS
+
+UI-TARS defines two prompt templates:
+  COMPUTER_USE_DOUBAO — desktop agent (click, drag, hotkey, scroll, type, wait, finished)
+  MOBILE_USE_DOUBAO   — mobile agent (click, long_press, type, scroll, open_app,
+                         drag, press_home, press_back, finished)
+
+Their format:
+  "You are a GUI agent. You are given a task and your action history,
+   with screenshots. You need to perform the next action to complete the task.
+   ## Output Format
+     Thought: ...
+     Action: ..."
+
+Key decisions for our prototype:
+  - We use MOBILE_USE_DOUBAO vocabulary (it's Android)
+  - We DROP "Thought:" requirement — 3B models waste tokens on it
+  - We use element IDs instead of pixel coordinates (no vision model yet)
+  - We keep the action vocabulary from MOBILE_USE_DOUBAO but in plain text form
+  - We add explicit "Output ONLY the action line" instruction
+"""
+
+# ── UI-TARS MOBILE_USE_DOUBAO action vocabulary (adapted) ────────────────────
+# From tars_prompt.py:
+#   click(point=...) long_press(point=...) type(content='')
+#   scroll(point=..., direction='down/up/left/right')
+#   open_app(app_name='') drag(start_point=..., end_point=...)
+#   press_home() press_back()
+#   finished(content='...')
+#
+# We translate to plain-text equivalents for small LLMs:
+
+SYSTEM_PROMPT = """\
+You are a mobile device control agent.
+Your job: complete the TASK by choosing one action per step.
+
+Output ONLY the action on a single line. No Thought. No explanation.\
+"""
+
+# Action menu — vocabulary from UI-TARS MOBILE_USE_DOUBAO, plain-text form
+ACTION_MENU = """\
+ACTIONS (one per step):
+  tap <id>            click the element
+  type <text>         type text (field must be focused)
+  swipe up            scroll up
+  swipe down          scroll down
+  swipe left          swipe left
+  swipe right         swipe right
+  back                press back button (press_back)
+  home                press home button (press_home)
+  enter               press enter/confirm
+  done                task is complete (finished)\
+"""
+
+
+def build_prompt(
+    task: str,
+    ui_elements: list,
+    history: list = None,
+    max_elements: int = 15,
+    max_history: int = 4,
+) -> str:
+    """
+    Build LLM prompt.
+
+    UI-TARS MOBILE_USE_DOUBAO provides:
+      {instruction} — task
+      action history — what we've done
+      screenshots — we replace with element list (no vision yet)
+
+    Args:
+        task         : goal string
+        ui_elements  : list of dicts {id, text, x, y}
+        history      : list of past action strings
+        max_elements : cap elements (3B token budget ~512 tokens)
+        max_history  : cap history shown (last N steps)
+
+    Returns:
+        Full prompt string
+    """
+    lines = [SYSTEM_PROMPT, ""]
+
+    # UI-TARS: "## User Instruction\n{instruction}"
+    lines.append(f"TASK: {task}")
+    lines.append("")
+
+    # UI elements (replaces screenshots in UI-TARS)
+    lines.append("SCREEN ELEMENTS:")
+    for el in ui_elements[:max_elements]:
+        lines.append(f"  [{el['id']}] {el['text']}")
+    if len(ui_elements) > max_elements:
+        lines.append(f"  ... +{len(ui_elements) - max_elements} more")
+    lines.append("")
+
+    # UI-TARS: "your action history"
+    if history:
+        recent = history[-max_history:]
+        lines.append("HISTORY:")
+        for i, h in enumerate(recent, 1):
+            lines.append(f"  {i}. {h}")
+        lines.append("")
+
+    lines.append(ACTION_MENU)
+    lines.append("")
+    lines.append("Action:")
+
+    return "\n".join(lines)
+
+//===== TERMUXFILE: jarvis-agent/reasoning/llm_client.py =====
+"""
+reasoning/llm_client.py
+
+LLM backend priority chain (two-device setup):
+  1. Phone B Claude bridge  http://192.168.29.110:8890  ← REAL Claude brain
+  2. Local proxy            http://127.0.0.1:8888        ← llamafile fallback
+  3. Llamafile direct       http://127.0.0.1:8080        ← fallback
+  4. subprocess llama-cli                                ← last resort
+"""
+
+import json
+import os
+import subprocess
+import shutil
+import urllib.request
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+PHONE_B_URL   = "http://192.168.29.110:8890"   # Phone B Claude bridge
+PROXY_URL     = "http://127.0.0.1:8888"         # local llamafile proxy
+LLAMAFILE_URL = "http://127.0.0.1:8080"         # llamafile direct
+DEFAULT_MODEL = os.path.expanduser(
+    "~/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
+)
+LLAMA_BINS = ["llama-cli", "llama-simple-chat", "llamafile", "main"]
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _post(url, payload, timeout=90):
+    body = json.dumps(payload).encode()
+    req  = urllib.request.Request(
+        url, data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode())
+
+def _ok(url, t=3):
+    try:
+        with urllib.request.urlopen(url, timeout=t) as r:
+            return r.status == 200
+    except:
+        return False
+
+# ── Public: generate ──────────────────────────────────────────────────────────
+
+def generate(prompt, model_path=DEFAULT_MODEL, max_tokens=256,
+             temperature=0.1, timeout=90):
+    print(f"[llm] prompt tail: ...{prompt[-80:].strip()!r}")
+
+    # ── 1. Phone B — Real Claude brain ───────────────────────
+    if _ok(f"{PHONE_B_URL}/health"):
+        try:
+            d = _post(f"{PHONE_B_URL}/chat",
+                      {"prompt": prompt},
+                      timeout=timeout)
+            if d.get("success"):
+                out = (d.get("response") or "").strip()
+                print(f"[llm] ✓ Phone B (Claude): {out[:80]!r}")
+                return out
+            else:
+                print(f"[llm] Phone B error: {d.get('error')}")
+        except Exception as e:
+            print(f"[llm] Phone B unreachable: {e}")
+
+    # ── 2. Local proxy ───────────────────────────────────────
+    if _ok(f"{PROXY_URL}/health"):
+        try:
+            d = _post(f"{PROXY_URL}/chat_sync",
+                      {"query": prompt},
+                      timeout=timeout)
+            if d.get("success"):
+                out = (d.get("response") or "").strip()
+                print(f"[llm] ✓ proxy (local): {out[:80]!r}")
+                return out
+        except Exception as e:
+            print(f"[llm] proxy err: {e}")
+
+    # ── 3. Llamafile direct ──────────────────────────────────
+    if _ok(f"{LLAMAFILE_URL}/health"):
+        try:
+            d = _post(f"{LLAMAFILE_URL}/v1/chat/completions",
+                      {"messages":    [{"role": "user", "content": prompt}],
+                       "max_tokens":  max_tokens,
+                       "temperature": temperature},
+                      timeout=timeout)
+            out = d["choices"][0]["message"]["content"].strip()
+            print(f"[llm] ✓ llamafile: {out[:80]!r}")
+            return out
+        except Exception as e:
+            print(f"[llm] llamafile err: {e}")
+
+    # ── 4. Subprocess fallback ───────────────────────────────
+    mp     = os.path.expanduser(model_path)
+    binary = next((shutil.which(b) for b in LLAMA_BINS if shutil.which(b)), None)
+    if not binary or not os.path.isfile(mp):
+        raise RuntimeError(
+            "No LLM backend available.\n"
+            "  Phone B offline? Check: curl http://192.168.29.110:8890/health\n"
+            "  Local LLM down? Run:    bash ~/jarvis_server_init.sh"
+        )
+    r = subprocess.run(
+        [binary, "-m", mp, "-p", prompt,
+         "-n", str(max_tokens), "--temp", str(temperature),
+         "--no-display-prompt", "-e", "--log-disable"],
+        capture_output=True, text=True, timeout=timeout
+    )
+    out = "\n".join(
+        l for l in r.stdout.strip().splitlines()
+        if not l.startswith("llama") and not l.startswith("[")
+    ).strip()
+    print(f"[llm] ✓ subprocess: {out[:80]!r}")
+    return out
+
+# ── Public: health_check ──────────────────────────────────────────────────────
+
+def health_check():
+    return {
+        "phone_b":   _ok(f"{PHONE_B_URL}/health"),
+        "proxy":     _ok(f"{PROXY_URL}/health"),
+        "llamafile": _ok(f"{LLAMAFILE_URL}/health"),
+        "binary":    next((shutil.which(b) for b in LLAMA_BINS
+                           if shutil.which(b)), None),
+    }
+
+//===== TERMUXFILE: jarvis-agent/reasoning/action_parser.py =====
+"""
+reasoning/action_parser.py
+
+Informed by UI-TARS/codes/ui_tars/action_parser.py
+Source: https://github.com/bytedance/UI-TARS
+
+UI-TARS uses parse_action() with ast.parse() to handle structured calls like:
+  click(start_box='(x,y)')
+  type(content='...')
+  finished()
+  press_home()
+  press_back()
+  scroll(start_box='(x,y)', direction='down')
+
+Their full parser handles:
+  - coordinate scaling (IMAGE_FACTOR, smart_resize, qwen25vl mode)
+  - thought/reflection extraction from "Thought: ... Action: ..."
+  - pyautogui code generation
+
+We simplify for two reasons:
+  1. Our LLM (Qwen2.5-3B local) outputs plain text, not structured Python calls
+  2. We don't need pyautogui or coordinate scaling (we use element IDs)
+
+What we DO borrow from UI-TARS:
+  - The MOBILE_USE_DOUBAO action vocabulary (press_home, press_back, type, scroll, finished)
+  - The AST-based fallback parser for when LLM outputs UI-TARS-style calls
+  - The thought/action split pattern ("Action: ..." on its own line)
+
+Prototype grammar (plain text — easier for 3B models):
+  tap <id>           → {"action": "tap", "target": int}
+  tap <x>,<y>        → {"action": "tap", "x": int, "y": int}
+  type <text>        → {"action": "type", "text": str}
+  swipe up|down|...  → {"action": "swipe", ...coords...}
+  back / press_back  → {"action": "back"}
+  home / press_home  → {"action": "home"}
+  enter              → {"action": "enter"}
+  done / finished    → {"action": "done"}
+
+UI-TARS rich fallback (in case LLM outputs structured calls):
+  click(start_box='(x,y)')   type(content='...')
+  press_back()  press_home()  finished()
+  scroll(..., direction='down')
+"""
+
+import re
+import ast
+
+# ── Prototype grammar patterns ────────────────────────────────────────────────
+
+_TAP_ID    = re.compile(r"\btap\s+(\d+)",                          re.I)
+_TAP_XY    = re.compile(r"\btap\s+(\d+)\s*[,x]\s*(\d+)",          re.I)
+_TYPE      = re.compile(r"\btype\s+(.+)",                          re.I)
+_SWIPE_DIR = re.compile(r"\bswipe\s+(up|down|left|right)",         re.I)
+_BACK      = re.compile(r"\b(back|press_back)\b",                  re.I)
+_HOME      = re.compile(r"\b(home|press_home)\b",                  re.I)
+_ENTER     = re.compile(r"\benter\b",                              re.I)
+_DONE      = re.compile(r"\b(done|finished)\b",                    re.I)
+
+# ── UI-TARS rich syntax patterns ──────────────────────────────────────────────
+# Adapted from UI-TARS action_parser.py parse_action() AST approach
+
+_TARS_CLICK  = re.compile(r"(?:click|left_single|left_double)\s*\(\s*(?:start_box|point)\s*=\s*['\"]?\((\d+)\s*,\s*(\d+)\)", re.I)
+_TARS_TYPE   = re.compile(r"type\s*\(\s*content\s*=\s*['\"](.+?)['\"]",  re.I)
+_TARS_DONE   = re.compile(r"finished\s*\(",                               re.I)
+_TARS_BACK   = re.compile(r"press_back\s*\(",                             re.I)
+_TARS_HOME   = re.compile(r"press_home\s*\(",                             re.I)
+_TARS_SCROLL = re.compile(r"scroll\s*\(.*?direction\s*=\s*['\"](\w+)['\"]", re.I)
+
+# ── Swipe deltas (screen centre 540,1200 baseline) ───────────────────────────
+_SWIPE_DELTAS = {
+    "up":    (0, -600),
+    "down":  (0,  600),
+    "left":  (-400, 0),
+    "right": ( 400, 0),
+}
+
+def _swipe_from_dir(direction: str) -> dict:
+    dx, dy = _SWIPE_DELTAS.get(direction.lower(), (0, -600))
+    return {"action": "swipe",
+            "x1": 540, "y1": 1200,
+            "x2": 540 + dx, "y2": 1200 + dy,
+            "duration_ms": 400}
+
+# ── UI-TARS AST fallback ──────────────────────────────────────────────────────
+# From UI-TARS action_parser.py parse_action() — parses Python-style function calls
+
+def _tars_ast_parse(line: str):
+    """
+    UI-TARS parse_action() approach: ast.parse the line as a Python expression.
+    Returns {"function": name, "args": {kwargs}} or None.
+    """
+    try:
+        node = ast.parse(line.strip(), mode="eval")
+        if not isinstance(node, ast.Expression):
+            return None
+        call = node.body
+        if not isinstance(call, ast.Call):
+            return None
+        func_name = (call.func.id if isinstance(call.func, ast.Name)
+                     else call.func.attr if isinstance(call.func, ast.Attribute)
+                     else None)
+        kwargs = {}
+        for kw in call.keywords:
+            if isinstance(kw.value, ast.Constant):
+                kwargs[kw.arg] = kw.value.value
+            elif isinstance(kw.value, ast.Str):
+                kwargs[kw.arg] = kw.value.s
+        return {"function": func_name, "args": kwargs}
+    except Exception:
+        return None
+
+def _from_tars_ast(parsed: dict):
+    """Convert UI-TARS AST parse result → our action dict."""
+    if parsed is None:
+        return None
+    fn   = (parsed.get("function") or "").lower()
+    args = parsed.get("args", {})
+
+    if fn in ("click", "left_single", "left_double", "hover"):
+        box = args.get("start_box") or args.get("point")
+        if box:
+            coords = re.findall(r"\d+", str(box))
+            if len(coords) >= 2:
+                return {"action": "tap", "x": int(coords[0]), "y": int(coords[1])}
+
+    elif fn == "type":
+        return {"action": "type", "text": args.get("content", "")}
+
+    elif fn in ("finished",):
+        return {"action": "done"}
+
+    elif fn == "press_back":
+        return {"action": "back"}
+
+    elif fn == "press_home":
+        return {"action": "home"}
+
+    elif fn == "scroll":
+        direction = args.get("direction", "down")
+        return _swipe_from_dir(direction)
+
+    return None
+
+# ── Per-line parser ───────────────────────────────────────────────────────────
+
+def _parse_line(line: str):
+    """Try all patterns on a single line. Returns action dict or None."""
+
+    # UI-TARS: "Action: ..." prefix — strip it
+    if line.lower().startswith("action:"):
+        line = line[7:].strip()
+
+    # Prototype grammar (plain text)
+    m = _TAP_ID.search(line)
+    if m: return {"action": "tap", "target": int(m.group(1))}
+
+    m = _TAP_XY.search(line)
+    if m: return {"action": "tap", "x": int(m.group(1)), "y": int(m.group(2))}
+
+    m = _TYPE.search(line)
+    if m: return {"action": "type", "text": m.group(1).strip()}
+
+    m = _SWIPE_DIR.search(line)
+    if m: return _swipe_from_dir(m.group(1))
+
+    if _BACK.search(line):  return {"action": "back"}
+    if _HOME.search(line):  return {"action": "home"}
+    if _ENTER.search(line): return {"action": "enter"}
+    if _DONE.search(line):  return {"action": "done"}
+
+    # UI-TARS regex shortcuts (faster than AST)
+    m = _TARS_CLICK.search(line)
+    if m: return {"action": "tap", "x": int(m.group(1)), "y": int(m.group(2))}
+
+    m = _TARS_TYPE.search(line)
+    if m: return {"action": "type", "text": m.group(1)}
+
+    if _TARS_DONE.search(line):  return {"action": "done"}
+    if _TARS_BACK.search(line):  return {"action": "back"}
+    if _TARS_HOME.search(line):  return {"action": "home"}
+
+    m = _TARS_SCROLL.search(line)
+    if m: return _swipe_from_dir(m.group(1))
+
+    # UI-TARS AST fallback for complex structured calls
+    ast_parsed = _tars_ast_parse(line)
+    result = _from_tars_ast(ast_parsed)
+    if result:
+        return result
+
+    return None
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def parse_action(llm_output: str) -> dict:
+    """
+    Parse LLM output into action dict.
+
+    Handles both plain text (prototype grammar) and
+    UI-TARS structured format ("Thought: ...\nAction: click(...)").
+
+    Falls back to {"action": "home"} if nothing recognised.
+    """
+    if not llm_output or not llm_output.strip():
+        print("[parser] empty output → home")
+        return {"action": "home"}
+
+    for line in llm_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        result = _parse_line(line)
+        if result is not None:
+            print(f"[parser] '{line[:60]}' → {result}")
+            return result
+
+    print(f"[parser] unrecognised: {llm_output[:80]!r} → home")
+    return {"action": "home"}
+
+//===== TERMUXFILE: jarvis-agent/executor/input_event.py =====
+"""
+executor/input_event.py
+
+Extracted from DroidBot/droidbot/input_event.py
+Source: https://github.com/honeynet/droidbot
+
+What we keep (prototype needs only):
+  KeyEvent     — key_press via adb (BACK, HOME, ENTER...)
+  TouchEvent   — tap a coordinate
+  SwipeEvent   — drag from→to
+  SetTextEvent — type text into focused field
+
+What we drop (exploration/testing only):
+  IntentEvent, SpawnEvent, KillAppEvent, ManualEvent, ExitEvent,
+  SelectEvent, LongTouchEvent, ScrollEvent, EventLog, UIEvent helpers
+
+Interface change: added to_adb_cmd() to each event so InputManager
+can dispatch without depending on DroidBot's internal ADB adapter.
+"""
+
+import re
+import subprocess
+import time
+
+# ── Key names (from DroidBot POSSIBLE_KEYS + Android keycodes) ───────────────
+POSSIBLE_KEYS = ["BACK", "MENU", "HOME"]
+
+KEY_CODES = {
+    "HOME":         3,
+    "BACK":         4,
+    "MENU":        82,
+    "ENTER":       66,
+    "POWER":       26,
+    "VOLUME_UP":   24,
+    "VOLUME_DOWN": 25,
+    "DELETE":      67,
+    "SPACE":       62,
+}
+
+# Event type strings (kept from DroidBot for future serialisation compat)
+KEY_KeyEvent    = "key"
+KEY_TouchEvent  = "touch"
+KEY_SwipeEvent  = "swipe"
+KEY_SetTextEvent = "set_text"
+
+
+class InvalidEventException(Exception):
+    pass
+
+
+# ── Base ─────────────────────────────────────────────────────────────────────
+
+class InputEvent:
+    """Base class. Mirrors DroidBot InputEvent interface."""
+
+    def __init__(self):
+        self.event_type = None
+
+    def to_adb_cmd(self) -> list:
+        """Return args for: adb shell <args>"""
+        raise NotImplementedError
+
+    def send(self, device):
+        """DroidBot-compatible send interface."""
+        cmd = ["adb", "-s", device.serial, "shell"] + self.to_adb_cmd()
+        subprocess.run(cmd, capture_output=True, timeout=10)
+        return True
+
+    def __str__(self):
+        return self.__class__.__name__
+
+
+# ── KeyEvent (from DroidBot KeyEvent) ────────────────────────────────────────
+
+class KeyEvent(InputEvent):
+    """
+    Press a hardware/virtual key.
+    DroidBot source: KeyEvent.send() → device.key_press(self.name)
+                     device.key_press() → self.adb.press(key_code)
+    We flatten that chain: directly emit 'input keyevent <code>'.
+    """
+
+    def __init__(self, name=None, event_dict=None):
+        super().__init__()
+        self.event_type = KEY_KeyEvent
+        self.name = name
+        if event_dict is not None:
+            self.__dict__.update(event_dict)
+
+    def to_adb_cmd(self) -> list:
+        # Look up integer code; fall through to raw int string if not in table
+        code = KEY_CODES.get(str(self.name).upper())
+        if code is None:
+            try:
+                code = int(self.name)
+            except (ValueError, TypeError):
+                code = 0
+        return ["input", "keyevent", str(code)]
+
+    def __str__(self):
+        return f"KeyEvent({self.name})"
+
+
+# ── TouchEvent (from DroidBot TouchEvent) ────────────────────────────────────
+
+class TouchEvent(InputEvent):
+    """
+    Tap a screen coordinate.
+    DroidBot source: TouchEvent.send() → device.view_long_touch(x, y, duration=200)
+                     view_long_touch() → self.adb.long_touch(x, y, duration)
+    We use 'input tap' which is simpler and sufficient for agent taps.
+    """
+
+    def __init__(self, x=None, y=None, event_dict=None):
+        super().__init__()
+        self.event_type = KEY_TouchEvent
+        self.x = x
+        self.y = y
+        if event_dict is not None:
+            self.__dict__.update(event_dict)
+
+    def to_adb_cmd(self) -> list:
+        if self.x is None or self.y is None:
+            raise InvalidEventException("TouchEvent missing x or y")
+        return ["input", "tap", str(int(self.x)), str(int(self.y))]
+
+    def __str__(self):
+        return f"TouchEvent(x={self.x}, y={self.y})"
+
+
+# ── SwipeEvent (from DroidBot SwipeEvent) ────────────────────────────────────
+
+class SwipeEvent(InputEvent):
+    """
+    Drag from (start_x, start_y) → (end_x, end_y) over duration ms.
+    DroidBot source: SwipeEvent.send() → device.view_drag((sx,sy),(ex,ey), duration)
+                     view_drag() → self.adb.drag(start_xy, end_xy, duration)
+    """
+
+    def __init__(self, start_x=None, start_y=None,
+                 end_x=None, end_y=None,
+                 duration=400, event_dict=None):
+        super().__init__()
+        self.event_type = KEY_SwipeEvent
+        self.start_x = start_x
+        self.start_y = start_y
+        self.end_x   = end_x
+        self.end_y   = end_y
+        self.duration = duration
+        if event_dict is not None:
+            self.__dict__.update(event_dict)
+
+    def to_adb_cmd(self) -> list:
+        return ["input", "swipe",
+                str(int(self.start_x)), str(int(self.start_y)),
+                str(int(self.end_x)),   str(int(self.end_y)),
+                str(int(self.duration))]
+
+    def __str__(self):
+        return (f"SwipeEvent(({self.start_x},{self.start_y})"
+                f"→({self.end_x},{self.end_y}), {self.duration}ms)")
+
+
+# ── SetTextEvent (from DroidBot SetTextEvent) ─────────────────────────────────
+
+class SetTextEvent(InputEvent):
+    """
+    Type text into currently focused field.
+    DroidBot source: SetTextEvent.send() →
+        1. TouchEvent(x,y).send(device)   — tap to focus
+        2. device.view_set_text(self.text) → adb.type(text)
+
+    For the agent we only need (2) — the field is already focused
+    by the preceding TapEvent. Spaces encoded as %s for adb shell.
+    """
+
+    def __init__(self, x=None, y=None, text=None, event_dict=None):
+        super().__init__()
+        self.event_type = KEY_SetTextEvent
+        self.x    = x
+        self.y    = y
+        self.text = text or ""
+        if event_dict is not None:
+            self.__dict__.update(event_dict)
+
+    def to_adb_cmd(self) -> list:
+        # adb shell input text: spaces must be %s, quotes escaped
+        safe = (self.text
+                .replace(" ", "%s")
+                .replace("'", "\\'")
+                .replace('"', '\\"'))
+        return ["input", "text", safe]
+
+    def __str__(self):
+        return f"SetTextEvent({self.text!r})"
+
+
+# ── Factory: action dict → InputEvent ─────────────────────────────────────────
+
+_SWIPE_DELTAS = {
+    "up":    (0, -600),
+    "down":  (0,  600),
+    "left":  (-400, 0),
+    "right": ( 400, 0),
+}
+
+def from_action(action: dict, ui_elements: list):
+    """
+    Build an InputEvent from a parsed action dict.
+
+    Args:
+        action      : dict from action_parser.parse_action()
+        ui_elements : list of dicts {id, text, x, y}
+
+    Returns:
+        InputEvent subclass, or None for 'done'
+    """
+    act = action.get("action", "").lower()
+
+    if act == "tap":
+        # Prefer element lookup by id; fall back to raw x,y
+        tid = action.get("target")
+        if tid is not None:
+            el = next((e for e in ui_elements if e["id"] == tid), None)
+            if el is None:
+                return None
+            return TouchEvent(x=el["x"], y=el["y"])
+        elif "x" in action and "y" in action:
+            return TouchEvent(x=action["x"], y=action["y"])
+        return None
+
+    elif act == "swipe":
+        if "x1" in action:
+            return SwipeEvent(start_x=action["x1"], start_y=action["y1"],
+                              end_x=action["x2"],   end_y=action["y2"],
+                              duration=action.get("duration_ms", 400))
+        direction = action.get("direction", "up").lower()
+        dx, dy = _SWIPE_DELTAS.get(direction, (0, -600))
+        cx, cy = 540, 1200
+        return SwipeEvent(start_x=cx, start_y=cy,
+                          end_x=cx+dx, end_y=cy+dy, duration=400)
+
+    elif act == "back":
+        return KeyEvent("BACK")
+
+    elif act == "home":
+        return KeyEvent("HOME")
+
+    elif act == "enter":
+        return KeyEvent("ENTER")
+
+    elif act == "type":
+        return SetTextEvent(text=action.get("text", ""))
+
+    elif act == "done":
+        return None
+
+    return None
+
+//===== TERMUXFILE: jarvis-agent/executor/device.py =====
+"""
+executor/device.py
+
+Extracted from DroidBot/droidbot/device.py
+Source: https://github.com/honeynet/droidbot
+
+What we keep:
+  __init__    serial, output_dir, display_info cache
+  get_width / get_height   (from get_display_info — DroidBot pattern)
+  take_screenshot          (ADB screencap via exec-out, not minicap)
+  key_press                → adb shell input keyevent
+  view_touch               → adb shell input tap
+  view_drag                → adb shell input swipe
+  view_set_text            → adb shell input text
+  get_top_activity_name    (dumpsys, DroidBot regex)
+  unlock                   (simple keyevent wake)
+
+What we drop (all require DroidBot adapters we don't have):
+  All adapter setup (ADB, Minicap, DroidBotApp, Telnet, Logcat, IME)
+  install_app, uninstall_app, send_intent, send_sms, GPS, shake, etc.
+  get_current_state (requires DeviceState import)
+  get_views (requires DroidBotApp or CV module)
+
+ADB calls: raw subprocess instead of DroidBot's ADB adapter class.
+"""
+
+import os
+import re
+import subprocess
+import time
+
+
+class Device:
+    """
+    Minimal ADB device — DroidBot Device interface, ADB-only backend.
+    """
+
+    def __init__(self, device_serial=None, output_dir=None):
+        """
+        DroidBot Device.__init__ signature (subset).
+        :param device_serial: e.g. "192.168.29.48:39281"
+        :param output_dir: local dir to save screenshots
+        """
+        self.serial     = device_serial
+        self.output_dir = output_dir or os.path.expanduser("~/jarvis-agent/screenshots")
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        # DroidBot caches display_info dict — we do the same
+        self.display_info = None
+
+    # ── Raw ADB ──────────────────────────────────────────────────────────────
+
+    def _adb(self, *args, timeout=15) -> subprocess.CompletedProcess:
+        cmd = ["adb", "-s", self.serial] + list(str(a) for a in args)
+        return subprocess.run(cmd, capture_output=True, timeout=timeout)
+
+    def _shell(self, *args, timeout=15) -> str:
+        """Run adb shell, return stdout string. Mirrors DroidBot adb.shell()."""
+        r = self._adb("shell", *args, timeout=timeout)
+        return r.stdout.decode(errors="replace").strip()
+
+    # ── Connection (DroidBot Device.connect / check_connectivity) ────────────
+
+    def connect(self):
+        """Connect WiFi ADB. DroidBot Device.connect() calls adapter.connect()."""
+        result = subprocess.run(
+            ["adb", "connect", self.serial],
+            capture_output=True, text=True, timeout=10
+        )
+        ok = "connected" in result.stdout.lower()
+        print(f"[device] connect {self.serial}: {result.stdout.strip()}")
+        return ok
+
+    def is_connected(self) -> bool:
+        r = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=5)
+        return self.serial in r.stdout
+
+    # ── Display info (DroidBot Device.get_display_info / get_width / get_height) ─
+
+    def get_display_info(self, refresh=True) -> dict:
+        """
+        DroidBot Device.get_display_info() calls self.adb.get_display_info().
+        We replicate by parsing `adb shell wm size`.
+        Returns dict with 'width' and 'height' keys (DroidBot format).
+        """
+        if self.display_info is None or refresh:
+            out = self._shell("wm", "size")
+            m = re.search(r"(\d+)x(\d+)", out)
+            if m:
+                self.display_info = {
+                    "width":  int(m.group(1)),
+                    "height": int(m.group(2)),
+                }
+            else:
+                self.display_info = {"width": 1080, "height": 2400}
+            print(f"[device] display_info: {self.display_info}")
+        return self.display_info
+
+    def get_width(self, refresh=False) -> int:
+        """DroidBot Device.get_width()"""
+        return self.get_display_info(refresh=refresh).get("width", 1080)
+
+    def get_height(self, refresh=False) -> int:
+        """DroidBot Device.get_height()"""
+        return self.get_display_info(refresh=refresh).get("height", 2400)
+
+    # ── Screenshot (DroidBot Device.take_screenshot — screencap path) ────────
+
+    def take_screenshot(self, filename="screen.png") -> str:
+        """
+        DroidBot Device.take_screenshot() uses minicap or screencap+pull.
+        We always use exec-out screencap -p (faster, no temp file on device).
+        Returns local path to saved PNG.
+        """
+        local_path = os.path.join(self.output_dir, filename)
+
+        r = self._adb("exec-out", "screencap", "-p", timeout=15)
+        if r.returncode != 0:
+            raise RuntimeError(f"screencap failed: {r.stderr.decode().strip()}")
+        if len(r.stdout) < 100:
+            raise RuntimeError("screencap: empty output")
+
+        with open(local_path, "wb") as f:
+            f.write(r.stdout)
+
+        print(f"[device] screenshot → {local_path} ({len(r.stdout)} bytes)")
+        return local_path
+
+    # ── Input dispatch (DroidBot Device view_touch / view_drag / key_press) ──
+
+    def key_press(self, key_code):
+        """DroidBot Device.key_press() → self.adb.press(key_code)"""
+        from executor.input_event import KeyEvent
+        ev = KeyEvent(name=str(key_code))
+        cmd = ["adb", "-s", self.serial, "shell"] + ev.to_adb_cmd()
+        subprocess.run(cmd, capture_output=True, timeout=10)
+
+    def view_touch(self, x, y):
+        """DroidBot Device.view_touch() → self.adb.touch(x, y)"""
+        self._shell("input", "tap", str(int(x)), str(int(y)))
+
+    def view_long_touch(self, x, y, duration=200):
+        """
+        DroidBot Device.view_long_touch() → self.adb.long_touch(x, y, duration).
+        For agent taps, duration=200ms is fine.
+        """
+        self._shell("input", "swipe",
+                    str(int(x)), str(int(y)),
+                    str(int(x)), str(int(y)),
+                    str(int(duration)))
+
+    def view_drag(self, start_xy, end_xy, duration):
+        """DroidBot Device.view_drag() → self.adb.drag(start_xy, end_xy, duration)"""
+        sx, sy = start_xy
+        ex, ey = end_xy
+        self._shell("input", "swipe",
+                    str(int(sx)), str(int(sy)),
+                    str(int(ex)), str(int(ey)),
+                    str(int(duration)))
+
+    def view_set_text(self, text: str):
+        """DroidBot Device.view_set_text() → adb.type(text)"""
+        safe = (text.replace(" ", "%s")
+                    .replace("'", "\\'")
+                    .replace('"', '\\"'))
+        self._shell("input", "text", safe)
+
+    def unlock(self):
+        """DroidBot Device.unlock() — wake + swipe up."""
+        self._shell("input", "keyevent", "224")   # KEYCODE_WAKEUP
+        time.sleep(0.3)
+        w = self.get_width()
+        h = self.get_height()
+        cx = w // 2
+        self._shell("input", "swipe",
+                    str(cx), str(int(h * 0.8)),
+                    str(cx), str(int(h * 0.2)), "400")
+        time.sleep(0.5)
+
+    # ── Activity info (DroidBot Device.get_top_activity_name) ────────────────
+
+    def get_top_activity_name(self):
+        """
+        DroidBot Device.get_top_activity_name() — same dumpsys regex.
+        """
+        r = self._shell("dumpsys", "activity", "activities")
+        m = re.search(r'\*\s*Hist\s*#\d+:\s*ActivityRecord\{[^ ]+\s*[^ ]+\s*([^ ]+)\s*t\d+\}', r)
+        if m:
+            return m.group(1)
+        return None
+
+    def send_event(self, event):
+        """DroidBot Device.send_event(event) → event.send(self)"""
+        event.send(self)
+
+    def __repr__(self):
+        return f"Device({self.serial})"
+
+//===== TERMUXFILE: jarvis-agent/executor/input_manager.py =====
+"""
+executor/input_manager.py
+
+Extracted from DroidBot/droidbot/input_manager.py
+Source: https://github.com/honeynet/droidbot
+
+What we keep:
+  __init__    device reference, event_interval
+  add_event   dispatch one event to device + sleep (DroidBot pattern)
+
+What we drop (all require exploration policies we don't use):
+  get_input_policy (UtgBased*, Greedy*, Replay*, Manual*, Monkey, LLM)
+  start / stop (policy loop runner)
+  app, policy_name, random_input, script_path, profiling_method
+
+New addition:
+  execute_action(action_dict, ui_elements) — agent loop interface.
+  Maps action dicts from action_parser → InputEvent → add_event.
+"""
+
+import time
+from executor.input_event import (
+    InputEvent, KeyEvent, TouchEvent, SwipeEvent, SetTextEvent, from_action
+)
+from executor.device import Device
+
+
+class InputManager:
+    """
+    Dispatches InputEvent objects to device via ADB.
+    DroidBot InputManager interface (policy-free subset).
+    """
+
+    def __init__(self, device: Device, event_interval: float = 0.5):
+        """
+        DroidBot InputManager.__init__ (subset).
+        :param device: Device instance
+        :param event_interval: seconds to sleep after each event (DroidBot default=1s)
+        """
+        self.device         = device
+        self.event_interval = event_interval
+        self.events         = []   # DroidBot keeps event history
+
+    def add_event(self, event: InputEvent) -> bool:
+        """
+        DroidBot InputManager.add_event():
+          1. Appends to self.events
+          2. Calls event_log.start() → device.send_event(event)
+          3. Sleeps event_interval
+          4. Calls event_log.stop()
+
+        We skip EventLog (requires App + DeviceState), keep the core:
+          device.send_event(event) + sleep.
+        """
+        if event is None:
+            return False
+
+        self.events.append(event)
+
+        import subprocess
+        cmd = ["adb", "-s", self.device.serial, "shell"] + event.to_adb_cmd()
+        print(f"[input] {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode != 0 and result.stderr:
+                print(f"[input] stderr: {result.stderr.strip()}")
+            success = result.returncode == 0
+        except subprocess.TimeoutExpired:
+            print(f"[input] timeout: {event}")
+            success = False
+        except Exception as e:
+            print(f"[input] error: {e}")
+            success = False
+
+        time.sleep(self.event_interval)
+        return success
+
+    # ── Typed helpers (convenience, not in DroidBot InputManager) ────────────
+
+    def tap(self, x: int, y: int) -> bool:
+        return self.add_event(TouchEvent(x=x, y=y))
+
+    def swipe(self, start_x, start_y, end_x, end_y, duration=400) -> bool:
+        return self.add_event(SwipeEvent(
+            start_x=start_x, start_y=start_y,
+            end_x=end_x, end_y=end_y, duration=duration))
+
+    def key(self, name: str) -> bool:
+        return self.add_event(KeyEvent(name=name))
+
+    def type_text(self, text: str) -> bool:
+        return self.add_event(SetTextEvent(text=text))
+
+    def back(self)  -> bool: return self.key("BACK")
+    def home(self)  -> bool: return self.key("HOME")
+    def enter(self) -> bool: return self.key("ENTER")
+
+    # ── Agent interface ───────────────────────────────────────────────────────
+
+    def execute_action(self, action: dict, ui_elements: list) -> bool:
+        """
+        Execute a parsed action dict from action_parser.
+        This is the primary interface called by adb_executor / controller.
+
+        Args:
+            action      : {"action": "tap", "target": 1} etc.
+            ui_elements : current UI element list {id, text, x, y}
+
+        Returns:
+            True if dispatched, False if skipped
+        """
+        act = action.get("action", "").lower()
+
+        if act == "done":
+            print("[input] DONE — no dispatch")
+            return False
+
+        event = from_action(action, ui_elements)
+        if event is None:
+            print(f"[input] cannot build event from: {action}")
+            return False
+
+        print(f"[input] dispatching: {event}")
+        return self.add_event(event)
+
+    def __repr__(self):
+        return f"InputManager(device={self.device.serial}, events={len(self.events)})"
+
+//===== TERMUXFILE: jarvis-agent/executor/adb_executor.py =====
+"""
+executor/adb_executor.py
+
+Thin facade — controller.py calls only this.
+Manages module-level Device + InputManager singletons.
+Swap to full DroidBot later by changing only this file.
+"""
+
+import os
+from executor.device        import Device
+from executor.input_manager import InputManager
+
+_device:  Device       = None
+_manager: InputManager = None
+
+def _get_manager(adb_device: str) -> InputManager:
+    global _device, _manager
+    if _manager is None or _device.serial != adb_device:
+        _device  = Device(
+            device_serial = adb_device,
+            output_dir    = os.path.join(os.path.dirname(__file__), "..", "screenshots")
+        )
+        _manager = InputManager(_device, event_interval=0.5)
+    return _manager
+
+def execute(action: dict, ui_elements: list, adb_device: str) -> bool:
+    return _get_manager(adb_device).execute_action(action, ui_elements)
+
+def get_device(adb_device: str) -> Device:
+    _get_manager(adb_device)
+    return _device
+
+//===== TERMUXFILE: claude_bridge.py =====
+#!/usr/bin/env python3
+"""
+claude_bridge.py  —  Phone B Termux server
+
+Receives prompt from Phone A agent loop.
+Types it into Claude app via ADB (local — Phone B ADB loopback).
+Waits for response to stabilise.
+Returns response text.
+
+Phone B ADB: 192.168.29.110:43241 (connect from Phone A)
+Port: 8890
+
+Start:
+  python3 ~/claude_bridge.py
+
+Phone A will connect to http://192.168.29.110:8890/chat
+"""
+
+import json
+import subprocess
+import time
+import re
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+PORT         = 8890
+CLAUDE_PKG   = "com.anthropic.claude"
+POLL_INTERVAL = 2.0      # seconds between UI dumps
+STABLE_COUNT  = 3        # dumps must match this many times to be "done"
+MAX_WAIT      = 90        # seconds max to wait for response
+LOG_DIR      = Path.home() / ".jarvis_logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+# ── ADB helpers (local — Phone B talks to itself) ─────────────────────────────
+
+def adb(*args, timeout=15) -> subprocess.CompletedProcess:
+    return subprocess.run(["adb"] + list(str(a) for a in args),
+                          capture_output=True, timeout=timeout)
+
+def shell(*args, timeout=15) -> str:
+    r = adb("shell", *args, timeout=timeout)
+    return r.stdout.decode(errors="replace").strip()
+
+def ui_dump() -> str:
+    """Dump current UI to string via uiautomator."""
+    shell("uiautomator", "dump", "/sdcard/uidump.xml")
+    r = adb("shell", "cat", "/sdcard/uidump.xml", timeout=10)
+    return r.stdout.decode(errors="replace")
+
+# ── Claude app control ────────────────────────────────────────────────────────
+
+def ensure_claude_foreground():
+    """Launch Claude app if not already in foreground."""
+    top = shell("dumpsys", "activity", "activities",
+                "|", "grep", "mCurrentFocus")
+    if CLAUDE_PKG not in top:
+        print("[bridge] Launching Claude app...")
+        shell("monkey", "-p", CLAUDE_PKG, "-c",
+              "android.intent.category.LAUNCHER", "1")
+        time.sleep(3)
+
+def clear_input_and_type(text: str):
+    """
+    Clear existing text in Claude input, type new prompt.
+    Strategy:
+      1. Tap input field (bottom of screen)
+      2. Select all + delete
+      3. Type new text
+    """
+    # Tap input area — Claude input bar is near bottom
+    shell("input", "tap", "540", "2200")
+    time.sleep(0.5)
+
+    # Select all existing text and delete
+    shell("input", "keyevent", "KEYCODE_CTRL_A")
+    time.sleep(0.2)
+    shell("input", "keyevent", "KEYCODE_DEL")
+    time.sleep(0.3)
+
+    # Type prompt — encode spaces as %s for adb
+    safe = (text.replace("\", "\\")
+                .replace(" ", "%s")
+                .replace("'", "\'")
+                .replace('"', '\"')
+                .replace("&", "\&"))
+    shell("input", "text", safe)
+    time.sleep(0.5)
+
+def tap_send():
+    """Tap Claude's send button."""
+    # Try content-desc first via keyevent ENTER
+    shell("input", "keyevent", "66")
+    time.sleep(1.0)
+
+def extract_last_response(dump_xml: str) -> str:
+    """
+    Extract the last assistant message text from uiautomator XML dump.
+    Claude renders messages as TextView nodes.
+    We grab the last long text block that isn't the input field.
+    """
+    # Find all text= attributes
+    texts = re.findall(r'text="([^"]{20,})"', dump_xml)
+    if not texts:
+        return ""
+    # Filter out obvious UI chrome
+    skip = {"Send a message", "Message Claude", "New conversation",
+            "Attach", "Send", "Stop", "Retry"}
+    candidates = [t for t in texts if t not in skip
+                  and not t.startswith("//")
+                  and len(t) > 30]
+    return candidates[-1] if candidates else ""
+
+def is_still_generating(dump_xml: str) -> bool:
+    """Check if Claude is still streaming (Stop button visible)."""
+    return 'content-desc="Stop"' in dump_xml or            'text="Stop generating"' in dump_xml or            '"Stop"' in dump_xml
+
+def wait_for_response(prompt_preview: str) -> str:
+    """
+    Poll UI until response is stable.
+    Returns extracted response text.
+    """
+    print(f"[bridge] Waiting for response to: {prompt_preview[:50]!r}")
+    last_text  = ""
+    stable     = 0
+    deadline   = time.time() + MAX_WAIT
+
+    # Give Claude a moment to start generating
+    time.sleep(3)
+
+    while time.time() < deadline:
+        dump = ui_dump()
+
+        # Still streaming?
+        if is_still_generating(dump):
+            print("[bridge] ...generating...")
+            stable = 0
+            time.sleep(POLL_INTERVAL)
+            continue
+
+        # Extract current response
+        current = extract_last_response(dump)
+
+        if current and current == last_text:
+            stable += 1
+            print(f"[bridge] Stable {stable}/{STABLE_COUNT}: {current[:60]!r}")
+            if stable >= STABLE_COUNT:
+                print(f"[bridge] Response complete: {current[:80]!r}")
+                return current
+        else:
+            stable    = 0
+            last_text = current
+
+        time.sleep(POLL_INTERVAL)
+
+    print("[bridge] Timeout waiting for response")
+    return last_text or "No response received from Claude."
+
+def get_claude_response(prompt: str) -> str:
+    """Full pipeline: open Claude → type → send → wait → return."""
+    ensure_claude_foreground()
+    time.sleep(1)
+
+    clear_input_and_type(prompt)
+    tap_send()
+
+    response = wait_for_response(prompt)
+    return response
+
+# ── HTTP server ────────────────────────────────────────────────────────────────
+
+class BridgeHandler(BaseHTTPRequestHandler):
+
+    def log_message(self, fmt, *args):
+        print(f"[bridge] {fmt % args}")
+
+    def send_json(self, code, data):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_json(200, {"success": True, "service": "claude_bridge",
+                                 "phone_b": "192.168.29.110:43241"})
+        else:
+            self.send_json(404, {"error": "not found"})
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body   = self.rfile.read(length)
+        try:
+            data = json.loads(body.decode())
+        except Exception:
+            self.send_json(400, {"success": False, "error": "invalid JSON"})
+            return
+
+        if self.path == "/chat":
+            prompt = data.get("prompt", "").strip()
+            if not prompt:
+                self.send_json(400, {"success": False, "error": "missing prompt"})
+                return
+
+            print(f"\n[bridge] ══ PROMPT ══\n{prompt[:200]}\n{'='*40}")
+            try:
+                response = get_claude_response(prompt)
+                print(f"[bridge] ══ RESPONSE ══\n{response[:200]}\n{'='*40}\n")
+                self.send_json(200, {"success": True, "response": response})
+            except Exception as e:
+                print(f"[bridge] Error: {e}")
+                self.send_json(500, {"success": False, "error": str(e)})
+        else:
+            self.send_json(404, {"error": "not found"})
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║  JARVIS CLAUDE BRIDGE  —  Phone B                   ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print(f"  Phone B ADB : 192.168.29.110:43241")
+    print(f"  Port        : {PORT}")
+    print(f"  Claude pkg  : {CLAUDE_PKG}")
+    print(f"")
+    print(f"  Endpoints:")
+    print(f"    GET  /health")
+    print(f"    POST /chat   {{\"prompt\": \"tap 1 or back?\"}}")
+    print(f"")
+    print(f"  From Phone A:")
+    print(f"    curl -X POST http://192.168.29.110:{PORT}/chat \\")
+    print(f"         -H 'Content-Type: application/json' \\")
+    print(f"         -d '{{\"prompt\": \"hello\"}}'")
+    print(f"")
+
+    server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[bridge] Stopped.")
+        server.shutdown()
+
+//===== TERMUXFILE: bridge_setup.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# ================================================================
+# bridge_setup.sh  —  Phone B one-shot setup
+# Run ONCE in Termux on Phone B (192.168.29.110:43241)
+# ================================================================
+
+set -e
+GREEN="\033[0;32m"; YELLOW="\033[1;33m"; NC="\033[0m"
+log()  { echo -e "${GREEN}[setup]${NC} $*"; }
+warn() { echo -e "${YELLOW}[warn]${NC}  $*"; }
+
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║  JARVIS PHONE B SETUP                                ║"
+echo "╚══════════════════════════════════════════════════════╝"
+echo ""
+
+# ── 1. Packages ──────────────────────────────────────────────
+log "Installing packages..."
+pkg update -y -q
+pkg install -y python android-tools curl
+log "✓ Packages ready"
+
+# ── 2. Enable ADB loopback on Phone B ────────────────────────
+log "Enabling ADB TCP on Phone B loopback..."
+# Phone B needs ADB to control itself (Claude app)
+adb tcpip 5555 2>/dev/null || true
+adb connect 127.0.0.1:5555 2>/dev/null || true
+sleep 1
+adb -s 127.0.0.1:5555 devices
+log "✓ ADB loopback ready (127.0.0.1:5555)"
+
+# ── 3. Verify Claude app installed ───────────────────────────
+log "Checking Claude app..."
+CLAUDE_CHECK=$(adb shell pm list packages | grep "com.anthropic.claude" || true)
+if [ -z "$CLAUDE_CHECK" ]; then
+    warn "Claude app not found! Install from Play Store: 'Claude by Anthropic'"
+    warn "Then log in and run this setup again."
+    exit 1
+fi
+log "✓ Claude app found"
+
+# ── 4. Deploy bridge script ──────────────────────────────────
+log "Deploying claude_bridge.py..."
+# Already deployed by extract script — just verify
+if [ -f "$HOME/claude_bridge.py" ]; then
+    log "✓ claude_bridge.py ready"
+else
+    warn "claude_bridge.py not found at ~/claude_bridge.py"
+    exit 1
+fi
+
+# ── 5. Create log dir ────────────────────────────────────────
+mkdir -p "$HOME/.jarvis_logs"
+log "✓ Log dir ready"
+
+# ── 6. Disable battery optimisation reminder ─────────────────
+echo ""
+warn "MANUAL STEP REQUIRED:"
+warn "  Settings → Battery → App launch → Termux → Manual"
+warn "  Settings → Battery → App launch → Claude → Manual"
+warn "  Developer Options → Stay awake (screen on while charging)"
+echo ""
+
+# ── 7. Test run ──────────────────────────────────────────────
+log "Starting bridge (Ctrl+C to stop)..."
+echo ""
+echo "  From Phone A, test with:"
+echo "    curl http://192.168.29.110:8890/health"
+echo ""
+python3 "$HOME/claude_bridge.py"
+
+//===== FILE: voice/VoiceCommandService.kt =====
+package com.jarvismini.voice
+
+/**
+ * VoiceCommandService.kt
+ *
+ * Foreground service that:
+ *   1. Listens for wake word "Hey Jarvis" (hotword detection)
+ *   2. On trigger → starts SpeechRecognizer for full command
+ *   3. Sends recognised text to AgentBridge
+ *   4. Receives result → speaks via AssistantTTS (already in JarvisMerged)
+ *
+ * Runs as ForegroundService so Android never kills it.
+ * Uses RECORD_AUDIO permission (add to AndroidManifest.xml).
+ *
+ * Integration point:
+ *   Start from MainActivity or a QuickSettings tile:
+ *     startForegroundService(Intent(this, VoiceCommandService::class.java))
+ */
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.os.IBinder
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Log
-import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.app.NotificationCompat
+import com.jarvismini.core.tts.AssistantTTS
+import com.jarvismini.MainActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+
+class VoiceCommandService : Service() {
+
+    companion object {
+        private const val TAG                = "VoiceCommandService"
+        private const val NOTIF_CHANNEL_ID  = "jarvis_voice_channel"
+        private const val NOTIF_ID          = 9001
+        const val ACTION_STOP               = "com.jarvismini.voice.STOP"
+        const val ACTION_TRIGGER_MANUAL     = "com.jarvismini.voice.TRIGGER"
+
+        fun start(context: Context) {
+            val intent = Intent(context, VoiceCommandService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun stop(context: Context) {
+            context.startService(
+                Intent(context, VoiceCommandService::class.java)
+                    .setAction(ACTION_STOP)
+            )
+        }
+    }
+
+    // ── State ────────────────────────────────────────────────────────────────
+
+    private val scope           = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var agentBridge: AgentBridge? = null
+
+    enum class State { IDLE, LISTENING, PROCESSING }
+    private var state = State.IDLE
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.i(TAG, "VoiceCommandService created")
+        agentBridge = AgentBridge(applicationContext)
+        createNotificationChannel()
+        startForeground(NOTIF_ID, buildNotification("Listening…"))
+        startListening()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_STOP -> {
+                Log.i(TAG, "Stop requested")
+                stopSelf()
+            }
+            ACTION_TRIGGER_MANUAL -> {
+                // Called from UI button — force start listening
+                if (state == State.IDLE) startListening()
+            }
+        }
+        return START_STICKY   // restart if killed
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        speechRecognizer?.destroy()
+        scope.cancel()
+        Log.i(TAG, "VoiceCommandService destroyed")
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    // ── Speech Recognition ────────────────────────────────────────────────────
+
+    private fun startListening() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Log.w(TAG, "Speech recognition not available on this device")
+            AssistantTTS.speak(this, "Speech recognition not available")
+            return
+        }
+
+        state = State.LISTENING
+        updateNotification("Listening…")
+
+        speechRecognizer?.destroy()
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        speechRecognizer?.setRecognitionListener(recognitionListener)
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            // Indian English first, fallback to US
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE,          "en-IN")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"en-IN")
+            putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,       1)
+            // Keep listening through pauses
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+        }
+
+        speechRecognizer?.startListening(intent)
+        Log.d(TAG, "Started listening")
+    }
+
+    private val recognitionListener = object : RecognitionListener {
+
+        override fun onResults(results: Bundle?) {
+            val matches = results
+                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            val text = matches?.firstOrNull()?.trim() ?: ""
+
+            Log.i(TAG, "Recognised: $text")
+
+            if (text.isEmpty()) {
+                state = State.IDLE
+                restartListeningDelayed()
+                return
+            }
+
+            onCommandReceived(text)
+        }
+
+        override fun onError(error: Int) {
+            val msg = speechErrorToString(error)
+            Log.w(TAG, "Speech error: $msg ($error)")
+
+            state = State.IDLE
+
+            // Non-fatal errors — just restart
+            when (error) {
+                SpeechRecognizer.ERROR_NO_MATCH,
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> restartListeningDelayed()
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> restartListeningDelayed(2000)
+                else -> restartListeningDelayed(3000)
+            }
+        }
+
+        override fun onReadyForSpeech(params: Bundle?)  { Log.d(TAG, "Ready for speech") }
+        override fun onBeginningOfSpeech()              { Log.d(TAG, "Speech started") }
+        override fun onEndOfSpeech()                    { Log.d(TAG, "Speech ended") }
+        override fun onRmsChanged(rmsdB: Float)         {}
+        override fun onBufferReceived(buffer: ByteArray?){}
+        override fun onPartialResults(partial: Bundle?) {}
+        override fun onEvent(type: Int, params: Bundle?){}
+    }
+
+    // ── Command Handling ──────────────────────────────────────────────────────
+
+    private fun onCommandReceived(text: String) {
+        Log.i(TAG, "Command: $text")
+        state = State.PROCESSING
+        updateNotification("Processing: $text")
+
+        // Speak acknowledgement immediately
+        AssistantTTS.speak(this, "On it")
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val result = agentBridge!!.sendTask(text)
+                Log.i(TAG, "Agent result: $result")
+
+                // Speak result on main thread
+                scope.launch(Dispatchers.Main) {
+                    AssistantTTS.speak(applicationContext, result)
+                    state = State.IDLE
+                    restartListeningDelayed(1500)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Agent error: ${e.message}")
+                scope.launch(Dispatchers.Main) {
+                    AssistantTTS.speak(applicationContext, "Sorry, something went wrong")
+                    state = State.IDLE
+                    restartListeningDelayed(2000)
+                }
+            }
+        }
+    }
+
+    private fun restartListeningDelayed(delayMs: Long = 500) {
+        scope.launch(Dispatchers.Main) {
+            kotlinx.coroutines.delay(delayMs)
+            if (state == State.IDLE) startListening()
+        }
+    }
+
+    // ── Notification ──────────────────────────────────────────────────────────
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIF_CHANNEL_ID,
+                "Jarvis Voice",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Jarvis voice command service"
+                setSound(null, null)
+            }
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(status: String): Notification {
+        val stopIntent = PendingIntent.getService(
+            this, 0,
+            Intent(this, VoiceCommandService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val openIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, NOTIF_CHANNEL_ID)
+            .setContentTitle("J.A.R.V.I.S")
+            .setContentText(status)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentIntent(openIntent)
+            .addAction(android.R.drawable.ic_delete, "Stop", stopIntent)
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+    }
+
+    private fun updateNotification(status: String) {
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIF_ID, buildNotification(status))
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun speechErrorToString(error: Int) = when (error) {
+        SpeechRecognizer.ERROR_AUDIO               -> "audio error"
+        SpeechRecognizer.ERROR_CLIENT              -> "client error"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "no permission"
+        SpeechRecognizer.ERROR_NETWORK             -> "network error"
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT     -> "network timeout"
+        SpeechRecognizer.ERROR_NO_MATCH            -> "no match"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY     -> "recognizer busy"
+        SpeechRecognizer.ERROR_SERVER              -> "server error"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT      -> "speech timeout"
+        else                                       -> "unknown ($error)"
+    }
+}
+
+//===== FILE: voice/AgentBridge.kt =====
+package com.jarvismini.voice
+
+/**
+ * AgentBridge.kt
+ *
+ * Sends a task string to the Jarvis agent loop and waits for the result.
+ *
+ * Two transport modes (auto-detected):
+ *
+ *   Mode A — File IPC (same device, Phone A running both app + Termux)
+ *     Writes task to /sdcard/jarvis/agent_task.txt
+ *     Polls       /sdcard/jarvis/agent_result.txt
+ *     This reuses the EXACT same file IPC pattern as FileBasedExecutor
+ *     (already in UnifiedExecutor.kt)
+ *
+ *   Mode B — LAN HTTP (two device setup)
+ *     POST http://<PhoneA_IP>:8891/agent_task
+ *     {"task": "Open WhatsApp"}
+ *     → {"status": "done", "result": "Opened WhatsApp successfully"}
+ *     Phone A runs agent_http_bridge.py (new, built in ai-output.txt)
+ *
+ * Config file: /sdcard/jarvis/agent_bridge.conf
+ *   mode=file          ← default, same device
+ *   mode=lan
+ *   lan_host=192.168.29.48
+ *   lan_port=8891
+ */
+
+import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
-class UIWatcherModule(
-    private val service: AccessibilityService
-) {
+class AgentBridge(private val context: Context) {
+
     companion object {
-        private const val TAG = "UIWatcherModule"
-        private const val CLAUDE_PKG = "com.anthropic.claude"
-        private const val DOWNLOADS_DIR = "/sdcard/Download"
-        private const val CANONICAL_DOWNLOAD_PATH = "$DOWNLOADS_DIR/ai-output.txt"
-        private const val MAX_DOWNLOAD_WAIT_MS = 60_000L
-        private const val POLL_INTERVAL_MS = 500L
-        private const val MESSAGE_CONFIRM_TEXT = "Build failed. See attached error report."
-        private const val MESSAGE_VISIBLE_POLL_INTERVAL_MS = 500L
-        private const val MESSAGE_VISIBLE_TIMEOUT_MS = 15_000L
-
-        // File card geometry thresholds
-        private const val CARD_MIN_HEIGHT_PX = 120
-        private const val CARD_MAX_HEIGHT_PX = 400
-        private const val CARD_MIN_WIDTH_FRACTION = 0.60f
-        private const val CARD_MAX_HEIGHT_FRACTION = 0.60f
-
-        // Keywords that confirm a geometric candidate is a file card
-        private val CARD_CONFIDENCE_KEYWORDS = listOf("output", "txt", "code", "ai-output", "ai_output")
+        private const val TAG          = "AgentBridge"
+        private const val JARVIS_DIR   = "/sdcard/jarvis"
+        private const val TASK_FILE    = "$JARVIS_DIR/agent_task.txt"
+        private const val RESULT_FILE  = "$JARVIS_DIR/agent_result.txt"
+        private const val STATUS_FILE  = "$JARVIS_DIR/agent_status.txt"
+        private const val CONF_FILE    = "$JARVIS_DIR/agent_bridge.conf"
+        private const val TIMEOUT_MS   = 120_000L   // 2 minutes max per task
+        private const val POLL_MS      = 500L
     }
 
-    var fileManager: FileManagerModule? = null
+    // ── Config ────────────────────────────────────────────────────────────────
 
-    suspend fun handleDownloadAiOutput(): Boolean = withContext(Dispatchers.IO) {
-        if (!bringClaudeToFront()) {
-            Log.e(TAG, "Failed to bring Claude to foreground")
-            return@withContext false
-        }
+    private data class BridgeConfig(
+        val mode: String    = "file",   // "file" or "lan"
+        val lanHost: String = "192.168.29.48",
+        val lanPort: Int    = 8891
+    )
 
-        // Race guard — let Claude fully render file card after response completion
-        delay(2000)
-
-        val rootNode = service.rootInActiveWindow
-        if (rootNode == null) {
-            Log.e(TAG, "No accessibility root node")
-            return@withContext false
-        }
-
-        // Record click timestamp BEFORE snapshot so timestamp comparison is conservative
-        val clickTimestamp = System.currentTimeMillis()
-
-        // Snapshot downloads dir by name for name-diff detection
-        val downloadsDir = File(DOWNLOADS_DIR)
-        val beforeSnapshot = downloadsDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
-        Log.d(TAG, "Downloads snapshot: ${beforeSnapshot.size} files, clickTimestamp=$clickTimestamp")
-
-        // ── Step 1: Guaranteed scroll to absolute bottom ───────────────────────
-        val scrollContainer = findScrollContainer(rootNode)
-        if (scrollContainer != null) {
-            var scrolled = true
-            while (scrolled) {
-                scrolled = scrollContainer.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                if (scrolled) Thread.sleep(250)
-            }
-            Log.d(TAG, "Reached absolute bottom of chat")
-            scrollContainer.recycle()
-        } else {
-            Log.w(TAG, "No scroll container found — proceeding without scroll")
-        }
-        rootNode.recycle()
-
-        delay(500)
-
-        // ── Step 2: Refresh root after scroll ─────────────────────────────────
-        val rootNode2 = service.rootInActiveWindow
-        if (rootNode2 == null) {
-            Log.e(TAG, "No root node after scroll")
-            return@withContext false
-        }
-
-        val screenWidth = service.resources.displayMetrics.widthPixels
-        val screenHeight = service.resources.displayMetrics.heightPixels
-
-        // ── Step 3: Semantic fast path ─────────────────────────────────────────
-        var clickDispatched = false
-        var gestureTarget: Rect? = null
-
-        val semanticNode = findSemanticDownloadCard(rootNode2)
-        if (semanticNode != null) {
-            val bounds = Rect()
-            semanticNode.getBoundsInScreen(bounds)
-            Log.d(TAG, "Semantic card found at $bounds")
-            if (semanticNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                Log.d(TAG, "Semantic ACTION_CLICK succeeded")
-                clickDispatched = true
-            } else {
-                Log.w(TAG, "Semantic ACTION_CLICK failed — queuing gesture")
-                gestureTarget = bounds
-            }
-            semanticNode.recycle()
-        }
-
-        // ── Step 4: Geometric fallback with semantic validation ────────────────
-        if (!clickDispatched && gestureTarget == null) {
-            Log.w(TAG, "Semantic search failed — using geometric search")
-            val candidate = findGeometricDownloadCard(rootNode2, screenWidth, screenHeight)
-            if (candidate != null) {
-                val bounds = Rect()
-                candidate.getBoundsInScreen(bounds)
-
-                // Semantic validation: check subtree for file card keywords
-                val confidence = subtreeContainsKeyword(candidate, CARD_CONFIDENCE_KEYWORDS)
-                Log.d(TAG, "Geometric card at $bounds — keyword confidence=$confidence")
-
-                if (candidate.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                    Log.d(TAG, "Geometric ACTION_CLICK succeeded (confidence=$confidence)")
-                    clickDispatched = true
-                } else {
-                    Log.w(TAG, "Geometric ACTION_CLICK failed — queuing gesture")
-                    gestureTarget = bounds
-                }
-                candidate.recycle()
-            } else {
-                Log.e(TAG, "Geometric search exhausted — no card found")
-                rootNode2.recycle()
-                return@withContext false
-            }
-        }
-
-        rootNode2.recycle()
-
-        // ── Step 5: Gesture tap fallback ──────────────────────────────────────
-        if (!clickDispatched && gestureTarget != null) {
-            val tapX = gestureTarget.centerX().toFloat()
-            val tapY = gestureTarget.centerY().toFloat()
-            Log.d(TAG, "Dispatching gesture tap at ($tapX, $tapY)")
-            dispatchTap(tapX, tapY)
-            clickDispatched = true
-        }
-
-        // ── Step 6: Dismiss resolver if it appears ─────────────────────────────
-        delay(1500)
-        dismissResolverIfPresent()
-
-        // ── Step 7: Dual-mode download detection ───────────────────────────────
-        // Primary: name-diff (new file not in snapshot)
-        // Fallback: timestamp (newest file modified after clickTimestamp)
-        // Both must confirm file is non-empty.
-        val newFile = waitForNewDownload(downloadsDir, beforeSnapshot, clickTimestamp)
-        if (newFile == null) {
-            Log.e(TAG, "Download timeout — no new file appeared in $DOWNLOADS_DIR")
-            return@withContext false
-        }
-
-        // Rename to canonical name so the rest of the pipeline is stable
-        val canonical = File(CANONICAL_DOWNLOAD_PATH)
-        if (newFile.absolutePath != canonical.absolutePath) {
-            newFile.renameTo(canonical)
-            Log.d(TAG, "Renamed '${newFile.name}' → 'ai-output.txt'")
-        }
-
-        Log.d(TAG, "Download complete: ${canonical.absolutePath} (${canonical.length()} bytes)")
-        true
-    }
-
-    /**
-     * Dual-mode download detection:
-     *
-     * Mode A (primary) — name diff: any non-empty file not in beforeSnapshot.
-     * Mode B (fallback) — timestamp: newest non-empty file modified after clickTimestamp.
-     *
-     * Mode B catches the ultra-fast download case where the file lands before
-     * the snapshot was taken, making it invisible to name-diff.
-     */
-    private suspend fun waitForNewDownload(
-        dir: File,
-        beforeSnapshot: Set<String>,
-        clickTimestamp: Long
-    ): File? = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startTime < MAX_DOWNLOAD_WAIT_MS) {
-            val allFiles = dir.listFiles()?.filter { it.length() > 0 } ?: emptyList()
-
-            // Mode A: name diff
-            val newByName = allFiles.firstOrNull { it.name !in beforeSnapshot }
-            if (newByName != null) {
-                Log.d(TAG, "Download detected (name-diff): ${newByName.name}")
-                return@withContext newByName
-            }
-
-            // Mode B: timestamp — newest file modified after click
-            val newByTimestamp = allFiles
-                .filter { it.lastModified() > clickTimestamp }
-                .maxByOrNull { it.lastModified() }
-            if (newByTimestamp != null) {
-                Log.d(TAG, "Download detected (timestamp): ${newByTimestamp.name}")
-                return@withContext newByTimestamp
-            }
-
-            delay(POLL_INTERVAL_MS)
-        }
-        null
-    }
-
-    /**
-     * Semantic search: fuzzy text match on "output", walks up to clickable ancestor.
-     * Also checks content-desc variants.
-     */
-    private fun findSemanticDownloadCard(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val byText = findClickableAncestorByFuzzyText(root, "output")
-        if (byText != null) return byText
-
-        for (desc in listOf("output", "ai-output", "ai_output")) {
-            val byDesc = findNodeByContentDescriptionFuzzy(root, desc)
-            if (byDesc != null) return byDesc
-        }
-        return null
-    }
-
-    /**
-     * Geometric fallback: bottom-most large clickable rectangle.
-     * After selecting candidate, logs keyword confidence for debugging.
-     * Picks highest-confidence candidate if multiple exist.
-     */
-    private fun findGeometricDownloadCard(
-        root: AccessibilityNodeInfo,
-        screenWidth: Int,
-        screenHeight: Int
-    ): AccessibilityNodeInfo? {
-        val candidates = mutableListOf<Pair<AccessibilityNodeInfo, Rect>>()
-        collectGeometricCandidates(root, screenWidth, screenHeight, candidates)
-
-        if (candidates.isEmpty()) {
-            Log.w(TAG, "No geometric candidates found")
-            return null
-        }
-
-        // Sort: prefer candidates with keyword matches, then by centerY (bottom-most)
-        candidates.sortWith(
-            compareByDescending<Pair<AccessibilityNodeInfo, Rect>> {
-                if (subtreeContainsKeyword(it.first, CARD_CONFIDENCE_KEYWORDS)) 1 else 0
-            }.thenByDescending { it.second.centerY() }
+    private fun loadConfig(): BridgeConfig {
+        val f = File(CONF_FILE)
+        if (!f.exists()) return BridgeConfig()
+        val props = f.readLines()
+            .filter { it.contains("=") }
+            .associate { it.substringBefore("=").trim() to it.substringAfter("=").trim() }
+        return BridgeConfig(
+            mode    = props["mode"]     ?: "file",
+            lanHost = props["lan_host"] ?: "192.168.29.48",
+            lanPort = props["lan_port"]?.toIntOrNull() ?: 8891
         )
-
-        Log.d(TAG, "Geometric candidates (${candidates.size}):")
-        candidates.forEach {
-            val hasKeyword = subtreeContainsKeyword(it.first, CARD_CONFIDENCE_KEYWORDS)
-            Log.d(TAG, "  bounds=${it.second} keyword=$hasKeyword")
-        }
-
-        val winner = candidates.first()
-        candidates.drop(1).forEach { it.first.recycle() }
-        return winner.first
     }
 
-    private fun collectGeometricCandidates(
-        node: AccessibilityNodeInfo,
-        screenWidth: Int,
-        screenHeight: Int,
-        results: MutableList<Pair<AccessibilityNodeInfo, Rect>>
-    ) {
-        val bounds = Rect()
-        node.getBoundsInScreen(bounds)
-
-        val height = bounds.height()
-        val width = bounds.width()
-        val centerY = bounds.centerY()
-        val minCardWidth = (screenWidth * CARD_MIN_WIDTH_FRACTION).toInt()
-        val maxCardHeight = minOf(CARD_MAX_HEIGHT_PX, (screenHeight * CARD_MAX_HEIGHT_FRACTION).toInt())
-        val className = node.className?.toString() ?: ""
-
-        if (node.isClickable
-            && !node.isScrollable
-            && height >= CARD_MIN_HEIGHT_PX
-            && height <= maxCardHeight
-            && width >= minCardWidth
-            && centerY > screenHeight * 0.30f
-            && className.contains("View")
-            && !className.contains("EditText")
-            && !className.contains("Button")
-        ) {
-            results.add(Pair(node, Rect(bounds)))
-        }
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            collectGeometricCandidates(child, screenWidth, screenHeight, results)
-        }
-    }
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Returns true if any node in this subtree contains one of the given keywords
-     * in its text or content-desc. Used for semantic validation of geometric candidates.
+     * Send a task to the agent loop and wait for the result.
+     * Suspends until complete or timeout.
+     *
+     * @param task  Natural language task, e.g. "Open WhatsApp and message Mom"
+     * @return      Human-readable result string for TTS
      */
-    private fun subtreeContainsKeyword(
-        node: AccessibilityNodeInfo,
-        keywords: List<String>
-    ): Boolean {
-        val text = node.text?.toString() ?: ""
-        val desc = node.contentDescription?.toString() ?: ""
-        if (keywords.any { text.contains(it, ignoreCase = true) || desc.contains(it, ignoreCase = true) }) {
-            return true
-        }
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val found = subtreeContainsKeyword(child, keywords)
-            child.recycle()
-            if (found) return true
-        }
-        return false
-    }
+    suspend fun sendTask(task: String): String = withContext(Dispatchers.IO) {
+        val config = loadConfig()
+        Log.i(TAG, "sendTask mode=${config.mode}: $task")
 
-    private fun dispatchTap(x: Float, y: Float) {
-        try {
-            val path = Path().apply { moveTo(x, y) }
-            val stroke = GestureDescription.StrokeDescription(path, 0, 50)
-            val gesture = GestureDescription.Builder().addStroke(stroke).build()
-            service.dispatchGesture(gesture, null, null)
-        } catch (e: Exception) {
-            Log.e(TAG, "dispatchTap failed", e)
+        return@withContext when (config.mode) {
+            "lan"  -> sendTaskLan(task, config)
+            else   -> sendTaskFile(task)
         }
     }
 
-    private fun dismissResolverIfPresent() {
-        val root = service.rootInActiveWindow ?: return
-        if (root.packageName?.toString() != "android") {
-            root.recycle()
-            return
-        }
-        Log.d(TAG, "Resolver detected — dismissing")
-        val cancelNode = findClickableAncestorByFuzzyText(root, "Cancel")
-            ?: findNodeByContentDescriptionFuzzy(root, "Cancel")
-        if (cancelNode != null) {
-            cancelNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            cancelNode.recycle()
-            Log.d(TAG, "Dismissed resolver via Cancel")
-        } else {
-            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-            Log.w(TAG, "Cancel not found — dismissed resolver via BACK")
-        }
-        root.recycle()
-    }
+    // ── Mode A: File IPC ──────────────────────────────────────────────────────
 
-    suspend fun handleBuildFailure(): Boolean = withContext(Dispatchers.IO) {
-        if (!bringClaudeToFront()) {
-            Log.e(TAG, "Failed to bring Claude to foreground")
-            return@withContext false
-        }
+    private suspend fun sendTaskFile(task: String): String {
+        val dir = File(JARVIS_DIR)
+        if (!dir.exists()) dir.mkdirs()
 
-        delay(1000)
+        val taskFile   = File(TASK_FILE)
+        val resultFile = File(RESULT_FILE)
+        val statusFile = File(STATUS_FILE)
 
-        val errorReportPath = "/sdcard/ai-automation/build-error-report.txt"
-        if (!File(errorReportPath).exists()) {
-            Log.e(TAG, "build-error-report.txt not found")
-            return@withContext false
-        }
+        // Clear previous result
+        resultFile.writeText("")
+        statusFile.writeText("pending")
 
-        // ── Step 1: "Add to chat" ─────────────────────────────────────────────
-        val rootNode = service.rootInActiveWindow ?: run {
-            Log.e(TAG, "No accessibility root node"); return@withContext false
-        }
+        // Write task — agent_controller.py polls this
+        taskFile.writeText(task)
+        Log.d(TAG, "Wrote task to $TASK_FILE")
 
-        val addButton = findClickableAncestorByFuzzyText(rootNode, "Add to chat")
-            ?: findNodeByContentDescriptionFuzzy(rootNode, "Add to chat")
-        if (addButton == null) {
-            Log.e(TAG, "'Add to chat' button not found")
-            rootNode.recycle(); return@withContext false
-        }
-        if (!addButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            Log.e(TAG, "Failed to click 'Add to chat'")
-            addButton.recycle(); rootNode.recycle(); return@withContext false
-        }
-        Log.d(TAG, "Clicked 'Add to chat'")
-        addButton.recycle(); rootNode.recycle()
-        delay(1000)
+        // Poll for result
+        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            delay(POLL_MS)
 
-        // ── Step 2: "Files" ───────────────────────────────────────────────────
-        val rootNode2 = service.rootInActiveWindow ?: run {
-            Log.e(TAG, "No root node after Add to chat"); return@withContext false
-        }
-        val filesButton = findClickableAncestorByFuzzyText(rootNode2, "Files")
-        if (filesButton == null) {
-            Log.e(TAG, "'Files' button not found")
-            rootNode2.recycle(); return@withContext false
-        }
-        if (!filesButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            Log.e(TAG, "Failed to click 'Files'")
-            filesButton.recycle(); rootNode2.recycle(); return@withContext false
-        }
-        Log.d(TAG, "Clicked 'Files'")
-        filesButton.recycle(); rootNode2.recycle()
-        delay(2000)
-
-        // ── Step 3: Select build-error-report.txt ─────────────────────────────
-        val rootNode3 = service.rootInActiveWindow ?: run {
-            Log.e(TAG, "No root node in file picker"); return@withContext false
-        }
-        val fileItem = findClickableAncestorByFuzzyText(rootNode3, "build-error-report")
-        if (fileItem == null) {
-            Log.e(TAG, "build-error-report.txt not found in picker")
-            rootNode3.recycle(); return@withContext false
-        }
-        if (!fileItem.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            Log.e(TAG, "Failed to select build-error-report.txt")
-            fileItem.recycle(); rootNode3.recycle(); return@withContext false
-        }
-        Log.d(TAG, "Selected build-error-report.txt")
-        fileItem.recycle(); rootNode3.recycle()
-        delay(1000)
-
-        // ── Step 4: Set message text ──────────────────────────────────────────
-        val rootNode4 = service.rootInActiveWindow ?: run {
-            Log.e(TAG, "No root node after file selection"); return@withContext false
-        }
-        val inputField = findEditableNode(rootNode4)
-        if (inputField == null) {
-            Log.e(TAG, "Message input field not found")
-            rootNode4.recycle(); return@withContext false
-        }
-        val message = MESSAGE_CONFIRM_TEXT
-        if (!inputField.performAction(
-                AccessibilityNodeInfo.ACTION_SET_TEXT,
-                android.os.Bundle().apply {
-                    putCharSequence(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                        message
-                    )
-                }
-            )
-        ) {
-            Log.e(TAG, "Failed to set message text")
-            inputField.recycle(); rootNode4.recycle(); return@withContext false
-        }
-        Log.d(TAG, "Message text set")
-        inputField.recycle(); rootNode4.recycle()
-        delay(500)
-
-        // ── Step 5: Tap Send ──────────────────────────────────────────────────
-        val rootNode5 = service.rootInActiveWindow ?: run {
-            Log.e(TAG, "No root node for send"); return@withContext false
-        }
-        val sendButton = findNodeByContentDescriptionFuzzy(rootNode5, "Send")
-        if (sendButton == null) {
-            Log.e(TAG, "Send button not found")
-            rootNode5.recycle(); return@withContext false
-        }
-        val sendClicked = sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        sendButton.recycle(); rootNode5.recycle()
-        if (!sendClicked) {
-            Log.e(TAG, "Failed to click Send"); return@withContext false
-        }
-        Log.d(TAG, "Send button tapped — waiting for message to appear in chat")
-
-        // ── Step 6: Confirm message visible in chat ───────────────────────────
-        if (!waitForMessageVisible(message)) {
-            Log.e(TAG, "Message did not appear — NOT deleting error report")
-            return@withContext false
-        }
-        Log.d(TAG, "Message confirmed — clearing error report files")
-        fileManager?.clearErrorReport()
-            ?: Log.w(TAG, "fileManager not set — error report not cleared")
-
-        true
-    }
-
-    private suspend fun waitForMessageVisible(expectedText: String): Boolean =
-        withContext(Dispatchers.IO) {
-            val startTime = System.currentTimeMillis()
-            while (System.currentTimeMillis() - startTime < MESSAGE_VISIBLE_TIMEOUT_MS) {
-                delay(MESSAGE_VISIBLE_POLL_INTERVAL_MS)
-                val root = service.rootInActiveWindow ?: continue
-                val nodes = root.findAccessibilityNodeInfosByText(expectedText)
-                val found = nodes.isNotEmpty()
-                nodes.forEach { it.recycle() }
-                root.recycle()
-                if (found) { Log.d(TAG, "Message visible in chat"); return@withContext true }
-            }
-            Log.e(TAG, "Timeout waiting for message")
-            false
-        }
-
-    private fun findScrollContainer(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        if (root.isScrollable && root.packageName?.toString() == CLAUDE_PKG) return root
-        for (i in 0 until root.childCount) {
-            val child = root.getChild(i) ?: continue
-            val result = findScrollContainer(child)
-            if (result != null) { child.recycle(); return result }
-            child.recycle()
-        }
-        return null
-    }
-
-    private fun findClickableAncestorByFuzzyText(
-        root: AccessibilityNodeInfo,
-        keyword: String
-    ): AccessibilityNodeInfo? {
-        val nodes = root.findAccessibilityNodeInfosByText(keyword)
-        for (node in nodes) {
-            if (node.text?.toString()?.contains(keyword, ignoreCase = true) == true) {
-                if (node.isClickable) return node
-                var parent = node.parent
-                while (parent != null) {
-                    if (parent.isClickable) return parent
-                    val next = parent.parent
-                    if (next == parent) break
-                    parent = next
+            if (resultFile.exists() && resultFile.length() > 0) {
+                val content = resultFile.readText().trim()
+                if (content.isNotEmpty() && content != "pending") {
+                    Log.i(TAG, "Got file result: $content")
+                    resultFile.writeText("")   // clear for next task
+                    return content
                 }
             }
         }
-        return null
+
+        return "Task timed out. The agent may still be running."
     }
 
-    private fun findNodeByContentDescriptionFuzzy(
-        root: AccessibilityNodeInfo,
-        keyword: String
-    ): AccessibilityNodeInfo? {
-        val desc = root.contentDescription?.toString() ?: ""
-        if (desc.contains(keyword, ignoreCase = true) && root.isClickable) return root
-        for (i in 0 until root.childCount) {
-            val child = root.getChild(i) ?: continue
-            val result = findNodeByContentDescriptionFuzzy(child, keyword)
-            if (result != null) return result
-            child.recycle()
-        }
-        return null
-    }
+    // ── Mode B: LAN HTTP ──────────────────────────────────────────────────────
 
-    private fun findEditableNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        if (root.isEditable) return root
-        for (i in 0 until root.childCount) {
-            val child = root.getChild(i) ?: continue
-            val result = findEditableNode(child)
-            if (result != null) return result
-            child.recycle()
-        }
-        return null
-    }
+    private suspend fun sendTaskLan(task: String, config: BridgeConfig): String {
+        val url = "http://${config.lanHost}:${config.lanPort}/agent_task"
+        Log.d(TAG, "POST $url")
 
-    private fun bringClaudeToFront(): Boolean {
         return try {
-            val intent = service.packageManager.getLaunchIntentForPackage(CLAUDE_PKG)
-            if (intent != null) {
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                service.startActivity(intent)
-                true
-            } else false
+            val body = JSONObject().apply { put("task", task) }.toString()
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod  = "POST"
+                connectTimeout = 5_000
+                readTimeout    = TIMEOUT_MS.toInt()
+                doOutput       = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+            conn.outputStream.use { it.write(body.toByteArray()) }
+
+            val response = conn.inputStream.bufferedReader().readText()
+            val json     = JSONObject(response)
+
+            if (json.optBoolean("success", false)) {
+                json.optString("result", "Done")
+            } else {
+                json.optString("error", "Agent returned an error")
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to launch Claude", e)
-            false
+            Log.e(TAG, "LAN bridge error: ${e.message}")
+            "Could not reach agent on Phone A. Check WiFi."
         }
     }
 }
+
+//===== FILE: voice/VoiceTriggerButton.kt =====
+package com.jarvismini.voice
+
+/**
+ * VoiceTriggerButton.kt
+ *
+ * Drop-in Compose component.
+ * Add to JarvisChatScreen.kt or EnhancedHomeScreen.kt.
+ *
+ * Usage:
+ *   VoiceTriggerButton()
+ *
+ * Shows a mic button that:
+ *   - Starts VoiceCommandService on first press (always-on listening)
+ *   - Manually triggers a listen cycle if service already running
+ *   - Shows pulsing animation while listening
+ *   - Shows result text for 3 seconds after completion
+ */
+
+import android.content.Context
+import android.content.Intent
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+// Jarvis blue — matches JarvisColors.kt in your app
+private val JarvisBlue = Color(0xFF00D4FF)
+private val JarvisDark = Color(0xFF001520)
+
+@Composable
+fun VoiceTriggerButton(
+    modifier: Modifier = Modifier,
+    isListening: Boolean = false,
+    onToggle: ((Context) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    var active  by remember { mutableStateOf(false) }
+
+    // Pulse animation when listening
+    val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue  = if (active) 1.15f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(600),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        // ── Mic button ────────────────────────────────────────────────────
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(72.dp)
+                .scale(scale)
+        ) {
+            // Outer ring (glow effect)
+            if (active) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .background(JarvisBlue.copy(alpha = 0.15f), CircleShape)
+                        .border(1.dp, JarvisBlue.copy(alpha = 0.4f), CircleShape)
+                )
+            }
+
+            // Main button
+            FilledIconButton(
+                onClick = {
+                    active = !active
+                    if (active) {
+                        VoiceCommandService.start(context)
+                    } else {
+                        VoiceCommandService.stop(context)
+                    }
+                    onToggle?.invoke(context)
+                },
+                modifier = Modifier.size(60.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (active) JarvisBlue.copy(alpha = 0.2f)
+                                     else JarvisDark,
+                    contentColor   = if (active) JarvisBlue else Color.Gray
+                )
+            ) {
+                Icon(
+                    imageVector = if (active) Icons.Default.Mic else Icons.Default.MicOff,
+                    contentDescription = if (active) "Stop listening" else "Start listening",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // ── Status text ───────────────────────────────────────────────────
+        Text(
+            text = if (active) "LISTENING" else "TAP TO ACTIVATE",
+            color = if (active) JarvisBlue else Color.Gray,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 2.sp
+        )
+    }
+}
+
+/**
+ * Full voice panel — shows in chat screen above input field.
+ * Replace the existing text input row or add above it.
+ */
+@Composable
+fun VoicePanel(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var statusText by remember { mutableStateOf("Say a command after activating") }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color(0xFF000D1A))
+            .border(1.dp, JarvisBlue.copy(alpha = 0.2f))
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        // Status text
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "VOICE CONTROL",
+                color = JarvisBlue.copy(alpha = 0.6f),
+                fontSize = 9.sp,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 2.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = statusText,
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+
+        // Mic button
+        VoiceTriggerButton()
+    }
+}
+
+//===== FILE: manifest_additions.xml =====
+<!--
+    manifest_additions.xml
+    
+    Add these to JarvisMerged's AndroidManifest.xml
+    
+    1. Permission (inside <manifest> tag, before <application>):
+-->
+
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+<!--
+    2. Service declaration (inside <application> tag):
+-->
+
+<service
+    android:name="com.jarvismini.voice.VoiceCommandService"
+    android:enabled="true"
+    android:exported="false"
+    android:foregroundServiceType="microphone" />
+
+<!--
+    3. For Android 14+ foreground service permission (inside <manifest>):
+-->
+
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
