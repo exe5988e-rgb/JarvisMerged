@@ -1,0 +1,25 @@
+<!--
+    manifest_additions.xml
+    
+    Add these to JarvisMerged's AndroidManifest.xml
+    
+    1. Permission (inside <manifest> tag, before <application>):
+-->
+
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+<!--
+    2. Service declaration (inside <application> tag):
+-->
+
+<service
+    android:name="com.jarvismini.voice.VoiceCommandService"
+    android:enabled="true"
+    android:exported="false"
+    android:foregroundServiceType="microphone" />
+
+<!--
+    3. For Android 14+ foreground service permission (inside <manifest>):
+-->
+
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
