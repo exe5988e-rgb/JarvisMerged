@@ -25,7 +25,7 @@ AGENT_DIR="$HOME/jarvis-agent"
 WORKSPACE="$HOME/ai-workspace"
 MODEL_DIR="$WORKSPACE/llama.cpp/models"
 JARVIS_IPC="/sdcard/jarvis"
-ADB_DEVICE="192.168.29.48:39281"
+ADB_DEVICE="192.168.29.48:39601"
 LLAMAFILE_BIN="$HOME/llamafile"
 LLAMAFILE_URL="https://github.com/Mozilla-Ocho/llamafile/releases/download/0.8.13/llamafile-0.8.13"
 
@@ -141,7 +141,7 @@ from reasoning.action_parser    import parse_action
 from executor.adb_executor      import execute
 from agent.state                import AgentState
 
-DEFAULT_DEVICE = "192.168.29.48:39281"
+DEFAULT_DEVICE = "192.168.29.48:39601"
 DEFAULT_TASK   = "Open WhatsApp"
 DEFAULT_MODEL  = os.path.expanduser(
     "~/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
@@ -450,7 +450,7 @@ echo ""
 #    4. llamafile_proxy_lan.py   :8889  (Android app, auth)
 #    5. agent_http_bridge.py     :8891  (voice bridge)
 #
-#  Phone A : 192.168.29.48:39281
+#  Phone A : 192.168.29.48:39601
 #  Phone B : 192.168.29.110:43241  (Claude brain)
 #
 #  Usage:
@@ -459,7 +459,7 @@ echo ""
 #    bash ~/jarvis_server_init.sh --pair   # start + LAN pairing
 # ================================================================
 
-PHONE_A="192.168.29.48:39281"
+PHONE_A="192.168.29.48:39601"
 PHONE_B="192.168.29.110:43241"
 
 MODEL="$HOME/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
@@ -843,7 +843,7 @@ RESULT_FILE= JARVIS_DIR / "agent_result.txt"
 STATUS_FILE= JARVIS_DIR / "agent_status.txt"
 
 PORT       = 8891
-ADB_DEVICE = "192.168.29.48:39281"
+ADB_DEVICE = "192.168.29.48:39601"
 
 sys.path.insert(0, str(ROOT))
 
@@ -1077,14 +1077,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from perception.screen_capture  import capture_screen
-from perception.ui_mock_parser  import parse_ui
+from perception.ui_parser       import parse_ui
 from reasoning.prompt_builder   import build_prompt
 from reasoning.llm_client       import generate, health_check
 from reasoning.action_parser    import parse_action
 from executor.adb_executor      import execute
 from agent.state                import AgentState
 
-DEFAULT_DEVICE = "192.168.29.48:39281"
+DEFAULT_DEVICE = "192.168.29.48:39601"
 DEFAULT_TASK   = "Open WhatsApp"
 DEFAULT_MODEL  = os.path.expanduser(
     "~/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf")
@@ -1094,7 +1094,7 @@ def run_step(state, device, model_path):
     print(f"\n{'='*56}\n  STEP {state.step+1}  —  {state.task}\n{'='*56}")
     img  = capture_screen(adb_device=device)
     state.last_screen = img
-    ui   = parse_ui(img)
+    ui   = parse_ui(img, adb_device=device)
     state.last_ui = ui
     print(f"[step] UI: {[e['text'] for e in ui]}")
     prompt   = build_prompt(state.task, ui, history=state.history)
@@ -1157,28 +1157,201 @@ def capture_screen(adb_device: str, filename="screen.png") -> str:
         )
     return _cache[adb_device].take_screenshot(filename=filename)
 
-//===== TERMUXFILE: jarvis-agent/perception/ui_mock_parser.py =====
+//===== TERMUXFILE: jarvis-agent/perception/ui_parser.py =====
 """
-perception/ui_mock_parser.py
-Mock until OmniParser integration.
-Same interface: parse_ui(image_path) -> list[{id,text,x,y}]
-"""
-MOCK_ELEMENTS = [
-    {"id": 1,  "text": "WhatsApp",   "x": 160,  "y": 1200},
-    {"id": 2,  "text": "Chrome",     "x": 480,  "y": 1200},
-    {"id": 3,  "text": "Camera",     "x": 800,  "y": 1200},
-    {"id": 4,  "text": "Settings",   "x": 160,  "y": 1600},
-    {"id": 5,  "text": "YouTube",    "x": 480,  "y": 1600},
-    {"id": 6,  "text": "Files",      "x": 800,  "y": 1600},
-    {"id": 7,  "text": "Search bar", "x": 540,  "y": 200},
-    {"id": 8,  "text": "Gmail",      "x": 160,  "y": 800},
-    {"id": 9,  "text": "Maps",       "x": 480,  "y": 800},
-    {"id": 10, "text": "Clock",      "x": 800,  "y": 800},
-]
+perception/ui_parser.py
 
-def parse_ui(image_path: str) -> list:
-    print(f"[parser] mock — {len(MOCK_ELEMENTS)} elements")
-    return [dict(e) for e in MOCK_ELEMENTS]
+Real UI parser — replaces ui_mock_parser.py.
+Uses ADB uiautomator dump to get actual screen elements.
+
+Interface unchanged: parse_ui(image_path, adb_device) -> list[{id,text,x,y}]
+
+What we extract per element:
+  id    : sequential int starting at 1
+  text  : content-desc or text attribute (whichever is non-empty)
+  x, y  : center of bounds
+  bounds: raw string e.g. "[0,0][100,50]"
+  cls   : short class name e.g. "Button", "TextView"
+  clickable: bool
+
+Filtering:
+  - Skip nodes with no text and no content-desc
+  - Skip zero-size bounds [x,y][x,y]
+  - Skip pure containers (FrameLayout, LinearLayout etc) unless clickable
+  - Cap at MAX_ELEMENTS to keep prompt token budget sane
+"""
+
+import re
+import subprocess
+import os
+
+MAX_ELEMENTS = 20
+
+# Short class name map
+_CLS_SHORT = {
+    "android.widget.TextView":       "Text",
+    "android.widget.EditText":       "Input",
+    "android.widget.Button":         "Button",
+    "android.widget.ImageButton":    "ImgBtn",
+    "android.widget.ImageView":      "Image",
+    "android.widget.CheckBox":       "Check",
+    "android.widget.RadioButton":    "Radio",
+    "android.widget.Switch":         "Switch",
+    "android.widget.ProgressBar":    "Progress",
+    "android.view.View":             "View",
+    "android.widget.FrameLayout":    "Frame",
+    "android.widget.LinearLayout":   "Linear",
+    "android.widget.RelativeLayout": "Relative",
+    "android.widget.ScrollView":     "Scroll",
+    "androidx.recyclerview.widget.RecyclerView": "List",
+}
+
+_CONTAINER_CLS = {
+    "android.widget.FrameLayout",
+    "android.widget.LinearLayout",
+    "android.widget.RelativeLayout",
+    "android.view.ViewGroup",
+    "android.widget.ScrollView",
+    "androidx.recyclerview.widget.RecyclerView",
+}
+
+def _adb_dump(adb_device: str) -> str:
+    """Run uiautomator dump and return XML string."""
+    dump_cmd = ["adb", "-s", adb_device, "shell",
+                "uiautomator", "dump", "/sdcard/uidump.xml"]
+    subprocess.run(dump_cmd, capture_output=True, timeout=15)
+    r = subprocess.run(
+        ["adb", "-s", adb_device, "shell", "cat", "/sdcard/uidump.xml"],
+        capture_output=True, timeout=10
+    )
+    return r.stdout.decode(errors="replace")
+
+def _parse_bounds(bounds_str: str):
+    """'[x1,y1][x2,y2]' → (cx, cy, w, h)"""
+    m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
+    if not m:
+        return None
+    x1, y1, x2, y2 = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+    if x1 == x2 or y1 == y2:
+        return None   # zero-size
+    cx = (x1 + x2) // 2
+    cy = (y1 + y2) // 2
+    return cx, cy, x2 - x1, y2 - y1
+
+def _extract_nodes(xml: str) -> list:
+    """Parse all <node> attributes from flat XML."""
+    nodes = []
+    for attrs in re.findall(r"<node([^>]+)>?", xml):
+        def get(attr):
+            m = re.search(rf'{attr}="([^"]*)"', attrs)
+            return m.group(1) if m else ""
+
+        text      = get("text").strip()
+        desc      = get("content-desc").strip()
+        bounds    = get("bounds")
+        cls       = get("class")
+        clickable = get("clickable") == "true"
+        enabled   = get("enabled") != "false"
+
+        label = desc or text
+        if not label:
+            continue
+        if not bounds:
+            continue
+        coords = _parse_bounds(bounds)
+        if coords is None:
+            continue
+        cx, cy, w, h = coords
+
+        # Skip pure containers unless they are clickable and have a label
+        if cls in _CONTAINER_CLS and not clickable:
+            continue
+
+        # Skip disabled
+        if not enabled:
+            continue
+
+        short_cls = _CLS_SHORT.get(cls, cls.split(".")[-1] if cls else "")
+
+        nodes.append({
+            "text":      label,
+            "x":         cx,
+            "y":         cy,
+            "w":         w,
+            "h":         h,
+            "cls":       short_cls,
+            "clickable": clickable,
+            "bounds":    bounds,
+        })
+
+    return nodes
+
+def _deduplicate(nodes: list) -> list:
+    """Remove nodes with identical text+coords."""
+    seen = set()
+    out  = []
+    for n in nodes:
+        key = (n["text"], n["x"], n["y"])
+        if key not in seen:
+            seen.add(key)
+            out.append(n)
+    return out
+
+def _prioritise(nodes: list) -> list:
+    """
+    Sort: clickable first, then by vertical position.
+    Helps Claude see interactive elements at the top of the list.
+    """
+    return sorted(nodes, key=lambda n: (not n["clickable"], n["y"]))
+
+def parse_ui(image_path: str, adb_device: str = None) -> list:
+    """
+    Parse real UI from device via uiautomator dump.
+
+    Args:
+        image_path : path to screenshot (kept for interface compat — not used here)
+        adb_device : ADB serial e.g. '192.168.29.48:39601'
+                     Falls back to ADB_DEVICE env var or default.
+
+    Returns:
+        list of dicts: [{id, text, x, y, cls, clickable}, ...]
+    """
+    if adb_device is None:
+        adb_device = os.environ.get("ADB_DEVICE", "192.168.29.48:39601")
+
+    try:
+        xml = _adb_dump(adb_device)
+    except Exception as e:
+        print(f"[parser] uiautomator dump failed: {e} — returning empty")
+        return []
+
+    if not xml or "<hierarchy" not in xml:
+        print(f"[parser] bad XML dump — returning empty")
+        return []
+
+    nodes = _extract_nodes(xml)
+    nodes = _deduplicate(nodes)
+    nodes = _prioritise(nodes)
+    nodes = nodes[:MAX_ELEMENTS]
+
+    # Assign sequential IDs
+    elements = []
+    for i, n in enumerate(nodes, 1):
+        elements.append({
+            "id":        i,
+            "text":      n["text"],
+            "x":         n["x"],
+            "y":         n["y"],
+            "cls":       n["cls"],
+            "clickable": n["clickable"],
+        })
+
+    print(f"[parser] {len(elements)} elements from uiautomator dump")
+    for e in elements:
+        flag = "✓" if e["clickable"] else " "
+        print(f"  [{e['id']}]{flag} {e['cls']:8} ({e['x']:4},{e['y']:4}) {e['text'][:40]}")
+
+    return elements
 
 //===== TERMUXFILE: jarvis-agent/reasoning/prompt_builder.py =====
 """
@@ -1940,7 +2113,7 @@ class Device:
     def __init__(self, device_serial=None, output_dir=None):
         """
         DroidBot Device.__init__ signature (subset).
-        :param device_serial: e.g. "192.168.29.48:39281"
+        :param device_serial: e.g. "192.168.29.48:39601"
         :param output_dir: local dir to save screenshots
         """
         self.serial     = device_serial
@@ -2264,20 +2437,19 @@ def get_device(adb_device: str) -> Device:
 //===== TERMUXFILE: claude_bridge.py =====
 #!/usr/bin/env python3
 """
-claude_bridge.py  —  Phone B Termux server
+claude_bridge.py  —  Phone B (Samsung Galaxy A10s 720x1520)
 
-Receives prompt from Phone A agent loop.
-Types it into Claude app via ADB (local — Phone B ADB loopback).
-Waits for response to stabilise.
-Returns response text.
-
-Phone B ADB: 192.168.29.110:43241 (connect from Phone A)
-Port: 8890
-
-Start:
-  python3 ~/claude_bridge.py
-
-Phone A will connect to http://192.168.29.110:8890/chat
+UI coords confirmed from two uidumps:
+  Main chat list:
+    Open menu    : (42,112)
+    New chat btn : (493,1352)  content-desc='New chat' [465,1324][521,1380]
+    Select btn   : (678,112)   — DO NOT tap this
+  Inside a chat:
+    Go back      : (42,112)
+    More options : (678,112)
+    EditText     : (363,1272)  [63,1235][664,1310]
+  Drawer (open):
+    New chat     : (167,218)
 """
 
 import json
@@ -2287,150 +2459,232 @@ import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-PORT         = 8890
-CLAUDE_PKG   = "com.anthropic.claude"
-POLL_INTERVAL = 2.0      # seconds between UI dumps
-STABLE_COUNT  = 3        # dumps must match this many times to be "done"
-MAX_WAIT      = 90        # seconds max to wait for response
-LOG_DIR      = Path.home() / ".jarvis_logs"
+PORT          = 8890
+CLAUDE_PKG    = "com.anthropic.claude"
+POLL_INTERVAL = 2.0
+STABLE_COUNT  = 2
+MAX_WAIT      = 120
+ADB_SERIAL    = "192.168.29.110:43241"
+
+# Confirmed coords
+NEW_CHAT_MAIN_X = 493    # New chat button on main chat list screen
+NEW_CHAT_MAIN_Y = 1352
+NEW_CHAT_DRAW_X = 167    # New chat inside open drawer
+NEW_CHAT_DRAW_Y = 218
+INPUT_X         = 363    # EditText center
+INPUT_Y         = 1272
+
+LOG_DIR = Path.home() / ".jarvis_logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-# ── ADB helpers (local — Phone B talks to itself) ─────────────────────────────
+# ── ADB helpers ───────────────────────────────────────────────────────────────
 
-def adb(*args, timeout=15) -> subprocess.CompletedProcess:
-    return subprocess.run(["adb"] + list(str(a) for a in args),
+def adb(*args, timeout=20):
+    return subprocess.run(["adb", "-s", ADB_SERIAL] + list(str(a) for a in args),
                           capture_output=True, timeout=timeout)
 
-def shell(*args, timeout=15) -> str:
+def shell(*args, timeout=20):
     r = adb("shell", *args, timeout=timeout)
     return r.stdout.decode(errors="replace").strip()
 
-def ui_dump() -> str:
-    """Dump current UI to string via uiautomator."""
+def ui_dump():
     shell("uiautomator", "dump", "/sdcard/uidump.xml")
     r = adb("shell", "cat", "/sdcard/uidump.xml", timeout=10)
     return r.stdout.decode(errors="replace")
 
+def tap(x, y):
+    shell("input", "tap", str(x), str(y))
+    time.sleep(0.5)
+
+def keyevent(code):
+    shell("input", "keyevent", str(code))
+    time.sleep(0.3)
+
 # ── Claude app control ────────────────────────────────────────────────────────
 
 def ensure_claude_foreground():
-    """Launch Claude app if not already in foreground."""
-    top = shell("dumpsys", "activity", "activities",
-                "|", "grep", "mCurrentFocus")
+    top = shell("dumpsys", "activity", "activities", "|", "grep", "mCurrentFocus")
     if CLAUDE_PKG not in top:
-        print("[bridge] Launching Claude app...")
+        print("[bridge] Launching Claude...")
         shell("monkey", "-p", CLAUDE_PKG, "-c",
               "android.intent.category.LAUNCHER", "1")
-        time.sleep(3)
+        time.sleep(4)
+    else:
+        print("[bridge] Claude already foreground")
 
-def clear_input_and_type(text: str):
+def start_new_conversation():
     """
-    Clear existing text in Claude input, type new prompt.
-    Strategy:
-      1. Tap input field (bottom of screen)
-      2. Select all + delete
-      3. Type new text
+    Navigate to a fresh conversation.
+    Two paths depending on current screen:
+      A) Inside a chat  → press Back → on chat list → tap New chat (493,1352)
+      B) Already on chat list → tap New chat (493,1352)
+      C) Drawer open → tap New chat (167,218)
     """
-    # Tap input area — Claude input bar is near bottom
-    shell("input", "tap", "540", "2200")
+    print("[bridge] Starting new conversation...")
+
+    # Press back to exit current chat if any
+    keyevent(4)
+    time.sleep(1.2)
+
+    dump = ui_dump()
+
+    # Case C: drawer is open
+    if "New chat" in dump and "167" not in dump:
+        if 'content-desc="New chat"' in dump:
+            # Find actual coords dynamically
+            m = re.search(r'content-desc="New chat"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', dump)
+            if not m:
+                m = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*content-desc="New chat"', dump)
+            if m:
+                x = (int(m.group(1)) + int(m.group(3))) // 2
+                y = (int(m.group(2)) + int(m.group(4))) // 2
+                print(f"[bridge] New chat at ({x},{y})")
+                tap(x, y)
+                time.sleep(2)
+                return
+
+    # Case A/B: on chat list — tap New chat button at bottom right
+    if 'content-desc="New chat"' in dump or "Search Chats" in dump or "Chats" in dump:
+        print(f"[bridge] On chat list, tapping New chat ({NEW_CHAT_MAIN_X},{NEW_CHAT_MAIN_Y})")
+        tap(NEW_CHAT_MAIN_X, NEW_CHAT_MAIN_Y)
+        time.sleep(2)
+        return
+
+    # Still in a chat — press back again
+    print("[bridge] Still in chat, pressing back again...")
+    keyevent(4)
+    time.sleep(1.2)
+    dump = ui_dump()
+
+    if 'content-desc="New chat"' in dump or "Search Chats" in dump:
+        tap(NEW_CHAT_MAIN_X, NEW_CHAT_MAIN_Y)
+        time.sleep(2)
+        return
+
+    # Last resort — try tapping new chat coords anyway
+    print("[bridge] Fallback: tapping New chat coords")
+    tap(NEW_CHAT_MAIN_X, NEW_CHAT_MAIN_Y)
+    time.sleep(2)
+
+def find_input_bounds(dump_xml):
+    m = re.search(r'class="android\.widget\.EditText"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', dump_xml)
+    if m:
+        x = (int(m.group(1)) + int(m.group(3))) // 2
+        y = (int(m.group(2)) + int(m.group(4))) // 2
+        print(f"[bridge] EditText at ({x},{y})")
+        return x, y
+    return INPUT_X, INPUT_Y
+
+def type_prompt(text):
+    dump = ui_dump()
+    x, y = find_input_bounds(dump)
+    tap(x, y)
     time.sleep(0.5)
-
-    # Select all existing text and delete
-    shell("input", "keyevent", "KEYCODE_CTRL_A")
+    keyevent("KEYCODE_CTRL_A")
     time.sleep(0.2)
-    shell("input", "keyevent", "KEYCODE_DEL")
+    keyevent("KEYCODE_DEL")
     time.sleep(0.3)
-
-    # Type prompt — encode spaces as %s for adb
-    safe = (text.replace("\", "\\")
-                .replace(" ", "%s")
-                .replace("'", "\'")
-                .replace('"', '\"')
-                .replace("&", "\&"))
+    safe = (text
+            .replace("\\", "")
+            .replace("'", "")
+            .replace('"', "")
+            .replace("`", "")
+            .replace("&", "and")
+            .replace("|", "")
+            .replace(";", "")
+            .replace("\n", " ")
+            .replace(" ", "%s"))
     shell("input", "text", safe)
-    time.sleep(0.5)
+    time.sleep(0.8)
 
 def tap_send():
-    """Tap Claude's send button."""
-    # Try content-desc first via keyevent ENTER
-    shell("input", "keyevent", "66")
-    time.sleep(1.0)
+    keyevent("66")
+    time.sleep(1.5)
 
-def extract_last_response(dump_xml: str) -> str:
-    """
-    Extract the last assistant message text from uiautomator XML dump.
-    Claude renders messages as TextView nodes.
-    We grab the last long text block that isn't the input field.
-    """
-    # Find all text= attributes
-    texts = re.findall(r'text="([^"]{20,})"', dump_xml)
-    if not texts:
-        return ""
-    # Filter out obvious UI chrome
-    skip = {"Send a message", "Message Claude", "New conversation",
-            "Attach", "Send", "Stop", "Retry"}
-    candidates = [t for t in texts if t not in skip
-                  and not t.startswith("//")
-                  and len(t) > 30]
+# ── Response extraction ───────────────────────────────────────────────────────
+
+def is_still_generating(dump_xml):
+    return ('content-desc="Stop"' in dump_xml or
+            "Stop generating" in dump_xml)
+
+ACTION_RE = re.compile(
+    r"^\s*(tap\s+\d+|tap\s+\d+[,x]\d+|type\s+.+|swipe\s+(up|down|left|right)"
+    r"|back|home|enter|done|finished)\s*$", re.I)
+
+def extract_action(full_text):
+    lines = full_text.strip().splitlines()
+    for line in lines:
+        if ACTION_RE.match(line.strip()):
+            return line.strip()
+    for line in reversed(lines):
+        if line.strip():
+            return line.strip()
+    return "home"
+
+SKIP_TEXTS = {
+    "Send a message", "Message Claude", "New conversation",
+    "Reply to Claude\u2026", "Attach", "Send", "Stop", "Retry",
+    "Claude can make mistakes.", "Please double check responses.",
+    "Sonnet 4.6", "Today", "New chat", "Chats", "Projects",
+    "Artifacts", "Recents", "Sir", "Search Chats", "Select",
+    "Open menu",
+}
+SKIP_PREFIXES = (
+    "You are a mobile", "Your job:", "TASK:", "SCREEN",
+    "HISTORY", "ACTION", "Output ONLY",
+)
+
+def extract_last_response(dump_xml):
+    texts = re.findall(r'text="([^"]{10,})"', dump_xml)
+    candidates = [t for t in texts
+                  if t not in SKIP_TEXTS
+                  and not any(t.startswith(p) for p in SKIP_PREFIXES)
+                  and len(t) > 10]
     return candidates[-1] if candidates else ""
 
-def is_still_generating(dump_xml: str) -> bool:
-    """Check if Claude is still streaming (Stop button visible)."""
-    return 'content-desc="Stop"' in dump_xml or            'text="Stop generating"' in dump_xml or            '"Stop"' in dump_xml
-
-def wait_for_response(prompt_preview: str) -> str:
-    """
-    Poll UI until response is stable.
-    Returns extracted response text.
-    """
-    print(f"[bridge] Waiting for response to: {prompt_preview[:50]!r}")
-    last_text  = ""
-    stable     = 0
-    deadline   = time.time() + MAX_WAIT
-
-    # Give Claude a moment to start generating
-    time.sleep(3)
+def wait_for_response(preview):
+    print(f"[bridge] Waiting: {preview[:50]!r}")
+    last_text = ""
+    stable    = 0
+    deadline  = time.time() + MAX_WAIT
+    time.sleep(4)
 
     while time.time() < deadline:
         dump = ui_dump()
-
-        # Still streaming?
         if is_still_generating(dump):
             print("[bridge] ...generating...")
             stable = 0
             time.sleep(POLL_INTERVAL)
             continue
 
-        # Extract current response
         current = extract_last_response(dump)
-
         if current and current == last_text:
             stable += 1
             print(f"[bridge] Stable {stable}/{STABLE_COUNT}: {current[:60]!r}")
             if stable >= STABLE_COUNT:
-                print(f"[bridge] Response complete: {current[:80]!r}")
-                return current
+                action = extract_action(current)
+                print(f"[bridge] Action: {action!r}")
+                return action
         else:
             stable    = 0
             last_text = current
-
+            if current:
+                print(f"[bridge] Got: {current[:60]!r}")
         time.sleep(POLL_INTERVAL)
 
-    print("[bridge] Timeout waiting for response")
-    return last_text or "No response received from Claude."
+    print("[bridge] Timeout")
+    return extract_action(last_text) if last_text else "home"
 
-def get_claude_response(prompt: str) -> str:
-    """Full pipeline: open Claude → type → send → wait → return."""
+def get_claude_response(prompt):
     ensure_claude_foreground()
     time.sleep(1)
-
-    clear_input_and_type(prompt)
+    start_new_conversation()
+    time.sleep(1)
+    type_prompt(prompt)
     tap_send()
+    return wait_for_response(prompt)
 
-    response = wait_for_response(prompt)
-    return response
-
-# ── HTTP server ────────────────────────────────────────────────────────────────
+# ── HTTP server ───────────────────────────────────────────────────────────────
 
 class BridgeHandler(BaseHTTPRequestHandler):
 
@@ -2448,7 +2702,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             self.send_json(200, {"success": True, "service": "claude_bridge",
-                                 "phone_b": "192.168.29.110:43241"})
+                                 "adb": ADB_SERIAL})
         else:
             self.send_json(404, {"error": "not found"})
 
@@ -2466,39 +2720,27 @@ class BridgeHandler(BaseHTTPRequestHandler):
             if not prompt:
                 self.send_json(400, {"success": False, "error": "missing prompt"})
                 return
-
-            print(f"\n[bridge] ══ PROMPT ══\n{prompt[:200]}\n{'='*40}")
+            print(f"\n[bridge] ══ PROMPT ══\n{prompt[:300]}\n{'='*40}")
             try:
                 response = get_claude_response(prompt)
-                print(f"[bridge] ══ RESPONSE ══\n{response[:200]}\n{'='*40}\n")
+                print(f"[bridge] ══ ACTION ══ {response!r}\n{'='*40}\n")
                 self.send_json(200, {"success": True, "response": response})
             except Exception as e:
-                print(f"[bridge] Error: {e}")
+                import traceback; traceback.print_exc()
                 self.send_json(500, {"success": False, "error": str(e)})
         else:
             self.send_json(404, {"error": "not found"})
 
-
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── Main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("╔══════════════════════════════════════════════════════╗")
-    print("║  JARVIS CLAUDE BRIDGE  —  Phone B                   ║")
+    print("║  JARVIS CLAUDE BRIDGE  —  Galaxy A10s 720x1520      ║")
     print("╚══════════════════════════════════════════════════════╝")
-    print(f"  Phone B ADB : 192.168.29.110:43241")
-    print(f"  Port        : {PORT}")
-    print(f"  Claude pkg  : {CLAUDE_PKG}")
-    print(f"")
-    print(f"  Endpoints:")
-    print(f"    GET  /health")
-    print(f"    POST /chat   {{\"prompt\": \"tap 1 or back?\"}}")
-    print(f"")
-    print(f"  From Phone A:")
-    print(f"    curl -X POST http://192.168.29.110:{PORT}/chat \\")
-    print(f"         -H 'Content-Type: application/json' \\")
-    print(f"         -d '{{\"prompt\": \"hello\"}}'")
-    print(f"")
-
+    print(f"  New chat: ({NEW_CHAT_MAIN_X},{NEW_CHAT_MAIN_Y})")
+    print(f"  Input   : ({INPUT_X},{INPUT_Y})")
+    print(f"  ADB     : {ADB_SERIAL}")
+    print()
     server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
     try:
         server.serve_forever()
