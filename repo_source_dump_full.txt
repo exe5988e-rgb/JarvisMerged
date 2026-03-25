@@ -41,6 +41,10 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── MainActivity.kt
 │   │   │   │   │   │   ├── ProgressInitializer.kt
 │   │   │   │   │   │   ├── ProgressReminderService.kt
+│   │   │   │   │   │   ├── agent
+│   │   │   │   │   │   │   ├── AgentDashboardScreen.kt
+│   │   │   │   │   │   │   ├── AgentDashboardViewModel.kt
+│   │   │   │   │   │   │   ├── AgentRepository.kt
 │   │   │   │   │   │   ├── api
 │   │   │   │   │   │   │   ├── ApiGateway.kt
 │   │   │   │   │   │   │   ├── ApiModels.kt
@@ -103,6 +107,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── FloatingTimerService.kt
 │   │   │   │   │   │   │   │   ├── TaskTimerDialog.kt
 │   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
+│   │   │   │   │   │   ├── voice
+│   │   │   │   │   │   │   ├── VoiceModule.kt
 │   │   │   ├── res
 │   │   │   │   ├── drawable
 │   │   │   │   │   ├── bg_input.xml
@@ -511,28 +517,29 @@ dependencies {
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
-    <!-- NEW: Required for floating overlay window -->
+    <!-- Overlay / floating window -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- Storage Permissions -->
+    <!-- Camera (for AI Vision features) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Storage -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
+    <uses-feature android:name="android.hardware.telephony"  android:required="false" />
+    <uses-feature android:name="android.hardware.camera"     android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <!-- ================= PACKAGE VISIBILITY ================= -->
 
@@ -573,16 +580,14 @@ dependencies {
             </intent-filter>
         </activity>
 
-        <!-- ================= LAN SERVER SERVICE ================= -->
-
+        <!-- LAN Server -->
         <service
             android:name="com.jarvismini.server.LanServerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- ================= EXISTING SERVICES ================= -->
-
+        <!-- Notification Listener -->
         <service
             android:name="com.jarvismini.automation.WhatsAppNotificationListener"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
@@ -592,6 +597,7 @@ dependencies {
             </intent-filter>
         </service>
 
+        <!-- SMS Receiver -->
         <receiver
             android:name="com.jarvismini.callhandler.SmsReceiver"
             android:permission="android.permission.BROADCAST_SMS"
@@ -601,6 +607,7 @@ dependencies {
             </intent-filter>
         </receiver>
 
+        <!-- Call Receiver -->
         <receiver
             android:name="com.jarvismini.callhandler.receiver.CallReceiver"
             android:exported="true">
@@ -609,6 +616,7 @@ dependencies {
             </intent-filter>
         </receiver>
 
+        <!-- Call Screening -->
         <service
             android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
             android:permission="android.permission.BIND_SCREENING_SERVICE"
@@ -618,6 +626,7 @@ dependencies {
             </intent-filter>
         </service>
 
+        <!-- Call Accessibility -->
         <service
             android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -630,6 +639,7 @@ dependencies {
                 android:resource="@xml/call_accessibility_config" />
         </service>
 
+        <!-- App Automation Accessibility -->
         <service
             android:name="com.jarvismini.automation.AppAutomationService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -642,6 +652,7 @@ dependencies {
                 android:resource="@xml/accessibility_service" />
         </service>
 
+        <!-- Work Mode -->
         <service
             android:name="com.jarvismini.core.workmode.WorkModeService"
             android:exported="false"
@@ -658,17 +669,19 @@ dependencies {
             </intent-filter>
         </service>
 
+        <!-- Call Auto Reply -->
         <service
             android:name="com.jarvismini.service.CallAutoReplyService"
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
+        <!-- Progress Reminder -->
         <service
             android:name="com.jarvismini.ProgressReminderService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- NEW: Floating overlay timer service -->
+        <!-- Floating Timer -->
         <service
             android:name="com.jarvismini.ui.timer.FloatingTimerService"
             android:enabled="true"
@@ -1583,6 +1596,724 @@ class ProgressReminderService : Service() {
         serviceScope.cancel()
     }
 }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
+package com.jarvismini.agent
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+
+// ─── Colours ────────────────────────────────────────────────────────────────
+private val Cyan    = Color(0xFF00E0FF)
+private val DimCyan = Color(0xFF005566)
+private val BgDark  = Color(0xFF060F14)
+private val BgCard  = Color(0xFF0A1A22)
+private val Green   = Color(0xFF00FF88)
+private val Red     = Color(0xFFFF4466)
+private val Yellow  = Color(0xFFFFCC00)
+private val White70 = Color(0xB3FFFFFF)
+private val White40 = Color(0x66FFFFFF)
+
+@Composable
+fun AgentDashboardScreen(
+    onBack: () -> Unit,
+    vm: AgentDashboardViewModel = viewModel()
+) {
+    val state by vm.state.collectAsState()
+    val context  = LocalContext.current
+    val listState = rememberLazyListState()
+    val scope    = rememberCoroutineScope()
+
+    // Auto-scroll to bottom when new log arrives
+    LaunchedEffect(state.logs.size) {
+        if (state.logs.isNotEmpty()) {
+            listState.animateScrollToItem(state.logs.lastIndex)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF010A0F))))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            // ── Header ──────────────────────────────────────────────────────
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, "Back", tint = Cyan)
+                }
+                Text(
+                    "AGENT DASHBOARD",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 4.sp,
+                    color = Cyan,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(Modifier.weight(1f))
+                // Server status dot
+                ServerStatusDot(online = state.serverOnline, running = state.running)
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = { vm.checkServer() }) {
+                    Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            // ── Status bar ──────────────────────────────────────────────────
+            if (state.running || state.done) {
+                StatusBar(state)
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // ── Task input ──────────────────────────────────────────────────
+            TaskInputSection(
+                state    = state,
+                onTask   = vm::onTaskInput,
+                onDevice = vm::onDeviceInput,
+                onStart  = vm::startAgent,
+                onStop   = vm::stopAgent,
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Log toolbar ─────────────────────────────────────────────────
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "LOGS",
+                    fontSize = 11.sp,
+                    letterSpacing = 3.sp,
+                    color = DimCyan,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(Modifier.weight(1f))
+                if (state.logs.isNotEmpty()) {
+                    Text(
+                        "${state.logs.size} lines",
+                        fontSize = 10.sp,
+                        color = White40,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick = vm::clearLogs,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                    ) {
+                        Text("Clear", fontSize = 11.sp, color = White40)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(
+                        onClick = { vm.speakResult(context) },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.VolumeUp, null, tint = Cyan, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Speak", fontSize = 11.sp, color = Cyan)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // ── Log pane ────────────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(BgCard)
+                    .border(0.5.dp, DimCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                    .padding(8.dp)
+            ) {
+                if (state.logs.isEmpty()) {
+                    Text(
+                        "No logs yet. Start a task to see agent activity.",
+                        color = White40,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                } else {
+                    LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        items(state.logs, key = { it.hashCode() }) { log ->
+                            LogLineRow(log)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+// ── Status bar ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun StatusBar(state: AgentDashboardState) {
+    val bg = when {
+        state.error != null -> Red.copy(alpha = 0.15f)
+        state.done          -> Green.copy(alpha = 0.12f)
+        state.running       -> Cyan.copy(alpha = 0.08f)
+        else                -> BgCard
+    }
+    val text = when {
+        state.error != null -> "✗ Error: ${state.error}"
+        state.done          -> "✓ Done in ${state.step} steps"
+        state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
+        else                -> ""
+    }
+    val textColor = when {
+        state.error != null -> Red
+        state.done          -> Green
+        else                -> Cyan
+    }
+    if (text.isBlank()) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(bg)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (state.running) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(12.dp),
+                color    = Cyan,
+                strokeWidth = 1.5.dp
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text,
+            color    = textColor,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 1
+        )
+    }
+}
+
+// ── Task input ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun TaskInputSection(
+    state:    AgentDashboardState,
+    onTask:   (String) -> Unit,
+    onDevice: (String) -> Unit,
+    onStart:  () -> Unit,
+    onStop:   () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(BgCard)
+            .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            .padding(12.dp)
+    ) {
+        OutlinedTextField(
+            value         = state.taskInput,
+            onValueChange = onTask,
+            label         = { Text("Task", color = White40, fontSize = 12.sp) },
+            placeholder   = { Text("Open WhatsApp and message Mummy...", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            modifier      = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            minLines      = 2,
+            maxLines      = 4,
+            colors        = agentFieldColors(),
+            textStyle     = LocalTextStyle.current.copy(
+                color      = White70,
+                fontSize   = 13.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value         = state.deviceInput,
+            onValueChange = onDevice,
+            label         = { Text("Device", color = White40, fontSize = 11.sp) },
+            singleLine    = true,
+            modifier      = Modifier.fillMaxWidth(),
+            colors        = agentFieldColors(),
+            textStyle     = LocalTextStyle.current.copy(
+                color      = Cyan,
+                fontSize   = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            if (state.running) {
+                OutlinedButton(
+                    onClick = onStop,
+                    border  = ButtonDefaults.outlinedButtonBorder.copy(),
+                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = Red),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Icon(Icons.Default.Stop, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Stop", fontSize = 13.sp)
+                }
+            } else {
+                Button(
+                    onClick  = onStart,
+                    enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline,
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor = Cyan,
+                        contentColor   = BgDark
+                    ),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Run", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        if (!state.serverOnline) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
+                color = Yellow,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+    }
+}
+
+// ── Log line ──────────────────────────────────────────────────────────────────
+
+@Composable
+private fun LogLineRow(log: LogLine) {
+    val color = when (log.level) {
+        LogLevel.SUCCESS -> Green
+        LogLevel.ERROR   -> Red
+        LogLevel.WARN    -> Yellow
+        LogLevel.STEP    -> Cyan
+        LogLevel.SYSTEM  -> DimCyan
+        LogLevel.INFO    -> White70
+    }
+    Text(
+        text       = log.text,
+        color      = color,
+        fontSize   = 11.sp,
+        fontFamily = FontFamily.Monospace,
+        lineHeight = 14.sp,
+        modifier   = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp, horizontal = 2.dp)
+    )
+}
+
+// ── Server dot ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ServerStatusDot(online: Boolean, running: Boolean) {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val alpha by pulse.animateFloat(
+        initialValue = 0.4f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotAlpha"
+    )
+    val color = when {
+        !online  -> Red
+        running  -> Green.copy(alpha = alpha)
+        else     -> Green
+    }
+    Box(
+        Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .background(color)
+    )
+}
+
+// ── Field colours ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor   = Cyan,
+    unfocusedBorderColor = DimCyan.copy(alpha = 0.5f),
+    cursorColor          = Cyan,
+    focusedLabelColor    = Cyan,
+)
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
+package com.jarvismini.agent
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class AgentDashboardState(
+    val serverOnline:  Boolean        = false,
+    val running:       Boolean        = false,
+    val task:          String         = "",
+    val step:          Int            = 0,
+    val done:          Boolean        = false,
+    val error:         String?        = null,
+    val logs:          List<LogLine>  = emptyList(),
+    val taskInput:     String         = "",
+    val deviceInput:   String         = "192.168.29.48:40657",
+    val maxSteps:      Int            = 20,
+    val ttsEnabled:    Boolean        = true,
+)
+
+data class LogLine(
+    val text:  String,
+    val level: LogLevel = LogLevel.INFO,
+)
+
+enum class LogLevel { INFO, STEP, SUCCESS, ERROR, WARN, SYSTEM }
+
+fun classifyLog(line: String): LogLevel = when {
+    line.contains("✓") || line.contains("Task complete") || line.contains("completed") -> LogLevel.SUCCESS
+    line.contains("✗") || line.contains("ERROR") || line.contains("error:", ignoreCase = true) -> LogLevel.ERROR
+    line.contains("WARNING") || line.contains("WARN") || line.contains("Retry") -> LogLevel.WARN
+    line.contains("STEP") && line.contains("|") -> LogLevel.STEP
+    line.startsWith("[server]") || line.startsWith("[agent_server]") -> LogLevel.SYSTEM
+    else -> LogLevel.INFO
+}
+
+class AgentDashboardViewModel : ViewModel() {
+
+    private val _state = MutableStateFlow(AgentDashboardState())
+    val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
+
+    private var logStreamJob: Job? = null
+    private var statusPollJob: Job? = null
+
+    init {
+        checkServer()
+    }
+
+    fun checkServer() {
+        viewModelScope.launch {
+            val online = AgentRepository.isAgentServerReachable()
+            _state.update { it.copy(serverOnline = online) }
+            if (online) pollStatus()
+        }
+    }
+
+    fun onTaskInput(v: String) = _state.update { it.copy(taskInput = v) }
+    fun onDeviceInput(v: String) = _state.update { it.copy(deviceInput = v) }
+    fun onMaxStepsInput(v: Int) = _state.update { it.copy(maxSteps = v) }
+    fun onTtsToggle(v: Boolean) = _state.update { it.copy(ttsEnabled = v) }
+
+    fun startAgent() {
+        val s = _state.value
+        val task   = s.taskInput.trim()
+        val device = s.deviceInput.trim()
+        if (task.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(logs = emptyList(), done = false, error = null) }
+            pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
+
+            AgentRepository.runTask(task, device, s.maxSteps)
+                .onSuccess { pushLog("[dashboard] Agent started: $it", LogLevel.SYSTEM) }
+                .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
+
+            startLogStream()
+        }
+    }
+
+    fun stopAgent() {
+        viewModelScope.launch {
+            AgentRepository.stopAgent()
+            pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
+        }
+    }
+
+    fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
+
+    fun speakResult(context: Context) {
+        val last = _state.value.logs
+            .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
+            .lastOrNull()?.text ?: return
+
+        viewModelScope.launch {
+            AgentRepository.speak(last)
+        }
+    }
+
+    private fun startLogStream() {
+        logStreamJob?.cancel()
+        logStreamJob = viewModelScope.launch {
+            AgentRepository.streamLogs().collect { line ->
+                pushLog(line, classifyLog(line))
+            }
+        }
+    }
+
+    private fun pollStatus() {
+        statusPollJob?.cancel()
+        statusPollJob = viewModelScope.launch {
+            while (true) {
+                delay(2000)
+                val status = AgentRepository.getStatus()
+                _state.update { it.copy(
+                    running  = status.running,
+                    task     = status.task,
+                    step     = status.step,
+                    done     = status.done,
+                    error    = status.error,
+                    serverOnline = true,
+                )}
+            }
+        }
+    }
+
+    private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
+        _state.update { s ->
+            val logs = (s.logs + LogLine(text, level)).takeLast(200)
+            s.copy(logs = logs)
+        }
+    }
+
+    override fun onCleared() {
+        logStreamJob?.cancel()
+        statusPollJob?.cancel()
+        super.onCleared()
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentRepository.kt =====
+package com.jarvismini.agent
+
+import android.content.Context
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+object AgentRepository {
+
+    private const val TAG = "AgentRepo"
+
+    // Default: Phone A Termux IP + agent_server port
+    private const val DEFAULT_HOST = "192.168.29.48"
+    private const val AGENT_PORT   = 8891
+    private const val TTS_PORT     = 8892
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private fun agentUrl(path: String, ctx: Context? = null): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$AGENT_PORT$path"
+    }
+
+    private fun ttsUrl(path: String): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$TTS_PORT$path"
+    }
+
+    suspend fun runTask(
+        task: String,
+        device: String,
+        maxSteps: Int = 20
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("task", task)
+                put("device", device)
+                put("max_steps", maxSteps)
+            }.toString().toRequestBody("application/json".toMediaType())
+
+            val req = Request.Builder()
+                .url(agentUrl("/run"))
+                .post(body)
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                val json = JSONObject(resp.body?.string() ?: "{}")
+                if (resp.isSuccessful) {
+                    Result.success(json.optString("task", task))
+                } else {
+                    Result.failure(Exception(json.optString("error", "start failed")))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "runTask failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun stopAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/stop"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getStatus(): AgentStatus = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url(agentUrl("/status")).get().build()
+            client.newCall(req).execute().use { resp ->
+                val j = JSONObject(resp.body?.string() ?: "{}")
+                AgentStatus(
+                    running   = j.optBoolean("running"),
+                    task      = j.optString("task"),
+                    step      = j.optInt("step"),
+                    done      = j.optBoolean("done"),
+                    error     = j.optString("error").ifBlank { null },
+                    lastLog   = j.optString("last_log"),
+                )
+            }
+        } catch (e: Exception) {
+            AgentStatus(error = e.message)
+        }
+    }
+
+    /**
+     * SSE log stream — emits clean log lines as they arrive.
+     */
+    fun streamLogs(): Flow<String> = flow {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/logs"))
+                .addHeader("Accept", "text/event-stream")
+                .get()
+                .build()
+
+            val sseClient = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(300, TimeUnit.SECONDS)
+                .build()
+
+            sseClient.newCall(req).execute().use { resp ->
+                val source = resp.body?.source() ?: return@use
+                while (!source.exhausted()) {
+                    val line = source.readUtf8Line() ?: break
+                    if (line.startsWith("data: ")) {
+                        val payload = line.removePrefix("data: ").trim()
+                        if (payload.isNotBlank()) emit(payload)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            emit("[connection lost: ${e.message}]")
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun speak(text: String, voiceId: String? = null): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val body = JSONObject().apply {
+                    put("text", text)
+                    if (voiceId != null) put("voice_id", voiceId)
+                }.toString().toRequestBody("application/json".toMediaType())
+
+                val req = Request.Builder()
+                    .url(ttsUrl("/speak"))
+                    .post(body)
+                    .build()
+
+                client.newCall(req).execute().close()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    suspend fun isAgentServerReachable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/health"))
+                .get()
+                .build()
+            val client = OkHttpClient.Builder()
+                .connectTimeout(3, TimeUnit.SECONDS)
+                .readTimeout(3, TimeUnit.SECONDS)
+                .build()
+            client.newCall(req).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+}
+
+data class AgentStatus(
+    val running: Boolean  = false,
+    val task:    String   = "",
+    val step:    Int      = 0,
+    val done:    Boolean  = false,
+    val error:   String?  = null,
+    val lastLog: String   = "",
+)
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/api/ApiGateway.kt =====
@@ -6024,21 +6755,22 @@ import com.jarvismini.ui.components.*
 
 @Composable
 fun EnhancedHomeScreen(
-    onNavigateToChat: () -> Unit,
-    onNavigateToCalendar: () -> Unit,
-    onNavigateToChecklist: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onNavigateToDebug: () -> Unit,
-    onNavigateToTermuxCommand: () -> Unit  // ✅ NEW: Added Termux Command navigation
+    onNavigateToChat:          () -> Unit,
+    onNavigateToCalendar:      () -> Unit,
+    onNavigateToChecklist:     () -> Unit,
+    onNavigateToSettings:      () -> Unit,
+    onNavigateToDebug:         () -> Unit,
+    onNavigateToTermuxCommand: () -> Unit,
+    onNavigateToAgent:         () -> Unit,
 ) {
     var isListening by remember { mutableStateOf(false) }
 
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by pulseAnimation.animateFloat(
         initialValue = 0.3f,
-        targetValue = 1f,
+        targetValue  = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
+            animation  = tween(1500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseAlpha"
@@ -6048,7 +6780,7 @@ fun EnhancedHomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                brush = Brush.radialGradient(
+                Brush.radialGradient(
                     colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
                 )
             )
@@ -6064,20 +6796,19 @@ fun EnhancedHomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // ===== HEADER =====
+            // ── Header ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment     = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "J.A.R.V.I.S.",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Light,
+                    text         = "J.A.R.V.I.S.",
+                    fontSize     = 32.sp,
+                    fontWeight   = FontWeight.Light,
                     letterSpacing = 6.sp,
-                    color = Color(0xFF00E0FF)
+                    color        = Color(0xFF00E0FF)
                 )
-
                 Row {
                     IconButton(onClick = onNavigateToDebug) {
                         Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
@@ -6090,10 +6821,10 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(40.dp))
 
-            // ===== CORE =====
+            // ── Core orb ──
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier
+                modifier         = Modifier
                     .size(200.dp)
                     .clickable { isListening = !isListening }
             ) {
@@ -6101,195 +6832,171 @@ fun EnhancedHomeScreen(
                     modifier = Modifier
                         .size(200.dp)
                         .alpha(if (isListening) pulseAlpha else 0.3f)
-                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
-                        .border(
-                            2.dp,
-                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
-                            CircleShape
-                        )
-                )
-
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
-                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
-                )
-
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .shadow(
-                            elevation = if (isListening) 30.dp else 10.dp,
-                            shape = CircleShape,
-                            spotColor = Color(0xFF00E0FF)
-                        )
                         .background(
-                            brush = Brush.radialGradient(
-                                listOf(
-                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
-                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF00E0FF).copy(alpha = 0.2f),
                                     Color.Transparent
                                 )
                             ),
                             shape = CircleShape
                         )
-                ) {
-                    Icon(
-                        imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = "Voice",
-                        tint = Color(0xFF00E0FF),
-                        modifier = Modifier.size(40.dp).align(Alignment.Center)
-                    )
+                )
+                HologramCanvas(isActive = isListening)
+                Text(
+                    text       = if (isListening) "LISTENING" else "TAP TO WAKE",
+                    fontSize   = 11.sp,
+                    letterSpacing = 2.sp,
+                    color      = Color(0xFF00E0FF).copy(alpha = if (isListening) 1f else 0.5f),
+                    fontFamily = FontFamily.Monospace,
+                    modifier   = Modifier.align(Alignment.BottomCenter)
+                )
+            }
+
+            Spacer(Modifier.height(40.dp))
+
+            // ── Feature grid ──
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier            = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        HomeFeatureCard(
+                            icon    = Icons.Default.Chat,
+                            label   = "CHAT",
+                            onClick = onNavigateToChat,
+                            modifier = Modifier.weight(1f)
+                        )
+                        HomeFeatureCard(
+                            icon    = Icons.Default.CalendarToday,
+                            label   = "CALENDAR",
+                            onClick = onNavigateToCalendar,
+                            modifier = Modifier.weight(1f)
+                        )
+                        HomeFeatureCard(
+                            icon    = Icons.Default.Checklist,
+                            label   = "TASKS",
+                            onClick = onNavigateToChecklist,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        HomeFeatureCard(
+                            icon    = Icons.Default.Terminal,
+                            label   = "TERMUX",
+                            onClick = onNavigateToTermuxCommand,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // ── AGENT card — highlighted ──
+                        HomeAgentCard(
+                            onClick  = onNavigateToAgent,
+                            modifier = Modifier.weight(2f)
+                        )
+                    }
                 }
             }
-
-            Spacer(Modifier.height(20.dp))
-
-            Text(
-                text = if (isListening) "LISTENING..." else "TAP TO ACTIVATE",
-                fontSize = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF00E0FF).copy(alpha = 0.8f)
-            )
-
-            Spacer(Modifier.height(40.dp))
-
-            // ===== QUICK ACCESS =====
-            Text(
-                text = "QUICK ACCESS",
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 2.sp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { QuickActionCard("Chat", Icons.Default.Chat, onNavigateToChat) }
-                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
-                item { QuickActionCard("Tasks", Icons.Default.Checklist, onNavigateToChecklist) }
-                item { QuickActionCard("Terminal", Icons.Default.Terminal, onNavigateToTermuxCommand) } // ✅ NEW: Termux Command
-            }
-
-            Spacer(Modifier.height(40.dp))
-
-            // ===== STATUS =====
-            Text(
-                text = "SYSTEM STATUS",
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 2.sp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.6f)
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { StatusCard("Neural Networks", "Online", true) }
-                item { StatusCard("Voice Recognition", "Active", true) }
-                item { StatusCard("Automation Engine", "Standby", false) }
-                item { StatusCard("Local LLM", "Ready", true) } // ✅ NEW: LLM status indicator
-            }
-        }
-    }
-}
-
-/* ================== LOCAL COMPONENTS ================== */
-
-@Composable
-private fun QuickActionCard(
-    title: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .size(100.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = Color.Transparent
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = Color(0xFF00E0FF),
-                    modifier = Modifier.size(32.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.8f),
-                    fontFamily = FontFamily.Monospace
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun StatusCard(
-    label: String,
-    status: String,
-    isOnline: Boolean
+private fun HomeFeatureCard(
+    icon:     ImageVector,
+    label:    String,
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
+    Box(
+        modifier = modifier
+            .height(72.dp)
             .background(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
+                Color(0xFF0A1A22),
+                RoundedCornerShape(10.dp)
+            )
+            .border(0.5.dp, Color(0xFF00E0FF).copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(
+                label,
+                fontSize     = 9.sp,
+                letterSpacing = 1.sp,
+                color        = Color(0xFF00E0FF),
+                fontFamily   = FontFamily.Monospace,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeAgentCard(
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val pulse = rememberInfiniteTransition(label = "agentPulse")
+    val glow by pulse.animateFloat(
+        initialValue  = 0.3f,
+        targetValue   = 0.8f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "agentGlow"
+    )
+    Box(
+        modifier = modifier
+            .height(72.dp)
+            .background(
+                Brush.horizontalGradient(
+                    listOf(Color(0xFF001A2A), Color(0xFF003344))
+                ),
+                RoundedCornerShape(10.dp)
             )
             .border(
-                width = 1.dp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp)
+                1.dp,
+                Color(0xFF00E0FF).copy(alpha = glow),
+                RoundedCornerShape(10.dp)
             )
-            .padding(16.dp),
-        color = Color.Transparent
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment      = Alignment.CenterVertically,
+            horizontalArrangement  = Arrangement.Center,
         ) {
-            Text(
-                text = label,
-                fontSize = 14.sp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.8f)
+            Icon(
+                Icons.Default.SmartToy,
+                null,
+                tint     = Color(0xFF00E0FF),
+                modifier = Modifier.size(22.dp)
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(
-                            color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
-                            shape = CircleShape
-                        )
-                )
-                Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(8.dp))
+            Column {
                 Text(
-                    text = status,
-                    fontSize = 12.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace
+                    "AGENT",
+                    fontSize     = 14.sp,
+                    fontWeight   = FontWeight.Bold,
+                    letterSpacing = 3.sp,
+                    color        = Color(0xFF00E0FF),
+                    fontFamily   = FontFamily.Monospace,
+                )
+                Text(
+                    "Run tasks on device",
+                    fontSize   = 9.sp,
+                    color      = Color(0xFF00E0FF).copy(alpha = 0.6f),
+                    fontFamily = FontFamily.Monospace,
                 )
             }
         }
@@ -7224,9 +7931,9 @@ import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
-// Fixed: Correct import paths for Termux components
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.ui.llm.TermuxCommandViewModel
+import com.jarvismini.agent.AgentDashboardScreen
 
 enum class MainTab {
     Home,
@@ -7235,17 +7942,18 @@ enum class MainTab {
     Checklist,
     Settings,
     Debug,
-    TermuxCommand  // ✅ NEW: Added Termux Command tab
+    TermuxCommand,
+    AgentDashboard,
 }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
 
-    var showBoot by remember { mutableStateOf(true) }
+    var showBoot    by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
 
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
     if (showBoot) {
@@ -7255,53 +7963,38 @@ fun MainScreen() {
 
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
-        blocks = ProgressRepository.getTodayBlocks()
+        blocks   = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
     }
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
-            blocks = ProgressRepository.getTodayBlocks()
+            blocks   = ProgressRepository.getTodayBlocks()
             routines = RoutineProvider.getAllRoutines(context)
         }
     }
 
     when (selectedTab) {
-
         MainTab.Home -> EnhancedHomeScreen(
-            onNavigateToChat = { selectedTab = MainTab.Chat },
-            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
-            onNavigateToSettings = { selectedTab = MainTab.Settings },
-            onNavigateToDebug = { selectedTab = MainTab.Debug },
-            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand }  // ✅ NEW
+            onNavigateToChat          = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings      = { selectedTab = MainTab.Settings },
+            onNavigateToDebug         = { selectedTab = MainTab.Debug },
+            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
+            onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
         )
-
-        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Calendar -> {
+        MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Calendar     -> {
             val vm = remember { CalendarViewModel(context) }
-            DayCalendarScreen(
-                viewModel = vm,
-                onBack = { selectedTab = MainTab.Home }
-            )
+            DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
         }
-
-        MainTab.Checklist -> JarvisChecklistScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
-
-        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-
-        // ✅ FIXED: TermuxCommandScreen creates its own ViewModel internally, no need to pass it
-        MainTab.TermuxCommand -> {
-            TermuxCommandScreen(
-                onNavigateBack = { selectedTab = MainTab.Home }
-            )
-        }
+        MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
+        MainTab.AgentDashboard -> AgentDashboardScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 
@@ -7755,6 +8448,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.security.SecurityManager
 import com.jarvismini.server.LanServerService
 import kotlinx.coroutines.delay
@@ -7765,867 +8459,546 @@ import java.util.*
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
-    // 🔥 FIX: Use singleton instance instead of creating a new one
+    val context  = LocalContext.current
+    val prefs    = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
     val securityManager = remember { SecurityManager.getInstance(context) }
-    val scope = rememberCoroutineScope()
-    
-    // Model Selection State
+    val scope    = rememberCoroutineScope()
+
+    // LLM / Model state
     var selectedModel by remember { mutableStateOf(prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini") }
     var showModelDialog by remember { mutableStateOf(false) }
-    
-    // Cloud API State
     var cloudProvider by remember { mutableStateOf(prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI") }
     var apiKey by remember { mutableStateOf(prefs.getString("cloud_api_key", "") ?: "") }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var showApiKey by remember { mutableStateOf(false) }
-    
-    // LAN Server State
+
+    // LAN server state
     var isServerRunning by remember { mutableStateOf(false) }
     var serverIpAddress by remember { mutableStateOf(getLocalIpAddress()) }
-    
-    // Device Pairing State
     var pairedDevices by remember { mutableStateOf(securityManager.getPairedDevices()) }
     var isPairingMode by remember { mutableStateOf(false) }
     var pairingTimeLeft by remember { mutableStateOf(0) }
     var showPairingDialog by remember { mutableStateOf(false) }
     var showDeviceListDialog by remember { mutableStateOf(false) }
     var showClientPairingScreen by remember { mutableStateOf(false) }
-    
-    // Pairing countdown timer
+
+    // ── Agent / TTS settings ──────────────────────────────────────────────
+    var agentHost by remember { mutableStateOf(JarvisPrefs.getString("agent_host") ?: "192.168.29.48") }
+    var elevenApiKeys by remember { mutableStateOf(prefs.getString("elevenlabs_keys", "") ?: "") }
+    var showElevenDialog by remember { mutableStateOf(false) }
+    var selectedVoice by remember { mutableStateOf(prefs.getString("elevenlabs_voice", "Adam") ?: "Adam") }
+    var showVoiceDialog by remember { mutableStateOf(false) }
+    var ttsEnabled by remember { mutableStateOf(prefs.getBoolean("tts_enabled", true)) }
+
     LaunchedEffect(isPairingMode) {
         while (isPairingMode) {
             if (securityManager.isPairingEnabled()) {
                 pairingTimeLeft = ((securityManager.getPairingExpiry() - System.currentTimeMillis()) / 1000).toInt()
-                if (pairingTimeLeft <= 0) {
-                    isPairingMode = false
-                }
+                if (pairingTimeLeft <= 0) isPairingMode = false
             } else {
                 isPairingMode = false
             }
             delay(1000)
         }
     }
-    
+
+    if (showClientPairingScreen) {
+        ClientPairingScreen(onBack = { showClientPairingScreen = false })
+        return
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-                )
-            )
+            .background(Brush.radialGradient(listOf(Color.Black, Color(0xFF001520), Color.Black)))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp)
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color(0xFF00E0FF)
-                    )
+                    Icon(Icons.Default.ArrowBack, "Back", tint = Color(0xFF00E0FF))
                 }
-                Text(
-                    text = "SETTINGS",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = 4.sp,
-                    color = Color(0xFF00E0FF)
-                )
+                Text("SETTINGS", fontSize = 24.sp, fontWeight = FontWeight.Light,
+                    letterSpacing = 4.sp, color = Color(0xFF00E0FF))
             }
 
             Spacer(Modifier.height(20.dp))
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Section: LLM Configuration
+
+                // ── LLM ──────────────────────────────────────────────────
+                item { SectionLabel("LLM CONFIGURATION") }
                 item {
-                    Text(
-                        text = "LLM CONFIGURATION",
-                        fontSize = 14.sp,
-                        letterSpacing = 2.sp,
-                        color = Color(0xFF00E0FF),
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    SettingsTile("AI Model", getModelDisplayName(selectedModel),
+                        Icons.Default.Psychology) { showModelDialog = true }
                 }
-                
-                // Model Selector
+                item {
+                    SettingsTile("Cloud API Provider", cloudProvider, Icons.Default.Cloud) {
+                        cloudProvider = if (cloudProvider == "OPENAI") "ANTHROPIC" else "OPENAI"
+                        prefs.edit().putString("cloud_provider", cloudProvider).apply()
+                    }
+                }
+                item {
+                    SettingsTile("API Key", if (apiKey.isEmpty()) "Not Configured" else "••••••••",
+                        Icons.Default.Key) { showApiKeyDialog = true }
+                }
+
+                // ── LAN Server ────────────────────────────────────────────
+                item { SectionLabel("LAN SERVER") }
+                item {
+                    SettingsTile("Server IP", serverIpAddress, Icons.Default.Wifi) {}
+                }
                 item {
                     SettingsTile(
-                        title = "AI Model",
-                        subtitle = getModelDisplayName(selectedModel),
-                        icon = Icons.Default.Psychology,
-                        onClick = { showModelDialog = true }
-                    )
+                        "Paired Devices",
+                        "${pairedDevices.size} device(s) paired",
+                        Icons.Default.Devices
+                    ) { showDeviceListDialog = true }
                 }
-                
-                // Cloud API Configuration
+
+                // ── Agent ─────────────────────────────────────────────────
+                item { SectionLabel("AGENT SETTINGS") }
                 item {
-                    SettingsTile(
-                        title = "Cloud API Provider",
-                        subtitle = cloudProvider,
-                        icon = Icons.Default.Cloud,
-                        onClick = { 
-                            cloudProvider = if (cloudProvider == "OPENAI") "ANTHROPIC" else "OPENAI"
-                            prefs.edit().putString("cloud_provider", cloudProvider).apply()
+                    SettingsTileEditable(
+                        title    = "Phone A Host",
+                        value    = agentHost,
+                        icon     = Icons.Default.PhoneAndroid,
+                        hint     = "192.168.29.48",
+                        onSave   = { v ->
+                            agentHost = v
+                            JarvisPrefs.putString("agent_host", v)
                         }
                     )
                 }
-                
+
+                // ── Voice / TTS ────────────────────────────────────────────
+                item { SectionLabel("VOICE — ELEVENLABS") }
                 item {
-                    SettingsTile(
-                        title = "API Key",
-                        subtitle = if (apiKey.isEmpty()) "Not Configured" else "••••••••",
-                        icon = Icons.Default.Key,
-                        onClick = { showApiKeyDialog = true }
-                    )
-                }
-                
-                // Section: LAN Server
-                item {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = "LAN SERVER",
-                        fontSize = 14.sp,
-                        letterSpacing = 2.sp,
-                        color = Color(0xFF00E0FF),
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-                
-                item {
-                    SettingsTile(
-                        title = "Server Status",
-                        subtitle = if (isServerRunning) "Running on $serverIpAddress:8081" else "Stopped",
-                        icon = if (isServerRunning) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                        onClick = {
-                            if (isServerRunning) {
-                                LanServerService.stop(context)
-                                isServerRunning = false
-                            } else {
-                                LanServerService.start(context)
-                                isServerRunning = true
-                                serverIpAddress = getLocalIpAddress()
-                            }
+                    SettingsTileToggle(
+                        title   = "Voice Output",
+                        checked = ttsEnabled,
+                        icon    = Icons.Default.VolumeUp,
+                        onToggle = { v ->
+                            ttsEnabled = v
+                            prefs.edit().putBoolean("tts_enabled", v).apply()
                         }
                     )
                 }
-                
-                // Section: Device Pairing
                 item {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = "DEVICE PAIRING",
-                        fontSize = 14.sp,
-                        letterSpacing = 2.sp,
-                        color = Color(0xFF00E0FF),
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    SettingsTile("ElevenLabs API Keys",
+                        if (elevenApiKeys.isBlank()) "Not configured" else "${elevenApiKeys.lines().filter { it.isNotBlank() }.size} key(s)",
+                        Icons.Default.Key) { showElevenDialog = true }
                 }
-                
                 item {
-                    SettingsTile(
-                        title = "Pairing Mode",
-                        subtitle = if (isPairingMode) "Active ($pairingTimeLeft sec)" else "Disabled",
-                        icon = if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled,
-                        onClick = {
-                            if (isPairingMode) {
-                                securityManager.disablePairingMode()
-                                isPairingMode = false
-                            } else {
-                                securityManager.enablePairingMode(60)
-                                isPairingMode = true
-                                showPairingDialog = true
-                            }
-                        }
-                    )
-                }
-                
-                item {
-                    SettingsTile(
-                        title = "Paired Devices",
-                        subtitle = "${pairedDevices.size} device(s)",
-                        icon = Icons.Default.Devices,
-                        onClick = {
-                            pairedDevices = securityManager.getPairedDevices()
-                            showDeviceListDialog = true
-                        }
-                    )
-                }
-                
-                item {
-                    SettingsTile(
-                        title = "Pair As Client",
-                        subtitle = "Connect to another JARVIS device",
-                        icon = Icons.Default.DeviceHub,
-                        onClick = {
-                            showClientPairingScreen = true
-                        }
-                    )
-                }
-                
-                // Section: Other
-                item {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = "SYSTEM",
-                        fontSize = 14.sp,
-                        letterSpacing = 2.sp,
-                        color = Color(0xFF00E0FF),
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-                
-                item {
-                    SettingsTile("Permissions", "All Granted", Icons.Default.CheckCircle)
-                }
-                
-                item {
-                    SettingsTile("Voice Engine", "ElevenLabs", Icons.Default.Mic)
-                }
-                
-                item {
-                    SettingsTile("Vision Models", "Downloaded", Icons.Default.Visibility)
+                    SettingsTile("Voice", selectedVoice, Icons.Default.RecordVoiceOver) {
+                        showVoiceDialog = true
+                    }
                 }
             }
         }
     }
-    
-    // Model Selection Dialog
+
+    // ── Dialogs ──────────────────────────────────────────────────────────────
+
     if (showModelDialog) {
-        ModelSelectionDialog(
-            currentModel = selectedModel,
-            onDismiss = { showModelDialog = false },
-            onModelSelected = { model ->
-                selectedModel = model
-                prefs.edit().putString("selected_model", model).apply()
+        ModelSelectorDialog(
+            selected  = selectedModel,
+            onSelect  = { m ->
+                selectedModel = m
+                prefs.edit().putString("selected_model", m).apply()
                 showModelDialog = false
-            }
+            },
+            onDismiss = { showModelDialog = false }
         )
     }
-    
-    // API Key Dialog
+
     if (showApiKeyDialog) {
         ApiKeyDialog(
-            provider = cloudProvider,
-            currentKey = apiKey,
-            onDismiss = { showApiKeyDialog = false },
-            onSave = { newKey ->
-                apiKey = newKey
-                prefs.edit().putString("cloud_api_key", newKey).apply()
+            current   = apiKey,
+            showKey   = showApiKey,
+            onToggleShow = { showApiKey = !showApiKey },
+            onSave    = { k ->
+                apiKey = k
+                prefs.edit().putString("cloud_api_key", k).apply()
                 showApiKeyDialog = false
-            }
+            },
+            onDismiss = { showApiKeyDialog = false }
         )
     }
-    
-    // Pairing Instructions Dialog
-    if (showPairingDialog) {
-        PairingInstructionsDialog(
-            ipAddress = serverIpAddress,
-            timeLeft = pairingTimeLeft,
-            onDismiss = { showPairingDialog = false }
+
+    if (showElevenDialog) {
+        MultiLineDialog(
+            title     = "ElevenLabs API Keys",
+            hint      = "One key per line",
+            current   = elevenApiKeys,
+            onSave    = { v ->
+                elevenApiKeys = v
+                prefs.edit().putString("elevenlabs_keys", v).apply()
+                showElevenDialog = false
+            },
+            onDismiss = { showElevenDialog = false }
         )
     }
-    
-    // Device List Dialog
+
+    if (showVoiceDialog) {
+        VoiceSelectorDialog(
+            selected  = selectedVoice,
+            onSelect  = { v ->
+                selectedVoice = v
+                prefs.edit().putString("elevenlabs_voice", v).apply()
+                showVoiceDialog = false
+            },
+            onDismiss = { showVoiceDialog = false }
+        )
+    }
+
     if (showDeviceListDialog) {
         DeviceListDialog(
-            devices = pairedDevices,
-            onDismiss = { showDeviceListDialog = false },
-            onUnpair = { deviceId ->
-                securityManager.unpairDevice(deviceId)
-                pairedDevices = securityManager.getPairedDevices()
-            }
-        )
-    }
-    
-    // Client Pairing Screen
-    if (showClientPairingScreen) {
-        ClientPairingScreen(
-            onBack = { showClientPairingScreen = false }
+            devices   = pairedDevices,
+            onDismiss = { showDeviceListDialog = false }
         )
     }
 }
 
+// ─── Composable helpers ───────────────────────────────────────────────────────
+
 @Composable
-fun SettingsTile(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    onClick: (() -> Unit)? = null
+private fun SectionLabel(text: String) {
+    Text(text, fontSize = 12.sp, letterSpacing = 2.sp,
+        color = Color(0xFF00E0FF), fontFamily = FontFamily.Monospace,
+        modifier = Modifier.padding(bottom = 4.dp, top = 8.dp))
+}
+
+@Composable
+private fun SettingsTile(
+    title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .background(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(16.dp),
-        color = Color.Transparent
+        onClick   = onClick,
+        shape     = RoundedCornerShape(10.dp),
+        color     = Color(0xFF0A1A22),
+        modifier  = Modifier.fillMaxWidth()
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Color(0xFF00E0FF),
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00E0FF)
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = subtitle,
-                        fontSize = 12.sp,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.6f)
-                    )
-                }
-            }
-            if (onClick != null) {
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = Color(0xFF00E0FF).copy(alpha = 0.4f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ModelSelectionDialog(
-    currentModel: String,
-    onDismiss: () -> Unit,
-    onModelSelected: (String) -> Unit
-) {
-    val models = listOf(
-        ModelOption("gpt-4o-mini", "GPT-4o Mini", "OpenAI - Fast & Efficient"),
-        ModelOption("gpt-4o", "GPT-4o", "OpenAI - Most Capable"),
-        ModelOption("gpt-3.5-turbo", "GPT-3.5 Turbo", "OpenAI - Legacy"),
-        ModelOption("claude-sonnet-4-20250514", "Claude Sonnet 4", "Anthropic - Balanced"),
-        ModelOption("claude-opus-4-5-20251101", "Claude Opus 4.5", "Anthropic - Most Intelligent"),
-        ModelOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5", "Anthropic - Fast"),
-        ModelOption("termux-llama", "Termux Llama", "Local - Privacy First")
-    )
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF001520),
-            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .widthIn(max = 400.dp)
-            ) {
-                Text(
-                    text = "SELECT AI MODEL",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    color = Color(0xFF00E0FF)
-                )
-                
-                Spacer(Modifier.height(16.dp))
-                
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.heightIn(max = 400.dp)
-                ) {
-                    items(models) { model ->
-                        ModelOptionItem(
-                            model = model,
-                            isSelected = currentModel == model.id,
-                            onClick = { onModelSelected(model.id) }
-                        )
-                    }
-                }
-                
-                Spacer(Modifier.height(16.dp))
-                
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
-                    )
-                ) {
-                    Text("CANCEL", color = Color(0xFF00E0FF))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ModelOptionItem(
-    model: ModelOption,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) Color(0xFF00E0FF).copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.3f),
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) Color(0xFF00E0FF) else Color(0xFF00E0FF).copy(alpha = 0.2f)
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
+            Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RadioButton(
-                selected = isSelected,
-                onClick = onClick,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = Color(0xFF00E0FF),
-                    unselectedColor = Color(0xFF00E0FF).copy(alpha = 0.5f)
-                )
-            )
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = model.displayName,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00E0FF)
-                )
-                Text(
-                    text = model.description,
-                    fontSize = 11.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.6f)
-                )
+            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 13.sp, color = Color.White)
+                Text(subtitle, fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
             }
+            Icon(Icons.Default.ChevronRight, null,
+                tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(16.dp))
         }
     }
 }
 
 @Composable
-fun ApiKeyDialog(
-    provider: String,
-    currentKey: String,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
+private fun SettingsTileToggle(
+    title: String, checked: Boolean, icon: ImageVector, onToggle: (Boolean) -> Unit
 ) {
-    var apiKey by remember { mutableStateOf(currentKey) }
-    var showKey by remember { mutableStateOf(false) }
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF001520),
-            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Text(
-                    text = "$provider API KEY",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    color = Color(0xFF00E0FF)
-                )
-                
-                Spacer(Modifier.height(16.dp))
-                
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("API Key", color = Color(0xFF00E0FF).copy(alpha = 0.6f)) },
-                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { showKey = !showKey }) {
-                            Icon(
-                                imageVector = if (showKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (showKey) "Hide" else "Show",
-                                tint = Color(0xFF00E0FF)
-                            )
-                        }
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF00E0FF),
-                        unfocusedTextColor = Color(0xFF00E0FF).copy(alpha = 0.8f),
-                        focusedBorderColor = Color(0xFF00E0FF),
-                        unfocusedBorderColor = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                        cursorColor = Color(0xFF00E0FF)
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                
-                Spacer(Modifier.height(8.dp))
-                
-                Text(
-                    text = if (provider == "OPENAI") 
-                        "Get your key from platform.openai.com"
-                    else 
-                        "Get your key from console.anthropic.com",
-                    fontSize = 11.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.5f),
-                    fontFamily = FontFamily.Monospace
-                )
-                
-                Spacer(Modifier.height(20.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Text("CANCEL", color = Color(0xFF00E0FF))
-                    }
-                    
-                    Button(
-                        onClick = { onSave(apiKey) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF00E0FF)
-                        )
-                    ) {
-                        Text("SAVE", color = Color.Black)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PairingInstructionsDialog(
-    ipAddress: String,
-    timeLeft: Int,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF001520),
-            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Text(
-                    text = "PAIRING MODE ACTIVE",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    color = Color(0xFF00E0FF)
-                )
-                
-                Spacer(Modifier.height(16.dp))
-                
-                Text(
-                    text = "Time Remaining: $timeLeft seconds",
-                    fontSize = 14.sp,
-                    color = Color(0xFF00FF00),
-                    fontFamily = FontFamily.Monospace
-                )
-                
-                Spacer(Modifier.height(12.dp))
-                
-                Text(
-                    text = "To pair a device, send a POST request to:",
-                    fontSize = 12.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.8f)
-                )
-                
-                Spacer(Modifier.height(8.dp))
-                
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Black.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "http://$ipAddress:8081/api/v1/pair",
-                        fontSize = 11.sp,
-                        color = Color(0xFF00FF00),
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-                
-                Spacer(Modifier.height(8.dp))
-                
-                Text(
-                    text = "With JSON body:",
-                    fontSize = 12.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.8f)
-                )
-                
-                Spacer(Modifier.height(8.dp))
-                
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Black.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = """{"device_name": "My Device"}""",
-                        fontSize = 11.sp,
-                        color = Color(0xFF00FF00),
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-                
-                Spacer(Modifier.height(16.dp))
-                
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E0FF)
-                    )
-                ) {
-                    Text("GOT IT", color = Color.Black)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DeviceListDialog(
-    devices: List<com.jarvismini.security.TrustedDevice>,
-    onDismiss: () -> Unit,
-    onUnpair: (String) -> Unit
-) {
-    var deviceToUnpair by remember { mutableStateOf<String?>(null) }
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF001520),
-            border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.3f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .widthIn(max = 400.dp)
-            ) {
-                Text(
-                    text = "PAIRED DEVICES",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    color = Color(0xFF00E0FF)
-                )
-                
-                Spacer(Modifier.height(16.dp))
-                
-                if (devices.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No devices paired",
-                            fontSize = 14.sp,
-                            color = Color(0xFF00E0FF).copy(alpha = 0.5f)
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.heightIn(max = 400.dp)
-                    ) {
-                        items(devices) { device ->
-                            DeviceItem(
-                                device = device,
-                                onUnpair = { deviceToUnpair = device.id }
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(Modifier.height(16.dp))
-                
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E0FF).copy(alpha = 0.2f)
-                    )
-                ) {
-                    Text("CLOSE", color = Color(0xFF00E0FF))
-                }
-            }
-        }
-    }
-    
-    // Confirm unpair dialog
-    deviceToUnpair?.let { deviceId ->
-        AlertDialog(
-            onDismissRequest = { deviceToUnpair = null },
-            title = {
-                Text("Unpair Device?", color = Color(0xFF00E0FF))
-            },
-            text = {
-                Text(
-                    "This device will lose access to this server.",
-                    color = Color(0xFF00E0FF).copy(alpha = 0.8f)
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onUnpair(deviceId)
-                        deviceToUnpair = null
-                    }
-                ) {
-                    Text("UNPAIR", color = Color(0xFFFF4444))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { deviceToUnpair = null }) {
-                    Text("CANCEL", color = Color(0xFF00E0FF))
-                }
-            },
-            containerColor = Color(0xFF001520)
-        )
-    }
-}
-
-@Composable
-fun DeviceItem(
-    device: com.jarvismini.security.TrustedDevice,
-    onUnpair: () -> Unit
-) {
-    val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
-    
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = Color.Black.copy(alpha = 0.3f),
-        border = BorderStroke(1.dp, Color(0xFF00E0FF).copy(alpha = 0.2f)),
+        shape   = RoundedCornerShape(10.dp),
+        color   = Color(0xFF0A1A22),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Devices,
-                contentDescription = null,
-                tint = Color(0xFF00E0FF),
-                modifier = Modifier.size(24.dp)
-            )
-            
+            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = device.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00E0FF)
+            Text(title, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+            Switch(
+                checked         = checked,
+                onCheckedChange = onToggle,
+                colors          = SwitchDefaults.colors(
+                    checkedThumbColor   = Color(0xFF00E0FF),
+                    checkedTrackColor   = Color(0xFF00E0FF).copy(alpha = 0.3f),
                 )
-                Text(
-                    text = device.ipAddress,
-                    fontSize = 11.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsTileEditable(
+    title: String, value: String, icon: ImageVector,
+    hint: String = "", onSave: (String) -> Unit
+) {
+    var editing by remember { mutableStateOf(false) }
+    var text    by remember { mutableStateOf(value) }
+
+    Surface(
+        onClick   = { editing = true },
+        shape     = RoundedCornerShape(10.dp),
+        color     = Color(0xFF0A1A22),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            if (editing) {
+                OutlinedTextField(
+                    value         = text,
+                    onValueChange = { text = it },
+                    singleLine    = true,
+                    modifier      = Modifier.weight(1f),
+                    colors        = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor   = Color(0xFF00E0FF),
+                        unfocusedBorderColor = Color(0xFF005566),
+                        cursorColor          = Color(0xFF00E0FF),
+                    ),
+                    textStyle = LocalTextStyle.current.copy(
+                        color      = Color.White,
+                        fontSize   = 13.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
                 )
-                Text(
-                    text = "Last seen: ${dateFormat.format(Date(device.lastSeen))}",
-                    fontSize = 10.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.5f)
-                )
-            }
-            
-            IconButton(onClick = onUnpair) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Unpair",
-                    tint = Color(0xFFFF4444)
-                )
+                TextButton(onClick = { onSave(text); editing = false }) {
+                    Text("Save", color = Color(0xFF00E0FF))
+                }
+            } else {
+                Column(Modifier.weight(1f)) {
+                    Text(title, fontSize = 13.sp, color = Color.White)
+                    Text(value.ifBlank { hint }, fontSize = 11.sp,
+                        color = if (value.isBlank()) Color.White.copy(0.3f) else Color.White.copy(0.5f))
+                }
+                Icon(Icons.Default.Edit, null,
+                    tint = Color.White.copy(0.3f), modifier = Modifier.size(16.dp))
             }
         }
     }
 }
 
-data class ModelOption(
-    val id: String,
-    val displayName: String,
-    val description: String
-)
+// ─── Dialogs ─────────────────────────────────────────────────────────────────
 
-fun getModelDisplayName(modelId: String): String {
-    return when (modelId) {
-        "gpt-4o-mini" -> "GPT-4o Mini"
-        "gpt-4o" -> "GPT-4o"
-        "gpt-3.5-turbo" -> "GPT-3.5 Turbo"
-        "claude-sonnet-4-20250514" -> "Claude Sonnet 4"
-        "claude-opus-4-5-20251101" -> "Claude Opus 4.5"
-        "claude-haiku-4-5-20251001" -> "Claude Haiku 4.5"
-        "termux-llama" -> "Termux Llama (Local)"
-        else -> modelId
-    }
-}
-
-fun getLocalIpAddress(): String {
-    try {
-        val interfaces = NetworkInterface.getNetworkInterfaces()
-        while (interfaces.hasMoreElements()) {
-            val networkInterface = interfaces.nextElement()
-            val addresses = networkInterface.inetAddresses
-            while (addresses.hasMoreElements()) {
-                val address = addresses.nextElement()
-                if (!address.isLoopbackAddress && address is java.net.Inet4Address) {
-                    return address.hostAddress ?: "Unknown"
+@Composable
+private fun ModelSelectorDialog(selected: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+    val models = listOf(
+        "gpt-4o-mini"          to "GPT-4.1 Mini",
+        "gpt-4o"               to "GPT-4.1",
+        "o1-mini"              to "GPT-O1 Mini",
+        "deepseek/deepseek-r1:free" to "DeepSeek R1 Free",
+        "google/gemini-2.0-flash-lite:free" to "Gemini 2.0 Flash Lite",
+        "local"                to "Local LLM (Termux)",
+    )
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
+                .padding(20.dp)
+        ) {
+            Text("Select AI Model", fontSize = 16.sp, color = Color(0xFF00E0FF),
+                fontFamily = FontFamily.Monospace)
+            Spacer(Modifier.height(12.dp))
+            models.forEach { (id, name) ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(id) }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = selected == id,
+                        onClick  = { onSelect(id) },
+                        colors   = RadioButtonDefaults.colors(
+                            selectedColor = Color(0xFF00E0FF)
+                        )
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(name, fontSize = 13.sp, color = Color.White)
+                        Text(id, fontSize = 10.sp, color = Color.White.copy(0.4f),
+                            fontFamily = FontFamily.Monospace)
+                    }
                 }
             }
         }
-    } catch (e: Exception) {
-        e.printStackTrace()
     }
-    return "Unknown"
+}
+
+@Composable
+private fun ApiKeyDialog(
+    current: String, showKey: Boolean,
+    onToggleShow: () -> Unit, onSave: (String) -> Unit, onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf(current) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
+                .padding(20.dp)
+        ) {
+            Text("API Key", fontSize = 16.sp, color = Color(0xFF00E0FF))
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value              = text,
+                onValueChange      = { text = it },
+                singleLine         = true,
+                visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon       = {
+                    IconButton(onClick = onToggleShow) {
+                        Icon(
+                            if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            null, tint = Color(0xFF00E0FF)
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors   = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = Color(0xFF00E0FF),
+                    unfocusedBorderColor = Color(0xFF005566),
+                    cursorColor          = Color(0xFF00E0FF),
+                ),
+                textStyle = LocalTextStyle.current.copy(
+                    color = Color.White, fontFamily = FontFamily.Monospace
+                )
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(0.5f)) }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { onSave(text) },
+                    colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E0FF), contentColor = Color.Black)
+                ) { Text("Save") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MultiLineDialog(
+    title: String, hint: String, current: String,
+    onSave: (String) -> Unit, onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf(current) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
+                .padding(20.dp)
+        ) {
+            Text(title, fontSize = 16.sp, color = Color(0xFF00E0FF))
+            Spacer(Modifier.height(8.dp))
+            Text(hint, fontSize = 11.sp, color = Color.White.copy(0.4f), fontFamily = FontFamily.Monospace)
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value         = text,
+                onValueChange = { text = it },
+                minLines      = 4,
+                maxLines      = 8,
+                modifier      = Modifier.fillMaxWidth(),
+                colors        = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = Color(0xFF00E0FF),
+                    unfocusedBorderColor = Color(0xFF005566),
+                    cursorColor          = Color(0xFF00E0FF),
+                ),
+                textStyle = LocalTextStyle.current.copy(
+                    color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace
+                )
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(0.5f)) }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { onSave(text) },
+                    colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E0FF), contentColor = Color.Black)
+                ) { Text("Save") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoiceSelectorDialog(selected: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+    val voices = listOf("Adam", "Sarah", "Daniel", "Charlotte", "Callum")
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
+                .padding(20.dp)
+        ) {
+            Text("Select Voice", fontSize = 16.sp, color = Color(0xFF00E0FF))
+            Spacer(Modifier.height(12.dp))
+            voices.forEach { v ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onSelect(v) }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = selected == v,
+                        onClick  = { onSelect(v) },
+                        colors   = RadioButtonDefaults.colors(selectedColor = Color(0xFF00E0FF))
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(v, fontSize = 13.sp, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceListDialog(devices: List<com.jarvismini.security.TrustedDevice>, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
+                .padding(20.dp)
+        ) {
+            Text("Paired Devices", fontSize = 16.sp, color = Color(0xFF00E0FF))
+            Spacer(Modifier.height(12.dp))
+            if (devices.isEmpty()) {
+                Text("No paired devices", fontSize = 13.sp, color = Color.White.copy(0.5f))
+            } else {
+                devices.forEach { d ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Devices, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(d.name, fontSize = 13.sp, color = Color.White)
+                            Text(d.ipAddress, fontSize = 11.sp, color = Color.White.copy(0.5f), fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text("Close", color = Color(0xFF00E0FF))
+            }
+        }
+    }
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+private fun getModelDisplayName(model: String) = when (model) {
+    "gpt-4o-mini"  -> "GPT-4.1 Mini"
+    "gpt-4o"       -> "GPT-4.1"
+    "o1-mini"      -> "GPT-O1 Mini"
+    "deepseek/deepseek-r1:free" -> "DeepSeek R1 Free"
+    "google/gemini-2.0-flash-lite:free" -> "Gemini 2.0 Flash"
+    "local"        -> "Local LLM"
+    else           -> model
+}
+
+private fun getLocalIpAddress(): String {
+    return try {
+        NetworkInterface.getNetworkInterfaces()?.toList()
+            ?.flatMap { it.inetAddresses.toList() }
+            ?.firstOrNull { !it.isLoopbackAddress && it.hostAddress?.contains(':') == false }
+            ?.hostAddress ?: "Unknown"
+    } catch (e: Exception) {
+        "Unknown"
+    }
 }
 
 
@@ -9391,6 +9764,116 @@ private fun formatTime(seconds: Long): String {
     } else {
         String.format("%02d:%02d", minutes, secs)
     }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceModule.kt =====
+package com.jarvismini.voice
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+/**
+ * VoiceModule — Jarvis voice output
+ *
+ * Priority:
+ *   1. ElevenLabs via agent_server TTS proxy (port 8892) — natural voice
+ *   2. Android system TTS — fallback if server unreachable
+ *
+ * Multi-key rotation and voice selection are handled server-side.
+ * This class just POSTs to the Termux TTS server.
+ */
+object VoiceModule {
+
+    private const val TAG       = "VoiceModule"
+    private const val TTS_PORT  = 8892
+    private const val DEFAULT_HOST = "192.168.29.48"
+
+    private var systemTts: TextToSpeech? = null
+    private var systemTtsReady = false
+
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    fun init(context: Context) {
+        systemTts = TextToSpeech(context) { status ->
+            systemTtsReady = (status == TextToSpeech.SUCCESS)
+            Log.d(TAG, "System TTS ready: $systemTtsReady")
+        }
+    }
+
+    fun destroy() {
+        systemTts?.stop()
+        systemTts?.shutdown()
+        systemTts = null
+    }
+
+    /**
+     * Speak text. Tries ElevenLabs server first, falls back to Android TTS.
+     */
+    suspend fun speak(
+        text:    String,
+        voiceId: String? = null,
+        mode:    SpeakMode = SpeakMode.AUTO
+    ) {
+        if (text.isBlank()) return
+        when (mode) {
+            SpeakMode.ELEVENLABS_ONLY -> speakElevenLabs(text, voiceId)
+            SpeakMode.SYSTEM_ONLY     -> speakSystem(text)
+            SpeakMode.AUTO -> {
+                val ok = speakElevenLabs(text, voiceId)
+                if (!ok) speakSystem(text)
+            }
+        }
+    }
+
+    private suspend fun speakElevenLabs(text: String, voiceId: String?): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+                val body = JSONObject().apply {
+                    put("text", text)
+                    if (voiceId != null) put("voice_id", voiceId)
+                }.toString().toRequestBody("application/json".toMediaType())
+
+                val req = Request.Builder()
+                    .url("http://$host:$TTS_PORT/speak")
+                    .post(body)
+                    .build()
+
+                val resp = http.newCall(req).execute()
+                val ok   = resp.isSuccessful
+                resp.close()
+                Log.d(TAG, "ElevenLabs TTS: ${if (ok) "ok" else "failed"}")
+                ok
+            } catch (e: Exception) {
+                Log.w(TAG, "ElevenLabs unreachable: ${e.message}")
+                false
+            }
+        }
+
+    private fun speakSystem(text: String) {
+        if (!systemTtsReady) {
+            Log.w(TAG, "System TTS not ready")
+            return
+        }
+        systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis_${System.currentTimeMillis()}")
+        Log.d(TAG, "System TTS: $text")
+    }
+
+    enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
 }
 
 

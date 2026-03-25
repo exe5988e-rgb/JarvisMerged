@@ -41,6 +41,10 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── MainActivity.kt
 │   │   │   │   │   │   ├── ProgressInitializer.kt
 │   │   │   │   │   │   ├── ProgressReminderService.kt
+│   │   │   │   │   │   ├── agent
+│   │   │   │   │   │   │   ├── AgentDashboardScreen.kt
+│   │   │   │   │   │   │   ├── AgentDashboardViewModel.kt
+│   │   │   │   │   │   │   ├── AgentRepository.kt
 │   │   │   │   │   │   ├── api
 │   │   │   │   │   │   │   ├── ApiGateway.kt
 │   │   │   │   │   │   │   ├── ApiModels.kt
@@ -103,6 +107,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── FloatingTimerService.kt
 │   │   │   │   │   │   │   │   ├── TaskTimerDialog.kt
 │   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
+│   │   │   │   │   │   ├── voice
+│   │   │   │   │   │   │   ├── VoiceModule.kt
 │   │   │   ├── res
 │   │   │   │   ├── drawable
 │   │   │   │   │   ├── bg_input.xml
@@ -482,48 +488,48 @@ android {
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
-    <!-- NEW: Required for floating overlay window -->
+    <!-- Overlay / floating window -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- Storage Permissions -->
+    <!-- Camera (for AI Vision features) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Storage -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
+    <uses-feature android:name="android.hardware.telephony"  android:required="false" />
+    <uses-feature android:name="android.hardware.camera"     android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <!-- ================= PACKAGE VISIBILITY ================= -->
 
     <queries>
         <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
 
 // ... FILE TRUNCATED ...
 
-        <service
             android:name="com.jarvismini.service.CallAutoReplyService"
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
+        <!-- Progress Reminder -->
         <service
             android:name="com.jarvismini.ProgressReminderService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- NEW: Floating overlay timer service -->
+        <!-- Floating Timer -->
         <service
             android:name="com.jarvismini.ui.timer.FloatingTimerService"
             android:enabled="true"
@@ -1222,6 +1228,234 @@ class ProgressReminderService : Service() {
         serviceScope.cancel()
     }
 }
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.agent
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+
+// ─── Colours ────────────────────────────────────────────────────────────────
+private val Cyan    = Color(0xFF00E0FF)
+private val DimCyan = Color(0xFF005566)
+private val BgDark  = Color(0xFF060F14)
+private val BgCard  = Color(0xFF0A1A22)
+private val Green   = Color(0xFF00FF88)
+private val Red     = Color(0xFFFF4466)
+private val Yellow  = Color(0xFFFFCC00)
+private val White70 = Color(0xB3FFFFFF)
+private val White40 = Color(0x66FFFFFF)
+
+@Composable
+fun AgentDashboardScreen(
+    onBack: () -> Unit,
+    vm: AgentDashboardViewModel = viewModel()
+) {
+    val state by vm.state.collectAsState()
+    val context  = LocalContext.current
+    val listState = rememberLazyListState()
+
+// ... FILE TRUNCATED ...
+
+        running  -> Green.copy(alpha = alpha)
+        else     -> Green
+    }
+    Box(
+        Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .background(color)
+    )
+}
+
+// ── Field colours ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor   = Cyan,
+    unfocusedBorderColor = DimCyan.copy(alpha = 0.5f),
+    cursorColor          = Cyan,
+    focusedLabelColor    = Cyan,
+)
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.agent
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class AgentDashboardState(
+    val serverOnline:  Boolean        = false,
+    val running:       Boolean        = false,
+    val task:          String         = "",
+    val step:          Int            = 0,
+    val done:          Boolean        = false,
+    val error:         String?        = null,
+    val logs:          List<LogLine>  = emptyList(),
+    val taskInput:     String         = "",
+    val deviceInput:   String         = "192.168.29.48:40657",
+    val maxSteps:      Int            = 20,
+    val ttsEnabled:    Boolean        = true,
+)
+
+data class LogLine(
+    val text:  String,
+    val level: LogLevel = LogLevel.INFO,
+)
+
+enum class LogLevel { INFO, STEP, SUCCESS, ERROR, WARN, SYSTEM }
+
+fun classifyLog(line: String): LogLevel = when {
+    line.contains("✓") || line.contains("Task complete") || line.contains("completed") -> LogLevel.SUCCESS
+    line.contains("✗") || line.contains("ERROR") || line.contains("error:", ignoreCase = true) -> LogLevel.ERROR
+    line.contains("WARNING") || line.contains("WARN") || line.contains("Retry") -> LogLevel.WARN
+    line.contains("STEP") && line.contains("|") -> LogLevel.STEP
+    line.startsWith("[server]") || line.startsWith("[agent_server]") -> LogLevel.SYSTEM
+    else -> LogLevel.INFO
+}
+
+class AgentDashboardViewModel : ViewModel() {
+
+    private val _state = MutableStateFlow(AgentDashboardState())
+    val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
+
+    private var logStreamJob: Job? = null
+    private var statusPollJob: Job? = null
+
+    init {
+        checkServer()
+
+// ... FILE TRUNCATED ...
+
+                    error    = status.error,
+                    serverOnline = true,
+                )}
+            }
+        }
+    }
+
+    private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
+        _state.update { s ->
+            val logs = (s.logs + LogLine(text, level)).takeLast(200)
+            s.copy(logs = logs)
+        }
+    }
+
+    override fun onCleared() {
+        logStreamJob?.cancel()
+        statusPollJob?.cancel()
+        super.onCleared()
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentRepository.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.agent
+
+import android.content.Context
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+object AgentRepository {
+
+    private const val TAG = "AgentRepo"
+
+    // Default: Phone A Termux IP + agent_server port
+    private const val DEFAULT_HOST = "192.168.29.48"
+    private const val AGENT_PORT   = 8891
+    private const val TTS_PORT     = 8892
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private fun agentUrl(path: String, ctx: Context? = null): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$AGENT_PORT$path"
+    }
+
+    private fun ttsUrl(path: String): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$TTS_PORT$path"
+    }
+
+    suspend fun runTask(
+        task: String,
+        device: String,
+        maxSteps: Int = 20
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("task", task)
+
+// ... FILE TRUNCATED ...
+
+                .build()
+            val client = OkHttpClient.Builder()
+                .connectTimeout(3, TimeUnit.SECONDS)
+                .readTimeout(3, TimeUnit.SECONDS)
+                .build()
+            client.newCall(req).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+}
+
+data class AgentStatus(
+    val running: Boolean  = false,
+    val task:    String   = "",
+    val step:    Int      = 0,
+    val done:    Boolean  = false,
+    val error:   String?  = null,
+    val lastLog: String   = "",
+)
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/api/ApiGateway.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
@@ -3129,44 +3363,44 @@ import com.jarvismini.ui.components.*
 
 @Composable
 fun EnhancedHomeScreen(
-    onNavigateToChat: () -> Unit,
-    onNavigateToCalendar: () -> Unit,
-    onNavigateToChecklist: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onNavigateToDebug: () -> Unit,
-    onNavigateToTermuxCommand: () -> Unit  // ✅ NEW: Added Termux Command navigation
+    onNavigateToChat:          () -> Unit,
+    onNavigateToCalendar:      () -> Unit,
+    onNavigateToChecklist:     () -> Unit,
+    onNavigateToSettings:      () -> Unit,
+    onNavigateToDebug:         () -> Unit,
+    onNavigateToTermuxCommand: () -> Unit,
+    onNavigateToAgent:         () -> Unit,
 ) {
     var isListening by remember { mutableStateOf(false) }
 
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by pulseAnimation.animateFloat(
         initialValue = 0.3f,
-        targetValue = 1f,
+        targetValue  = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
+            animation  = tween(1500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseAlpha"
     )
 
-
 // ... FILE TRUNCATED ...
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(
-                            color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
-                            shape = CircleShape
-                        )
-                )
-                Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(8.dp))
+            Column {
                 Text(
-                    text = status,
-                    fontSize = 12.sp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace
+                    "AGENT",
+                    fontSize     = 14.sp,
+                    fontWeight   = FontWeight.Bold,
+                    letterSpacing = 3.sp,
+                    color        = Color(0xFF00E0FF),
+                    fontFamily   = FontFamily.Monospace,
+                )
+                Text(
+                    "Run tasks on device",
+                    fontSize   = 9.sp,
+                    color      = Color(0xFF00E0FF).copy(alpha = 0.6f),
+                    fontFamily = FontFamily.Monospace,
                 )
             }
         }
@@ -3343,9 +3577,9 @@ import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
-// Fixed: Correct import paths for Termux components
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.ui.llm.TermuxCommandViewModel
+import com.jarvismini.agent.AgentDashboardScreen
 
 enum class MainTab {
     Home,
@@ -3354,17 +3588,18 @@ enum class MainTab {
     Checklist,
     Settings,
     Debug,
-    TermuxCommand  // ✅ NEW: Added Termux Command tab
+    TermuxCommand,
+    AgentDashboard,
 }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
 
-    var showBoot by remember { mutableStateOf(true) }
+    var showBoot    by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
 
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
     if (showBoot) {
@@ -3374,30 +3609,29 @@ fun MainScreen() {
 
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
-        blocks = ProgressRepository.getTodayBlocks()
+        blocks   = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
-    }
 
 // ... FILE TRUNCATED ...
 
-                onBack = { selectedTab = MainTab.Home }
-            )
-        }
-
-        MainTab.Checklist -> JarvisChecklistScreen(
-            onBack = { selectedTab = MainTab.Home }
+            onNavigateToChat          = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings      = { selectedTab = MainTab.Settings },
+            onNavigateToDebug         = { selectedTab = MainTab.Debug },
+            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
+            onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
         )
-
-        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-
-        // ✅ FIXED: TermuxCommandScreen creates its own ViewModel internally, no need to pass it
-        MainTab.TermuxCommand -> {
-            TermuxCommandScreen(
-                onNavigateBack = { selectedTab = MainTab.Home }
-            )
+        MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Calendar     -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
         }
+        MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
+        MainTab.AgentDashboard -> AgentDashboardScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 
@@ -3509,6 +3743,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.security.SecurityManager
 import com.jarvismini.server.LanServerService
 import kotlinx.coroutines.delay
@@ -3519,38 +3754,37 @@ import java.util.*
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
-    // 🔥 FIX: Use singleton instance instead of creating a new one
+    val context  = LocalContext.current
+    val prefs    = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
     val securityManager = remember { SecurityManager.getInstance(context) }
-    val scope = rememberCoroutineScope()
-    
-    // Model Selection State
+    val scope    = rememberCoroutineScope()
+
+    // LLM / Model state
     var selectedModel by remember { mutableStateOf(prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini") }
     var showModelDialog by remember { mutableStateOf(false) }
-    
+    var cloudProvider by remember { mutableStateOf(prefs.getString("cloud_provider", "OPENAI") ?: "OPENAI") }
 
 // ... FILE TRUNCATED ...
 
+private fun getModelDisplayName(model: String) = when (model) {
+    "gpt-4o-mini"  -> "GPT-4.1 Mini"
+    "gpt-4o"       -> "GPT-4.1"
+    "o1-mini"      -> "GPT-O1 Mini"
+    "deepseek/deepseek-r1:free" -> "DeepSeek R1 Free"
+    "google/gemini-2.0-flash-lite:free" -> "Gemini 2.0 Flash"
+    "local"        -> "Local LLM"
+    else           -> model
 }
 
-fun getLocalIpAddress(): String {
-    try {
-        val interfaces = NetworkInterface.getNetworkInterfaces()
-        while (interfaces.hasMoreElements()) {
-            val networkInterface = interfaces.nextElement()
-            val addresses = networkInterface.inetAddresses
-            while (addresses.hasMoreElements()) {
-                val address = addresses.nextElement()
-                if (!address.isLoopbackAddress && address is java.net.Inet4Address) {
-                    return address.hostAddress ?: "Unknown"
-                }
-            }
-        }
+private fun getLocalIpAddress(): String {
+    return try {
+        NetworkInterface.getNetworkInterfaces()?.toList()
+            ?.flatMap { it.inetAddresses.toList() }
+            ?.firstOrNull { !it.isLoopbackAddress && it.hostAddress?.contains(':') == false }
+            ?.hostAddress ?: "Unknown"
     } catch (e: Exception) {
-        e.printStackTrace()
+        "Unknown"
     }
-    return "Unknown"
 }
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/stopwatch/StopwatchWidget.kt =====
@@ -3869,6 +4103,82 @@ private fun formatTime(seconds: Long): String {
     } else {
         String.format("%02d:%02d", minutes, secs)
     }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceModule.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.voice
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+/**
+ * VoiceModule — Jarvis voice output
+ *
+ * Priority:
+ *   1. ElevenLabs via agent_server TTS proxy (port 8892) — natural voice
+ *   2. Android system TTS — fallback if server unreachable
+ *
+ * Multi-key rotation and voice selection are handled server-side.
+ * This class just POSTs to the Termux TTS server.
+ */
+object VoiceModule {
+
+    private const val TAG       = "VoiceModule"
+    private const val TTS_PORT  = 8892
+    private const val DEFAULT_HOST = "192.168.29.48"
+
+    private var systemTts: TextToSpeech? = null
+    private var systemTtsReady = false
+
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    fun init(context: Context) {
+        systemTts = TextToSpeech(context) { status ->
+            systemTtsReady = (status == TextToSpeech.SUCCESS)
+            Log.d(TAG, "System TTS ready: $systemTtsReady")
+        }
+    }
+
+    fun destroy() {
+        systemTts?.stop()
+        systemTts?.shutdown()
+        systemTts = null
+
+// ... FILE TRUNCATED ...
+
+                resp.close()
+                Log.d(TAG, "ElevenLabs TTS: ${if (ok) "ok" else "failed"}")
+                ok
+            } catch (e: Exception) {
+                Log.w(TAG, "ElevenLabs unreachable: ${e.message}")
+                false
+            }
+        }
+
+    private fun speakSystem(text: String) {
+        if (!systemTtsReady) {
+            Log.w(TAG, "System TTS not ready")
+            return
+        }
+        systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis_${System.currentTimeMillis()}")
+        Log.d(TAG, "System TTS: $text")
+    }
+
+    enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
 }
 
 //===== FILE: app/src/main/res/drawable/bg_input.xml =====
