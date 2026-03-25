@@ -14,9 +14,9 @@ import com.jarvismini.ui.calendar.DayCalendarScreen
 import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
-// Fixed: Correct import paths for Termux components
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.ui.llm.TermuxCommandViewModel
+import com.jarvismini.agent.AgentDashboardScreen
 
 enum class MainTab {
     Home,
@@ -25,17 +25,18 @@ enum class MainTab {
     Checklist,
     Settings,
     Debug,
-    TermuxCommand  // ✅ NEW: Added Termux Command tab
+    TermuxCommand,
+    AgentDashboard,
 }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
 
-    var showBoot by remember { mutableStateOf(true) }
+    var showBoot    by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
 
-    var blocks by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
     if (showBoot) {
@@ -45,52 +46,37 @@ fun MainScreen() {
 
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
-        blocks = ProgressRepository.getTodayBlocks()
+        blocks   = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
     }
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
-            blocks = ProgressRepository.getTodayBlocks()
+            blocks   = ProgressRepository.getTodayBlocks()
             routines = RoutineProvider.getAllRoutines(context)
         }
     }
 
     when (selectedTab) {
-
         MainTab.Home -> EnhancedHomeScreen(
-            onNavigateToChat = { selectedTab = MainTab.Chat },
-            onNavigateToCalendar = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist = { selectedTab = MainTab.Checklist },
-            onNavigateToSettings = { selectedTab = MainTab.Settings },
-            onNavigateToDebug = { selectedTab = MainTab.Debug },
-            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand }  // ✅ NEW
+            onNavigateToChat          = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings      = { selectedTab = MainTab.Settings },
+            onNavigateToDebug         = { selectedTab = MainTab.Debug },
+            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
+            onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
         )
-
-        MainTab.Chat -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Calendar -> {
+        MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Calendar     -> {
             val vm = remember { CalendarViewModel(context) }
-            DayCalendarScreen(
-                viewModel = vm,
-                onBack = { selectedTab = MainTab.Home }
-            )
+            DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
         }
-
-        MainTab.Checklist -> JarvisChecklistScreen(
-            onBack = { selectedTab = MainTab.Home }
-        )
-
-        MainTab.Settings -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-
-        MainTab.Debug -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-
-        // ✅ FIXED: TermuxCommandScreen creates its own ViewModel internally, no need to pass it
-        MainTab.TermuxCommand -> {
-            TermuxCommandScreen(
-                onNavigateBack = { selectedTab = MainTab.Home }
-            )
-        }
+        MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
+        MainTab.AgentDashboard -> AgentDashboardScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
