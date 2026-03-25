@@ -2,6 +2,7 @@ package com.jarvismini
 
 import android.app.Application
 import android.content.Context
+import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.routine.TaskTimerManager
 import com.jarvismini.ui.timer.FloatingTimerService
@@ -10,6 +11,7 @@ class CoreApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        JarvisPrefs.init(this)
         JarvisState.init(this)
 
         // Register the floating timer delegate so TaskTimerManager (in :core)
