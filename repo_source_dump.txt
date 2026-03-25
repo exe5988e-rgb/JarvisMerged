@@ -31,6 +31,9 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   ├── automation
 │   │   │   │   │   │   │   ├── WhatsAppNotificationListener.kt
+│   │   │   │   │   │   ├── ui
+│   │   │   │   │   │   │   ├── settings
+│   │   │   │   │   │   │   │   ├── SettingsScreen.kt
 │   │   │   ├── kotlin
 │   │   │   │   ├── com
 │   │   │   │   │   ├── jarvismini
@@ -795,6 +798,82 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         } catch (e: PendingIntent.CanceledException) {
             Log.e(TAG, "Failed to send reply", e)
         }
+    }
+}
+
+//===== FILE: app/src/main/java/com/jarvismini/ui/settings/SettingsScreen.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.ui.settings
+
+import android.content.Context
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.security.SecurityManager
+import com.jarvismini.server.LanServerService
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.net.NetworkInterface
+import java.text.SimpleDateFormat
+import java.util.*
+
+// Voice map: display name -> voice ID
+private val VOICE_MAP = linkedMapOf(
+    "Jarvis"    to "lNiTyQyEeDoFcsYb4RUT",
+    "Jarvis 2"  to "lNiTyQyEeDoFcsYb4RUT",
+    "Adam"      to "pNInz6obpgDQGcFmaJgB",
+    "Sarah"     to "EXAVITQu4vr4xnSDxMaL",
+    "Daniel"    to "onwK4e9ZLuTAKqWW03F9",
+    "Charlotte" to "XB0fDUnXU5powFXDhCwa",
+    "Callum"    to "N2lVS1w4EtoT3dr4eOWO",
+)
+
+
+// ... FILE TRUNCATED ...
+
+private fun getModelDisplayName(model: String) = when (model) {
+    "gpt-4o-mini"                       -> "GPT-4.1 Mini"
+    "gpt-4o"                            -> "GPT-4.1"
+    "o1-mini"                           -> "GPT-O1 Mini"
+    "deepseek/deepseek-r1:free"         -> "DeepSeek R1 Free"
+    "google/gemini-2.0-flash-lite:free" -> "Gemini 2.0 Flash"
+    "local"                             -> "Local LLM"
+    else                                -> model
+}
+
+private fun getLocalIpAddress(): String {
+    return try {
+        NetworkInterface.getNetworkInterfaces()?.toList()
+            ?.flatMap { it.inetAddresses.toList() }
+            ?.firstOrNull { !it.isLoopbackAddress && it.hostAddress?.contains(':') == false }
+            ?.hostAddress ?: "Unknown"
+    } catch (e: Exception) {
+        "Unknown"
     }
 }
 
