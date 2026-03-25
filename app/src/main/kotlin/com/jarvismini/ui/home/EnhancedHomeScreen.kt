@@ -115,7 +115,7 @@ fun EnhancedHomeScreen(
                             shape = CircleShape
                         )
                 )
-                HologramCanvas(isActive = isListening)
+                HologramCanvas()
                 Text(
                     text       = if (isListening) "LISTENING" else "TAP TO WAKE",
                     fontSize   = 11.sp,
