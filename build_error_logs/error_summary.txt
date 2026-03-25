@@ -12,7 +12,11 @@ No ninja errors
 No missing deps
 
 -- KOTLIN/JAVA ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt:98:19 Unresolved reference: JarvisPrefs
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:7:28 Unresolved reference: ProgressInitializer
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:8:28 Unresolved reference: ProgressRepository
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:49:9 Unresolved reference: ProgressInitializer
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:50:9 Unresolved reference: ProgressRepository
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt:56:13 Unresolved reference: ProgressInitializer
 
 -- XML RESOURCE ERRORS --
 7-->/home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/AndroidManifest.xml:4:5-77
@@ -447,7 +451,7 @@ Merging uses-sdk with lower [androidx.print:print:1.0.0] AndroidManifest.xml:20:
 -- BUILD TASK FAILURES --
 > Task :app:compileDebugKotlin FAILED
 FAILURE: Build failed with an exception.
-BUILD FAILED in 3m 28s
+BUILD FAILED in 3m 12s
 
 -- EXCEPTION STACK TRACES --
 * Exception is:
@@ -532,8 +536,8 @@ C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : hard linked /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a/compile_commands.json to /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/tools/debug/arm64-v8a/compile_commands.json
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : JSON generation completed without problems
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : Writing build model to /home/runner/work/JarvisMerged/JarvisMerged/app/build/intermediates/cxx/Debug/5l5y6b68/logs/arm64-v8a/build_model.json
-Resolve mutations for :app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
-:app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
+Resolve mutations for :app:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
+:app:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
 > Task :app:buildCMakeDebug[arm64-v8a]
 Caching disabled for task ':app:buildCMakeDebug[arm64-v8a]' because:
 Task ':app:buildCMakeDebug[arm64-v8a]' is not up-to-date because:
@@ -542,8 +546,8 @@ Starting process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja''. 
 Successfully started process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja''
 C/C++: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
 > Task :app:buildCMakeDebug[arm64-v8a]
-Resolve mutations for :modules:engine:configureCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
-:modules:engine:configureCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
+Resolve mutations for :modules:engine:configureCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
+:modules:engine:configureCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
 > Task :modules:engine:configureCMakeDebug[arm64-v8a]
 Caching disabled for task ':modules:engine:configureCMakeDebug[arm64-v8a]' because:
 Task ':modules:engine:configureCMakeDebug[arm64-v8a]' is not up-to-date because:
@@ -557,15 +561,14 @@ C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : /usr/local/lib/android/sdk/cmake/3.22.1/bin/cmake \
   -DCMAKE_MAKE_PROGRAM=/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 Starting process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/cmake''. Working directory: /home/runner/work/JarvisMerged/JarvisMerged/modules/engine Command: /usr/local/lib/android/sdk/cmake/3.22.1/bin/cmake -H/home/runner/work/JarvisMerged/JarvisMerged -DCMAKE_SYSTEM_NAME=Android -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_SYSTEM_VERSION=24 -DANDROID_PLATFORM=android-24 -DANDROID_ABI=arm64-v8a -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a -DANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.1.8937393 -DCMAKE_ANDROID_NDK=/usr/local/lib/android/sdk/ndk/25.1.8937393 -DCMAKE_TOOLCHAIN_FILE=/usr/local/lib/android/sdk/ndk/25.1.8937393/build/cmake/android.toolchain.cmake -DCMAKE_MAKE_PROGRAM=/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/home/runner/work/JarvisMerged/JarvisMerged/modules/engine/build/intermediates/cxx/Debug/5y41e576/obj/arm64-v8a -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/home/runner/work/JarvisMerged/JarvisMerged/modules/engine/build/intermediates/cxx/Debug/5y41e576/obj/arm64-v8a -DCMAKE_BUILD_TYPE=Debug -B/home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/Debug/5y41e576/arm64-v8a -GNinja
-> Task :modules:engine:configureCMakeDebug[arm64-v8a]
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : Received process result: 0
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : Exiting generation of /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/Debug/5y41e576/arm64-v8a/compile_commands.json.bin normally
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : done executing cmake
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : hard linked /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/Debug/5y41e576/arm64-v8a/compile_commands.json to /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/tools/debug/arm64-v8a/compile_commands.json
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : JSON generation completed without problems
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : Writing build model to /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/build/intermediates/cxx/Debug/5y41e576/logs/arm64-v8a/build_model.json
-Resolve mutations for :modules:engine:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
-:modules:engine:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
+Resolve mutations for :modules:engine:buildCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
+:modules:engine:buildCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
 > Task :modules:engine:buildCMakeDebug[arm64-v8a]
 Caching disabled for task ':modules:engine:buildCMakeDebug[arm64-v8a]' because:
 Task ':modules:engine:buildCMakeDebug[arm64-v8a]' is not up-to-date because:
@@ -573,4 +576,3 @@ C/C++: /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja \
 Starting process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja''. Working directory: /home/runner/work/JarvisMerged/JarvisMerged/modules/engine Command: /usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja -C /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/Debug/5y41e576/arm64-v8a jarvis_native
 Successfully started process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja''
 C/C++: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/Debug/5y41e576/arm64-v8a'
-> Task :modules:engine:buildCMakeDebug[arm64-v8a]

@@ -1,153 +1,103 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 
-// ❌ ERRORS IN THIS FILE (1 error(s)):
-// Line 98: Unresolved reference: JarvisPrefs
+// ❌ ERRORS IN THIS FILE (5 error(s)):
+// Line 7: Unresolved reference: ProgressInitializer
+// Line 8: Unresolved reference: ProgressRepository
+// Line 49: Unresolved reference: ProgressInitializer
+// Line 50: Unresolved reference: ProgressRepository
+// Line 56: Unresolved reference: ProgressInitializer
 
-   1    package com.jarvismini.agent
+   1    package com.jarvismini.ui.main
    2    
-   3    import android.content.Context
-   4    import androidx.lifecycle.ViewModel
-   5    import androidx.lifecycle.viewModelScope
-   6    import kotlinx.coroutines.Job
-   7    import kotlinx.coroutines.delay
-   8    import kotlinx.coroutines.flow.*
-   9    import kotlinx.coroutines.launch
-  10    
-  11    data class AgentDashboardState(
-  12        val serverOnline:  Boolean        = false,
-  13        val running:       Boolean        = false,
-  14        val task:          String         = "",
-  15        val step:          Int            = 0,
-  16        val done:          Boolean        = false,
-  17        val error:         String?        = null,
-  18        val logs:          List<LogLine>  = emptyList(),
-  19        val taskInput:     String         = "",
-  20        val deviceInput:   String         = "192.168.29.48:40657",
-  21        val maxSteps:      Int            = 20,
-  22        val ttsEnabled:    Boolean        = true,
-  23    )
-  24    
-  25    data class LogLine(
-  26        val text:  String,
-  27        val level: LogLevel = LogLevel.INFO,
-  28    )
-  29    
-  30    enum class LogLevel { INFO, STEP, SUCCESS, ERROR, WARN, SYSTEM }
-  31    
-  32    fun classifyLog(line: String): LogLevel = when {
-  33        line.contains("✓") || line.contains("Task complete") || line.contains("completed") -> LogLevel.SUCCESS
-  34        line.contains("✗") || line.contains("ERROR") || line.contains("error:", ignoreCase = true) -> LogLevel.ERROR
-  35        line.contains("WARNING") || line.contains("WARN") || line.contains("Retry") -> LogLevel.WARN
-  36        line.contains("STEP") && line.contains("|") -> LogLevel.STEP
-  37        line.startsWith("[server]") || line.startsWith("[agent_server]") -> LogLevel.SYSTEM
-  38        else -> LogLevel.INFO
-  39    }
-  40    
-  41    class AgentDashboardViewModel : ViewModel() {
+   3    import androidx.compose.runtime.*
+   4    import androidx.compose.ui.platform.LocalContext
+   5    import androidx.lifecycle.viewmodel.compose.viewModel
+   6    import com.jarvismini.agent.AgentDashboardViewModel
+   7 ❌ import com.jarvismini.core.ProgressInitializer
+   8 ❌ import com.jarvismini.core.ProgressRepository
+   9    import com.jarvismini.core.routine.RoutineProvider
+  10    import com.jarvismini.core.routine.model.Routine
+  11    import com.jarvismini.ui.boot.BootScreen
+  12    import com.jarvismini.ui.calendar.DayCalendarScreen
+  13    import com.jarvismini.ui.calendar.CalendarViewModel
+  14    import com.jarvismini.ui.chat.JarvisChatScreen
+  15    import com.jarvismini.ui.checklist.JarvisChecklistScreen
+  16    import com.jarvismini.ui.debug.DebugScreen
+  17    import com.jarvismini.ui.home.EnhancedHomeScreen
+  18    import com.jarvismini.ui.llm.TermuxCommandScreen
+  19    import com.jarvismini.ui.settings.SettingsScreen
+  20    import com.jarvismini.agent.AgentDashboardScreen
+  21    
+  22    enum class MainTab {
+  23        Home,
+  24        Chat,
+  25        Calendar,
+  26        Checklist,
+  27        Settings,
+  28        Debug,
+  29        TermuxCommand,
+  30        AgentDashboard,
+  31    }
+  32    
+  33    @Composable
+  34    fun MainScreen() {
+  35        val context = LocalContext.current
+  36    
+  37        var showBoot    by remember { mutableStateOf(true) }
+  38        var selectedTab by remember { mutableStateOf(MainTab.Home) }
+  39    
+  40        // Shared AgentDashboardViewModel so voice tasks from Home flow into the dashboard
+  41        val agentVm: AgentDashboardViewModel = viewModel()
   42    
-  43        private val _state = MutableStateFlow(AgentDashboardState())
-  44        val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
-  45    
-  46        private var logStreamJob: Job? = null
-  47        private var statusPollJob: Job? = null
-  48    
-  49        init {
-  50            checkServer()
-  51        }
-  52    
-  53        fun checkServer() {
-  54            viewModelScope.launch {
-  55                val online = AgentRepository.isAgentServerReachable()
-  56                _state.update { it.copy(serverOnline = online) }
-  57                if (online) pollStatus()
-  58            }
-  59        }
-  60    
-  61        fun onTaskInput(v: String) = _state.update { it.copy(taskInput = v) }
-  62        fun onDeviceInput(v: String) = _state.update { it.copy(deviceInput = v) }
-  63        fun onMaxStepsInput(v: Int) = _state.update { it.copy(maxSteps = v) }
-  64        fun onTtsToggle(v: Boolean) = _state.update { it.copy(ttsEnabled = v) }
-  65    
-  66        fun startAgent() {
-  67            val s = _state.value
-  68            val task   = s.taskInput.trim()
-  69            val device = s.deviceInput.trim()
-  70            if (task.isEmpty()) return
-  71    
-  72            viewModelScope.launch {
-  73                _state.update { it.copy(logs = emptyList(), done = false, error = null) }
-  74                pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
-  75    
-  76                AgentRepository.runTask(task, device, s.maxSteps)
-  77                    .onSuccess { pushLog("[dashboard] Agent started: $it", LogLevel.SYSTEM) }
-  78                    .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
-  79    
-  80                startLogStream()
-  81            }
-  82        }
-  83    
-  84        fun stopAgent() {
-  85            viewModelScope.launch {
-  86                AgentRepository.stopAgent()
-  87                pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
-  88            }
+  43        if (showBoot) {
+  44            BootScreen(onBootComplete = { showBoot = false })
+  45            return
+  46        }
+  47    
+  48        LaunchedEffect(Unit) {
+  49 ❌         ProgressInitializer.registerAllBlocks(context)
+  50 ❌         ProgressRepository.getTodayBlocks()
+  51            RoutineProvider.getAllRoutines(context)
+  52        }
+  53    
+  54        LaunchedEffect(selectedTab) {
+  55            if (selectedTab == MainTab.Checklist) {
+  56 ❌             ProgressInitializer.registerAllBlocks(context)
+  57            }
+  58        }
+  59    
+  60        when (selectedTab) {
+  61            MainTab.Home -> EnhancedHomeScreen(
+  62                onNavigateToChat          = { selectedTab = MainTab.Chat },
+  63                onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
+  64                onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
+  65                onNavigateToSettings      = { selectedTab = MainTab.Settings },
+  66                onNavigateToDebug         = { selectedTab = MainTab.Debug },
+  67                onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
+  68                onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
+  69                onVoiceTask               = { task ->
+  70                    // Pre-fill task in VM, navigate to dashboard, then auto-start the agent
+  71                    agentVm.onTaskInput(task)
+  72                    selectedTab = MainTab.AgentDashboard
+  73                    agentVm.startAgent()           // ← FIX: was missing — voice never triggered run
+  74                }
+  75            )
+  76            MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+  77            MainTab.Calendar     -> {
+  78                val vm = remember { CalendarViewModel(context) }
+  79                DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
+  80            }
+  81            MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
+  82            MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+  83            MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+  84            MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
+  85            MainTab.AgentDashboard -> AgentDashboardScreen(
+  86                onBack = { selectedTab = MainTab.Home },
+  87                vm     = agentVm,
+  88            )
   89        }
-  90    
-  91        fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
-  92    
-  93        fun speakResult(context: Context) {
-  94        val last = _state.value.logs
-  95            .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
-  96            .lastOrNull()?.text ?: return
-  97    
-  98 ❌     val voiceId = JarvisPrefs.getString("elevenlabs_voice_id")  // ← add this
-  99    
- 100        viewModelScope.launch {
- 101            AgentRepository.speak(last, voiceId)  // ← pass it through
- 102        }
- 103        }
- 104    
- 105        private fun startLogStream() {
- 106            logStreamJob?.cancel()
- 107            logStreamJob = viewModelScope.launch {
- 108                AgentRepository.streamLogs().collect { line ->
- 109                    pushLog(line, classifyLog(line))
- 110                }
- 111            }
- 112        }
- 113    
- 114        private fun pollStatus() {
- 115            statusPollJob?.cancel()
- 116            statusPollJob = viewModelScope.launch {
- 117                while (true) {
- 118                    delay(2000)
- 119                    val status = AgentRepository.getStatus()
- 120                    _state.update { it.copy(
- 121                        running  = status.running,
- 122                        task     = status.task,
- 123                        step     = status.step,
- 124                        done     = status.done,
- 125                        error    = status.error,
- 126                        serverOnline = true,
- 127                    )}
- 128                }
- 129            }
- 130        }
- 131    
- 132        private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
- 133            _state.update { s ->
- 134                val logs = (s.logs + LogLine(text, level)).takeLast(200)
- 135                s.copy(logs = logs)
- 136            }
- 137        }
- 138    
- 139        override fun onCleared() {
- 140            logStreamJob?.cancel()
- 141            statusPollJob?.cancel()
- 142            super.onCleared()
- 143        }
- 144    }
+  90    }
 
 
