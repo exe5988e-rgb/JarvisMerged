@@ -140,6 +140,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 item {
                     SettingsTile(
+                        "Server Status",
+                        if (isServerRunning) "Running on $serverIpAddress:8081" else "Stopped — tap to start",
+                        if (isServerRunning) Icons.Default.CheckCircle else Icons.Default.Cancel
+                    ) {
+                        if (isServerRunning) {
+                            LanServerService.stop(context)
+                            isServerRunning = false
+                        } else {
+                            LanServerService.start(context)
+                            isServerRunning = true
+                            serverIpAddress = getLocalIpAddress()
+                        }
+                    }
+                }
+                item {
+                    SettingsTile(
                         "Pairing Mode",
                         if (isPairingMode) "Active ($pairingTimeLeft sec remaining)" else "Disabled — tap to enable",
                         if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled
@@ -286,7 +302,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     if (showDeviceListDialog) {
         DeviceListDialog(
             devices   = pairedDevices,
-            onDismiss = { showDeviceListDialog = false }
+            onDismiss = { showDeviceListDialog = false },
+            onUnpair  = { deviceId ->
+                securityManager.unpairDevice(deviceId)
+                pairedDevices = securityManager.getPairedDevices()
+            }
         )
     }
 }
@@ -633,8 +653,12 @@ private fun PairingInstructionsDialog(
 
 @Composable
 private fun DeviceListDialog(
-    devices: List<com.jarvismini.security.TrustedDevice>, onDismiss: () -> Unit
+    devices: List<com.jarvismini.security.TrustedDevice>,
+    onDismiss: () -> Unit,
+    onUnpair: (String) -> Unit
 ) {
+    var deviceToUnpair by remember { mutableStateOf<String?>(null) }
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -654,10 +678,14 @@ private fun DeviceListDialog(
                         Icon(Icons.Default.Devices, null,
                             tint = Color(0xFF00E0FF), modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
-                        Column {
+                        Column(Modifier.weight(1f)) {
                             Text(d.name, fontSize = 13.sp, color = Color.White)
                             Text(d.ipAddress, fontSize = 11.sp,
                                 color = Color.White.copy(0.5f), fontFamily = FontFamily.Monospace)
+                        }
+                        IconButton(onClick = { deviceToUnpair = d.id }) {
+                            Icon(Icons.Default.Delete, "Unpair",
+                                tint = Color(0xFFFF4444), modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -667,6 +695,27 @@ private fun DeviceListDialog(
                 Text("Close", color = Color(0xFF00E0FF))
             }
         }
+    }
+
+    deviceToUnpair?.let { deviceId ->
+        AlertDialog(
+            onDismissRequest = { deviceToUnpair = null },
+            title = { Text("Unpair Device?", color = Color(0xFF00E0FF)) },
+            text  = { Text("This device will lose access to this server.",
+                color = Color.White.copy(0.8f)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onUnpair(deviceId)
+                    deviceToUnpair = null
+                }) { Text("UNPAIR", color = Color(0xFFFF4444)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deviceToUnpair = null }) {
+                    Text("CANCEL", color = Color(0xFF00E0FF))
+                }
+            },
+            containerColor = Color(0xFF0A1A22)
+        )
     }
 }
 
