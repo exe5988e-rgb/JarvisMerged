@@ -2104,13 +2104,15 @@ class AgentDashboardViewModel : ViewModel() {
     fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
 
     fun speakResult(context: Context) {
-        val last = _state.value.logs
-            .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
-            .lastOrNull()?.text ?: return
+    val last = _state.value.logs
+        .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
+        .lastOrNull()?.text ?: return
 
-        viewModelScope.launch {
-            AgentRepository.speak(last)
-        }
+    val voiceId = JarvisPrefs.getString("elevenlabs_voice_id")  // ← add this
+
+    viewModelScope.launch {
+        AgentRepository.speak(last, voiceId)  // ← pass it through
+    }
     }
 
     private fun startLogStream() {
