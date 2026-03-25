@@ -3768,26 +3768,26 @@ private val VOICE_MAP = linkedMapOf(
 
 // ... FILE TRUNCATED ...
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+private fun getModelDisplayName(model: String) = when (model) {
+    "gpt-4o-mini"                       -> "GPT-4.1 Mini"
+    "gpt-4o"                            -> "GPT-4.1"
+    "o1-mini"                           -> "GPT-O1 Mini"
+    "deepseek/deepseek-r1:free"         -> "DeepSeek R1 Free"
+    "google/gemini-2.0-flash-lite:free" -> "Gemini 2.0 Flash"
+    "local"                             -> "Local LLM"
+    else                                -> model
+}
 
-
-if __name__ == "__main__":
-    _keys = _load_keys()
-    print(f"[tts] Loaded {len(_keys)} API key(s)")
-    if not _keys:
-        print(f"[tts] WARNING: No keys found. Add to {_KEY_FILE} (one per line)")
-    print(f"[tts] Default voice: Jarvis ({DEFAULT_VOICE})")
-    server = HTTPServer(("0.0.0.0", PORT), TTSHandler)
-    print(f"[tts] Listening on 0.0.0.0:{PORT}")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("[tts] Stopped")
+private fun getLocalIpAddress(): String {
+    return try {
+        NetworkInterface.getNetworkInterfaces()?.toList()
+            ?.flatMap { it.inetAddresses.toList() }
+            ?.firstOrNull { !it.isLoopbackAddress && it.hostAddress?.contains(':') == false }
+            ?.hostAddress ?: "Unknown"
+    } catch (e: Exception) {
+        "Unknown"
+    }
+}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/stopwatch/StopwatchWidget.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
