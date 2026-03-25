@@ -1,484 +1,24 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceTriggerManager.kt =====
-package com.jarvismini.voice
-
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.util.Log
-import java.util.Locale
-
-/**
- * VoiceTriggerManager — OPT 13: Voice Trigger (Speech-to-Text input)
- *
- * Wraps Android SpeechRecognizer lifecycle. Call from a single composable
- * or ViewModel; must be created on the main thread.
- *
- * Usage:
- *   val vtm = remember { VoiceTriggerManager(context) }
- *   DisposableEffect(Unit) { onDispose { vtm.destroy() } }
- *   vtm.start(onResult = { task -> ... })
- *   vtm.stop()
- */
-class VoiceTriggerManager(private val context: Context) {
-
-    companion object {
-        private const val TAG = "VoiceTriggerManager"
-    }
-
-    private var recognizer: SpeechRecognizer? = null
-
-    private val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-    }
-
-    /**
-     * Start listening.
-     * @param onResult   called with the recognised text (trimmed, non-blank)
-     * @param onError    called with a human-readable error string
-     * @param onReady    called when mic is open and recording has begun
-     */
-    fun start(
-        onResult: (String) -> Unit,
-        onError:  (String) -> Unit = {},
-        onReady:  ()       -> Unit = {},
-    ) {
-        destroyRecognizer()
-
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            onError("Speech recognition not available on this device")
-            return
-        }
-
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    Log.d(TAG, "Ready for speech")
-                    onReady()
-                }
-                override fun onResults(results: Bundle?) {
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull()?.trim() ?: ""
-                    Log.d(TAG, "Result: $text")
-                    if (text.isNotBlank()) onResult(text)
-                }
-                override fun onError(error: Int) {
-                    val msg = errorMessage(error)
-                    Log.w(TAG, "STT error $error: $msg")
-                    onError(msg)
-                }
-                override fun onBeginningOfSpeech()           {}
-                override fun onEndOfSpeech()                 {}
-                override fun onRmsChanged(rmsdB: Float)      {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onPartialResults(partial: Bundle?) {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            startListening(intent)
-        }
-    }
-
-    fun stop() {
-        recognizer?.stopListening()
-    }
-
-    fun destroy() {
-        destroyRecognizer()
-    }
-
-    private fun destroyRecognizer() {
-        recognizer?.destroy()
-        recognizer = null
-    }
-
-    private fun errorMessage(code: Int) = when (code) {
-        SpeechRecognizer.ERROR_AUDIO                 -> "Audio recording error"
-        SpeechRecognizer.ERROR_CLIENT                -> "Client-side error"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Missing RECORD_AUDIO permission"
-        SpeechRecognizer.ERROR_NETWORK               -> "Network error"
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT       -> "Network timeout"
-        SpeechRecognizer.ERROR_NO_MATCH              -> "No speech recognised — try again"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY       -> "Recogniser busy — try again"
-        SpeechRecognizer.ERROR_SERVER                -> "Server error"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT        -> "No speech detected"
-        else                                         -> "Unknown error ($code)"
-    }
-}
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
-package com.jarvismini.ui.home
-
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.jarvismini.ui.components.*
-import com.jarvismini.voice.VoiceTriggerManager
-
-@Composable
-fun EnhancedHomeScreen(
-    onNavigateToChat:          () -> Unit,
-    onNavigateToCalendar:      () -> Unit,
-    onNavigateToChecklist:     () -> Unit,
-    onNavigateToSettings:      () -> Unit,
-    onNavigateToDebug:         () -> Unit,
-    onNavigateToTermuxCommand: () -> Unit,
-    onNavigateToAgent:         () -> Unit,
-    // Called when voice produces a task string — parent routes it to AgentDashboard
-    onVoiceTask: ((String) -> Unit)? = null,
-) {
-    val context = LocalContext.current
-
-    // ── Voice trigger ────────────────────────────────────────────────────────
-    val vtm = remember { VoiceTriggerManager(context) }
-    DisposableEffect(Unit) { onDispose { vtm.destroy() } }
-
-    var isListening   by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
-
-    // ── Pulse animation ──────────────────────────────────────────────────────
-    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by pulseAnimation.animateFloat(
-        initialValue = 0.3f,
-        targetValue  = 1f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-                )
-            )
-    ) {
-        GridBackground()
-        ParticleField()
-        ScanLine()
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-
-            // ===== HEADER =====
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
-            ) {
-                Text(
-                    text          = "J.A.R.V.I.S.",
-                    fontSize      = 32.sp,
-                    fontWeight    = FontWeight.Light,
-                    letterSpacing = 6.sp,
-                    color         = Color(0xFF00E0FF)
-                )
-                Row {
-                    IconButton(onClick = onNavigateToDebug) {
-                        Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF00E0FF))
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(40.dp))
-
-            // ===== CORE ORB =====
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier         = Modifier
-                    .size(200.dp)
-                    .clickable {
-                        if (isListening) {
-                            // User tapped again — cancel
-                            vtm.stop()
-                            isListening   = false
-                            statusMessage = "TAP TO ACTIVATE"
-                        } else {
-                            isListening   = true
-                            statusMessage = "LISTENING..."
-                            vtm.start(
-                                onReady  = {
-                                    isListening   = true
-                                    statusMessage = "LISTENING..."
-                                },
-                                onResult = { task ->
-                                    isListening   = false
-                                    statusMessage = "HEARD: $task"
-                                    // Route to agent dashboard with the spoken task
-                                    onVoiceTask?.invoke(task) ?: onNavigateToAgent()
-                                },
-                                onError  = { err ->
-                                    isListening   = false
-                                    statusMessage = err
-                                }
-                            )
-                        }
-                    }
-            ) {
-                // Outer ring
-                Box(
-                    modifier = Modifier
-                        .size(200.dp)
-                        .alpha(if (isListening) pulseAlpha else 0.3f)
-                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
-                        .border(
-                            2.dp,
-                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
-                            CircleShape
-                        )
-                )
-                // Mid ring
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
-                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
-                )
-                // Inner orb with mic icon
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .shadow(
-                            elevation  = if (isListening) 30.dp else 10.dp,
-                            shape      = CircleShape,
-                            spotColor  = Color(0xFF00E0FF)
-                        )
-                        .background(
-                            brush = Brush.radialGradient(
-                                listOf(
-                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
-                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
-                                    Color.Transparent
-                                )
-                            ),
-                            shape = CircleShape
-                        )
-                ) {
-                    Icon(
-                        imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = "Voice",
-                        tint               = Color(0xFF00E0FF),
-                        modifier           = Modifier
-                            .size(40.dp)
-                            .align(Alignment.Center)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Text(
-                text       = statusMessage,
-                fontSize   = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
-            )
-
-            Spacer(Modifier.height(40.dp))
-
-            // ===== QUICK ACCESS =====
-            Text(
-                text          = "QUICK ACCESS",
-                fontSize      = 12.sp,
-                fontFamily    = FontFamily.Monospace,
-                letterSpacing = 2.sp,
-                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { QuickActionCard("Chat",     Icons.Default.Chat,         onNavigateToChat) }
-                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
-                item { QuickActionCard("Tasks",    Icons.Default.Checklist,    onNavigateToChecklist) }
-                item { QuickActionCard("Terminal", Icons.Default.Terminal,     onNavigateToTermuxCommand) }
-                item { QuickActionCard("Agent",    Icons.Default.SmartToy,     onNavigateToAgent) }
-            }
-
-            Spacer(Modifier.height(40.dp))
-
-            // ===== SYSTEM STATUS =====
-            Text(
-                text          = "SYSTEM STATUS",
-                fontSize      = 12.sp,
-                fontFamily    = FontFamily.Monospace,
-                letterSpacing = 2.sp,
-                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { StatusCard("Neural Networks",   "Online",  true) }
-                item { StatusCard("Voice Recognition", "Active",  true) }
-                item { StatusCard("Automation Engine", "Standby", false) }
-                item { StatusCard("Local LLM",         "Ready",   true) }
-                item { StatusCard("Agent Server",      "Standby", false) }
-            }
-        }
-    }
-}
-
-// ─── Local components ─────────────────────────────────────────────────────────
-
-@Composable
-private fun QuickActionCard(
-    title:   String,
-    icon:    ImageVector,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .size(100.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = Color.Transparent
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector        = icon,
-                    contentDescription = title,
-                    tint               = Color(0xFF00E0FF),
-                    modifier           = Modifier.size(32.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text       = title,
-                    fontSize   = 12.sp,
-                    color      = Color(0xFF00E0FF).copy(alpha = 0.8f),
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatusCard(
-    label:    String,
-    status:   String,
-    isOnline: Boolean,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(16.dp),
-        color = Color.Transparent
-    ) {
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
-            Text(
-                text     = label,
-                fontSize = 14.sp,
-                color    = Color(0xFF00E0FF).copy(alpha = 0.8f)
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(
-                            color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
-                            shape = CircleShape
-                        )
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text       = status,
-                    fontSize   = 12.sp,
-                    color      = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-        }
-    }
-}
-
-
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jarvismini.ProgressInitializer
-import com.jarvismini.agent.AgentDashboardScreen
 import com.jarvismini.agent.AgentDashboardViewModel
-import com.jarvismini.core.progress.*
+import com.jarvismini.core.ProgressInitializer
+import com.jarvismini.core.ProgressRepository
 import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.core.routine.model.Routine
 import com.jarvismini.ui.boot.BootScreen
-import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.calendar.DayCalendarScreen
+import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.chat.JarvisChatScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.home.EnhancedHomeScreen
 import com.jarvismini.ui.llm.TermuxCommandScreen
-import com.jarvismini.ui.llm.TermuxCommandViewModel
 import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.agent.AgentDashboardScreen
 
 enum class MainTab {
     Home,
@@ -498,9 +38,6 @@ fun MainScreen() {
     var showBoot    by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
 
-    var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-
     // Shared AgentDashboardViewModel so voice tasks from Home flow into the dashboard
     val agentVm: AgentDashboardViewModel = viewModel()
 
@@ -511,15 +48,13 @@ fun MainScreen() {
 
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
-        blocks   = ProgressRepository.getTodayBlocks()
-        routines = RoutineProvider.getAllRoutines(context)
+        ProgressRepository.getTodayBlocks()
+        RoutineProvider.getAllRoutines(context)
     }
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == MainTab.Checklist) {
             ProgressInitializer.registerAllBlocks(context)
-            blocks   = ProgressRepository.getTodayBlocks()
-            routines = RoutineProvider.getAllRoutines(context)
         }
     }
 
@@ -533,9 +68,10 @@ fun MainScreen() {
             onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
             onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
             onVoiceTask               = { task ->
-                // Pre-fill the task field in the agent VM, then open dashboard
+                // Pre-fill task in VM, navigate to dashboard, then auto-start the agent
                 agentVm.onTaskInput(task)
                 selectedTab = MainTab.AgentDashboard
+                agentVm.startAgent()           // ← FIX: was missing — voice never triggered run
             }
         )
         MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
@@ -553,3 +89,437 @@ fun MainScreen() {
         )
     }
 }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
+package com.jarvismini.agent
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class AgentDashboardState(
+    val serverOnline:  Boolean        = false,
+    val running:       Boolean        = false,
+    val task:          String         = "",
+    val step:          Int            = 0,
+    val done:          Boolean        = false,
+    val error:         String?        = null,
+    val logs:          List<LogLine>  = emptyList(),
+    val taskInput:     String         = "",
+    val deviceInput:   String         = "192.168.29.48:40657",
+    val maxSteps:      Int            = 20,
+    val ttsEnabled:    Boolean        = true,
+)
+
+data class LogLine(
+    val text:  String,
+    val level: LogLevel = LogLevel.INFO,
+)
+
+enum class LogLevel { INFO, STEP, SUCCESS, ERROR, WARN, SYSTEM }
+
+fun classifyLog(line: String): LogLevel = when {
+    line.contains("✓") || line.contains("Task complete") || line.contains("completed") -> LogLevel.SUCCESS
+    line.contains("✗") || line.contains("ERROR") || line.contains("error:", ignoreCase = true) -> LogLevel.ERROR
+    line.contains("WARNING") || line.contains("WARN") || line.contains("Retry") -> LogLevel.WARN
+    line.contains("STEP") && line.contains("|") -> LogLevel.STEP
+    line.startsWith("[server]") || line.startsWith("[agent_server]") -> LogLevel.SYSTEM
+    else -> LogLevel.INFO
+}
+
+class AgentDashboardViewModel : ViewModel() {
+
+    private val _state = MutableStateFlow(AgentDashboardState())
+    val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
+
+    private var logStreamJob:  Job? = null
+    private var statusPollJob: Job? = null
+    private var autoSpeakJob:  Job? = null   // watches for task completion and speaks
+
+    init {
+        checkServer()
+        observeDoneForAutoSpeak()
+    }
+
+    fun checkServer() {
+        viewModelScope.launch {
+            val online = AgentRepository.isAgentServerReachable()
+            _state.update { it.copy(serverOnline = online) }
+            if (online) pollStatus()
+        }
+    }
+
+    fun onTaskInput(v: String)   = _state.update { it.copy(taskInput = v) }
+    fun onDeviceInput(v: String) = _state.update { it.copy(deviceInput = v) }
+    fun onMaxStepsInput(v: Int)  = _state.update { it.copy(maxSteps = v) }
+    fun onTtsToggle(v: Boolean)  = _state.update { it.copy(ttsEnabled = v) }
+
+    fun startAgent() {
+        val s = _state.value
+        val task   = s.taskInput.trim()
+        val device = s.deviceInput.trim()
+        if (task.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(logs = emptyList(), done = false, error = null) }
+            pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
+
+            AgentRepository.runTask(task, device, s.maxSteps)
+                .onSuccess { pushLog("[dashboard] Agent started: $it", LogLevel.SYSTEM) }
+                .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
+
+            startLogStream()
+        }
+    }
+
+    fun stopAgent() {
+        viewModelScope.launch {
+            AgentRepository.stopAgent()
+            pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
+        }
+    }
+
+    fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
+
+    // Manual "Speak" button — speaks last SUCCESS/STEP log line
+    fun speakResult(context: Context? = null) {
+        val last = _state.value.logs
+            .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
+            .lastOrNull()?.text ?: return
+
+        val voiceId = resolveVoiceId()
+        viewModelScope.launch {
+            AgentRepository.speak(last, voiceId)
+        }
+    }
+
+    // ── Auto-speak watcher ────────────────────────────────────────────────────
+    // Fires automatically when the agent finishes (done flips true) and TTS is on.
+    // Speaks the last SUCCESS line so Sir hears the result hands-free.
+    private fun observeDoneForAutoSpeak() {
+        autoSpeakJob?.cancel()
+        autoSpeakJob = viewModelScope.launch {
+            var prevDone = false
+            state.collect { s ->
+                if (s.done && !prevDone && s.ttsEnabled) {
+                    // Task just completed — find best line to speak
+                    val toSpeak = s.logs
+                        .filter { it.level == LogLevel.SUCCESS }
+                        .lastOrNull()?.text
+                        ?: s.logs.lastOrNull()?.text
+                    if (!toSpeak.isNullOrBlank()) {
+                        val voiceId = resolveVoiceId()
+                        AgentRepository.speak(toSpeak, voiceId)
+                    }
+                }
+                prevDone = s.done
+            }
+        }
+    }
+
+    // Reads the voice ID that was saved in Settings (elevenlabs_voice_id pref).
+    // Falls back to the Jarvis custom voice if not set.
+    private fun resolveVoiceId(): String {
+        val saved = JarvisPrefs.getString("elevenlabs_voice_id")
+        return if (!saved.isNullOrBlank()) saved else "lNiTyQyEeDoFcsYb4RUT"  // Jarvis voice
+    }
+
+    private fun startLogStream() {
+        logStreamJob?.cancel()
+        logStreamJob = viewModelScope.launch {
+            AgentRepository.streamLogs().collect { line ->
+                pushLog(line, classifyLog(line))
+            }
+        }
+    }
+
+    private fun pollStatus() {
+        statusPollJob?.cancel()
+        statusPollJob = viewModelScope.launch {
+            while (true) {
+                delay(2000)
+                val status = AgentRepository.getStatus()
+                _state.update { it.copy(
+                    running      = status.running,
+                    task         = status.task,
+                    step         = status.step,
+                    done         = status.done,
+                    error        = status.error,
+                    serverOnline = true,
+                )}
+            }
+        }
+    }
+
+    private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
+        _state.update { s ->
+            val logs = (s.logs + LogLine(text, level)).takeLast(200)
+            s.copy(logs = logs)
+        }
+    }
+
+    override fun onCleared() {
+        logStreamJob?.cancel()
+        statusPollJob?.cancel()
+        autoSpeakJob?.cancel()
+        super.onCleared()
+    }
+}
+
+
+//===== FILE: elevenlabs_tts.py =====
+#!/usr/bin/env python3
+"""
+elevenlabs_tts.py  —  ElevenLabs TTS with multi-key rotation
+=============================================================
+Runs on Phone A (Termux).
+Called by Android app via HTTP (port 8892) OR directly by agent_server
+when Jarvis wants to speak a result.
+
+Multiple API keys rotate on quota exhaustion (429 / 401).
+Audio played via termux-media-player or mpv.
+
+Endpoint:
+  POST /speak  { "text": "...", "voice_id": "..." }
+  GET  /voices List available voices
+  GET  /health
+"""
+
+import os
+import json
+import queue
+import shutil
+import tempfile
+import threading
+import subprocess
+import urllib.request
+import urllib.error
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+PORT = 8892
+
+# ---------------------------------------------------------------------------
+# Key pool — add as many as you have
+# ---------------------------------------------------------------------------
+# Keys loaded from env or config file at ~/workflows/.elevenlabs_keys
+# Format in file: one key per line
+
+_KEY_FILE = os.path.expanduser("~/workflows/.elevenlabs_keys")
+
+def _load_keys() -> list:
+    keys = []
+    # From env
+    env_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    if env_key:
+        keys.append(env_key)
+    # From file
+    if os.path.isfile(_KEY_FILE):
+        with open(_KEY_FILE) as f:
+            for line in f:
+                k = line.strip()
+                if k and not k.startswith("#") and k not in keys:
+                    keys.append(k)
+    return keys
+
+_keys: list = []
+_key_index = 0
+_key_lock  = threading.Lock()
+
+def _get_key() -> str:
+    global _keys
+    if not _keys:
+        _keys = _load_keys()
+    if not _keys:
+        raise RuntimeError("No ElevenLabs API keys configured.\n"
+                           f"Add keys to {_KEY_FILE} (one per line)")
+    with _key_lock:
+        return _keys[_key_index % len(_keys)]
+
+def _rotate_key():
+    global _key_index
+    with _key_lock:
+        _key_index += 1
+        new = _keys[_key_index % len(_keys)] if _keys else None
+    print(f"[tts] Rotated to key index {_key_index % len(_keys)}")
+    return new
+
+# ---------------------------------------------------------------------------
+# Default voice — Jarvis custom voice
+# ---------------------------------------------------------------------------
+
+DEFAULT_VOICE    = "lNiTyQyEeDoFcsYb4RUT"   # ← Jarvis voice (was Adam pNInz6obpgDQGcFmaJgB)
+DEFAULT_MODEL    = "eleven_turbo_v2"
+ELEVENLABS_BASE  = "https://api.elevenlabs.io/v1"
+
+# ---------------------------------------------------------------------------
+# TTS core
+# ---------------------------------------------------------------------------
+
+def _tts_request(text: str, voice_id: str) -> bytes:
+    """Returns raw MP3 bytes. Rotates key on 429/401."""
+    max_attempts = max(len(_keys) if _keys else 1, 1) + 1
+    for attempt in range(max_attempts):
+        key = _get_key()
+        url = f"{ELEVENLABS_BASE}/text-to-speech/{voice_id}"
+        payload = json.dumps({
+            "text": text,
+            "model_id": DEFAULT_MODEL,
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75,
+                "style": 0.2,
+                "use_speaker_boost": True
+            }
+        }).encode()
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "xi-api-key":   key,
+                "Content-Type": "application/json",
+                "Accept":       "audio/mpeg",
+            },
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 401) and len(_keys) > 1:
+                print(f"[tts] Key quota/auth error ({e.code}), rotating...")
+                _rotate_key()
+                continue
+            raise
+    raise RuntimeError("All ElevenLabs API keys exhausted")
+
+
+def _play_audio(mp3_bytes: bytes):
+    """Play MP3 bytes using available player."""
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        f.write(mp3_bytes)
+        path = f.name
+    try:
+        # Try termux-media-player first (works on Termux without root)
+        if shutil.which("termux-media-player"):
+            subprocess.run(["termux-media-player", "play", path],
+                           check=True, timeout=60)
+        elif shutil.which("mpv"):
+            subprocess.run(["mpv", "--no-video", path],
+                           check=True, timeout=60)
+        elif shutil.which("ffplay"):
+            subprocess.run(["ffplay", "-nodisp", "-autoexit", path],
+                           check=True, timeout=60)
+        else:
+            print(f"[tts] No audio player found. Audio saved: {path}")
+            return
+    finally:
+        try:
+            os.unlink(path)
+        except Exception:
+            pass
+
+
+# Speech queue — prevents concurrent TTS calls
+_speech_queue: "queue.Queue[tuple]" = queue.Queue()
+
+def _speech_worker():
+    while True:
+        text, voice_id = _speech_queue.get()
+        try:
+            print(f"[tts] Speaking ({voice_id}): {text[:60]!r}")
+            mp3 = _tts_request(text, voice_id)
+            _play_audio(mp3)
+        except Exception as e:
+            print(f"[tts] Error: {e}")
+        finally:
+            _speech_queue.task_done()
+
+_worker = threading.Thread(target=_speech_worker, daemon=True)
+_worker.start()
+
+
+def speak(text: str, voice_id: str = DEFAULT_VOICE, block: bool = False):
+    """Queue text for speaking. Non-blocking by default."""
+    _speech_queue.put((text, voice_id))
+    if block:
+        _speech_queue.join()
+
+
+# ---------------------------------------------------------------------------
+# HTTP handler
+# ---------------------------------------------------------------------------
+
+class TTSHandler(BaseHTTPRequestHandler):
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def _json(self, code: int, data: dict):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _body(self) -> dict:
+        n = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(n)) if n else {}
+
+    def do_GET(self):
+        if self.path == "/health":
+            loaded = _load_keys()
+            self._json(200, {"ok": True, "keys": len(loaded)})
+        elif self.path == "/voices":
+            self._json(200, {"voices": [
+                {"id": "lNiTyQyEeDoFcsYb4RUT", "name": "Jarvis"},   # ← default first
+                {"id": "pNInz6obpgDQGcFmaJgB", "name": "Adam"},
+                {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah"},
+                {"id": "onwK4e9ZLuTAKqWW03F9", "name": "Daniel"},
+                {"id": "XB0fDUnXU5powFXDhCwa", "name": "Charlotte"},
+                {"id": "N2lVS1w4EtoT3dr4eOWO", "name": "Callum"},
+            ]})
+        else:
+            self._json(404, {"error": "not found"})
+
+    def do_POST(self):
+        if self.path == "/speak":
+            b = self._body()
+            text     = b.get("text", "").strip()
+            voice_id = b.get("voice_id", DEFAULT_VOICE)
+            if not text:
+                self._json(400, {"error": "text required"})
+                return
+            speak(text, voice_id)
+            self._json(200, {"ok": True, "queued": text[:60]})
+        else:
+            self._json(404, {"error": "not found"})
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+
+if __name__ == "__main__":
+    _keys = _load_keys()
+    print(f"[tts] Loaded {len(_keys)} API key(s)")
+    print(f"[tts] Default voice: {DEFAULT_VOICE} (Jarvis)")
+    if not _keys:
+        print(f"[tts] WARNING: No keys found. Add to {_KEY_FILE}")
+    server = HTTPServer(("0.0.0.0", PORT), TTSHandler)
+    print(f"[tts] Listening on 0.0.0.0:{PORT}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("[tts] Stopped")
