@@ -53,7 +53,7 @@ fun EnhancedHomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.radialGradient(
+                brush = Brush.radialGradient(
                     colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
                 )
             )
@@ -69,18 +69,18 @@ fun EnhancedHomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // ── Header ──
+            // ===== HEADER =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 Text(
-                    text         = "J.A.R.V.I.S.",
-                    fontSize     = 32.sp,
-                    fontWeight   = FontWeight.Light,
+                    text          = "J.A.R.V.I.S.",
+                    fontSize      = 32.sp,
+                    fontWeight    = FontWeight.Light,
                     letterSpacing = 6.sp,
-                    color        = Color(0xFF00E0FF)
+                    color         = Color(0xFF00E0FF)
                 )
                 Row {
                     IconButton(onClick = onNavigateToDebug) {
@@ -94,182 +94,211 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(40.dp))
 
-            // ── Core orb ──
+            // ===== CORE ORB =====
             Box(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
                     .size(200.dp)
                     .clickable { isListening = !isListening }
             ) {
+                // Outer ring
                 Box(
                     modifier = Modifier
                         .size(200.dp)
                         .alpha(if (isListening) pulseAlpha else 0.3f)
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
+                        .border(
+                            2.dp,
+                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
+                            CircleShape
+                        )
+                )
+                // Mid ring
+                Box(
+                    modifier = Modifier
+                        .size(150.dp)
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
+                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
+                )
+                // Inner orb with mic icon
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .shadow(
+                            elevation  = if (isListening) 30.dp else 10.dp,
+                            shape      = CircleShape,
+                            spotColor  = Color(0xFF00E0FF)
+                        )
                         .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFF00E0FF).copy(alpha = 0.2f),
+                            brush = Brush.radialGradient(
+                                listOf(
+                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
+                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
                                     Color.Transparent
                                 )
                             ),
                             shape = CircleShape
                         )
-                )
-                HologramCanvas()
-                Text(
-                    text       = if (isListening) "LISTENING" else "TAP TO WAKE",
-                    fontSize   = 11.sp,
-                    letterSpacing = 2.sp,
-                    color      = Color(0xFF00E0FF).copy(alpha = if (isListening) 1f else 0.5f),
-                    fontFamily = FontFamily.Monospace,
-                    modifier   = Modifier.align(Alignment.BottomCenter)
-                )
+                ) {
+                    Icon(
+                        imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                        contentDescription = "Voice",
+                        tint               = Color(0xFF00E0FF),
+                        modifier           = Modifier
+                            .size(40.dp)
+                            .align(Alignment.Center)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text       = if (isListening) "LISTENING..." else "TAP TO ACTIVATE",
+                fontSize   = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            // ===== QUICK ACCESS =====
+            Text(
+                text          = "QUICK ACCESS",
+                fontSize      = 12.sp,
+                fontFamily    = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { QuickActionCard("Chat",     Icons.Default.Chat,         onNavigateToChat) }
+                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
+                item { QuickActionCard("Tasks",    Icons.Default.Checklist,    onNavigateToChecklist) }
+                item { QuickActionCard("Terminal", Icons.Default.Terminal,     onNavigateToTermuxCommand) }
+                item { QuickActionCard("Agent",    Icons.Default.SmartToy,     onNavigateToAgent) }
             }
 
             Spacer(Modifier.height(40.dp))
 
-            // ── Feature grid ──
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier            = Modifier.fillMaxWidth()
+            // ===== SYSTEM STATUS =====
+            Text(
+                text          = "SYSTEM STATUS",
+                fontSize      = 12.sp,
+                fontFamily    = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { StatusCard("Neural Networks",    "Online",  true) }
+                item { StatusCard("Voice Recognition",  "Active",  true) }
+                item { StatusCard("Automation Engine",  "Standby", false) }
+                item { StatusCard("Local LLM",          "Ready",   true) }
+                item { StatusCard("Agent Server",       "Standby", false) }
+            }
+        }
+    }
+}
+
+// ─── Local components ─────────────────────────────────────────────────────────
+
+@Composable
+private fun QuickActionCard(
+    title:   String,
+    icon:    ImageVector,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .size(100.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = Color.Transparent
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        HomeFeatureCard(
-                            icon    = Icons.Default.Chat,
-                            label   = "CHAT",
-                            onClick = onNavigateToChat,
-                            modifier = Modifier.weight(1f)
-                        )
-                        HomeFeatureCard(
-                            icon    = Icons.Default.CalendarToday,
-                            label   = "CALENDAR",
-                            onClick = onNavigateToCalendar,
-                            modifier = Modifier.weight(1f)
-                        )
-                        HomeFeatureCard(
-                            icon    = Icons.Default.Checklist,
-                            label   = "TASKS",
-                            onClick = onNavigateToChecklist,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                item {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        HomeFeatureCard(
-                            icon    = Icons.Default.Terminal,
-                            label   = "TERMUX",
-                            onClick = onNavigateToTermuxCommand,
-                            modifier = Modifier.weight(1f)
-                        )
-                        // ── AGENT card — highlighted ──
-                        HomeAgentCard(
-                            onClick  = onNavigateToAgent,
-                            modifier = Modifier.weight(2f)
-                        )
-                    }
-                }
+                Icon(
+                    imageVector        = icon,
+                    contentDescription = title,
+                    tint               = Color(0xFF00E0FF),
+                    modifier           = Modifier.size(32.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text       = title,
+                    fontSize   = 12.sp,
+                    color      = Color(0xFF00E0FF).copy(alpha = 0.8f),
+                    fontFamily = FontFamily.Monospace
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HomeFeatureCard(
-    icon:     ImageVector,
+private fun StatusCard(
     label:    String,
-    onClick:  () -> Unit,
-    modifier: Modifier = Modifier,
+    status:   String,
+    isOnline: Boolean,
 ) {
-    Box(
-        modifier = modifier
-            .height(72.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
             .background(
-                Color(0xFF0A1A22),
-                RoundedCornerShape(10.dp)
-            )
-            .border(0.5.dp, Color(0xFF00E0FF).copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
-            Spacer(Modifier.height(4.dp))
-            Text(
-                label,
-                fontSize     = 9.sp,
-                letterSpacing = 1.sp,
-                color        = Color(0xFF00E0FF),
-                fontFamily   = FontFamily.Monospace,
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeAgentCard(
-    onClick:  () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val pulse = rememberInfiniteTransition(label = "agentPulse")
-    val glow by pulse.animateFloat(
-        initialValue  = 0.3f,
-        targetValue   = 0.8f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "agentGlow"
-    )
-    Box(
-        modifier = modifier
-            .height(72.dp)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(Color(0xFF001A2A), Color(0xFF003344))
-                ),
-                RoundedCornerShape(10.dp)
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
             )
             .border(
-                1.dp,
-                Color(0xFF00E0FF).copy(alpha = glow),
-                RoundedCornerShape(10.dp)
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp)
             )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+            .padding(16.dp),
+        color = Color.Transparent
     ) {
         Row(
-            verticalAlignment      = Alignment.CenterVertically,
-            horizontalArrangement  = Arrangement.Center,
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment     = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.SmartToy,
-                null,
-                tint     = Color(0xFF00E0FF),
-                modifier = Modifier.size(22.dp)
+            Text(
+                text     = label,
+                fontSize = 14.sp,
+                color    = Color(0xFF00E0FF).copy(alpha = 0.8f)
             )
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(
-                    "AGENT",
-                    fontSize     = 14.sp,
-                    fontWeight   = FontWeight.Bold,
-                    letterSpacing = 3.sp,
-                    color        = Color(0xFF00E0FF),
-                    fontFamily   = FontFamily.Monospace,
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
+                            shape = CircleShape
+                        )
                 )
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    "Run tasks on device",
-                    fontSize   = 9.sp,
+                    text       = status,
+                    fontSize   = 12.sp,
                     color      = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = FontFamily.Monospace
                 )
             }
         }

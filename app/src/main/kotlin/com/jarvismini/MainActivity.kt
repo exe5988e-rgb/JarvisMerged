@@ -1,6 +1,8 @@
 package com.jarvismini
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -10,6 +12,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.StoragePermissionHelper
 import com.jarvismini.core.stopwatch.NotificationPermissionHelper
@@ -20,7 +24,8 @@ import com.jarvismini.ui.timer.FloatingTimerService
 class MainActivity : ComponentActivity() {
 
     companion object {
-        private const val REQUEST_CODE_OVERLAY = 1001
+        private const val REQUEST_CODE_OVERLAY    = 1001
+        private const val REQUEST_CODE_MIC        = 1002
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,9 +38,8 @@ class MainActivity : ComponentActivity() {
             NotificationPermissionHelper.requestPermission(this)
         }
 
-        // Request "Display over other apps" permission for floating timer overlay.
-        // If denied the overlay is silently skipped; notification timer still works.
         requestOverlayPermissionIfNeeded()
+        requestMicPermissionIfNeeded()
 
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
@@ -49,6 +53,18 @@ class MainActivity : ComponentActivity() {
                     MainScreen()
                 }
             }
+        }
+    }
+
+    private fun requestMicPermissionIfNeeded() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                REQUEST_CODE_MIC
+            )
         }
     }
 
@@ -89,11 +105,20 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        if (requestCode == NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS) {
-            if (NotificationPermissionHelper.isPermissionGranted(this)) {
-                Toast.makeText(this, "Notification permission granted!", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_LONG).show()
+        when (requestCode) {
+            REQUEST_CODE_MIC -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Microphone permission granted!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Microphone permission denied. Voice activation unavailable.", Toast.LENGTH_LONG).show()
+                }
+            }
+            NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS -> {
+                if (NotificationPermissionHelper.isPermissionGranted(this)) {
+                    Toast.makeText(this, "Notification permission granted!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_LONG).show()
+                }
             }
         }
 
@@ -117,15 +142,6 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "Overlay permission granted. Floating timer enabled!", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Overlay denied. Timer still works via notification.", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        if (requestCode == StoragePermissionHelper.REQUEST_CODE_MANAGE_STORAGE) {
-            if (StoragePermissionHelper.hasStoragePermission(this)) {
-                Toast.makeText(this, "All Files Access granted! Loading AI models...", Toast.LENGTH_SHORT).show()
-                initializeEngine()
-            } else {
-                Toast.makeText(this, "All Files Access is required to load AI models.", Toast.LENGTH_LONG).show()
             }
         }
     }
