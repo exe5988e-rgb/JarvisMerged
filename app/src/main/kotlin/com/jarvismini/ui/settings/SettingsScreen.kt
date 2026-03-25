@@ -40,7 +40,7 @@ import java.util.*
 // Voice map: display name -> voice ID
 private val VOICE_MAP = linkedMapOf(
     "Jarvis"    to "lNiTyQyEeDoFcsYb4RUT",
-    "Jarvis 2"  to "lNiTyQyEeDoFcsYb4RUT",  // user can update second ID later
+    "Jarvis 2"  to "lNiTyQyEeDoFcsYb4RUT",
     "Adam"      to "pNInz6obpgDQGcFmaJgB",
     "Sarah"     to "EXAVITQu4vr4xnSDxMaL",
     "Daniel"    to "onwK4e9ZLuTAKqWW03F9",
@@ -64,20 +64,19 @@ fun SettingsScreen(onBack: () -> Unit) {
     var showApiKey       by remember { mutableStateOf(false) }
 
     // LAN server state
-    var isServerRunning       by remember { mutableStateOf(false) }
-    var serverIpAddress       by remember { mutableStateOf(getLocalIpAddress()) }
-    var pairedDevices         by remember { mutableStateOf(securityManager.getPairedDevices()) }
-    var isPairingMode         by remember { mutableStateOf(false) }
-    var pairingTimeLeft       by remember { mutableStateOf(0) }
-    var showPairingDialog     by remember { mutableStateOf(false) }
-    var showDeviceListDialog  by remember { mutableStateOf(false) }
+    var isServerRunning         by remember { mutableStateOf(false) }
+    var serverIpAddress         by remember { mutableStateOf(getLocalIpAddress()) }
+    var pairedDevices           by remember { mutableStateOf(securityManager.getPairedDevices()) }
+    var isPairingMode           by remember { mutableStateOf(false) }
+    var pairingTimeLeft         by remember { mutableStateOf(0) }
+    var showPairingDialog       by remember { mutableStateOf(false) }
+    var showDeviceListDialog    by remember { mutableStateOf(false) }
     var showClientPairingScreen by remember { mutableStateOf(false) }
 
     // Agent / TTS settings
     var agentHost        by remember { mutableStateOf(JarvisPrefs.getString("agent_host") ?: "192.168.29.48") }
     var elevenApiKeys    by remember { mutableStateOf(prefs.getString("elevenlabs_keys", "") ?: "") }
     var showElevenDialog by remember { mutableStateOf(false) }
-    // Default voice is Jarvis
     var selectedVoice    by remember { mutableStateOf(prefs.getString("elevenlabs_voice", "Jarvis") ?: "Jarvis") }
     var showVoiceDialog  by remember { mutableStateOf(false) }
     var ttsEnabled       by remember { mutableStateOf(prefs.getBoolean("tts_enabled", true)) }
@@ -141,10 +140,36 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 item {
                     SettingsTile(
+                        "Pairing Mode",
+                        if (isPairingMode) "Active ($pairingTimeLeft sec remaining)" else "Disabled — tap to enable",
+                        if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled
+                    ) {
+                        if (isPairingMode) {
+                            securityManager.disablePairingMode()
+                            isPairingMode = false
+                        } else {
+                            securityManager.enablePairingMode(60)
+                            isPairingMode = true
+                            showPairingDialog = true
+                        }
+                    }
+                }
+                item {
+                    SettingsTile(
                         "Paired Devices",
                         "${pairedDevices.size} device(s) paired",
                         Icons.Default.Devices
-                    ) { showDeviceListDialog = true }
+                    ) {
+                        pairedDevices = securityManager.getPairedDevices()
+                        showDeviceListDialog = true
+                    }
+                }
+                item {
+                    SettingsTile(
+                        "Pair As Client",
+                        "Connect to another JARVIS device",
+                        Icons.Default.DeviceHub
+                    ) { showClientPairingScreen = true }
                 }
 
                 // ── Agent ─────────────────────────────────────────────────
@@ -241,13 +266,20 @@ fun SettingsScreen(onBack: () -> Unit) {
             onSelect  = { v ->
                 selectedVoice = v
                 prefs.edit().putString("elevenlabs_voice", v).apply()
-                // Also persist the voice ID so the server can use it directly
                 VOICE_MAP[v]?.let { id ->
                     prefs.edit().putString("elevenlabs_voice_id", id).apply()
                 }
                 showVoiceDialog = false
             },
             onDismiss = { showVoiceDialog = false }
+        )
+    }
+
+    if (showPairingDialog) {
+        PairingInstructionsDialog(
+            ipAddress = serverIpAddress,
+            timeLeft  = pairingTimeLeft,
+            onDismiss = { showPairingDialog = false }
         )
     }
 
@@ -549,6 +581,52 @@ private fun VoiceSelectorDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PairingInstructionsDialog(
+    ipAddress: String,
+    timeLeft:  Int,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
+                .padding(20.dp)
+        ) {
+            Text("PAIRING MODE ACTIVE", fontSize = 16.sp, color = Color(0xFF00E0FF),
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text("Time remaining: $timeLeft sec", fontSize = 13.sp,
+                color = Color(0xFF00FF88), fontFamily = FontFamily.Monospace)
+            Spacer(Modifier.height(12.dp))
+            Text("Send a POST request to:", fontSize = 12.sp, color = Color.White.copy(0.7f))
+            Spacer(Modifier.height(6.dp))
+            Surface(shape = RoundedCornerShape(6.dp), color = Color.Black.copy(0.5f),
+                modifier = Modifier.fillMaxWidth()) {
+                Text("http://$ipAddress:8081/api/v1/pair", fontSize = 11.sp,
+                    color = Color(0xFF00FF88), fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(10.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("With JSON body:", fontSize = 12.sp, color = Color.White.copy(0.7f))
+            Spacer(Modifier.height(6.dp))
+            Surface(shape = RoundedCornerShape(6.dp), color = Color.Black.copy(0.5f),
+                modifier = Modifier.fillMaxWidth()) {
+                Text("{\"device_name\": \"My Device\"}", fontSize = 11.sp,
+                    color = Color(0xFF00FF88), fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(10.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                colors  = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF00E0FF), contentColor = Color.Black)
+            ) { Text("GOT IT") }
         }
     }
 }
