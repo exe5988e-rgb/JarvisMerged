@@ -4345,7 +4345,7 @@ class VoiceTriggerManager(private val context: Context) {
 }
 
 //===== FILE: app/src/main/kotlin/com/syncwave/app/AndroidBridge.kt =====
-// TYPE: FULL
+// TYPE: SNAPSHOT (LARGE FILE)
 package com.syncwave.app
 
 import android.content.ClipData
@@ -4354,7 +4354,7 @@ import android.content.Context
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 
-class AndroidBridge(private val context: Context) {
+class AndroidBridge(private val context: Context, private val activity: MainActivity) {
 
     @JavascriptInterface
     fun copyToClipboard(text: String) {
@@ -4370,8 +4370,42 @@ class AndroidBridge(private val context: Context) {
 
     @JavascriptInterface
     fun getAppVersion(): String = BuildConfig.VERSION_NAME
+
+    /** Called by JS when user enables BG PLAY */
+    @JavascriptInterface
+    fun enableBgPlay() {
+        activity.runOnUiThread { activity.startBgService() }
+    }
+
+    /** Called by JS when user disables BG PLAY */
+    @JavascriptInterface
+    fun disableBgPlay() {
+        activity.runOnUiThread { activity.stopBgService() }
+    }
 }
 
+// ... FILE TRUNCATED ...
+
+    @JavascriptInterface
+    fun showToast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    @JavascriptInterface
+    fun getAppVersion(): String = BuildConfig.VERSION_NAME
+
+    /** Called by JS when user enables BG PLAY */
+    @JavascriptInterface
+    fun enableBgPlay() {
+        activity.runOnUiThread { activity.startBgService() }
+    }
+
+    /** Called by JS when user disables BG PLAY */
+    @JavascriptInterface
+    fun disableBgPlay() {
+        activity.runOnUiThread { activity.stopBgService() }
+    }
+}
 
 //===== FILE: app/src/main/kotlin/com/syncwave/app/AudioForegroundService.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
@@ -4480,7 +4514,10 @@ class MainActivity : AppCompatActivity() {
 
     private val serverUrl = BuildConfig.SERVER_URL
 
+    // Tracks whether JS has explicitly enabled background play
+    private var bgPlayEnabled = false
     private var bgServiceBound = false
+
     private val bgServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) { bgServiceBound = true }
         override fun onServiceDisconnected(name: ComponentName?) { bgServiceBound = false }
@@ -4498,32 +4535,29 @@ class MainActivity : AppCompatActivity() {
         errorText    = findViewById(R.id.errorText)
 
         setupWebView()
-        setupSwipeRefresh()
-        loadApp()
-    }
 
 // ... FILE TRUNCATED ...
 
-        }
-        if (!bgServiceBound) {
-            bindService(intent, bgServiceConnection, Context.BIND_AUTO_CREATE)
-        }
-    }
-
-    private fun stopBgService() {
-        try {
-            if (bgServiceBound) {
-                unbindService(bgServiceConnection)
-                bgServiceBound = false
-            }
-        } catch (e: Exception) { /* already unbound */ }
-        stopService(Intent(this, AudioForegroundService::class.java))
-    }
-
-    override fun onBackPressed() {
-        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
-    }
+    showToast(bgPlayOn ? 'BG play (browser only)' : 'Background play OFF');
+    dbg('BG play: AndroidBridge not available');
+  }
 }
+
+// ─── CHAT ────────────────────────────────────────────────────────────────────
+function sendChat(){ const el=document.getElementById('chatInput'),text=el.value.trim(); if(!text)return; socket.emit('chat',{room:myRoom,name:myName,text}); el.value=''; }
+function appendChat({name,text}){ const me=name===myName,div=document.createElement('div'); div.className='chat-msg '+(me?'me':'them'); div.innerHTML=(me?'':'<div class="msg-name">'+esc(name)+'</div>')+'<div class="msg-bubble">'+esc(text)+'</div>'; const msgs=document.getElementById('chatMessages'); msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight; }
+
+// ─── PEOPLE ──────────────────────────────────────────────────────────────────
+function updatePeople(list){ document.getElementById('peopleList').innerHTML=list.map(p=>`<div class="person-row"><div class="avatar">${p.name[0].toUpperCase()}</div><div class="person-info"><div class="person-name">${esc(p.name)}</div><div class="person-role ${p.isHost?'host':''}">
+${p.isHost?'👑 HOST':'GUEST'}</div></div></div>`).join(''); }
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function switchTab(t){ ['player','chat','people'].forEach(x=>{ document.getElementById(x+'Panel').classList.toggle('active',x===t); document.getElementById('tab-'+x).classList.toggle('active',x===t); }); }
+let tt; function showToast(msg,error=false){ const el=document.getElementById('toast'); document.getElementById('toastMsg').textContent=msg; el.className='toast show'+(error?' error':''); clearTimeout(tt); tt=setTimeout(()=>el.className='toast',3000); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
 
 //===== FILE: app/src/main/res/drawable/bg_input.xml =====
 // TYPE: FULL
