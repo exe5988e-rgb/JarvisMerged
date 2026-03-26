@@ -463,34 +463,41 @@ dependencies {
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
-    namespace = "com.jarvismini"
-    compileSdk = 35
+    namespace = "com.syncwave.app"
+    compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.jarvismini"
-        minSdk = 26
-        targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
-        
-        // ✅ NDK Configuration
-        ndk {
-            abiFilters += listOf("arm64-v8a")
+        applicationId = "com.syncwave.app"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0.0"
+
+        val serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:3001"
+        buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            isDebuggable = true
+        }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
     buildFeatures {
-        viewBinding = true
-        compose = true
         buildConfig = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
     }
 
     compileOptions {
@@ -501,37 +508,30 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-    
-    // ✅ CMake Configuration
-    externalNativeBuild {
-        cmake {
-            path = file("../CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
 }
+
 
 // ... FILE TRUNCATED ...
 
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    buildFeatures {
+        buildConfig = true
+    }
 
-    // Coroutines (required for suspend + Dispatchers)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 
-    // ViewModel + Compose integration
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-    implementation("org.nanohttpd:nanohttpd:2.3.1")
-   
-    
-    // Modules
-    implementation(project(":modules:core"))
-    implementation(project(":modules:automation"))
-    implementation(project(":modules:engine"))
-    implementation(project(":modules:smart"))
-    implementation(project(":modules:callhandler"))
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
 
+dependencies {
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation("com.google.android.material:material:1.11.0")
 }
 
 //===== FILE: app/proguard-rules.pro =====
