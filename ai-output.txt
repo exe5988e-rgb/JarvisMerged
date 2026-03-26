@@ -306,59 +306,62 @@ class AndroidBridge(private val context: Context) {
     </style>
 </resources>
 
-//===== FILE: app/build.gradle =====
+//===== FILE: app/build.gradle.kts =====
 plugins {
-    id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
 android {
-    namespace 'com.syncwave.app'
-    compileSdk 34
+    namespace = "com.syncwave.app"
+    compileSdk = 34
 
     defaultConfig {
-        applicationId "com.syncwave.app"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
+        applicationId = "com.syncwave.app"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0.0"
 
-        def serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:3001"
-        buildConfigField "String", "SERVER_URL", "\"${serverUrl}\""
+        val serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:3001"
+        buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
     }
 
     buildTypes {
         debug {
-            applicationIdSuffix ".debug"
-            versionNameSuffix "-debug"
-            debuggable true
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            isDebuggable = true
         }
         release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
     buildFeatures {
-        buildConfig true
+        buildConfig = true
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = "17"
     }
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-    implementation 'com.google.android.material:material:1.11.0'
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation("com.google.android.material:material:1.11.0")
 }
 
 //===== FILE: app/proguard-rules.pro =====
@@ -367,13 +370,13 @@ dependencies {
     @android.webkit.JavascriptInterface <methods>;
 }
 
-//===== FILE: build.gradle =====
+//===== FILE: build.gradle.kts =====
 plugins {
-    id 'com.android.application' version '8.2.2' apply false
-    id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+    id("com.android.application") version "8.2.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
 }
 
-//===== FILE: settings.gradle =====
+//===== FILE: settings.gradle.kts =====
 pluginManagement {
     repositories {
         google()
@@ -389,7 +392,7 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "SyncWave"
-include ':app'
+include(":app")
 
 //===== FILE: gradle/wrapper/gradle-wrapper.properties =====
 distributionBase=GRADLE_USER_HOME
