@@ -1,9 +1,14 @@
 package com.syncwave.app
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.view.View
 import android.webkit.*
 import android.widget.FrameLayout
@@ -21,6 +26,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var errorText: TextView
 
     private val serverUrl = BuildConfig.SERVER_URL
+
+    private var bgServiceBound = false
+    private val bgServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) { bgServiceBound = true }
+        override fun onServiceDisconnected(name: ComponentName?) { bgServiceBound = false }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,11 +84,7 @@ class MainActivity : AppCompatActivity() {
                 injectTheme()
             }
 
-            override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
-            ) {
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     progressBar.visibility    = View.GONE
                     webView.visibility        = View.GONE
@@ -92,8 +99,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url.toString()
-                if (!url.startsWith(serverUrl) &&
-                    (url.startsWith("http") || url.startsWith("https"))) {
+                if (!url.startsWith(serverUrl) && (url.startsWith("http") || url.startsWith("https"))) {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                     return true
                 }
@@ -137,11 +143,51 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+        webView.resumeTimers()
+        stopBgService()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // ── DO NOT call webView.onPause() ──
+        // That suspends the WebView renderer and kills audio.
+        // We start a foreground service instead to keep the process alive.
+        startBgService()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        webView.onPause()
+        webView.destroy()
+        stopBgService()
+    }
+
+    private fun startBgService() {
+        val intent = Intent(this, AudioForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        if (!bgServiceBound) {
+            bindService(intent, bgServiceConnection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    private fun stopBgService() {
+        try {
+            if (bgServiceBound) {
+                unbindService(bgServiceConnection)
+                bgServiceBound = false
+            }
+        } catch (e: Exception) { /* already unbound */ }
+        stopService(Intent(this, AudioForegroundService::class.java))
+    }
+
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
-
-    override fun onResume()  { super.onResume();  webView.onResume()  }
-    override fun onPause()   { super.onPause();   webView.onPause()   }
-    override fun onDestroy() { super.onDestroy(); webView.destroy()   }
 }
