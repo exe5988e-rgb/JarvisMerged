@@ -1,3 +1,43 @@
+//===== FILE: app/src/main/kotlin/com/syncwave/app/AndroidBridge.kt =====
+package com.syncwave.app
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.webkit.JavascriptInterface
+import android.widget.Toast
+
+class AndroidBridge(private val context: Context, private val activity: MainActivity) {
+
+    @JavascriptInterface
+    fun copyToClipboard(text: String) {
+        val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cb.setPrimaryClip(ClipData.newPlainText("SyncWave", text))
+        Toast.makeText(context, "Room code copied!", Toast.LENGTH_SHORT).show()
+    }
+
+    @JavascriptInterface
+    fun showToast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    @JavascriptInterface
+    fun getAppVersion(): String = BuildConfig.VERSION_NAME
+
+    /** Called by JS when user enables BG PLAY */
+    @JavascriptInterface
+    fun enableBgPlay() {
+        activity.runOnUiThread { activity.startBgService() }
+    }
+
+    /** Called by JS when user disables BG PLAY */
+    @JavascriptInterface
+    fun disableBgPlay() {
+        activity.runOnUiThread { activity.stopBgService() }
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/syncwave/app/MainActivity.kt =====
 package com.syncwave.app
 
@@ -28,7 +68,10 @@ class MainActivity : AppCompatActivity() {
 
     private val serverUrl = BuildConfig.SERVER_URL
 
+    // Tracks whether JS has explicitly enabled background play
+    private var bgPlayEnabled = false
     private var bgServiceBound = false
+
     private val bgServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) { bgServiceBound = true }
         override fun onServiceDisconnected(name: ComponentName?) { bgServiceBound = false }
@@ -68,7 +111,8 @@ class MainActivity : AppCompatActivity() {
             databaseEnabled                  = true
         }
 
-        webView.addJavascriptInterface(AndroidBridge(this), "AndroidBridge")
+        // Pass `this` so AndroidBridge can call startBgService / stopBgService
+        webView.addJavascriptInterface(AndroidBridge(this, this), "AndroidBridge")
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
@@ -148,15 +192,15 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         webView.onResume()
         webView.resumeTimers()
-        stopBgService()
+        // Stop service only if user hasn't explicitly enabled bg play
+        if (!bgPlayEnabled) stopBgService()
     }
 
     override fun onPause() {
         super.onPause()
-        // ── DO NOT call webView.onPause() ──
-        // That suspends the WebView renderer and kills audio.
-        // We start a foreground service instead to keep the process alive.
-        startBgService()
+        // Start service only if user explicitly enabled bg play
+        if (bgPlayEnabled) startBgService()
+        // DO NOT call webView.onPause() — suspends the renderer and kills audio
     }
 
     override fun onDestroy() {
@@ -166,7 +210,9 @@ class MainActivity : AppCompatActivity() {
         stopBgService()
     }
 
-    private fun startBgService() {
+    // Public so AndroidBridge can call them from JS
+    fun startBgService() {
+        bgPlayEnabled = true
         val intent = Intent(this, AudioForegroundService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -178,7 +224,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun stopBgService() {
+    fun stopBgService() {
+        bgPlayEnabled = false
         try {
             if (bgServiceBound) {
                 unbindService(bgServiceConnection)
@@ -188,190 +235,496 @@ class MainActivity : AppCompatActivity() {
         stopService(Intent(this, AudioForegroundService::class.java))
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 }
 
-//===== FILE: app/src/main/kotlin/com/syncwave/app/AudioForegroundService.kt =====
-package com.syncwave.app
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
-import android.content.Intent
-import android.os.Binder
-import android.os.Build
-import android.os.IBinder
-import androidx.core.app.NotificationCompat
+//=====TERMUXFILE: server/public/index.html =====
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>SyncWave</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#080808;color:#e0e0e0;font-family:'Courier New',monospace;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100dvh}
+  .tabs{display:flex;background:#0d0d0d;border-bottom:1px solid #1a1a1a}
+  .tab{flex:1;padding:14px 0;text-align:center;font-size:11px;letter-spacing:1.5px;color:#555;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+  .tab.active{color:#00f5d4;border-bottom-color:#00f5d4}
+  .tab svg{display:block;margin:0 auto 4px}
+  .panel{display:none;flex:1;overflow-y:auto;flex-direction:column}
+  .panel.active{display:flex}
+  #playerPanel{padding:16px;gap:12px}
 
-/**
- * Foreground service that keeps the app process alive when backgrounded.
- *
- * When Android sees a foreground service with foregroundServiceType="mediaPlayback",
- * it treats the process the same as Spotify or YouTube — the WebView renderer
- * stays alive and audio continues uninterrupted.
- */
-class AudioForegroundService : Service() {
+  /* LINK BOX */
+  .link-box{background:#111;border:1px solid #222;border-radius:12px;padding:14px}
+  .link-label{font-size:10px;letter-spacing:2px;color:#555;margin-bottom:10px}
+  .link-row{display:flex;gap:8px}
+  .link-row input{flex:1;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;color:#e0e0e0;font-size:13px;padding:10px 12px;outline:none;font-family:inherit}
+  .link-row input:focus{border-color:#00f5d4}
+  .link-row input::placeholder{color:#444}
+  .set-btn{background:#00f5d4;color:#080808;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
 
-    companion object {
-        const val CHANNEL_ID = "syncwave_audio"
-        const val NOTIF_ID   = 1001
-    }
+  /* DEBUG */
+  .debug-box{background:#0a0a1a;border:1px solid #223;border-radius:8px;padding:8px 12px;font-size:11px;color:#6af;word-break:break-all;min-height:28px}
 
-    private val binder = LocalBinder()
-    inner class LocalBinder : Binder() { fun getService() = this@AudioForegroundService }
+  /* PLAYER */
+  .player-wrap{background:#111;border:1px solid #222;border-radius:12px;overflow:hidden}
+  .player-wrap iframe{width:100%;display:block;border:none;height:200px}
+  .player-placeholder{height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#333}
+  .player-placeholder p{font-size:12px;letter-spacing:1px}
 
-    override fun onCreate() {
-        super.onCreate()
-        createNotificationChannel()
-    }
+  /* CONTROLS */
+  .controls{background:#111;border:1px solid #222;border-radius:12px;padding:16px}
+  .status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .status-left{display:flex;align-items:center;gap:8px}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:#333;flex-shrink:0}
+  .status-dot.playing{background:#00f5d4;box-shadow:0 0 6px #00f5d4}
+  .status-dot.waiting{background:#555;animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+  .status-text{font-size:11px;letter-spacing:1.5px;color:#666;text-transform:uppercase}
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIF_ID, buildNotification())
-        return START_STICKY
-    }
+  /* TOGGLE BUTTONS */
+  .toggle-row{display:flex;gap:8px}
+  .tog-btn{display:flex;align-items:center;gap:5px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;font-size:10px;letter-spacing:1px;color:#666;cursor:pointer;transition:all .2s;white-space:nowrap}
+  .tog-btn.on{background:#002a25;border-color:#00f5d4;color:#00f5d4}
+  .tog-btn svg{flex-shrink:0}
 
-    override fun onBind(intent: Intent?): IBinder = binder
+  /* SEEK */
+  .seek-wrap{margin-bottom:10px}
+  .seek-bar{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:#222;outline:none;cursor:pointer}
+  .seek-bar::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#00f5d4;cursor:pointer}
+  .seek-times{display:flex;justify-content:space-between;font-size:10px;color:#555;margin-top:6px}
 
-    override fun onDestroy() {
-        super.onDestroy()
-        stopForeground(true)
-    }
+  /* MAIN BUTTONS */
+  .btn-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:10px}
+  .ctrl-btn{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:50%;width:48px;height:48px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;flex-shrink:0}
+  .ctrl-btn:active{background:#00f5d4;border-color:#00f5d4}
+  .ctrl-btn.primary{width:64px;height:64px;background:#00f5d4;border-color:#00f5d4}
+  .ctrl-btn.primary svg{color:#080808}
+  .ctrl-btn svg{color:#aaa}
+  .ctrl-btn.active-tog{background:#002a25;border-color:#00f5d4}
+  .ctrl-btn.active-tog svg{color:#00f5d4}
 
-    private fun buildNotification(): Notification {
-        val openIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("SyncWave")
-            .setContentText("Music playing in background")
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentIntent(openIntent)
-            .setOngoing(true)
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-    }
+  .host-badge{text-align:center;font-size:11px;color:#888;letter-spacing:1px;margin-top:4px}
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "SyncWave Playback",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Keeps music playing in background"
-                setShowBadge(false)
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            }
-            getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
-        }
-    }
+  /* CHAT */
+  #chatPanel{display:none;flex-direction:column}
+  #chatPanel.active{display:flex}
+  .chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .chat-msg{max-width:80%}
+  .chat-msg.me{align-self:flex-end}
+  .chat-msg.them{align-self:flex-start}
+  .msg-bubble{padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.4}
+  .me .msg-bubble{background:#00f5d4;color:#080808;border-radius:12px 12px 2px 12px}
+  .them .msg-bubble{background:#1a1a1a;color:#e0e0e0;border-radius:12px 12px 12px 2px}
+  .msg-name{font-size:10px;color:#555;margin-bottom:2px}
+  .chat-input-row{display:flex;gap:8px;padding:12px;background:#0d0d0d;border-top:1px solid #1a1a1a}
+  .chat-input-row input{flex:1;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;color:#e0e0e0;font-size:13px;padding:10px 14px;outline:none;font-family:inherit}
+  .send-btn{background:#00f5d4;border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+
+  /* PEOPLE */
+  #peoplePanel{padding:16px;gap:10px}
+  .people-header{font-size:10px;letter-spacing:2px;color:#555;margin-bottom:4px}
+  .person-row{display:flex;align-items:center;gap:12px;padding:12px;background:#111;border:1px solid #1a1a1a;border-radius:10px}
+  .avatar{width:36px;height:36px;border-radius:50%;background:#1a1a1a;border:1px solid #2a2a2a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+  .person-info{flex:1}
+  .person-name{font-size:13px;color:#e0e0e0}
+  .person-role{font-size:10px;color:#555;letter-spacing:1px;margin-top:2px}
+  .person-role.host{color:#f5c518}
+
+  /* ROOM SCREEN */
+  #roomScreen{display:flex;flex-direction:column;height:100dvh;padding:32px 20px;gap:16px;justify-content:center}
+  #roomScreen h1{font-size:22px;letter-spacing:3px;color:#00f5d4;text-align:center;margin-bottom:8px}
+  #roomScreen p{font-size:12px;color:#555;text-align:center;letter-spacing:1px;margin-bottom:16px}
+  .room-input{background:#111;border:1px solid #2a2a2a;border-radius:10px;color:#e0e0e0;font-size:15px;padding:14px 16px;outline:none;font-family:inherit;letter-spacing:3px;text-align:center}
+  .name-input{background:#111;border:1px solid #2a2a2a;border-radius:10px;color:#e0e0e0;font-size:14px;padding:14px 16px;outline:none;font-family:inherit;text-align:center}
+  .big-btn{background:#00f5d4;color:#080808;border:none;border-radius:10px;padding:16px;font-size:14px;font-weight:700;letter-spacing:2px;cursor:pointer;width:100%}
+  .or-divider{text-align:center;color:#333;font-size:11px;letter-spacing:2px}
+
+  .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:10px 20px;font-size:12px;color:#aaa;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:99}
+  .toast.show{opacity:1}
+  .toast.error{border-color:#f55;color:#f88}
+</style>
+</head>
+<body>
+
+<!-- ROOM SCREEN -->
+<div id="roomScreen">
+  <h1>∿ SYNCWAVE</h1>
+  <p>LISTEN TOGETHER IN SYNC</p>
+  <input id="nameInput" class="name-input" placeholder="Your name" maxlength="20"/>
+  <button class="big-btn" onclick="createRoom()">CREATE ROOM</button>
+  <div class="or-divider">— OR JOIN —</div>
+  <input id="roomInput" class="room-input" placeholder="ROOM CODE" maxlength="6" oninput="this.value=this.value.toUpperCase()"/>
+  <button class="big-btn" style="background:#1a1a1a;color:#00f5d4;border:1px solid #00f5d4" onclick="joinRoom()">JOIN ROOM</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('player')" id="tab-player">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>PLAYER
+    </div>
+    <div class="tab" onclick="switchTab('chat')" id="tab-chat">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>CHAT
+    </div>
+    <div class="tab" onclick="switchTab('people')" id="tab-people">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>PEOPLE
+    </div>
+  </div>
+
+  <div class="panel active" id="playerPanel">
+
+    <div class="link-box">
+      <div class="link-label" id="roomLabel">YT MUSIC / YOUTUBE LINK</div>
+      <div class="link-row">
+        <input id="linkInput" type="url" placeholder="Paste link here..." autocomplete="off" autocorrect="off" spellcheck="false"/>
+        <button class="set-btn" onclick="setLink()">Set</button>
+      </div>
+    </div>
+
+    <div class="debug-box" id="debugBox">Paste a link and tap Set</div>
+
+    <div class="player-wrap" id="playerWrap">
+      <div class="player-placeholder" id="playerPlaceholder">
+        <svg width="40" height="28" viewBox="0 0 40 28" fill="none"><path d="M20 3C6 3 1 7 1 14s5 11 19 11 19-4 19-11S34 3 20 3z" stroke="#555" stroke-width="1.5"/><path d="M16 10l9 4-9 4V10z" fill="#555"/></svg>
+        <p>Paste a link to load music</p>
+      </div>
+      <div id="ytPlayer"></div>
+    </div>
+
+    <div class="controls">
+      <!-- Status + toggles -->
+      <div class="status-row">
+        <div class="status-left">
+          <div class="status-dot waiting" id="statusDot"></div>
+          <div class="status-text" id="statusText">WAITING</div>
+        </div>
+        <div class="toggle-row">
+          <div class="tog-btn" id="togShuffle" onclick="toggleShuffle()">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+            SHUFFLE
+          </div>
+          <div class="tog-btn" id="togBg" onclick="toggleBgPlay()">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            BG PLAY
+          </div>
+        </div>
+      </div>
+
+      <!-- Seek bar -->
+      <div class="seek-wrap" id="seekWrap" style="display:none">
+        <input type="range" class="seek-bar" id="seekBar" min="0" max="100" value="0"
+          oninput="onSeekInput()" onchange="onSeekChange(this.value)"/>
+        <div class="seek-times"><span id="timeElapsed">0:00</span><span id="timeDuration">0:00</span></div>
+      </div>
+
+      <!-- Controls row 1: Prev | Play | Next -->
+      <div class="btn-row">
+        <div class="ctrl-btn" onclick="prevTrack()" title="Previous track">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+        </div>
+        <div class="ctrl-btn primary" onclick="togglePlay()">
+          <svg id="playIcon" width="26" height="26" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div class="ctrl-btn" onclick="nextTrack()" title="Next track">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+        </div>
+      </div>
+
+      <!-- Controls row 2: -10s | [space] | +10s -->
+      <div class="btn-row" style="margin-bottom:8px">
+        <div class="ctrl-btn" style="width:42px;height:42px" onclick="seekBack()" title="-10 sec">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-3.49"/><text x="7" y="15" font-size="7" fill="currentColor" stroke="none" font-family="monospace">10</text></svg>
+        </div>
+        <div style="width:42px;height:42px"></div>
+        <div class="ctrl-btn" style="width:42px;height:42px" onclick="seekForward()" title="+10 sec">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-.49-3.49"/><text x="7" y="15" font-size="7" fill="currentColor" stroke="none" font-family="monospace">10</text></svg>
+        </div>
+      </div>
+
+      <div class="host-badge" id="hostBadge"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="chatPanel">
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-row">
+      <input id="chatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat()"/>
+      <button class="send-btn" onclick="sendChat()">
+        <svg width="18" height="18" fill="none" stroke="#080808" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel" id="peoplePanel">
+    <div class="people-header">IN THIS ROOM</div>
+    <div id="peopleList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toastMsg"></span></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let socket, myName='', myRoom='', isHost=false;
+let ytPlayer=null, ytApiReady=false, ytLoaded=false;
+let isPlaying=false, seekDragging=false;
+let syncInterval=null, seekUpdateInterval=null;
+let pendingLoad=null;
+let shuffleOn=false, bgPlayOn=false;
+
+// ─── YT API ─────────────────────────────────────────────────────────────────
+window.onYouTubeIframeAPIReady = function() {
+  ytApiReady=true; dbg('YT API ready ✓');
+  if (pendingLoad) { _buildPlayer(pendingLoad); pendingLoad=null; }
+};
+(function(){
+  const s=document.createElement('script');
+  s.src='https://www.youtube.com/iframe_api';
+  s.onerror=()=>dbg('ERROR: YT API blocked');
+  document.head.appendChild(s);
+  dbg('YT API loading...');
+})();
+
+function dbg(msg){ console.log('[SW]',msg); const el=document.getElementById('debugBox'); if(el) el.textContent=msg; }
+
+// ─── LINK PARSING ───────────────────────────────────────────────────────────
+function parseYTLink(raw) {
+  raw=(raw||'').trim();
+  dbg('Parsing: '+raw.slice(0,70));
+  let m;
+  m=raw.match(/[?&]v=([A-Za-z0-9_-]{11})/);  if(m) return {type:'video',id:m[1]};
+  m=raw.match(/youtu\.be\/([A-Za-z0-9_-]{11})/); if(m) return {type:'video',id:m[1]};
+  m=raw.match(/\/(shorts|embed|v)\/([A-Za-z0-9_-]{11})/); if(m) return {type:'video',id:m[2]};
+  m=raw.match(/[?&]list=([A-Za-z0-9_-]+)/); if(m&&m[1].length>5) return {type:'playlist',id:m[1]};
+  return null;
 }
 
-//===== FILE: app/src/main/AndroidManifest.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.syncwave.app">
+// ─── ROOM ────────────────────────────────────────────────────────────────────
+function createRoom(){ const name=document.getElementById('nameInput').value.trim()||'Host'; enterApp(name,Math.random().toString(36).slice(2,8).toUpperCase(),true); }
+function joinRoom(){ const name=document.getElementById('nameInput').value.trim()||'Guest',code=document.getElementById('roomInput').value.trim().toUpperCase(); if(code.length<4){showToast('Enter a room code',true);return;} enterApp(name,code,false); }
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+function enterApp(name,room,host){
+  myName=name; myRoom=room; isHost=host;
+  document.getElementById('roomScreen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('roomLabel').textContent='ROOM: '+room+' · PASTE LINK';
+  document.getElementById('hostBadge').textContent=host?'👑 You are the host':'👂 Listening';
 
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.SyncWave"
-        android:usesCleartextTraffic="true">
+  socket=io();
+  socket.on('connect',()=>{ dbg('Socket connected'); socket.emit('join',{room,name,isHost:host}); });
+  socket.on('roomState',(s)=>{ dbg('roomState vid='+s.videoId+' pl='+s.playlistId); if(s.videoId||s.playlistId) loadPlayer(s.videoId,s.playlistId,s.position||0,s.playing); });
+  socket.on('setMedia',({videoId,playlistId})=>{ if(!isHost) loadPlayer(videoId,playlistId,0,false); });
+  socket.on('play',  ({position})=>{ if(!isHost&&ytLoaded){ytPlayer.seekTo(position,true);ytPlayer.playVideo(); setUIPlaying(true);} });
+  socket.on('pause', ({position})=>{ if(!isHost&&ytLoaded){ytPlayer.seekTo(position,true);ytPlayer.pauseVideo();setUIPlaying(false);} });
+  socket.on('seek',  ({position})=>{ if(!isHost&&ytLoaded) ytPlayer.seekTo(position,true); });
+  socket.on('nextTrack', ()=>{ if(!isHost&&ytLoaded) ytPlayer.nextVideo(); });
+  socket.on('prevTrack', ()=>{ if(!isHost&&ytLoaded) ytPlayer.previousVideo(); });
+  socket.on('shuffle',({on})=>{ if(!isHost){ shuffleOn=on; ytLoaded&&ytPlayer.setShuffle(on); updateShuffleUI(); } });
+  socket.on('sync',({position,playing})=>{
+    if(!isHost&&ytLoaded){
+      if(Math.abs((ytPlayer.getCurrentTime()||0)-position)>2.5) ytPlayer.seekTo(position,true);
+      if(playing&&ytPlayer.getPlayerState()!==1) ytPlayer.playVideo();
+      if(!playing&&ytPlayer.getPlayerState()===1) ytPlayer.pauseVideo();
+    }
+  });
+  socket.on('people',updatePeople);
+  socket.on('chat',appendChat);
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <service
-            android:name=".AudioForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
-
-    </application>
-</manifest>
-
-//===== FILE: app/build.gradle =====
-plugins {
-    id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+  if(host) syncInterval=setInterval(()=>{
+    if(ytLoaded) socket.emit('sync',{room,position:ytPlayer.getCurrentTime()||0,playing:ytPlayer.getPlayerState()===1});
+  },4000);
+  seekUpdateInterval=setInterval(updateSeekBar,500);
 }
 
-android {
-    namespace 'com.syncwave.app'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.syncwave.app"
-        minSdk 26
-        targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
-
-        def serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:3001"
-        buildConfigField "String", "SERVER_URL", "\"${serverUrl}\""
-    }
-
-    buildTypes {
-        debug {
-            applicationIdSuffix ".debug"
-            versionNameSuffix "-debug"
-            debuggable true
-        }
-        release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    buildFeatures {
-        buildConfig true
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = '17'
-    }
+// ─── SET LINK ────────────────────────────────────────────────────────────────
+function setLink(){
+  if(!isHost){showToast('Only host can set the link',true);return;}
+  const raw=document.getElementById('linkInput').value;
+  const parsed=parseYTLink(raw);
+  if(!parsed){ dbg('PARSE FAILED: '+raw.slice(0,80)); showToast('Could not read link',true); return; }
+  dbg('OK: '+parsed.type+' id='+parsed.id);
+  const videoId=parsed.type==='video'?parsed.id:null;
+  const playlistId=parsed.type==='playlist'?parsed.id:null;
+  socket.emit('setMedia',{room:myRoom,videoId,playlistId});
+  loadPlayer(videoId,playlistId,0,false);
 }
 
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-    implementation 'com.google.android.material:material:1.11.0'
+// ─── PLAYER ──────────────────────────────────────────────────────────────────
+function loadPlayer(videoId,playlistId,startSeconds,autoplay){
+  dbg('loadPlayer vid='+videoId+' pl='+playlistId);
+  document.getElementById('playerPlaceholder').style.display='none';
+  document.getElementById('seekWrap').style.display='block';
+  ytLoaded=false;
+  const spec={videoId,playlistId,startSeconds:Math.floor(startSeconds||0),autoplay};
+  if(ytApiReady) _buildPlayer(spec);
+  else { pendingLoad=spec; dbg('Queued — waiting for YT API'); }
 }
 
-//===== FILE: app/proguard-rules.pro =====
--keep class com.syncwave.app.AndroidBridge { *; }
--keepclassmembers class com.syncwave.app.AndroidBridge {
-    @android.webkit.JavascriptInterface <methods>;
+function _buildPlayer({videoId,playlistId,startSeconds,autoplay}){
+  dbg('Building: '+(videoId||playlistId));
+  if(ytPlayer){try{ytPlayer.destroy();}catch(e){} ytPlayer=null;}
+  document.getElementById('ytPlayer').innerHTML='';
+
+  const vars={
+    autoplay:autoplay?1:0,
+    controls:isHost?1:0,
+    rel:0, modestbranding:1, enablejsapi:1, playsinline:1,
+    origin:window.location.origin,
+    start:startSeconds
+  };
+  if(playlistId){ vars.listType='playlist'; vars.list=playlistId; }
+
+  try{
+    ytPlayer=new YT.Player('ytPlayer',{
+      height:'200', width:'100%',
+      videoId: playlistId ? '' : videoId,
+      playerVars:vars,
+      events:{
+        onReady(e){
+          ytLoaded=true;
+          dbg('Player ready ✓ dur='+e.target.getDuration());
+          const f=document.querySelector('#ytPlayer iframe');
+          if(f) f.style.height='200px';
+          if(shuffleOn) ytPlayer.setShuffle(true);
+          if(autoplay) e.target.playVideo();
+        },
+        onStateChange(e){
+          if(isHost){
+            if(e.data===YT.PlayerState.PLAYING) setUIPlaying(true);
+            if(e.data===YT.PlayerState.PAUSED)  setUIPlaying(false);
+            if(e.data===YT.PlayerState.ENDED)   setUIPlaying(false);
+          }
+        },
+        onError(e){ dbg('Player error: '+e.data); showToast('Player error '+e.data,true); }
+      }
+    });
+    dbg('YT.Player() OK');
+  }catch(err){ dbg('YT.Player threw: '+err.message); }
 }
--keep class com.syncwave.app.AudioForegroundService { *; }
+
+// ─── PLAYBACK CONTROLS ───────────────────────────────────────────────────────
+function togglePlay(){
+  if(!ytLoaded){showToast('Player not ready',true);return;}
+  if(!isHost){showToast('Only host can control',true);return;}
+  const state=ytPlayer.getPlayerState(), pos=ytPlayer.getCurrentTime()||0;
+  if(state===YT.PlayerState.PLAYING){
+    ytPlayer.pauseVideo(); setUIPlaying(false);
+    socket.emit('pause',{room:myRoom,position:pos});
+  } else {
+    ytPlayer.playVideo(); setUIPlaying(true);
+    socket.emit('play',{room:myRoom,position:pos});
+  }
+}
+
+function nextTrack(){
+  if(!ytLoaded||!isHost) return;
+  ytPlayer.nextVideo();
+  socket.emit('nextTrack',{room:myRoom});
+  dbg('Next track');
+}
+
+function prevTrack(){
+  if(!ytLoaded||!isHost) return;
+  if((ytPlayer.getCurrentTime()||0)>3){ ytPlayer.seekTo(0,true); }
+  else { ytPlayer.previousVideo(); socket.emit('prevTrack',{room:myRoom}); }
+  dbg('Prev track');
+}
+
+function seekBack(){
+  if(!ytLoaded||!isHost) return;
+  const t=Math.max(0,ytPlayer.getCurrentTime()-10);
+  ytPlayer.seekTo(t,true); socket.emit('seek',{room:myRoom,position:t});
+}
+function seekForward(){
+  if(!ytLoaded||!isHost) return;
+  const t=ytPlayer.getCurrentTime()+10;
+  ytPlayer.seekTo(t,true); socket.emit('seek',{room:myRoom,position:t});
+}
+function onSeekInput(){ seekDragging=true; }
+function onSeekChange(v){
+  seekDragging=false;
+  if(!ytLoaded||!isHost) return;
+  const t=(v/100)*(ytPlayer.getDuration()||0);
+  ytPlayer.seekTo(t,true); socket.emit('seek',{room:myRoom,position:t});
+}
+function updateSeekBar(){
+  if(!ytLoaded||seekDragging) return;
+  const d=ytPlayer.getDuration()||0, c=ytPlayer.getCurrentTime()||0;
+  if(!d) return;
+  document.getElementById('seekBar').value=(c/d)*100;
+  document.getElementById('timeElapsed').textContent=fmtTime(c);
+  document.getElementById('timeDuration').textContent=fmtTime(d);
+}
+function fmtTime(s){ s=Math.floor(s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function setUIPlaying(p){
+  isPlaying=p;
+  document.getElementById('statusDot').className='status-dot '+(p?'playing':'waiting');
+  document.getElementById('statusText').textContent=p?'PLAYING':'PAUSED';
+  document.getElementById('playIcon').innerHTML=p
+    ?'<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
+    :'<polygon points="5 3 19 12 5 21 5 3"/>';
+}
+
+// ─── SHUFFLE ─────────────────────────────────────────────────────────────────
+function toggleShuffle(){
+  if(!isHost){showToast('Only host can control',true);return;}
+  shuffleOn=!shuffleOn;
+  if(ytLoaded) ytPlayer.setShuffle(shuffleOn);
+  updateShuffleUI();
+  socket.emit('shuffle',{room:myRoom,on:shuffleOn});
+  dbg('Shuffle: '+shuffleOn);
+}
+function updateShuffleUI(){
+  document.getElementById('togShuffle').className='tog-btn'+(shuffleOn?' on':'');
+}
+
+// ─── BACKGROUND PLAY ─────────────────────────────────────────────────────────
+// Delegates entirely to the native Android foreground service via AndroidBridge.
+// When running in a plain browser (no AndroidBridge), the button becomes a no-op
+// with a clear message so it doesn't break the web version.
+function toggleBgPlay(){
+  bgPlayOn=!bgPlayOn;
+  document.getElementById('togBg').className='tog-btn'+(bgPlayOn?' on':'');
+
+  if(typeof AndroidBridge !== 'undefined'){
+    // Running inside the Android WebView — use the native foreground service
+    if(bgPlayOn){
+      AndroidBridge.enableBgPlay();
+      showToast('Background play ON');
+      dbg('BG play: ON (native service)');
+    } else {
+      AndroidBridge.disableBgPlay();
+      showToast('Background play OFF');
+      dbg('BG play: OFF (native service)');
+    }
+  } else {
+    // Fallback for plain browser — feature not available
+    showToast(bgPlayOn ? 'BG play (browser only)' : 'Background play OFF');
+    dbg('BG play: AndroidBridge not available');
+  }
+}
+
+// ─── CHAT ────────────────────────────────────────────────────────────────────
+function sendChat(){ const el=document.getElementById('chatInput'),text=el.value.trim(); if(!text)return; socket.emit('chat',{room:myRoom,name:myName,text}); el.value=''; }
+function appendChat({name,text}){ const me=name===myName,div=document.createElement('div'); div.className='chat-msg '+(me?'me':'them'); div.innerHTML=(me?'':'<div class="msg-name">'+esc(name)+'</div>')+'<div class="msg-bubble">'+esc(text)+'</div>'; const msgs=document.getElementById('chatMessages'); msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight; }
+
+// ─── PEOPLE ──────────────────────────────────────────────────────────────────
+function updatePeople(list){ document.getElementById('peopleList').innerHTML=list.map(p=>`<div class="person-row"><div class="avatar">${p.name[0].toUpperCase()}</div><div class="person-info"><div class="person-name">${esc(p.name)}</div><div class="person-role ${p.isHost?'host':''}">
+${p.isHost?'👑 HOST':'GUEST'}</div></div></div>`).join(''); }
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function switchTab(t){ ['player','chat','people'].forEach(x=>{ document.getElementById(x+'Panel').classList.toggle('active',x===t); document.getElementById('tab-'+x).classList.toggle('active',x===t); }); }
+let tt; function showToast(msg,error=false){ const el=document.getElementById('toast'); document.getElementById('toastMsg').textContent=msg; el.className='toast show'+(error?' error':''); clearTimeout(tt); tt=setTimeout(()=>el.className='toast',3000); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
