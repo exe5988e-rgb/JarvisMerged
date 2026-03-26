@@ -58,11 +58,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        webView       = findViewById(R.id.webView)
-        swipeRefresh  = findViewById(R.id.swipeRefresh)
-        progressBar   = findViewById(R.id.progressBar)
-        errorView     = findViewById(R.id.errorView)
-        errorText     = findViewById(R.id.errorText)
+        webView      = findViewById(R.id.webView)
+        swipeRefresh = findViewById(R.id.swipeRefresh)
+        progressBar  = findViewById(R.id.progressBar)
+        errorView    = findViewById(R.id.errorView)
+        errorText    = findViewById(R.id.errorText)
 
         setupWebView()
         setupSwipeRefresh()
@@ -72,25 +72,24 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         webView.settings.apply {
-            javaScriptEnabled             = true
-            domStorageEnabled             = true
-            allowFileAccess               = true
-            allowContentAccess            = true
+            javaScriptEnabled                = true
+            domStorageEnabled                = true
+            allowFileAccess                  = true
+            allowContentAccess               = true
             mediaPlaybackRequiresUserGesture = false
-            mixedContentMode              = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            cacheMode                     = WebSettings.LOAD_DEFAULT
+            mixedContentMode                 = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            cacheMode                        = WebSettings.LOAD_DEFAULT
             setSupportZoom(false)
-            displayZoomControls           = false
-            builtInZoomControls           = false
-            loadWithOverviewMode          = true
-            useWideViewPort               = true
-            databaseEnabled               = true
+            displayZoomControls              = false
+            builtInZoomControls              = false
+            loadWithOverviewMode             = true
+            useWideViewPort                  = true
+            databaseEnabled                  = true
         }
 
         webView.addJavascriptInterface(AndroidBridge(this), "AndroidBridge")
 
         webView.webViewClient = object : WebViewClient() {
-
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 progressBar.visibility = View.VISIBLE
@@ -122,10 +121,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            override fun shouldOverrideUrlLoading(
-                view: WebView?,
-                request: WebResourceRequest?
-            ): Boolean {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url.toString()
                 if (!url.startsWith(serverUrl) &&
                     (url.startsWith("http") || url.startsWith("https"))) {
@@ -163,7 +159,7 @@ class MainActivity : AppCompatActivity() {
         val js = """
             (function(){
                 var m = document.querySelector('meta[name=viewport]');
-                if(!m){ m = document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); }
+                if(!m){ m=document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); }
                 m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no';
                 document.body.style.userSelect='none';
                 document.body.style.webkitUserSelect='none';
@@ -402,205 +398,9 @@ distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
 
-//===== FILE: .github/workflows/build-apk.yml =====
-name: Build APK
-
-on:
-  workflow_run:
-    workflows: ["Extract Repo Source to TXT"]
-    types:
-      - completed
-  workflow_dispatch:
-    inputs:
-      server_url:
-        description: 'SyncWave cloudflared tunnel URL'
-        required: false
-        default: 'https://your-tunnel.trycloudflare.com'
-
-permissions:
-  contents: write
-
-jobs:
-  build-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ runner.os }}-
-
-      - name: Set SERVER_URL
-        run: |
-          URL="${{ github.event.inputs.server_url || secrets.SYNCWAVE_SERVER_URL || 'https://your-tunnel.trycloudflare.com' }}"
-          echo "SERVER_URL=$URL" >> $GITHUB_ENV
-          echo "Building APK with server: $URL"
-
-      # ---------------- BUILD (never hard-fails) ----------------
-      - name: Build Debug APK and capture log
-        id: gradle_build
-        continue-on-error: true
-        env:
-          SERVER_URL: ${{ env.SERVER_URL }}
-        run: |
-          chmod +x ./gradlew
-          mkdir -p build_error_logs
-          ./gradlew assembleDebug --no-daemon --stacktrace --info \
-            2>&1 | tee build_error_logs/build_output.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
-
-      # ---------------- APK UPLOAD ----------------
-      - name: Upload Debug APK
-        if: steps.gradle_build.outputs.exit_code == '0'
-        uses: actions/upload-artifact@v4
-        with:
-          name: syncwave-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Commit APK to releases/
-        if: steps.gradle_build.outputs.exit_code == '0'
-        run: |
-          mkdir -p releases
-          cp app/build/outputs/apk/debug/app-debug.apk releases/syncwave-latest.apk
-          git config user.name "build-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add releases/syncwave-latest.apk
-          git diff --staged --quiet || git commit -m "APK: syncwave-latest.apk [skip ci]"
-          git push origin main || echo "Push skipped"
-
-      # ---------------- ENHANCED ERROR EXTRACTION ----------------
-      - name: Extract errors (enhanced for native builds)
-        if: steps.gradle_build.outputs.exit_code != '0'
-        run: |
-          mkdir -p build_error_logs
-          {
-            echo "==== GRADLE BUILD ERROR REPORT ===="
-            echo
-            echo "-- KOTLIN/JAVA ERRORS --"
-            grep -E "\.kt:[0-9]+:[0-9]+ error|\.java:[0-9]+: error|^e: " build_error_logs/build_output.txt || echo "No Kotlin/Java errors"
-            echo
-            echo "-- XML RESOURCE ERRORS --"
-            grep -E "\.xml:[0-9]+:" build_error_logs/build_output.txt || echo "No XML errors"
-            echo
-            echo "-- BUILD TASK FAILURES --"
-            grep -E "BUILD FAILED|FAILURE: Build failed|Task.*FAILED" build_error_logs/build_output.txt || echo "No task failures"
-            echo
-            echo "-- EXCEPTION STACK TRACES --"
-            grep -A 10 "Exception" build_error_logs/build_output.txt | head -100 || echo "No exceptions"
-          } > build_error_logs/error_summary.txt
-          cat build_error_logs/error_summary.txt
-          tail -1000 build_error_logs/build_output.txt > build_error_logs/build_tail.txt
-
-      # ---------------- EXTRACT ERROR SOURCE FILES WITH PYTHON ----------------
-      - name: Extract source code of error files with highlighted error lines
-        if: steps.gradle_build.outputs.exit_code != '0'
-        run: |
-          python3 << 'PYTHON_SCRIPT'
-          import re, os
-          from collections import defaultdict
-
-          ERROR_LOG = "build_error_logs/build_output.txt"
-          OUTPUT    = "build_error_logs/error_files.txt"
-          REPO_ROOT = os.getcwd()
-
-          with open(ERROR_LOG, 'r', encoding='utf-8', errors='ignore') as f:
-              error_log = f.read()
-
-          error_map = defaultdict(list)
-
-          def normalize_path(filepath):
-              filepath = re.sub(r'^file:/+', '', filepath).lstrip('/')
-              m = re.search(r'/home/runner/work/[^/]+/[^/]+/(.+)', filepath)
-              if m: filepath = m.group(1)
-              m = re.search(r'home/runner/work/[^/]+/[^/]+/(.+)', filepath)
-              if m: filepath = m.group(1)
-              return filepath
-
-          for m in re.finditer(r'e:\s+(?:file://)?([^\s:]+\.kt):(\d+):(\d+)\s+(.+)', error_log):
-              error_map[normalize_path(m.group(1))].append((int(m.group(2)), m.group(4).strip()))
-          for m in re.finditer(r'([a-zA-Z0-9_./\-]+\.java):(\d+):\s+error:\s+(.+)', error_log):
-              error_map[normalize_path(m.group(1))].append((int(m.group(2)), m.group(3).strip()))
-          for m in re.finditer(r'([a-zA-Z0-9_./\-]+\.xml):(\d+):(\d+):\s+(.+)', error_log):
-              error_map[normalize_path(m.group(1))].append((int(m.group(2)), m.group(4).strip()))
-
-          with open(OUTPUT, 'w', encoding='utf-8') as out:
-              out.write("==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====\n\n")
-              for filepath in sorted(error_map.keys()):
-                  actual = os.path.join(REPO_ROOT, filepath)
-                  out.write(f"//===== FILE: {filepath} =====\n\n")
-                  errors = sorted(set(error_map[filepath]))
-                  for ln, msg in errors:
-                      out.write(f"// Line {ln}: {msg}\n")
-                  out.write("\n")
-                  if not os.path.isfile(actual):
-                      out.write(f"// FILE NOT FOUND at: {actual}\n\n"); continue
-                  error_lines = {ln for ln, _ in errors}
-                  with open(actual, 'r', encoding='utf-8', errors='ignore') as f:
-                      for ln, line in enumerate(f, 1):
-                          marker = "❌" if ln in error_lines else "  "
-                          out.write(f"{ln:4d} {marker} {line.rstrip()}\n")
-                  out.write("\n\n")
-          PYTHON_SCRIPT
-
-      # ---------------- COMMIT ERROR REPORT WITH CONFLICT HANDLING ----------------
-      - name: Commit & push error report (with conflict resolution)
-        if: steps.gradle_build.outputs.exit_code != '0'
-        run: |
-          git config user.name "build-error-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add build_error_logs/
-          if git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})"; then
-            MAX_RETRIES=3; RETRY_COUNT=0; PUSH_SUCCESS=false
-            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              if git push origin main; then PUSH_SUCCESS=true; break
-              else
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                  git reset --soft HEAD^; git stash
-                  git pull --rebase origin main || git pull origin main
-                  git stash pop || true
-                  git add build_error_logs/
-                  git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})" || true
-                  sleep 2
-                fi
-              fi
-            done
-            [ "$PUSH_SUCCESS" = false ] && echo "Push failed after retries"
-          fi
-
-      - name: Upload error logs as artifact
-        if: steps.gradle_build.outputs.exit_code != '0'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-error-logs
-          path: build_error_logs/
-          retention-days: 30
-
-      - name: Mark build as failed
-        if: steps.gradle_build.outputs.exit_code != '0'
-        run: |
-          echo "::error::Build failed with exit code ${{ steps.gradle_build.outputs.exit_code }}"
-          exit 1
-
 //===== TERMUXFILE: syncwave/setup.sh =====
 #!/data/data/com.termux/files/usr/bin/bash
-# One-time setup — run once after deploying
+# One-time setup — run once after deploying via ai-code.py
 echo "[+] Setting up SyncWave on Termux..."
 pkg update -y
 pkg install -y nodejs curl
@@ -615,7 +415,6 @@ if ! command -v cloudflared &>/dev/null; then
 fi
 
 cd ~/syncwave/server && npm install
-
 chmod +x ~/syncwave/start-server.sh
 
 echo ""
@@ -634,30 +433,24 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  SyncWave Server Launcher"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Kill old processes
 pkill -f "node.*index.js" 2>/dev/null || true
 pkill -f cloudflared       2>/dev/null || true
 sleep 1
 
-# Start Node.js server
 echo "[+] Starting backend on :3001..."
 PORT=3001 node "$DIR/server/index.js" > "$LOG/server.log" 2>&1 &
 SERVER_PID=$!
 sleep 2
 
 if ! kill -0 $SERVER_PID 2>/dev/null; then
-  echo "[!] Server failed. Log:"
-  cat "$LOG/server.log"; exit 1
+  echo "[!] Server failed. Log:"; cat "$LOG/server.log"; exit 1
 fi
 echo "    PID: $SERVER_PID ✅"
 
-# Start cloudflared
 echo "[+] Starting cloudflared tunnel..."
 cloudflared tunnel --url http://localhost:3001 \
   --logfile "$LOG/cloudflared.log" --no-autoupdate &
-CF_PID=$!
 
-# Wait for tunnel URL
 echo "[+] Waiting for tunnel URL..."
 TUNNEL_URL=""
 for i in $(seq 1 30); do
@@ -669,8 +462,7 @@ for i in $(seq 1 30); do
 done
 
 if [ -z "$TUNNEL_URL" ]; then
-  echo "[!] No tunnel URL found. Log:"
-  cat "$LOG/cloudflared.log"; exit 1
+  echo "[!] No tunnel URL. Log:"; cat "$LOG/cloudflared.log"; exit 1
 fi
 
 echo "$TUNNEL_URL" > "$DIR/tunnel-url.txt"
@@ -681,12 +473,9 @@ echo "  ✅ SyncWave is LIVE!"
 echo ""
 echo "  🌐  $TUNNEL_URL"
 echo ""
-echo "  Next steps:"
-echo "  1. Copy URL above"
-echo "  2. Go to GitHub repo → Settings → Secrets"
-echo "  3. Set: SYNCWAVE_SERVER_URL = $TUNNEL_URL"
-echo "  4. Trigger 'Build APK' workflow"
-echo "  5. Install APK on all phones"
+echo "  → Add to GitHub Secrets:"
+echo "    SYNCWAVE_SERVER_URL = $TUNNEL_URL"
+echo "  → Then trigger Build APK workflow"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 tail -f "$LOG/server.log"
@@ -713,89 +502,88 @@ const app    = express()
 const server = http.createServer(app)
 const io     = new Server(server, { cors: { origin: '*' } })
 
-const rooms  = new Map()
+const rooms = new Map()
 
-const snap = room => ({
-  host: room.host, track: room.track,
-  playing: room.playing, currentTime: room.currentTime,
-  users: Array.from(room.users.values())
+const snap = r => ({
+  host: r.host, track: r.track, playing: r.playing,
+  currentTime: r.currentTime, users: Array.from(r.users.values())
 })
 
 io.on('connection', socket => {
-  let currentRoom = null, currentUser = null
+  let room = null, user = null
 
   socket.on('create_room', ({ username }, cb) => {
-    const roomId = uuidv4().slice(0, 6).toUpperCase()
-    currentUser  = { id: socket.id, username, isHost: true }
-    currentRoom  = roomId
-    rooms.set(roomId, {
+    const id = uuidv4().slice(0, 6).toUpperCase()
+    user = { id: socket.id, username, isHost: true }
+    room = id
+    rooms.set(id, {
       host: socket.id, track: null, playing: false,
-      currentTime: 0,  updatedAt: Date.now(),
-      users: new Map([[socket.id, currentUser]])
+      currentTime: 0, updatedAt: Date.now(),
+      users: new Map([[socket.id, user]])
     })
-    socket.join(roomId)
-    cb({ roomId, room: snap(rooms.get(roomId)) })
+    socket.join(id)
+    cb({ roomId: id, room: snap(rooms.get(id)) })
   })
 
   socket.on('join_room', ({ roomId, username }, cb) => {
-    const room = rooms.get(roomId)
-    if (!room) return cb({ error: 'Room not found' })
-    currentUser = { id: socket.id, username, isHost: false }
-    currentRoom = roomId
-    room.users.set(socket.id, currentUser)
+    const r = rooms.get(roomId)
+    if (!r) return cb({ error: 'Room not found' })
+    user = { id: socket.id, username, isHost: false }
+    room = roomId
+    r.users.set(socket.id, user)
     socket.join(roomId)
-    socket.to(roomId).emit('user_joined', { user: currentUser, users: Array.from(room.users.values()) })
-    cb({ room: snap(room) })
+    socket.to(roomId).emit('user_joined', { user, users: Array.from(r.users.values()) })
+    cb({ room: snap(r) })
   })
 
   socket.on('set_track', ({ track }) => {
-    const room = rooms.get(currentRoom)
-    if (!room || room.host !== socket.id) return
-    Object.assign(room, { track, playing: false, currentTime: 0, updatedAt: Date.now() })
-    io.to(currentRoom).emit('track_changed', { track })
+    const r = rooms.get(room)
+    if (!r || r.host !== socket.id) return
+    Object.assign(r, { track, playing: false, currentTime: 0, updatedAt: Date.now() })
+    io.to(room).emit('track_changed', { track })
   })
 
   socket.on('play_pause', ({ playing, currentTime }) => {
-    const room = rooms.get(currentRoom)
-    if (!room || room.host !== socket.id) return
-    Object.assign(room, { playing, currentTime, updatedAt: Date.now() })
-    socket.to(currentRoom).emit('sync_state', { playing, currentTime })
+    const r = rooms.get(room)
+    if (!r || r.host !== socket.id) return
+    Object.assign(r, { playing, currentTime, updatedAt: Date.now() })
+    socket.to(room).emit('sync_state', { playing, currentTime })
   })
 
   socket.on('seek', ({ currentTime }) => {
-    const room = rooms.get(currentRoom)
-    if (!room || room.host !== socket.id) return
-    Object.assign(room, { currentTime, updatedAt: Date.now() })
-    socket.to(currentRoom).emit('sync_seek', { currentTime })
+    const r = rooms.get(room)
+    if (!r || r.host !== socket.id) return
+    Object.assign(r, { currentTime, updatedAt: Date.now() })
+    socket.to(room).emit('sync_seek', { currentTime })
   })
 
   socket.on('chat_message', ({ message }) => {
-    if (!currentRoom || !currentUser) return
-    io.to(currentRoom).emit('chat_message', {
-      id: uuidv4(), username: currentUser.username,
+    if (!room || !user) return
+    io.to(room).emit('chat_message', {
+      id: uuidv4(), username: user.username,
       message, timestamp: Date.now()
     })
   })
 
   socket.on('request_sync', () => {
-    const room = rooms.get(currentRoom)
-    if (!room) return
-    const elapsed = room.playing ? (Date.now() - room.updatedAt) / 1000 : 0
-    socket.emit('sync_state', { playing: room.playing, currentTime: room.currentTime + elapsed })
+    const r = rooms.get(room)
+    if (!r) return
+    const elapsed = r.playing ? (Date.now() - r.updatedAt) / 1000 : 0
+    socket.emit('sync_state', { playing: r.playing, currentTime: r.currentTime + elapsed })
   })
 
   socket.on('disconnect', () => {
-    const room = rooms.get(currentRoom)
-    if (!room) return
-    room.users.delete(socket.id)
-    if (room.host === socket.id) {
-      const next = room.users.values().next().value
+    const r = rooms.get(room)
+    if (!r) return
+    r.users.delete(socket.id)
+    if (r.host === socket.id) {
+      const next = r.users.values().next().value
       if (next) {
-        room.host = next.id; next.isHost = true
-        io.to(currentRoom).emit('host_changed', { newHostId: next.id, users: Array.from(room.users.values()) })
-      } else { rooms.delete(currentRoom); return }
+        r.host = next.id; next.isHost = true
+        io.to(room).emit('host_changed', { newHostId: next.id, users: Array.from(r.users.values()) })
+      } else { rooms.delete(room); return }
     }
-    io.to(currentRoom).emit('user_left', { userId: socket.id, users: Array.from(room.users.values()) })
+    io.to(room).emit('user_left', { userId: socket.id, users: Array.from(r.users.values()) })
   })
 })
 
