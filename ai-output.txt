@@ -1,525 +1,803 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-package com.jarvismini.ui.main
+//===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.syncwave.app">
 
-import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jarvismini.agent.AgentDashboardViewModel
-import com.jarvismini.core.ProgressInitializer
-import com.jarvismini.core.ProgressRepository
-import com.jarvismini.core.routine.RoutineProvider
-import com.jarvismini.core.routine.model.Routine
-import com.jarvismini.ui.boot.BootScreen
-import com.jarvismini.ui.calendar.DayCalendarScreen
-import com.jarvismini.ui.calendar.CalendarViewModel
-import com.jarvismini.ui.chat.JarvisChatScreen
-import com.jarvismini.ui.checklist.JarvisChecklistScreen
-import com.jarvismini.ui.debug.DebugScreen
-import com.jarvismini.ui.home.EnhancedHomeScreen
-import com.jarvismini.ui.llm.TermuxCommandScreen
-import com.jarvismini.ui.settings.SettingsScreen
-import com.jarvismini.agent.AgentDashboardScreen
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-enum class MainTab {
-    Home,
-    Chat,
-    Calendar,
-    Checklist,
-    Settings,
-    Debug,
-    TermuxCommand,
-    AgentDashboard,
-}
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SyncWave"
+        android:usesCleartextTraffic="true">
 
-@Composable
-fun MainScreen() {
-    val context = LocalContext.current
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
-    var showBoot    by remember { mutableStateOf(true) }
-    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+    </application>
+</manifest>
 
-    // Shared AgentDashboardViewModel so voice tasks from Home flow into the dashboard
-    val agentVm: AgentDashboardViewModel = viewModel()
+//===== FILE: app/src/main/kotlin/com/syncwave/app/MainActivity.kt =====
+package com.syncwave.app
 
-    if (showBoot) {
-        BootScreen(onBootComplete = { showBoot = false })
-        return
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.View
+import android.webkit.*
+import android.widget.FrameLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var webView: WebView
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var progressBar: ProgressBar
+    private lateinit var errorView: FrameLayout
+    private lateinit var errorText: TextView
+
+    private val serverUrl = BuildConfig.SERVER_URL
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        webView       = findViewById(R.id.webView)
+        swipeRefresh  = findViewById(R.id.swipeRefresh)
+        progressBar   = findViewById(R.id.progressBar)
+        errorView     = findViewById(R.id.errorView)
+        errorText     = findViewById(R.id.errorText)
+
+        setupWebView()
+        setupSwipeRefresh()
+        loadApp()
     }
 
-    LaunchedEffect(Unit) {
-        ProgressInitializer.registerAllBlocks(context)
-        ProgressRepository.getTodayBlocks()
-        RoutineProvider.getAllRoutines(context)
-    }
-
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MainTab.Checklist) {
-            ProgressInitializer.registerAllBlocks(context)
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun setupWebView() {
+        webView.settings.apply {
+            javaScriptEnabled             = true
+            domStorageEnabled             = true
+            allowFileAccess               = true
+            allowContentAccess            = true
+            mediaPlaybackRequiresUserGesture = false
+            mixedContentMode              = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            cacheMode                     = WebSettings.LOAD_DEFAULT
+            setSupportZoom(false)
+            displayZoomControls           = false
+            builtInZoomControls           = false
+            loadWithOverviewMode          = true
+            useWideViewPort               = true
+            databaseEnabled               = true
         }
-    }
 
-    when (selectedTab) {
-        MainTab.Home -> EnhancedHomeScreen(
-            onNavigateToChat          = { selectedTab = MainTab.Chat },
-            onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
-            onNavigateToSettings      = { selectedTab = MainTab.Settings },
-            onNavigateToDebug         = { selectedTab = MainTab.Debug },
-            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
-            onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
-            onVoiceTask               = { task ->
-                // Pre-fill task in VM, navigate to dashboard, then auto-start the agent
-                agentVm.onTaskInput(task)
-                selectedTab = MainTab.AgentDashboard
-                agentVm.startAgent()           // ← FIX: was missing — voice never triggered run
+        webView.addJavascriptInterface(AndroidBridge(this), "AndroidBridge")
+
+        webView.webViewClient = object : WebViewClient() {
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                progressBar.visibility = View.VISIBLE
+                errorView.visibility   = View.GONE
+                webView.visibility     = View.VISIBLE
             }
-        )
-        MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.Calendar     -> {
-            val vm = remember { CalendarViewModel(context) }
-            DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
-        }
-        MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-        MainTab.AgentDashboard -> AgentDashboardScreen(
-            onBack = { selectedTab = MainTab.Home },
-            vm     = agentVm,
-        )
-    }
-}
 
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                progressBar.visibility    = View.GONE
+                swipeRefresh.isRefreshing = false
+                injectTheme()
+            }
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
-package com.jarvismini.agent
-
-import android.content.Context
-import android.content.SharedPreferences
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.jarvismini.core.JarvisPrefs
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-
-data class AgentDashboardState(
-    val serverOnline:  Boolean        = false,
-    val running:       Boolean        = false,
-    val task:          String         = "",
-    val step:          Int            = 0,
-    val done:          Boolean        = false,
-    val error:         String?        = null,
-    val logs:          List<LogLine>  = emptyList(),
-    val taskInput:     String         = "",
-    val deviceInput:   String         = "192.168.29.48:40657",
-    val maxSteps:      Int            = 20,
-    val ttsEnabled:    Boolean        = true,
-)
-
-data class LogLine(
-    val text:  String,
-    val level: LogLevel = LogLevel.INFO,
-)
-
-enum class LogLevel { INFO, STEP, SUCCESS, ERROR, WARN, SYSTEM }
-
-fun classifyLog(line: String): LogLevel = when {
-    line.contains("✓") || line.contains("Task complete") || line.contains("completed") -> LogLevel.SUCCESS
-    line.contains("✗") || line.contains("ERROR") || line.contains("error:", ignoreCase = true) -> LogLevel.ERROR
-    line.contains("WARNING") || line.contains("WARN") || line.contains("Retry") -> LogLevel.WARN
-    line.contains("STEP") && line.contains("|") -> LogLevel.STEP
-    line.startsWith("[server]") || line.startsWith("[agent_server]") -> LogLevel.SYSTEM
-    else -> LogLevel.INFO
-}
-
-class AgentDashboardViewModel : ViewModel() {
-
-    private val _state = MutableStateFlow(AgentDashboardState())
-    val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
-
-    private var logStreamJob:  Job? = null
-    private var statusPollJob: Job? = null
-    private var autoSpeakJob:  Job? = null   // watches for task completion and speaks
-
-    init {
-        checkServer()
-        observeDoneForAutoSpeak()
-    }
-
-    fun checkServer() {
-        viewModelScope.launch {
-            val online = AgentRepository.isAgentServerReachable()
-            _state.update { it.copy(serverOnline = online) }
-            if (online) pollStatus()
-        }
-    }
-
-    fun onTaskInput(v: String)   = _state.update { it.copy(taskInput = v) }
-    fun onDeviceInput(v: String) = _state.update { it.copy(deviceInput = v) }
-    fun onMaxStepsInput(v: Int)  = _state.update { it.copy(maxSteps = v) }
-    fun onTtsToggle(v: Boolean)  = _state.update { it.copy(ttsEnabled = v) }
-
-    fun startAgent() {
-        val s = _state.value
-        val task   = s.taskInput.trim()
-        val device = s.deviceInput.trim()
-        if (task.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(logs = emptyList(), done = false, error = null) }
-            pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
-
-            AgentRepository.runTask(task, device, s.maxSteps)
-                .onSuccess { pushLog("[dashboard] Agent started: $it", LogLevel.SYSTEM) }
-                .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
-
-            startLogStream()
-        }
-    }
-
-    fun stopAgent() {
-        viewModelScope.launch {
-            AgentRepository.stopAgent()
-            pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
-        }
-    }
-
-    fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
-
-    // Manual "Speak" button — speaks last SUCCESS/STEP log line
-    fun speakResult(context: Context? = null) {
-        val last = _state.value.logs
-            .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
-            .lastOrNull()?.text ?: return
-
-        val voiceId = resolveVoiceId()
-        viewModelScope.launch {
-            AgentRepository.speak(last, voiceId)
-        }
-    }
-
-    // ── Auto-speak watcher ────────────────────────────────────────────────────
-    // Fires automatically when the agent finishes (done flips true) and TTS is on.
-    // Speaks the last SUCCESS line so Sir hears the result hands-free.
-    private fun observeDoneForAutoSpeak() {
-        autoSpeakJob?.cancel()
-        autoSpeakJob = viewModelScope.launch {
-            var prevDone = false
-            state.collect { s ->
-                if (s.done && !prevDone && s.ttsEnabled) {
-                    // Task just completed — find best line to speak
-                    val toSpeak = s.logs
-                        .filter { it.level == LogLevel.SUCCESS }
-                        .lastOrNull()?.text
-                        ?: s.logs.lastOrNull()?.text
-                    if (!toSpeak.isNullOrBlank()) {
-                        val voiceId = resolveVoiceId()
-                        AgentRepository.speak(toSpeak, voiceId)
-                    }
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                if (request?.isForMainFrame == true) {
+                    progressBar.visibility    = View.GONE
+                    webView.visibility        = View.GONE
+                    errorView.visibility      = View.VISIBLE
+                    swipeRefresh.isRefreshing = false
+                    errorText.text =
+                        "Cannot connect to SyncWave server.\n\n" +
+                        "Make sure Termux server is running.\n\n" +
+                        "${error?.description}"
                 }
-                prevDone = s.done
+            }
+
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                val url = request?.url.toString()
+                if (!url.startsWith(serverUrl) &&
+                    (url.startsWith("http") || url.startsWith("https"))) {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    return true
+                }
+                return false
+            }
+        }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                progressBar.progress = newProgress
+                if (newProgress == 100) progressBar.visibility = View.GONE
+            }
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                request?.grant(request.resources)
             }
         }
     }
 
-    // Reads the voice ID that was saved in Settings (elevenlabs_voice_id pref).
-    // Falls back to the Jarvis custom voice if not set.
-    private fun resolveVoiceId(): String {
-        val saved = JarvisPrefs.getString("elevenlabs_voice_id")
-        return if (!saved.isNullOrBlank()) saved else "lNiTyQyEeDoFcsYb4RUT"  // Jarvis voice
+    private fun setupSwipeRefresh() {
+        swipeRefresh.setColorSchemeColors(getColor(R.color.cyan))
+        swipeRefresh.setOnRefreshListener { loadApp() }
     }
 
-    private fun startLogStream() {
-        logStreamJob?.cancel()
-        logStreamJob = viewModelScope.launch {
-            AgentRepository.streamLogs().collect { line ->
-                pushLog(line, classifyLog(line))
-            }
+    private fun loadApp() {
+        errorView.visibility   = View.GONE
+        webView.visibility     = View.VISIBLE
+        progressBar.visibility = View.VISIBLE
+        webView.loadUrl(serverUrl)
+    }
+
+    private fun injectTheme() {
+        val js = """
+            (function(){
+                var m = document.querySelector('meta[name=viewport]');
+                if(!m){ m = document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); }
+                m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no';
+                document.body.style.userSelect='none';
+                document.body.style.webkitUserSelect='none';
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
+    override fun onBackPressed() {
+        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
+    }
+
+    override fun onResume()  { super.onResume();  webView.onResume()  }
+    override fun onPause()   { super.onPause();   webView.onPause()   }
+    override fun onDestroy() { super.onDestroy(); webView.destroy()   }
+}
+
+//===== FILE: app/src/main/kotlin/com/syncwave/app/AndroidBridge.kt =====
+package com.syncwave.app
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.webkit.JavascriptInterface
+import android.widget.Toast
+
+class AndroidBridge(private val context: Context) {
+
+    @JavascriptInterface
+    fun copyToClipboard(text: String) {
+        val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cb.setPrimaryClip(ClipData.newPlainText("SyncWave", text))
+        Toast.makeText(context, "Room code copied!", Toast.LENGTH_SHORT).show()
+    }
+
+    @JavascriptInterface
+    fun showToast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    @JavascriptInterface
+    fun getAppVersion(): String = BuildConfig.VERSION_NAME
+}
+
+//===== FILE: app/src/main/res/layout/activity_main.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#080808">
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#080808" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="top"
+        android:max="100"
+        android:progressTint="@color/cyan"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/errorView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#080808"
+        android:visibility="gone"
+        android:padding="32dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📡"
+                android:textSize="48sp"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:id="@+id/errorText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cannot connect to server"
+                android:textColor="#888888"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:lineSpacingExtra="6dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pull down to retry"
+                android:textColor="#00f5d4"
+                android:textSize="13sp"
+                android:layout_marginTop="16dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</FrameLayout>
+
+//===== FILE: app/src/main/res/values/strings.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SyncWave</string>
+</resources>
+
+//===== FILE: app/src/main/res/values/colors.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cyan">#00f5d4</color>
+    <color name="bg">#080808</color>
+    <color name="surface">#111111</color>
+</resources>
+
+//===== FILE: app/src/main/res/values/themes.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SyncWave" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="colorPrimary">@color/cyan</item>
+    </style>
+</resources>
+
+//===== FILE: app/build.gradle =====
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.syncwave.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.syncwave.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        def serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:3001"
+        buildConfigField "String", "SERVER_URL", "\"${serverUrl}\""
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+            debuggable true
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
-    private fun pollStatus() {
-        statusPollJob?.cancel()
-        statusPollJob = viewModelScope.launch {
-            while (true) {
-                delay(2000)
-                val status = AgentRepository.getStatus()
-                _state.update { it.copy(
-                    running      = status.running,
-                    task         = status.task,
-                    step         = status.step,
-                    done         = status.done,
-                    error        = status.error,
-                    serverOnline = true,
-                )}
-            }
-        }
+    buildFeatures {
+        buildConfig true
     }
 
-    private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
-        _state.update { s ->
-            val logs = (s.logs + LogLine(text, level)).takeLast(200)
-            s.copy(logs = logs)
-        }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
-    override fun onCleared() {
-        logStreamJob?.cancel()
-        statusPollJob?.cancel()
-        autoSpeakJob?.cancel()
-        super.onCleared()
+    kotlinOptions {
+        jvmTarget = '17'
     }
 }
 
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'com.google.android.material:material:1.11.0'
+}
 
-//===== FILE: elevenlabs_tts.py =====
-#!/usr/bin/env python3
-"""
-elevenlabs_tts.py  —  ElevenLabs TTS with multi-key rotation
-=============================================================
-Runs on Phone A (Termux).
-Called by Android app via HTTP (port 8892) OR directly by agent_server
-when Jarvis wants to speak a result.
+//===== FILE: app/proguard-rules.pro =====
+-keep class com.syncwave.app.AndroidBridge { *; }
+-keepclassmembers class com.syncwave.app.AndroidBridge {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-Multiple API keys rotate on quota exhaustion (429 / 401).
-Audio played via termux-media-player or mpv.
+//===== FILE: build.gradle =====
+plugins {
+    id 'com.android.application' version '8.2.2' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+}
 
-Endpoint:
-  POST /speak  { "text": "...", "voice_id": "..." }
-  GET  /voices List available voices
-  GET  /health
-"""
+//===== FILE: settings.gradle =====
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "SyncWave"
+include ':app'
 
-import os
-import json
-import queue
-import shutil
-import tempfile
-import threading
-import subprocess
-import urllib.request
-import urllib.error
-from http.server import HTTPServer, BaseHTTPRequestHandler
+//===== FILE: gradle/wrapper/gradle-wrapper.properties =====
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
 
-PORT = 8892
+//===== FILE: .github/workflows/build-apk.yml =====
+name: Build APK
 
-# ---------------------------------------------------------------------------
-# Key pool — add as many as you have
-# ---------------------------------------------------------------------------
-# Keys loaded from env or config file at ~/workflows/.elevenlabs_keys
-# Format in file: one key per line
+on:
+  workflow_run:
+    workflows: ["Extract Repo Source to TXT"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: 'SyncWave cloudflared tunnel URL'
+        required: false
+        default: 'https://your-tunnel.trycloudflare.com'
 
-_KEY_FILE = os.path.expanduser("~/workflows/.elevenlabs_keys")
+permissions:
+  contents: write
 
-def _load_keys() -> list:
-    keys = []
-    # From env
-    env_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
-    if env_key:
-        keys.append(env_key)
-    # From file
-    if os.path.isfile(_KEY_FILE):
-        with open(_KEY_FILE) as f:
-            for line in f:
-                k = line.strip()
-                if k and not k.startswith("#") and k not in keys:
-                    keys.append(k)
-    return keys
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-_keys: list = []
-_key_index = 0
-_key_lock  = threading.Lock()
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
-def _get_key() -> str:
-    global _keys
-    if not _keys:
-        _keys = _load_keys()
-    if not _keys:
-        raise RuntimeError("No ElevenLabs API keys configured.\n"
-                           f"Add keys to {_KEY_FILE} (one per line)")
-    with _key_lock:
-        return _keys[_key_index % len(_keys)]
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
-def _rotate_key():
-    global _key_index
-    with _key_lock:
-        _key_index += 1
-        new = _keys[_key_index % len(_keys)] if _keys else None
-    print(f"[tts] Rotated to key index {_key_index % len(_keys)}")
-    return new
+      - name: Set SERVER_URL
+        run: |
+          URL="${{ github.event.inputs.server_url || secrets.SYNCWAVE_SERVER_URL || 'https://your-tunnel.trycloudflare.com' }}"
+          echo "SERVER_URL=$URL" >> $GITHUB_ENV
+          echo "Building APK with server: $URL"
 
-# ---------------------------------------------------------------------------
-# Default voice — Jarvis custom voice
-# ---------------------------------------------------------------------------
+      # ---------------- BUILD (never hard-fails) ----------------
+      - name: Build Debug APK and capture log
+        id: gradle_build
+        continue-on-error: true
+        env:
+          SERVER_URL: ${{ env.SERVER_URL }}
+        run: |
+          chmod +x ./gradlew
+          mkdir -p build_error_logs
+          ./gradlew assembleDebug --no-daemon --stacktrace --info \
+            2>&1 | tee build_error_logs/build_output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
-DEFAULT_VOICE    = "lNiTyQyEeDoFcsYb4RUT"   # ← Jarvis voice (was Adam pNInz6obpgDQGcFmaJgB)
-DEFAULT_MODEL    = "eleven_turbo_v2"
-ELEVENLABS_BASE  = "https://api.elevenlabs.io/v1"
+      # ---------------- APK UPLOAD ----------------
+      - name: Upload Debug APK
+        if: steps.gradle_build.outputs.exit_code == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: syncwave-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
 
-# ---------------------------------------------------------------------------
-# TTS core
-# ---------------------------------------------------------------------------
+      - name: Commit APK to releases/
+        if: steps.gradle_build.outputs.exit_code == '0'
+        run: |
+          mkdir -p releases
+          cp app/build/outputs/apk/debug/app-debug.apk releases/syncwave-latest.apk
+          git config user.name "build-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add releases/syncwave-latest.apk
+          git diff --staged --quiet || git commit -m "APK: syncwave-latest.apk [skip ci]"
+          git push origin main || echo "Push skipped"
 
-def _tts_request(text: str, voice_id: str) -> bytes:
-    """Returns raw MP3 bytes. Rotates key on 429/401."""
-    max_attempts = max(len(_keys) if _keys else 1, 1) + 1
-    for attempt in range(max_attempts):
-        key = _get_key()
-        url = f"{ELEVENLABS_BASE}/text-to-speech/{voice_id}"
-        payload = json.dumps({
-            "text": text,
-            "model_id": DEFAULT_MODEL,
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75,
-                "style": 0.2,
-                "use_speaker_boost": True
-            }
-        }).encode()
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={
-                "xi-api-key":   key,
-                "Content-Type": "application/json",
-                "Accept":       "audio/mpeg",
-            },
-            method="POST"
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                return resp.read()
-        except urllib.error.HTTPError as e:
-            if e.code in (429, 401) and len(_keys) > 1:
-                print(f"[tts] Key quota/auth error ({e.code}), rotating...")
-                _rotate_key()
-                continue
-            raise
-    raise RuntimeError("All ElevenLabs API keys exhausted")
+      # ---------------- ENHANCED ERROR EXTRACTION ----------------
+      - name: Extract errors (enhanced for native builds)
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          mkdir -p build_error_logs
+          {
+            echo "==== GRADLE BUILD ERROR REPORT ===="
+            echo
+            echo "-- KOTLIN/JAVA ERRORS --"
+            grep -E "\.kt:[0-9]+:[0-9]+ error|\.java:[0-9]+: error|^e: " build_error_logs/build_output.txt || echo "No Kotlin/Java errors"
+            echo
+            echo "-- XML RESOURCE ERRORS --"
+            grep -E "\.xml:[0-9]+:" build_error_logs/build_output.txt || echo "No XML errors"
+            echo
+            echo "-- BUILD TASK FAILURES --"
+            grep -E "BUILD FAILED|FAILURE: Build failed|Task.*FAILED" build_error_logs/build_output.txt || echo "No task failures"
+            echo
+            echo "-- EXCEPTION STACK TRACES --"
+            grep -A 10 "Exception" build_error_logs/build_output.txt | head -100 || echo "No exceptions"
+          } > build_error_logs/error_summary.txt
+          cat build_error_logs/error_summary.txt
+          tail -1000 build_error_logs/build_output.txt > build_error_logs/build_tail.txt
 
+      # ---------------- EXTRACT ERROR SOURCE FILES WITH PYTHON ----------------
+      - name: Extract source code of error files with highlighted error lines
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          python3 << 'PYTHON_SCRIPT'
+          import re, os
+          from collections import defaultdict
 
-def _play_audio(mp3_bytes: bytes):
-    """Play MP3 bytes using available player."""
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-        f.write(mp3_bytes)
-        path = f.name
-    try:
-        # Try termux-media-player first (works on Termux without root)
-        if shutil.which("termux-media-player"):
-            subprocess.run(["termux-media-player", "play", path],
-                           check=True, timeout=60)
-        elif shutil.which("mpv"):
-            subprocess.run(["mpv", "--no-video", path],
-                           check=True, timeout=60)
-        elif shutil.which("ffplay"):
-            subprocess.run(["ffplay", "-nodisp", "-autoexit", path],
-                           check=True, timeout=60)
-        else:
-            print(f"[tts] No audio player found. Audio saved: {path}")
-            return
-    finally:
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
+          ERROR_LOG = "build_error_logs/build_output.txt"
+          OUTPUT    = "build_error_logs/error_files.txt"
+          REPO_ROOT = os.getcwd()
 
+          with open(ERROR_LOG, 'r', encoding='utf-8', errors='ignore') as f:
+              error_log = f.read()
 
-# Speech queue — prevents concurrent TTS calls
-_speech_queue: "queue.Queue[tuple]" = queue.Queue()
+          error_map = defaultdict(list)
 
-def _speech_worker():
-    while True:
-        text, voice_id = _speech_queue.get()
-        try:
-            print(f"[tts] Speaking ({voice_id}): {text[:60]!r}")
-            mp3 = _tts_request(text, voice_id)
-            _play_audio(mp3)
-        except Exception as e:
-            print(f"[tts] Error: {e}")
-        finally:
-            _speech_queue.task_done()
+          def normalize_path(filepath):
+              filepath = re.sub(r'^file:/+', '', filepath).lstrip('/')
+              m = re.search(r'/home/runner/work/[^/]+/[^/]+/(.+)', filepath)
+              if m: filepath = m.group(1)
+              m = re.search(r'home/runner/work/[^/]+/[^/]+/(.+)', filepath)
+              if m: filepath = m.group(1)
+              return filepath
 
-_worker = threading.Thread(target=_speech_worker, daemon=True)
-_worker.start()
+          for m in re.finditer(r'e:\s+(?:file://)?([^\s:]+\.kt):(\d+):(\d+)\s+(.+)', error_log):
+              error_map[normalize_path(m.group(1))].append((int(m.group(2)), m.group(4).strip()))
+          for m in re.finditer(r'([a-zA-Z0-9_./\-]+\.java):(\d+):\s+error:\s+(.+)', error_log):
+              error_map[normalize_path(m.group(1))].append((int(m.group(2)), m.group(3).strip()))
+          for m in re.finditer(r'([a-zA-Z0-9_./\-]+\.xml):(\d+):(\d+):\s+(.+)', error_log):
+              error_map[normalize_path(m.group(1))].append((int(m.group(2)), m.group(4).strip()))
 
+          with open(OUTPUT, 'w', encoding='utf-8') as out:
+              out.write("==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====\n\n")
+              for filepath in sorted(error_map.keys()):
+                  actual = os.path.join(REPO_ROOT, filepath)
+                  out.write(f"//===== FILE: {filepath} =====\n\n")
+                  errors = sorted(set(error_map[filepath]))
+                  for ln, msg in errors:
+                      out.write(f"// Line {ln}: {msg}\n")
+                  out.write("\n")
+                  if not os.path.isfile(actual):
+                      out.write(f"// FILE NOT FOUND at: {actual}\n\n"); continue
+                  error_lines = {ln for ln, _ in errors}
+                  with open(actual, 'r', encoding='utf-8', errors='ignore') as f:
+                      for ln, line in enumerate(f, 1):
+                          marker = "❌" if ln in error_lines else "  "
+                          out.write(f"{ln:4d} {marker} {line.rstrip()}\n")
+                  out.write("\n\n")
+          PYTHON_SCRIPT
 
-def speak(text: str, voice_id: str = DEFAULT_VOICE, block: bool = False):
-    """Queue text for speaking. Non-blocking by default."""
-    _speech_queue.put((text, voice_id))
-    if block:
-        _speech_queue.join()
+      # ---------------- COMMIT ERROR REPORT WITH CONFLICT HANDLING ----------------
+      - name: Commit & push error report (with conflict resolution)
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          git config user.name "build-error-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add build_error_logs/
+          if git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})"; then
+            MAX_RETRIES=3; RETRY_COUNT=0; PUSH_SUCCESS=false
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if git push origin main; then PUSH_SUCCESS=true; break
+              else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  git reset --soft HEAD^; git stash
+                  git pull --rebase origin main || git pull origin main
+                  git stash pop || true
+                  git add build_error_logs/
+                  git commit -m "Build failed - error report (exit code: ${{ steps.gradle_build.outputs.exit_code }})" || true
+                  sleep 2
+                fi
+              fi
+            done
+            [ "$PUSH_SUCCESS" = false ] && echo "Push failed after retries"
+          fi
 
+      - name: Upload error logs as artifact
+        if: steps.gradle_build.outputs.exit_code != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-logs
+          path: build_error_logs/
+          retention-days: 30
 
-# ---------------------------------------------------------------------------
-# HTTP handler
-# ---------------------------------------------------------------------------
+      - name: Mark build as failed
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: |
+          echo "::error::Build failed with exit code ${{ steps.gradle_build.outputs.exit_code }}"
+          exit 1
 
-class TTSHandler(BaseHTTPRequestHandler):
+//===== TERMUXFILE: syncwave/setup.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# One-time setup — run once after deploying
+echo "[+] Setting up SyncWave on Termux..."
+pkg update -y
+pkg install -y nodejs curl
 
-    def log_message(self, fmt, *args):
-        pass
+mkdir -p ~/syncwave/server ~/syncwave/logs
 
-    def _json(self, code: int, data: dict):
-        body = json.dumps(data).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(body)
+# Install cloudflared
+if ! command -v cloudflared &>/dev/null; then
+  echo "[+] Installing cloudflared..."
+  curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" \
+    -o "$PREFIX/bin/cloudflared" && chmod +x "$PREFIX/bin/cloudflared"
+fi
 
-    def _body(self) -> dict:
-        n = int(self.headers.get("Content-Length", 0))
-        return json.loads(self.rfile.read(n)) if n else {}
+cd ~/syncwave/server && npm install
 
-    def do_GET(self):
-        if self.path == "/health":
-            loaded = _load_keys()
-            self._json(200, {"ok": True, "keys": len(loaded)})
-        elif self.path == "/voices":
-            self._json(200, {"voices": [
-                {"id": "lNiTyQyEeDoFcsYb4RUT", "name": "Jarvis"},   # ← default first
-                {"id": "pNInz6obpgDQGcFmaJgB", "name": "Adam"},
-                {"id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah"},
-                {"id": "onwK4e9ZLuTAKqWW03F9", "name": "Daniel"},
-                {"id": "XB0fDUnXU5powFXDhCwa", "name": "Charlotte"},
-                {"id": "N2lVS1w4EtoT3dr4eOWO", "name": "Callum"},
-            ]})
-        else:
-            self._json(404, {"error": "not found"})
+chmod +x ~/syncwave/start-server.sh
 
-    def do_POST(self):
-        if self.path == "/speak":
-            b = self._body()
-            text     = b.get("text", "").strip()
-            voice_id = b.get("voice_id", DEFAULT_VOICE)
-            if not text:
-                self._json(400, {"error": "text required"})
-                return
-            speak(text, voice_id)
-            self._json(200, {"ok": True, "queued": text[:60]})
-        else:
-            self._json(404, {"error": "not found"})
+echo ""
+echo "✅ Setup complete! Run: bash ~/syncwave/start-server.sh"
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+//===== TERMUXFILE: syncwave/start-server.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# Start SyncWave backend + cloudflared tunnel
+set -e
 
+DIR="$HOME/syncwave"
+LOG="$DIR/logs"
+mkdir -p "$LOG"
 
-if __name__ == "__main__":
-    _keys = _load_keys()
-    print(f"[tts] Loaded {len(_keys)} API key(s)")
-    print(f"[tts] Default voice: {DEFAULT_VOICE} (Jarvis)")
-    if not _keys:
-        print(f"[tts] WARNING: No keys found. Add to {_KEY_FILE}")
-    server = HTTPServer(("0.0.0.0", PORT), TTSHandler)
-    print(f"[tts] Listening on 0.0.0.0:{PORT}")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("[tts] Stopped")
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  SyncWave Server Launcher"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Kill old processes
+pkill -f "node.*index.js" 2>/dev/null || true
+pkill -f cloudflared       2>/dev/null || true
+sleep 1
+
+# Start Node.js server
+echo "[+] Starting backend on :3001..."
+PORT=3001 node "$DIR/server/index.js" > "$LOG/server.log" 2>&1 &
+SERVER_PID=$!
+sleep 2
+
+if ! kill -0 $SERVER_PID 2>/dev/null; then
+  echo "[!] Server failed. Log:"
+  cat "$LOG/server.log"; exit 1
+fi
+echo "    PID: $SERVER_PID ✅"
+
+# Start cloudflared
+echo "[+] Starting cloudflared tunnel..."
+cloudflared tunnel --url http://localhost:3001 \
+  --logfile "$LOG/cloudflared.log" --no-autoupdate &
+CF_PID=$!
+
+# Wait for tunnel URL
+echo "[+] Waiting for tunnel URL..."
+TUNNEL_URL=""
+for i in $(seq 1 30); do
+  sleep 1
+  TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9\-]*\.trycloudflare\.com' \
+    "$LOG/cloudflared.log" 2>/dev/null | head -1)
+  [ -n "$TUNNEL_URL" ] && break
+  echo "    attempt $i/30..."
+done
+
+if [ -z "$TUNNEL_URL" ]; then
+  echo "[!] No tunnel URL found. Log:"
+  cat "$LOG/cloudflared.log"; exit 1
+fi
+
+echo "$TUNNEL_URL" > "$DIR/tunnel-url.txt"
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ✅ SyncWave is LIVE!"
+echo ""
+echo "  🌐  $TUNNEL_URL"
+echo ""
+echo "  Next steps:"
+echo "  1. Copy URL above"
+echo "  2. Go to GitHub repo → Settings → Secrets"
+echo "  3. Set: SYNCWAVE_SERVER_URL = $TUNNEL_URL"
+echo "  4. Trigger 'Build APK' workflow"
+echo "  5. Install APK on all phones"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+tail -f "$LOG/server.log"
+
+//===== TERMUXFILE: syncwave/server/package.json =====
+{
+  "name": "syncwave-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0"
+  }
+}
+
+//===== TERMUXFILE: syncwave/server/index.js =====
+const express = require('express')
+const http    = require('http')
+const { Server } = require('socket.io')
+const { v4: uuidv4 } = require('uuid')
+
+const app    = express()
+const server = http.createServer(app)
+const io     = new Server(server, { cors: { origin: '*' } })
+
+const rooms  = new Map()
+
+const snap = room => ({
+  host: room.host, track: room.track,
+  playing: room.playing, currentTime: room.currentTime,
+  users: Array.from(room.users.values())
+})
+
+io.on('connection', socket => {
+  let currentRoom = null, currentUser = null
+
+  socket.on('create_room', ({ username }, cb) => {
+    const roomId = uuidv4().slice(0, 6).toUpperCase()
+    currentUser  = { id: socket.id, username, isHost: true }
+    currentRoom  = roomId
+    rooms.set(roomId, {
+      host: socket.id, track: null, playing: false,
+      currentTime: 0,  updatedAt: Date.now(),
+      users: new Map([[socket.id, currentUser]])
+    })
+    socket.join(roomId)
+    cb({ roomId, room: snap(rooms.get(roomId)) })
+  })
+
+  socket.on('join_room', ({ roomId, username }, cb) => {
+    const room = rooms.get(roomId)
+    if (!room) return cb({ error: 'Room not found' })
+    currentUser = { id: socket.id, username, isHost: false }
+    currentRoom = roomId
+    room.users.set(socket.id, currentUser)
+    socket.join(roomId)
+    socket.to(roomId).emit('user_joined', { user: currentUser, users: Array.from(room.users.values()) })
+    cb({ room: snap(room) })
+  })
+
+  socket.on('set_track', ({ track }) => {
+    const room = rooms.get(currentRoom)
+    if (!room || room.host !== socket.id) return
+    Object.assign(room, { track, playing: false, currentTime: 0, updatedAt: Date.now() })
+    io.to(currentRoom).emit('track_changed', { track })
+  })
+
+  socket.on('play_pause', ({ playing, currentTime }) => {
+    const room = rooms.get(currentRoom)
+    if (!room || room.host !== socket.id) return
+    Object.assign(room, { playing, currentTime, updatedAt: Date.now() })
+    socket.to(currentRoom).emit('sync_state', { playing, currentTime })
+  })
+
+  socket.on('seek', ({ currentTime }) => {
+    const room = rooms.get(currentRoom)
+    if (!room || room.host !== socket.id) return
+    Object.assign(room, { currentTime, updatedAt: Date.now() })
+    socket.to(currentRoom).emit('sync_seek', { currentTime })
+  })
+
+  socket.on('chat_message', ({ message }) => {
+    if (!currentRoom || !currentUser) return
+    io.to(currentRoom).emit('chat_message', {
+      id: uuidv4(), username: currentUser.username,
+      message, timestamp: Date.now()
+    })
+  })
+
+  socket.on('request_sync', () => {
+    const room = rooms.get(currentRoom)
+    if (!room) return
+    const elapsed = room.playing ? (Date.now() - room.updatedAt) / 1000 : 0
+    socket.emit('sync_state', { playing: room.playing, currentTime: room.currentTime + elapsed })
+  })
+
+  socket.on('disconnect', () => {
+    const room = rooms.get(currentRoom)
+    if (!room) return
+    room.users.delete(socket.id)
+    if (room.host === socket.id) {
+      const next = room.users.values().next().value
+      if (next) {
+        room.host = next.id; next.isHost = true
+        io.to(currentRoom).emit('host_changed', { newHostId: next.id, users: Array.from(room.users.values()) })
+      } else { rooms.delete(currentRoom); return }
+    }
+    io.to(currentRoom).emit('user_left', { userId: socket.id, users: Array.from(room.users.values()) })
+  })
+})
+
+const PORT = process.env.PORT || 3001
+server.listen(PORT, () => console.log(`[SyncWave] :${PORT}`))
