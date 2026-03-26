@@ -1,4 +1,3 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 package com.jarvismini.llm
 
 import android.content.Context
