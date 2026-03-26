@@ -1,53 +1,377 @@
-## ACTION REQUIRED — Delete these files from your repo:
-##
-##   app/src/main/res/mipmap-mdpi/ic_launcher.xml
-##   app/src/main/res/mipmap-mdpi/ic_launcher_round.xml
-##   app/src/main/res/mipmap-hdpi/ic_launcher.xml
-##   app/src/main/res/mipmap-hdpi/ic_launcher_round.xml
-##   app/src/main/res/mipmap-xhdpi/ic_launcher.xml
-##   app/src/main/res/mipmap-xhdpi/ic_launcher_round.xml
-##   app/src/main/res/mipmap-xxhdpi/ic_launcher.xml
-##   app/src/main/res/mipmap-xxhdpi/ic_launcher_round.xml
-##   app/src/main/res/mipmap-xxxhdpi/ic_launcher.xml
-##   app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.xml
-##
-## The repo already had .png files in those folders.
-## XML and PNG cannot coexist for the same resource name.
-## The anydpi-v26 XMLs below are the ONLY icon XMLs that should exist.
+//===== FILE: app/src/main/kotlin/com/syncwave/app/MainActivity.kt =====
+package com.syncwave.app
 
-//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-</adaptive-icon>
+import android.annotation.SuppressLint
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.IBinder
+import android.view.View
+import android.webkit.*
+import android.widget.FrameLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
-//===== FILE: app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-</adaptive-icon>
+class MainActivity : AppCompatActivity() {
 
-//===== FILE: app/src/main/res/drawable/ic_launcher_foreground.xml =====
-<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:strokeColor="#00f5d4"
-        android:strokeWidth="6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M20,54 Q30,34 40,54 Q50,74 60,54 Q70,34 80,54 Q90,74 100,54" />
-</vector>
+    private lateinit var webView: WebView
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var progressBar: ProgressBar
+    private lateinit var errorView: FrameLayout
+    private lateinit var errorText: TextView
 
-//===== FILE: app/src/main/res/drawable/ic_launcher_background.xml =====
+    private val serverUrl = BuildConfig.SERVER_URL
+
+    private var bgServiceBound = false
+    private val bgServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) { bgServiceBound = true }
+        override fun onServiceDisconnected(name: ComponentName?) { bgServiceBound = false }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        webView      = findViewById(R.id.webView)
+        swipeRefresh = findViewById(R.id.swipeRefresh)
+        progressBar  = findViewById(R.id.progressBar)
+        errorView    = findViewById(R.id.errorView)
+        errorText    = findViewById(R.id.errorText)
+
+        setupWebView()
+        setupSwipeRefresh()
+        loadApp()
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun setupWebView() {
+        webView.settings.apply {
+            javaScriptEnabled                = true
+            domStorageEnabled                = true
+            allowFileAccess                  = true
+            allowContentAccess               = true
+            mediaPlaybackRequiresUserGesture = false
+            mixedContentMode                 = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            cacheMode                        = WebSettings.LOAD_DEFAULT
+            setSupportZoom(false)
+            displayZoomControls              = false
+            builtInZoomControls              = false
+            loadWithOverviewMode             = true
+            useWideViewPort                  = true
+            databaseEnabled                  = true
+        }
+
+        webView.addJavascriptInterface(AndroidBridge(this), "AndroidBridge")
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                progressBar.visibility = View.VISIBLE
+                errorView.visibility   = View.GONE
+                webView.visibility     = View.VISIBLE
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                progressBar.visibility    = View.GONE
+                swipeRefresh.isRefreshing = false
+                injectTheme()
+            }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                if (request?.isForMainFrame == true) {
+                    progressBar.visibility    = View.GONE
+                    webView.visibility        = View.GONE
+                    errorView.visibility      = View.VISIBLE
+                    swipeRefresh.isRefreshing = false
+                    errorText.text =
+                        "Cannot connect to SyncWave server.\n\n" +
+                        "Make sure Termux server is running.\n\n" +
+                        "${error?.description}"
+                }
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url.toString()
+                if (!url.startsWith(serverUrl) && (url.startsWith("http") || url.startsWith("https"))) {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    return true
+                }
+                return false
+            }
+        }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                progressBar.progress = newProgress
+                if (newProgress == 100) progressBar.visibility = View.GONE
+            }
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                request?.grant(request.resources)
+            }
+        }
+    }
+
+    private fun setupSwipeRefresh() {
+        swipeRefresh.setColorSchemeColors(getColor(R.color.cyan))
+        swipeRefresh.setOnRefreshListener { loadApp() }
+    }
+
+    private fun loadApp() {
+        errorView.visibility   = View.GONE
+        webView.visibility     = View.VISIBLE
+        progressBar.visibility = View.VISIBLE
+        webView.loadUrl(serverUrl)
+    }
+
+    private fun injectTheme() {
+        val js = """
+            (function(){
+                var m = document.querySelector('meta[name=viewport]');
+                if(!m){ m=document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); }
+                m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no';
+                document.body.style.userSelect='none';
+                document.body.style.webkitUserSelect='none';
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+        webView.resumeTimers()
+        stopBgService()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // ── DO NOT call webView.onPause() ──
+        // That suspends the WebView renderer and kills audio.
+        // We start a foreground service instead to keep the process alive.
+        startBgService()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        webView.onPause()
+        webView.destroy()
+        stopBgService()
+    }
+
+    private fun startBgService() {
+        val intent = Intent(this, AudioForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        if (!bgServiceBound) {
+            bindService(intent, bgServiceConnection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    private fun stopBgService() {
+        try {
+            if (bgServiceBound) {
+                unbindService(bgServiceConnection)
+                bgServiceBound = false
+            }
+        } catch (e: Exception) { /* already unbound */ }
+        stopService(Intent(this, AudioForegroundService::class.java))
+    }
+
+    override fun onBackPressed() {
+        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/syncwave/app/AudioForegroundService.kt =====
+package com.syncwave.app
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Intent
+import android.os.Binder
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+
+/**
+ * Foreground service that keeps the app process alive when backgrounded.
+ *
+ * When Android sees a foreground service with foregroundServiceType="mediaPlayback",
+ * it treats the process the same as Spotify or YouTube — the WebView renderer
+ * stays alive and audio continues uninterrupted.
+ */
+class AudioForegroundService : Service() {
+
+    companion object {
+        const val CHANNEL_ID = "syncwave_audio"
+        const val NOTIF_ID   = 1001
+    }
+
+    private val binder = LocalBinder()
+    inner class LocalBinder : Binder() { fun getService() = this@AudioForegroundService }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForeground(NOTIF_ID, buildNotification())
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder = binder
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopForeground(true)
+    }
+
+    private fun buildNotification(): Notification {
+        val openIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("SyncWave")
+            .setContentText("Music playing in background")
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentIntent(openIntent)
+            .setOngoing(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "SyncWave Playback",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Keeps music playing in background"
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            }
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+    }
+}
+
+//===== FILE: app/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#080808" />
-</shape>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.syncwave.app">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SyncWave"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".AudioForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+    </application>
+</manifest>
+
+//===== FILE: app/build.gradle =====
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.syncwave.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.syncwave.app"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        def serverUrl = System.getenv("SERVER_URL") ?: "http://localhost:3001"
+        buildConfigField "String", "SERVER_URL", "\"${serverUrl}\""
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+            debuggable true
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'com.google.android.material:material:1.11.0'
+}
+
+//===== FILE: app/proguard-rules.pro =====
+-keep class com.syncwave.app.AndroidBridge { *; }
+-keepclassmembers class com.syncwave.app.AndroidBridge {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class com.syncwave.app.AudioForegroundService { *; }
