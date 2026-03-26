@@ -554,76 +554,54 @@ android {
 // TYPE: SNAPSHOT (LARGE FILE)
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.jarvismini">
-
-    <!-- ================= PERMISSIONS ================= -->
+    package="com.syncwave.app">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SyncWave"
+        android:usesCleartextTraffic="true">
 
-    <!-- Microphone (for voice activation) -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
-    <!-- Overlay / floating window -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Camera (for AI Vision features) -->
-    <uses-permission android:name="android.permission.CAMERA" />
-
-    <!-- Storage -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
-
-    <uses-feature android:name="android.hardware.telephony"  android:required="false" />
-    <uses-feature android:name="android.hardware.camera"     android:required="false" />
-    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
-
+    </application>
+</manifest>
 
 // ... FILE TRUNCATED ...
 
-            android:name="com.jarvismini.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SyncWave"
+        android:usesCleartextTraffic="true">
 
-        <!-- Progress Reminder -->
-        <service
-            android:name="com.jarvismini.ProgressReminderService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Floating Timer -->
-        <service
-            android:name="com.jarvismini.ui.timer.FloatingTimerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
     </application>
-
 </manifest>
 
 //===== FILE: app/src/main/cpp/llama_context.cpp =====
@@ -4590,15 +4568,80 @@ class MainActivity : AppCompatActivity() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 
 //===== FILE: app/src/main/res/layout/activity_main.xml =====
-// TYPE: FULL
+// TYPE: SNAPSHOT (LARGE FILE)
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#080808">
 
-</LinearLayout>
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
 
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#080808" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="top"
+        android:max="100"
+        android:progressTint="@color/cyan"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/errorView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#080808"
+        android:visibility="gone"
+        android:padding="32dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📡"
+                android:textSize="48sp"
+                android:layout_marginBottom="16dp" />
+
+// ... FILE TRUNCATED ...
+
+                android:layout_height="wrap_content"
+                android:text="Cannot connect to server"
+                android:textColor="#888888"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:lineSpacingExtra="6dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pull down to retry"
+                android:textColor="#00f5d4"
+                android:textSize="13sp"
+                android:layout_marginTop="16dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</FrameLayout>
 
 //===== FILE: app/src/main/res/layout/activity_settings.xml =====
 // TYPE: FULL
@@ -4732,23 +4775,17 @@ class MainActivity : AppCompatActivity() {
 // TYPE: FULL
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#BB86FC</color>
-    <color name="purple_500">#6200EE</color>
-    <color name="purple_700">#3700B3</color>
-    <color name="teal_200">#03DAC5</color>
-    <color name="black">#000000</color>
-    <color name="white">#FFFFFF</color>
+    <color name="cyan">#00f5d4</color>
+    <color name="bg">#080808</color>
+    <color name="surface">#111111</color>
 </resources>
 
 
 //===== FILE: app/src/main/res/values/strings.xml =====
 // TYPE: FULL
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Jarvis Merged</string>
-    <string name="service_desc">Jarvis WhatsApp automation service</string>
-    <string name="accessibility_call_desc">
-        Detect incoming calls to send automatic SMS replies when Jarvis is active.
-    </string>
+    <string name="app_name">SyncWave</string>
 </resources>
 
 
@@ -4756,15 +4793,13 @@ class MainActivity : AppCompatActivity() {
 // TYPE: FULL
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.JarvisMerged" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
-        
-        <!-- Define custom colorBackground attribute -->
-        <item name="colorBackground">?attr/colorSurface</item>
+    <style name="Theme.SyncWave" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="colorPrimary">@color/cyan</item>
     </style>
-
 </resources>
 
 
@@ -9460,15 +9495,80 @@ object SmartFilters {
 
 
 //===== FILE: gradle/wrapper/gradle-wrapper.properties =====
-// TYPE: FULL
+// TYPE: SNAPSHOT (LARGE FILE)
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-all.zip
-networkTimeout=10000
-validateDistributionUrl=true
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
 
+//===== TERMUXFILE: syncwave/setup.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# One-time setup — run once after deploying via ai-code.py
+echo "[+] Setting up SyncWave on Termux..."
+pkg update -y
+pkg install -y nodejs curl
+
+mkdir -p ~/syncwave/server ~/syncwave/logs
+
+# Install cloudflared
+if ! command -v cloudflared &>/dev/null; then
+  echo "[+] Installing cloudflared..."
+  curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" \
+    -o "$PREFIX/bin/cloudflared" && chmod +x "$PREFIX/bin/cloudflared"
+fi
+
+cd ~/syncwave/server && npm install
+chmod +x ~/syncwave/start-server.sh
+
+echo ""
+echo "✅ Setup complete! Run: bash ~/syncwave/start-server.sh"
+
+//===== TERMUXFILE: syncwave/start-server.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# Start SyncWave backend + cloudflared tunnel
+set -e
+
+DIR="$HOME/syncwave"
+LOG="$DIR/logs"
+mkdir -p "$LOG"
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  SyncWave Server Launcher"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+pkill -f "node.*index.js" 2>/dev/null || true
+pkill -f cloudflared       2>/dev/null || true
+sleep 1
+
+echo "[+] Starting backend on :3001..."
+PORT=3001 node "$DIR/server/index.js" > "$LOG/server.log" 2>&1 &
+SERVER_PID=$!
+sleep 2
+
+
+// ... FILE TRUNCATED ...
+
+    socket.emit('sync_state', { playing: r.playing, currentTime: r.currentTime + elapsed })
+  })
+
+  socket.on('disconnect', () => {
+    const r = rooms.get(room)
+    if (!r) return
+    r.users.delete(socket.id)
+    if (r.host === socket.id) {
+      const next = r.users.values().next().value
+      if (next) {
+        r.host = next.id; next.isHost = true
+        io.to(room).emit('host_changed', { newHostId: next.id, users: Array.from(r.users.values()) })
+      } else { rooms.delete(room); return }
+    }
+    io.to(room).emit('user_left', { userId: socket.id, users: Array.from(r.users.values()) })
+  })
+})
+
+const PORT = process.env.PORT || 3001
+server.listen(PORT, () => console.log(`[SyncWave] :${PORT}`))
 
 //===== FILE: scripts/__init__.py =====
 // TYPE: FULL

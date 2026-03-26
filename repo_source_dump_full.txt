@@ -563,203 +563,31 @@ dependencies {
 //===== FILE: app/src/main/AndroidManifest.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.jarvismini">
-
-    <!-- ================= PERMISSIONS ================= -->
+    package="com.syncwave.app">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CALL_SCREENING" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
-
-    <!-- Microphone (for voice activation) -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!-- Overlay / floating window -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Camera (for AI Vision features) -->
-    <uses-permission android:name="android.permission.CAMERA" />
-
-    <!-- Storage -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
-
-    <uses-feature android:name="android.hardware.telephony"  android:required="false" />
-    <uses-feature android:name="android.hardware.camera"     android:required="false" />
-    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
-
-    <!-- ================= PACKAGE VISIBILITY ================= -->
-
-    <queries>
-        <package android:name="xyz.penpencil.physicswala" />
-        <package android:name="com.pittvandewitt.wavelet" />
-        <package android:name="com.google.android.apps.youtube.music" />
-        <package android:name="com.oneplus.deskclock" />
-        <package android:name="com.sec.android.app.clockpackage" />
-        <package android:name="com.apple.android.music" />
-        <package android:name="com.termux" />
-        <package android:name="com.termux.api" />
-        <package android:name="com.termux.tasker" />
-    </queries>
-
-    <!-- ================= APPLICATION ================= -->
 
     <application
-        android:name="com.jarvismini.CoreApp"
         android:allowBackup="true"
-        android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.JarvisMerged"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:requestLegacyExternalStorage="true"
-        android:preserveLegacyExternalStorage="true">
+        android:theme="@style/Theme.SyncWave"
+        android:usesCleartextTraffic="true">
 
-        <!-- Main Activity -->
         <activity
-            android:name="com.jarvismini.MainActivity"
-            android:exported="true">
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- LAN Server -->
-        <service
-            android:name="com.jarvismini.server.LanServerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Notification Listener -->
-        <service
-            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- SMS Receiver -->
-        <receiver
-            android:name="com.jarvismini.callhandler.SmsReceiver"
-            android:permission="android.permission.BROADCAST_SMS"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Call Receiver -->
-        <receiver
-            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Call Screening -->
-        <service
-            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
-            android:permission="android.permission.BIND_SCREENING_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
-        <!-- Call Accessibility -->
-        <service
-            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/call_accessibility_config" />
-        </service>
-
-        <!-- App Automation Accessibility -->
-        <service
-            android:name="com.jarvismini.automation.AppAutomationService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service" />
-        </service>
-
-        <!-- Work Mode -->
-        <service
-            android:name="com.jarvismini.core.workmode.WorkModeService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <service
-            android:name="com.jarvismini.service.WorkModeTileService"
-            android:icon="@mipmap/ic_launcher"
-            android:label="Work Mode"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <!-- Call Auto Reply -->
-        <service
-            android:name="com.jarvismini.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
-
-        <!-- Progress Reminder -->
-        <service
-            android:name="com.jarvismini.ProgressReminderService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Floating Timer -->
-        <service
-            android:name="com.jarvismini.ui.timer.FloatingTimerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
     </application>
-
 </manifest>
 
 
@@ -10707,12 +10535,79 @@ class MainActivity : AppCompatActivity() {
 
 //===== FILE: app/src/main/res/layout/activity_main.xml =====
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#080808">
 
-</LinearLayout>
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#080808" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="top"
+        android:max="100"
+        android:progressTint="@color/cyan"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/errorView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#080808"
+        android:visibility="gone"
+        android:padding="32dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📡"
+                android:textSize="48sp"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:id="@+id/errorText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cannot connect to server"
+                android:textColor="#888888"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:lineSpacingExtra="6dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pull down to retry"
+                android:textColor="#00f5d4"
+                android:textSize="13sp"
+                android:layout_marginTop="16dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</FrameLayout>
 
 
 //===== FILE: app/src/main/res/layout/activity_settings.xml =====
@@ -10858,37 +10753,29 @@ class MainActivity : AppCompatActivity() {
 //===== FILE: app/src/main/res/values/colors.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#BB86FC</color>
-    <color name="purple_500">#6200EE</color>
-    <color name="purple_700">#3700B3</color>
-    <color name="teal_200">#03DAC5</color>
-    <color name="black">#000000</color>
-    <color name="white">#FFFFFF</color>
+    <color name="cyan">#00f5d4</color>
+    <color name="bg">#080808</color>
+    <color name="surface">#111111</color>
 </resources>
 
 
 //===== FILE: app/src/main/res/values/strings.xml =====
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Jarvis Merged</string>
-    <string name="service_desc">Jarvis WhatsApp automation service</string>
-    <string name="accessibility_call_desc">
-        Detect incoming calls to send automatic SMS replies when Jarvis is active.
-    </string>
+    <string name="app_name">SyncWave</string>
 </resources>
 
 
 //===== FILE: app/src/main/res/values/themes.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.JarvisMerged" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
-        
-        <!-- Define custom colorBackground attribute -->
-        <item name="colorBackground">?attr/colorSurface</item>
+    <style name="Theme.SyncWave" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="colorPrimary">@color/cyan</item>
     </style>
-
 </resources>
 
 
@@ -16528,11 +16415,201 @@ object SmartFilters {
 //===== FILE: gradle/wrapper/gradle-wrapper.properties =====
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-all.zip
-networkTimeout=10000
-validateDistributionUrl=true
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
+
+//===== TERMUXFILE: syncwave/setup.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# One-time setup — run once after deploying via ai-code.py
+echo "[+] Setting up SyncWave on Termux..."
+pkg update -y
+pkg install -y nodejs curl
+
+mkdir -p ~/syncwave/server ~/syncwave/logs
+
+# Install cloudflared
+if ! command -v cloudflared &>/dev/null; then
+  echo "[+] Installing cloudflared..."
+  curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" \
+    -o "$PREFIX/bin/cloudflared" && chmod +x "$PREFIX/bin/cloudflared"
+fi
+
+cd ~/syncwave/server && npm install
+chmod +x ~/syncwave/start-server.sh
+
+echo ""
+echo "✅ Setup complete! Run: bash ~/syncwave/start-server.sh"
+
+//===== TERMUXFILE: syncwave/start-server.sh =====
+#!/data/data/com.termux/files/usr/bin/bash
+# Start SyncWave backend + cloudflared tunnel
+set -e
+
+DIR="$HOME/syncwave"
+LOG="$DIR/logs"
+mkdir -p "$LOG"
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  SyncWave Server Launcher"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+pkill -f "node.*index.js" 2>/dev/null || true
+pkill -f cloudflared       2>/dev/null || true
+sleep 1
+
+echo "[+] Starting backend on :3001..."
+PORT=3001 node "$DIR/server/index.js" > "$LOG/server.log" 2>&1 &
+SERVER_PID=$!
+sleep 2
+
+if ! kill -0 $SERVER_PID 2>/dev/null; then
+  echo "[!] Server failed. Log:"; cat "$LOG/server.log"; exit 1
+fi
+echo "    PID: $SERVER_PID ✅"
+
+echo "[+] Starting cloudflared tunnel..."
+cloudflared tunnel --url http://localhost:3001 \
+  --logfile "$LOG/cloudflared.log" --no-autoupdate &
+
+echo "[+] Waiting for tunnel URL..."
+TUNNEL_URL=""
+for i in $(seq 1 30); do
+  sleep 1
+  TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9\-]*\.trycloudflare\.com' \
+    "$LOG/cloudflared.log" 2>/dev/null | head -1)
+  [ -n "$TUNNEL_URL" ] && break
+  echo "    attempt $i/30..."
+done
+
+if [ -z "$TUNNEL_URL" ]; then
+  echo "[!] No tunnel URL. Log:"; cat "$LOG/cloudflared.log"; exit 1
+fi
+
+echo "$TUNNEL_URL" > "$DIR/tunnel-url.txt"
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ✅ SyncWave is LIVE!"
+echo ""
+echo "  🌐  $TUNNEL_URL"
+echo ""
+echo "  → Add to GitHub Secrets:"
+echo "    SYNCWAVE_SERVER_URL = $TUNNEL_URL"
+echo "  → Then trigger Build APK workflow"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+tail -f "$LOG/server.log"
+
+//===== TERMUXFILE: syncwave/server/package.json =====
+{
+  "name": "syncwave-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0"
+  }
+}
+
+//===== TERMUXFILE: syncwave/server/index.js =====
+const express = require('express')
+const http    = require('http')
+const { Server } = require('socket.io')
+const { v4: uuidv4 } = require('uuid')
+
+const app    = express()
+const server = http.createServer(app)
+const io     = new Server(server, { cors: { origin: '*' } })
+
+const rooms = new Map()
+
+const snap = r => ({
+  host: r.host, track: r.track, playing: r.playing,
+  currentTime: r.currentTime, users: Array.from(r.users.values())
+})
+
+io.on('connection', socket => {
+  let room = null, user = null
+
+  socket.on('create_room', ({ username }, cb) => {
+    const id = uuidv4().slice(0, 6).toUpperCase()
+    user = { id: socket.id, username, isHost: true }
+    room = id
+    rooms.set(id, {
+      host: socket.id, track: null, playing: false,
+      currentTime: 0, updatedAt: Date.now(),
+      users: new Map([[socket.id, user]])
+    })
+    socket.join(id)
+    cb({ roomId: id, room: snap(rooms.get(id)) })
+  })
+
+  socket.on('join_room', ({ roomId, username }, cb) => {
+    const r = rooms.get(roomId)
+    if (!r) return cb({ error: 'Room not found' })
+    user = { id: socket.id, username, isHost: false }
+    room = roomId
+    r.users.set(socket.id, user)
+    socket.join(roomId)
+    socket.to(roomId).emit('user_joined', { user, users: Array.from(r.users.values()) })
+    cb({ room: snap(r) })
+  })
+
+  socket.on('set_track', ({ track }) => {
+    const r = rooms.get(room)
+    if (!r || r.host !== socket.id) return
+    Object.assign(r, { track, playing: false, currentTime: 0, updatedAt: Date.now() })
+    io.to(room).emit('track_changed', { track })
+  })
+
+  socket.on('play_pause', ({ playing, currentTime }) => {
+    const r = rooms.get(room)
+    if (!r || r.host !== socket.id) return
+    Object.assign(r, { playing, currentTime, updatedAt: Date.now() })
+    socket.to(room).emit('sync_state', { playing, currentTime })
+  })
+
+  socket.on('seek', ({ currentTime }) => {
+    const r = rooms.get(room)
+    if (!r || r.host !== socket.id) return
+    Object.assign(r, { currentTime, updatedAt: Date.now() })
+    socket.to(room).emit('sync_seek', { currentTime })
+  })
+
+  socket.on('chat_message', ({ message }) => {
+    if (!room || !user) return
+    io.to(room).emit('chat_message', {
+      id: uuidv4(), username: user.username,
+      message, timestamp: Date.now()
+    })
+  })
+
+  socket.on('request_sync', () => {
+    const r = rooms.get(room)
+    if (!r) return
+    const elapsed = r.playing ? (Date.now() - r.updatedAt) / 1000 : 0
+    socket.emit('sync_state', { playing: r.playing, currentTime: r.currentTime + elapsed })
+  })
+
+  socket.on('disconnect', () => {
+    const r = rooms.get(room)
+    if (!r) return
+    r.users.delete(socket.id)
+    if (r.host === socket.id) {
+      const next = r.users.values().next().value
+      if (next) {
+        r.host = next.id; next.isHost = true
+        io.to(room).emit('host_changed', { newHostId: next.id, users: Array.from(r.users.values()) })
+      } else { rooms.delete(room); return }
+    }
+    io.to(room).emit('user_left', { userId: socket.id, users: Array.from(r.users.values()) })
+  })
+})
+
+const PORT = process.env.PORT || 3001
+server.listen(PORT, () => console.log(`[SyncWave] :${PORT}`))
 
 
 //===== FILE: scripts/__init__.py =====
