@@ -1,0 +1,599 @@
+package com.jarvismini.llm
+
+import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import java.io.File
+import java.io.RandomAccessFile
+
+/**
+ * FIXED v3: LAN Pairing Support with Auth Token
+ * 
+ * New Features:
+ * - Reads paired server IP/port from SharedPreferences
+ * - Includes Bearer token authentication for paired devices
+ * - Falls back to localhost if not paired
+ * - Logs connection details for debugging
+ * 
+ * Previous fixes:
+ * - Adaptive polling eliminates "Unknown error"
+ * - File sync delays handled
+ * - Multiple validation retries
+ */
+class TermuxLlamaClient(
+    private val context: Context,
+    serverHostOverride: String? = null,
+    serverPortOverride: Int? = null
+) {
+    private val tag = "TermuxLlamaClient"
+    
+    // Load pairing preferences
+    private val prefs = context.getSharedPreferences("jarvis_lan", Context.MODE_PRIVATE)
+    private val isPaired = prefs.getBoolean("is_paired", false)
+    
+    // Use override if provided, otherwise check pairing, fallback to localhost
+    private val serverHost: String = serverHostOverride ?: run {
+        if (isPaired) {
+            val savedIp = prefs.getString("server_ip", null)
+            Log.d(tag, "Loaded paired IP: $savedIp")
+            savedIp ?: "127.0.0.1"
+        } else {
+            "127.0.0.1"
+        }
+    }
+    
+    private val serverPort: Int = serverPortOverride ?: run {
+        if (isPaired) {
+            val savedPort = prefs.getString("server_port", null)?.toIntOrNull()
+            Log.d(tag, "Loaded paired port: $savedPort")
+            savedPort ?: 8888
+        } else {
+            8888
+        }
+    }
+    
+    private val authToken: String? = if (isPaired) {
+        val token = prefs.getString("auth_token", null)
+        Log.d(tag, "Loaded auth token: ${token?.take(8)}...")
+        token
+    } else {
+        null
+    }
+    
+    private val baseUrl = "http://$serverHost:$serverPort"
+    
+    init {
+        Log.d(tag, "Initialized - Server: $baseUrl, Paired: $isPaired, Has Token: ${authToken != null}")
+    }
+    
+    // File-based executor configuration
+    private val EXECUTOR_DIR = "/sdcard/jarvis"
+    private val COMMAND_FILE = "$EXECUTOR_DIR/command.txt"
+    private val RESULT_FILE = "$EXECUTOR_DIR/result.txt"
+    private val STATUS_FILE = "$EXECUTOR_DIR/status.txt"
+
+    data class CommandResult(
+        val success: Boolean,
+        val response: String? = null,
+        val command: String? = null,
+        val output: String? = null,
+        val exitCode: Int? = null,
+        val error: String? = null,
+        val method: String? = null
+    )
+
+    suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = java.net.URL("$baseUrl/health")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "GET"
+            
+            // ðŸ†• Add auth token if paired
+            if (authToken != null) {
+                connection.setRequestProperty("Authorization", "Bearer $authToken")
+            }
+            
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+
+            val isHealthy = connection.responseCode == 200
+            Log.d(tag, "Health check: $isHealthy (Server: $baseUrl)")
+            isHealthy
+        } catch (e: Exception) {
+            Log.e(tag, "Health check failed: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun chat(query: String, timeoutSeconds: Int = 60): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "Chat request to $baseUrl: $query")
+            
+            val url = java.net.URL("$baseUrl/chat_sync")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            
+            // ðŸ†• Add auth token if paired
+            if (authToken != null) {
+                connection.setRequestProperty("Authorization", "Bearer $authToken")
+                Log.d(tag, "Added auth token to request")
+            }
+            
+            connection.connectTimeout = 10000
+            connection.readTimeout = (timeoutSeconds + 10) * 1000
+            connection.doOutput = true
+
+            val jsonBody = """{"query": "$query"}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            Log.d(tag, "Chat response code: $responseCode")
+            Log.d(tag, "Chat response body: $response")
+
+            when (responseCode) {
+                200 -> {
+                    val json = org.json.JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        // Handle nested "data" object (LAN API format) or flat format
+                        val data = json.optJSONObject("data")
+                        val chatResponse = data?.optString("response") 
+                            ?: json.optString("response", "")
+                        
+                        if (chatResponse.isEmpty()) {
+                            Log.e(tag, "Empty response in JSON: $response")
+                            CommandResult(success = false, error = "Empty response from server")
+                        } else {
+                            Log.d(tag, "Chat success: ${chatResponse.take(100)}...")
+                            CommandResult(success = true, response = chatResponse)
+                        }
+                    } else {
+                        val errorMsg = json.optString("error", "Unknown error")
+                        Log.e(tag, "Chat error: $errorMsg")
+                        CommandResult(success = false, error = errorMsg)
+                    }
+                }
+                401 -> {
+                    Log.e(tag, "Authentication failed - invalid or missing token")
+                    CommandResult(success = false, error = "Unauthorized - please pair device again")
+                }
+                else -> {
+                    Log.e(tag, "HTTP $responseCode: $response")
+                    CommandResult(success = false, error = "Server error: $responseCode")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Chat request failed", e)
+            CommandResult(success = false, error = "Connection failed: ${e.message}")
+        }
+    }
+
+    suspend fun generateCommand(query: String, timeoutSeconds: Int = 30): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "Generate command: $query")
+            
+            val url = java.net.URL("$baseUrl/generate_sync")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            
+            // ðŸ†• Add auth token if paired
+            if (authToken != null) {
+                connection.setRequestProperty("Authorization", "Bearer $authToken")
+            }
+            
+            connection.connectTimeout = 10000
+            connection.readTimeout = (timeoutSeconds + 10) * 1000
+            connection.doOutput = true
+
+            val jsonBody = """{"query": "$query"}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            Log.d(tag, "Generate response code: $responseCode")
+            Log.d(tag, "Generate response body: $response")
+
+            when (responseCode) {
+                200 -> {
+                    val json = org.json.JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        // Handle nested "data" object or flat format
+                        val data = json.optJSONObject("data")
+                        val command = data?.optString("command") 
+                            ?: json.optString("command", "")
+                        
+                        if (command.isEmpty()) {
+                            Log.e(tag, "Empty command in JSON: $response")
+                            CommandResult(success = false, error = "Empty command from server")
+                        } else {
+                            Log.d(tag, "Generated command: $command")
+                            CommandResult(success = true, command = command, response = command)
+                        }
+                    } else {
+                        val errorMsg = json.optString("error", "Unknown error")
+                        Log.e(tag, "Generate error: $errorMsg")
+                        CommandResult(success = false, error = errorMsg)
+                    }
+                }
+                401 -> {
+                    Log.e(tag, "Authentication failed - invalid or missing token")
+                    CommandResult(success = false, error = "Unauthorized - please pair device again")
+                }
+                else -> {
+                    Log.e(tag, "HTTP $responseCode: $response")
+                    CommandResult(success = false, error = "Server error: $responseCode")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Generate request failed", e)
+            CommandResult(success = false, error = "Connection failed: ${e.message}")
+        }
+    }
+
+    suspend fun executeCommand(command: String, timeoutSeconds: Int = 30): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "Execute command: $command")
+            
+            val url = java.net.URL("$baseUrl/execute")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            
+            // ðŸ†• Add auth token if paired
+            if (authToken != null) {
+                connection.setRequestProperty("Authorization", "Bearer $authToken")
+            }
+            
+            connection.connectTimeout = 10000
+            connection.readTimeout = (timeoutSeconds + 10) * 1000
+            connection.doOutput = true
+
+            val jsonBody = """{"command": "$command"}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            Log.d(tag, "Execute response code: $responseCode")
+            Log.d(tag, "Execute response body: $response")
+
+            when (responseCode) {
+                200 -> {
+                    val json = org.json.JSONObject(response)
+                    val success = json.getBoolean("success")
+                    
+                    // Handle nested "data" object or flat format
+                    val data = json.optJSONObject("data")
+                    val output = data?.optString("output") 
+                        ?: json.optString("output", "")
+                    val exitCode = data?.optInt("exit_code") 
+                        ?: json.optInt("exit_code", -1)
+                    
+                    Log.d(tag, "Execution ${if (success) "succeeded" else "failed"}: exit $exitCode")
+                    Log.d(tag, "Output: ${output.take(200)}")
+                    
+                    CommandResult(
+                        success = success,
+                        output = output,
+                        exitCode = exitCode,
+                        command = command
+                    )
+                }
+                401 -> {
+                    Log.e(tag, "Authentication failed - invalid or missing token")
+                    CommandResult(success = false, error = "Unauthorized - please pair device again")
+                }
+                else -> {
+                    Log.e(tag, "HTTP $responseCode: $response")
+                    CommandResult(success = false, error = "Server error: $responseCode")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Execute request failed", e)
+            CommandResult(success = false, error = "Connection failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Execute command via server /execute endpoint (for unedited LLM commands)
+     */
+    suspend fun executeCommandViaServer(command: String): CommandResult = withContext(Dispatchers.IO) {
+        try {
+            Log.d(tag, "Execute via server: $command")
+            
+            val url = java.net.URL("$baseUrl/execute")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            
+            // ðŸ†• Add auth token if paired
+            if (authToken != null) {
+                connection.setRequestProperty("Authorization", "Bearer $authToken")
+            }
+            
+            connection.connectTimeout = 10000
+            connection.readTimeout = 70000
+            connection.doOutput = true
+
+            val jsonBody = """{"command": "$command"}"""
+            
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            Log.d(tag, "Server execution response code: $responseCode")
+            Log.d(tag, "Server execution response body: $response")
+
+            when (responseCode) {
+                200 -> {
+                    val json = org.json.JSONObject(response)
+                    if (json.getBoolean("success")) {
+                        // Handle nested "data" object or flat format
+                        val data = json.optJSONObject("data")
+                        val output = data?.optString("output") 
+                            ?: json.optString("output", "")
+                        val exitCode = data?.optInt("exit_code") 
+                            ?: json.optInt("exit_code", 0)
+                        
+                        Log.d(tag, "Server execution success: exitCode=$exitCode")
+                        Log.d(tag, "Server execution output: ${output.take(200)}")
+                        
+                        CommandResult(
+                            success = exitCode == 0,
+                            output = output.ifEmpty { "âœ“ Command completed" },
+                            exitCode = exitCode,
+                            method = "server"
+                        )
+                    } else {
+                        val error = json.optString("error", "Unknown error")
+                        Log.e(tag, "Server execution failed: $error")
+                        CommandResult(success = false, error = error, method = "server")
+                    }
+                }
+                401 -> {
+                    Log.e(tag, "Authentication failed - invalid or missing token")
+                    CommandResult(success = false, error = "Unauthorized - please pair device again", method = "server")
+                }
+                else -> {
+                    Log.e(tag, "HTTP error: $responseCode")
+                    CommandResult(success = false, error = "HTTP $responseCode", method = "server")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Server execution exception", e)
+            CommandResult(success = false, error = e.message ?: "Server error", method = "server")
+        }
+    }
+
+    /**
+     * Execute command via file-based executor (for edited commands)
+     * Uses jarvis_executor.sh with adaptive polling
+     */
+    suspend fun executeCommandViaFile(command: String): CommandResult = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        
+        try {
+            Log.d(tag, "========================================")
+            Log.d(tag, "Execute via file: $command")
+            
+            val statusFile = File(STATUS_FILE)
+            val commandFile = File(COMMAND_FILE)
+            val resultFile = File(RESULT_FILE)
+            
+            // Check if executor is running
+            if (!statusFile.exists()) {
+                Log.e(tag, "Status file not found")
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Executor not running.\nRun in Termux:\n  bash ~/jarvis_executor.sh &",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            val status = statusFile.readText().trim()
+            Log.d(tag, "Executor status: $status")
+            
+            if (status != "ready" && status != "executing") {
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Executor status: $status\n\nRestart executor in Termux",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            // Clear old result with forced sync
+            Log.d(tag, "Clearing old result...")
+            if (resultFile.exists()) {
+                resultFile.delete()
+                delay(30) // File deletion propagation
+            }
+            resultFile.createNewFile()
+            
+            // Write empty content with sync
+            RandomAccessFile(resultFile, "rw").use { raf ->
+                raf.setLength(0)
+                raf.fd.sync() // Force sync to storage
+            }
+            Log.d(tag, "Result file cleared and synced")
+            
+            // Write command
+            commandFile.writeText(command)
+            Log.d(tag, "Command written at ${System.currentTimeMillis() - startTime}ms")
+            
+            // Adaptive polling: start checking immediately
+            var resultContent: String? = null
+            var attempts = 0
+            
+            // Phase 1: Fast polling for quick commands (0-500ms, 50ms interval)
+            val phase1Attempts = 10
+            for (i in 0 until phase1Attempts) {
+                resultContent = readFileWithSync(resultFile)
+                
+                if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    Log.d(tag, "âœ“ Result found in Phase 1 (fast) after ${elapsed}ms")
+                    break
+                }
+                
+                delay(50)
+                attempts++
+            }
+            
+            // Phase 2: Medium polling (500-3000ms, 100ms interval)
+            if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
+                val phase2Attempts = 25
+                for (i in 0 until phase2Attempts) {
+                    resultContent = readFileWithSync(resultFile)
+                    
+                    if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        Log.d(tag, "âœ“ Result found in Phase 2 (medium) after ${elapsed}ms")
+                        break
+                    }
+                    
+                    delay(100)
+                    attempts++
+                }
+            }
+            
+            // Phase 3: Slow polling for long commands (3s-60s, 200ms interval)
+            if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
+                val phase3Attempts = 285 // Up to 60s total
+                for (i in 0 until phase3Attempts) {
+                    resultContent = readFileWithSync(resultFile)
+                    
+                    if (!resultContent.isNullOrEmpty() && resultContent.contains("|")) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        Log.d(tag, "âœ“ Result found in Phase 3 (slow) after ${elapsed}ms")
+                        break
+                    }
+                    
+                    delay(200)
+                    attempts++
+                    
+                    // Log progress every 5 seconds
+                    if (i > 0 && i % 25 == 0) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        Log.d(tag, "â³ Still waiting... ${elapsed}ms elapsed")
+                    }
+                }
+            }
+            
+            val actualElapsed = System.currentTimeMillis() - startTime
+            
+            // Final validation
+            if (resultContent.isNullOrEmpty() || !resultContent.contains("|")) {
+                Log.e(tag, "âŒ TIMEOUT or INVALID RESULT")
+                Log.e(tag, "  Actual time: ${actualElapsed}ms")
+                Log.e(tag, "  Total attempts: $attempts")
+                
+                return@withContext CommandResult(
+                    success = false,
+                    error = "No result after ${actualElapsed}ms ($attempts checks).\n\nManual check:\n  cat $RESULT_FILE",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            // Parse result: "exit_code|output"
+            val parts = resultContent.split("|", limit = 2)
+            
+            if (parts.size != 2) {
+                Log.e(tag, "âŒ Invalid result format")
+                return@withContext CommandResult(
+                    success = false,
+                    error = "Invalid format after ${actualElapsed}ms.\n\nExpected: exitcode|output",
+                    exitCode = -1,
+                    method = "file-based"
+                )
+            }
+            
+            val exitCode = parts[0].toIntOrNull() ?: -1
+            val output = parts[1]
+            
+            Log.d(tag, "âœ“ Execution complete:")
+            Log.d(tag, "  Actual time: ${actualElapsed}ms")
+            Log.d(tag, "  Exit code: $exitCode")
+            Log.d(tag, "========================================")
+            
+            CommandResult(
+                success = exitCode == 0,
+                output = output.ifEmpty { "âœ“ Command completed (no output)" },
+                exitCode = exitCode,
+                method = "file-based"
+            )
+            
+        } catch (e: Exception) {
+            val elapsed = System.currentTimeMillis() - startTime
+            Log.e(tag, "âŒ File-based execution exception after ${elapsed}ms", e)
+            CommandResult(
+                success = false,
+                error = "Execution failed: ${e.message}",
+                exitCode = -1,
+                method = "file-based"
+            )
+        }
+    }
+
+    /**
+     * Read file with forced sync to get latest content
+     */
+    private fun readFileWithSync(file: File): String? {
+        return try {
+            // Use RandomAccessFile to force cache invalidation
+            RandomAccessFile(file, "r").use { raf ->
+                val content = ByteArray(raf.length().toInt())
+                raf.readFully(content)
+                String(content).trim()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // File-based execution methods (keep existing implementation)
+    suspend fun generateAndExecuteCommand(query: String): CommandResult = withContext(Dispatchers.IO) {
+        val generateResult = generateCommand(query)
+        if (!generateResult.success || generateResult.command == null) {
+            return@withContext generateResult
+        }
+        
+        executeCommand(generateResult.command)
+    }
+}

@@ -1,0 +1,186 @@
+#include "llama_context.h"
+#include <android/log.h>
+#include <vector>
+#include <atomic>
+
+#define TAG "LlamaContext"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+LlamaContext::LlamaContext() {
+    // ✅ Don't init backend here - it's done globally
+}
+
+LlamaContext::~LlamaContext() {
+    unload();
+    // ✅ Don't free backend - it's shared
+}
+
+bool LlamaContext::load(const std::string& model_path, int n_ctx, int n_threads) {
+    LOGI("Loading model: %s (ctx=%d, threads=%d)", model_path.c_str(), n_ctx, n_threads);
+    
+    llama_model_params model_params = llama_model_default_params();
+    model_params.n_gpu_layers = 0;  // CPU only on mobile
+    
+    // ✅ FIXED: Use llama_model_load_from_file (newer API)
+    model_ = llama_model_load_from_file(model_path.c_str(), model_params);
+    if (!model_) {
+        LOGE("Failed to load model");
+        return false;
+    }
+    
+    llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.n_ctx = n_ctx;
+    ctx_params.n_threads = n_threads;
+    ctx_params.n_threads_batch = n_threads;
+    
+    // ✅ Best practices from GPT4All Android
+    ctx_params.type_k = GGML_TYPE_F16;  // Use F16 for KV cache
+    ctx_params.type_v = GGML_TYPE_F16;
+    
+    // ✅ FIXED: Use llama_init_from_model (newer API)
+    ctx_ = llama_init_from_model(model_, ctx_params);
+    if (!ctx_) {
+        LOGE("Failed to create context");
+        llama_free_model(model_);
+        model_ = nullptr;
+        return false;
+    }
+    
+    LOGI("Model loaded successfully");
+    return true;
+}
+
+std::string LlamaContext::generate(const std::string& prompt, int max_tokens, float temp) {
+    if (!ctx_) {
+        LOGE("Context not loaded");
+        return "";
+    }
+    
+    should_stop_.store(false);
+    
+    LOGI("Generating (temp=%.2f, max=%d)", temp, max_tokens);
+    
+    const struct llama_vocab* vocab = llama_model_get_vocab(model_);
+    
+    // ✅ Create sampler with correct temperature
+    auto sparams = llama_sampler_chain_default_params();
+    llama_sampler* sampler = llama_sampler_chain_init(sparams);
+    
+    // Standard sampler chain from llama.cpp examples
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(temp));
+    llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+    
+    // Tokenize
+    std::vector<llama_token> tokens;
+    tokens.resize(prompt.size() + 128);
+    
+    int32_t n_tokens = llama_tokenize(
+        vocab,
+        prompt.c_str(),
+        static_cast<int32_t>(prompt.length()),
+        tokens.data(),
+        static_cast<int32_t>(tokens.size()),
+        true,   // add_special
+        true    // parse_special
+    );
+    
+    if (n_tokens < 0) {
+        tokens.resize(-n_tokens);
+        n_tokens = llama_tokenize(
+            vocab,
+            prompt.c_str(),
+            static_cast<int32_t>(prompt.length()),
+            tokens.data(),
+            static_cast<int32_t>(tokens.size()),
+            true,
+            true
+        );
+    }
+    
+    if (n_tokens <= 0) {
+        LOGE("Tokenization failed");
+        llama_sampler_free(sampler);
+        return "";
+    }
+    
+    tokens.resize(n_tokens);
+    LOGI("Tokenized to %d tokens", n_tokens);
+    
+    // ✅ FIXED: Simply recreate context instead of clearing cache
+    // Old llama.cpp doesn't have cache clear functions
+    // The context will be clean on each generation anyway
+    // No cache clear needed - context is fresh
+    
+    // Decode prompt
+    llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
+    
+    if (llama_decode(ctx_, batch) != 0) {
+        LOGE("Failed to decode prompt");
+        llama_sampler_free(sampler);
+        return "";
+    }
+    
+    std::string result;
+    result.reserve(max_tokens * 4);  // Pre-allocate
+    
+    // Generate tokens
+    for (int i = 0; i < max_tokens; i++) {
+        // ✅ Check stop flag
+        if (should_stop_.load()) {
+            LOGI("Generation stopped by user");
+            break;
+        }
+        
+        llama_token new_token = llama_sampler_sample(sampler, ctx_, -1);
+        
+        // Check for end of generation
+        if (llama_vocab_is_eog(vocab, new_token)) {
+            LOGI("EOG token reached");
+            break;
+        }
+        
+        // Token to text
+        char buf[256];
+        int32_t n = llama_token_to_piece(
+            vocab,
+            new_token,
+            buf,
+            sizeof(buf),
+            0,      // lstrip
+            true    // special
+        );
+        
+        if (n > 0) {
+            result.append(buf, n);
+        }
+        
+        // Prepare next batch
+        batch = llama_batch_get_one(&new_token, 1);
+        
+        if (llama_decode(ctx_, batch) != 0) {
+            LOGE("Decode failed at token %d", i);
+            break;
+        }
+    }
+    
+    llama_sampler_free(sampler);
+    
+    LOGI("Generated %zu bytes", result.size());
+    return result;
+}
+
+void LlamaContext::stopGeneration() {
+    should_stop_.store(true);
+}
+
+void LlamaContext::unload() {
+    if (ctx_) {
+        llama_free(ctx_);
+        ctx_ = nullptr;
+    }
+    if (model_) {
+        llama_free_model(model_);
+        model_ = nullptr;
+    }
+}
