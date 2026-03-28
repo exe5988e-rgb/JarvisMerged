@@ -18,63 +18,22 @@ No Kotlin/Java errors
 No XML errors
 
 -- BUILD TASK FAILURES --
-> Task :app:processDebugMainManifest FAILED
 FAILURE: Build failed with an exception.
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-BUILD FAILED in 31s
-=======
-BUILD FAILED in 26s
->>>>>>> Stashed changes
-=======
-BUILD FAILED in 26s
->>>>>>> Stashed changes
+BUILD FAILED in 16s
 
 -- EXCEPTION STACK TRACES --
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:processDebugMainManifest'.
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:148)
-	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:282)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:146)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:134)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
---
-Caused by: java.lang.RuntimeException: Incorrect package="com.jarvismini" found in source AndroidManifest.xml: /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml.
-Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
-Recommendation: remove package="com.jarvismini" from the source AndroidManifest.xml: /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml.
-	at com.android.manifmerger.ManifestMerger2.merge(ManifestMerger2.java:237)
-	at com.android.manifmerger.ManifestMerger2$Invoker.merge(ManifestMerger2.java:2161)
-	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests(ManifestHelper.kt:121)
-	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests$default(ManifestHelper.kt:46)
-	at com.android.build.gradle.tasks.ProcessApplicationManifest.doTaskAction(ProcessApplicationManifest.kt:178)
-	at com.android.build.gradle.internal.tasks.NonIncrementalTask$taskAction$$inlined$recordTaskAction$1.invoke(BaseTask.kt:66)
-	at com.android.build.gradle.internal.tasks.Blocks.recordSpan(Blocks.java:51)
-	at com.android.build.gradle.internal.tasks.NonIncrementalTask.taskAction(NonIncrementalTask.kt:97)
---
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+org.gradle.execution.TaskSelectionException: Task 'assembleDebug' not found in root project 'SyncWave' and its subprojects.
+	at org.gradle.execution.DefaultTaskSelector.throwTaskSelectionException(DefaultTaskSelector.java:97)
+	at org.gradle.execution.DefaultTaskSelector.getSelection(DefaultTaskSelector.java:87)
+	at org.gradle.execution.selection.DefaultBuildTaskSelector.resolveTaskName(DefaultBuildTaskSelector.java:98)
+	at org.gradle.execution.commandline.CommandLineTaskParser.parseTasks(CommandLineTaskParser.java:49)
+	at org.gradle.execution.TaskNameResolvingBuildTaskScheduler.scheduleRequestedTasks(TaskNameResolvingBuildTaskScheduler.java:51)
+	at org.gradle.execution.DefaultTasksBuildTaskScheduler.scheduleRequestedTasks(DefaultTasksBuildTaskScheduler.java:72)
+	at org.gradle.initialization.DefaultTaskExecutionPreparer.lambda$scheduleRequestedTasks$0(DefaultTaskExecutionPreparer.java:46)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withReplacedLocks(DefaultWorkerLeaseService.java:360)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$DefaultBuildProjectRegistry.withMutableStateOfAllProjects(DefaultProjectStateRegistry.java:239)
+	at org.gradle.api.internal.project.DefaultProjectStateRegistry$DefaultBuildProjectRegistry.withMutableStateOfAllProjects(DefaultProjectStateRegistry.java:232)
 
 -- NATIVE BUILD LOG (last 100 lines) --
