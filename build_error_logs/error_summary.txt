@@ -18,7 +18,7 @@ No Kotlin/Java errors
 No XML errors
 
 -- BUILD TASK FAILURES --
-> Task :app:mergeDebugResources FAILED
+> Task :app:processDebugMainManifest FAILED
 FAILURE: Build failed with an exception.
 <<<<<<< Updated upstream
 BUILD FAILED in 30s
@@ -28,7 +28,7 @@ BUILD FAILED in 26s
 
 -- EXCEPTION STACK TRACES --
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:mergeDebugResources'.
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:processDebugMainManifest'.
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:148)
 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:282)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:146)
@@ -49,17 +49,17 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:mer
 	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
 	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
 --
-Caused by: com.android.build.gradle.tasks.ResourceException: [mipmap-mdpi-v4/ic_launcher] /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/res/mipmap-mdpi/ic_launcher.png	[mipmap-mdpi-v4/ic_launcher] /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/res/mipmap-mdpi/ic_launcher.xml: Error: Duplicate resources
-	at com.android.build.gradle.tasks.MergeResources.doFullTaskAction(MergeResources.kt:294)
-	at com.android.build.gradle.tasks.MergeResources.doTaskAction(MergeResources.kt:325)
-	at com.android.build.gradle.internal.tasks.NewIncrementalTask$taskAction$$inlined$recordTaskAction$1.invoke(BaseTask.kt:69)
+Caused by: java.lang.RuntimeException: Incorrect package="com.jarvismini" found in source AndroidManifest.xml: /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
+Recommendation: remove package="com.jarvismini" from the source AndroidManifest.xml: /home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml.
+	at com.android.manifmerger.ManifestMerger2.merge(ManifestMerger2.java:237)
+	at com.android.manifmerger.ManifestMerger2$Invoker.merge(ManifestMerger2.java:2161)
+	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests(ManifestHelper.kt:121)
+	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests$default(ManifestHelper.kt:46)
+	at com.android.build.gradle.tasks.ProcessApplicationManifest.doTaskAction(ProcessApplicationManifest.kt:178)
+	at com.android.build.gradle.internal.tasks.NonIncrementalTask$taskAction$$inlined$recordTaskAction$1.invoke(BaseTask.kt:66)
 	at com.android.build.gradle.internal.tasks.Blocks.recordSpan(Blocks.java:51)
-	at com.android.build.gradle.internal.tasks.NewIncrementalTask.taskAction(NewIncrementalTask.kt:46)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
-	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
-	at org.gradle.api.internal.project.taskfactory.IncrementalTaskAction.doExecute(IncrementalTaskAction.java:45)
+	at com.android.build.gradle.internal.tasks.NonIncrementalTask.taskAction(NonIncrementalTask.kt:97)
 --
 	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
 	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
