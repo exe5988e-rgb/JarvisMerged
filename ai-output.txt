@@ -1,3 +1,443 @@
+//===== TERMUXFILE: test/jarvis-agent/agent_server.py =====
+import json
+import os
+import signal
+import subprocess
+import threading
+import time
+from collections import deque
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse, parse_qs
+
+# ── State ─────────────────────────────────────────────────────────────────────
+
+_state = {
+    "running":   False,
+    "task":      "",
+    "step":      0,
+    "done":      False,
+    "error":     None,
+    "last_log":  "",
+}
+_state_lock   = threading.Lock()
+_log_history  = deque(maxlen=500)   # persistent ring buffer for /logs/tail
+_log_lock     = threading.Lock()
+_subscribers  = []
+_sub_lock     = threading.Lock()
+_proc         = None
+_proc_lock    = threading.Lock()
+
+# ── Noise filter ──────────────────────────────────────────────────────────────
+
+_NOISE_PREFIXES = ("llama_", "ggml_", "build:", "sampling params:")
+
+def _is_noise(line: str) -> bool:
+    s = line.strip()
+    return any(s.startswith(p) for p in _NOISE_PREFIXES)
+
+# ── Log helpers ───────────────────────────────────────────────────────────────
+
+def _push_log(line: str):
+    if _is_noise(line):
+        return
+    with _log_lock:
+        _log_history.append(line)
+    with _state_lock:
+        _state["last_log"] = line
+    with _sub_lock:
+        dead = []
+        for q in _subscribers:
+            try:
+                q.put_nowait(line)
+            except Exception:
+                dead.append(q)
+        for q in dead:
+            _subscribers.remove(q)
+
+# ── Controller subprocess ─────────────────────────────────────────────────────
+
+def _run_controller(task: str, device: str, max_steps: int):
+    global _proc
+    cmd = [
+        "python3",
+        os.path.expanduser("~/workflows/test/jarvis-agent/agent/controller.py"),
+        "--device", device,
+        "--task", task,
+        "--max-steps", str(max_steps),
+    ]
+    with _state_lock:
+        _state.update({"running": True, "task": task, "step": 0, "done": False, "error": None})
+
+    try:
+        with _proc_lock:
+            _proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+
+        for line in _proc.stdout:
+            line = line.rstrip()
+            _push_log(line)
+            if "STEP" in line and "|" in line:
+                try:
+                    step = int(line.split("STEP")[1].split("|")[0].strip())
+                    with _state_lock:
+                        _state["step"] = step
+                except Exception:
+                    pass
+
+        _proc.wait()
+        rc = _proc.returncode
+
+        with _state_lock:
+            _state["running"] = False
+            _state["done"]    = True
+            if rc != 0 and rc is not None:
+                _state["error"] = f"exit code {rc}"
+
+        _push_log(f"[agent_server] Task complete (exit {rc})")
+
+    except Exception as e:
+        with _state_lock:
+            _state.update({"running": False, "done": True, "error": str(e)})
+        _push_log(f"[agent_server] ✗ Exception: {e}")
+
+# ── HTTP handler ──────────────────────────────────────────────────────────────
+
+class Handler(BaseHTTPRequestHandler):
+
+    def log_message(self, fmt, *args):
+        pass  # suppress default access log
+
+    def _send_json(self, code: int, obj: dict):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except BrokenPipeError:
+            pass
+
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(length)) if length else {}
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+
+        if path == "/run":
+            body = self._read_json()
+            with _state_lock:
+                already = _state["running"]
+            if already:
+                self._send_json(409, {"error": "already running"})
+                return
+            task      = body.get("task", "")
+            device    = body.get("device", "192.168.29.48:40657")
+            max_steps = int(body.get("max_steps", 20))
+            threading.Thread(
+                target=_run_controller,
+                args=(task, device, max_steps),
+                daemon=True
+            ).start()
+            self._send_json(200, {"ok": True, "task": task})
+
+        elif path == "/stop":
+            with _proc_lock:
+                p = _proc
+            if p and p.poll() is None:
+                try:
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                except Exception:
+                    p.terminate()
+                _push_log("[agent_server] Stop signal sent")
+            with _state_lock:
+                _state.update({"running": False, "done": True})
+            self._send_json(200, {"ok": True})
+
+        else:
+            self._send_json(404, {"error": "not found"})
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path   = parsed.path
+        params = parse_qs(parsed.query)
+
+        if path == "/status":
+            with _state_lock:
+                s = dict(_state)
+            self._send_json(200, s)
+
+        elif path == "/health":
+            self._send_json(200, {"ok": True})
+
+        elif path == "/logs/tail":
+            # Returns last N lines only (default 50, max 100) — for resume restore
+            n = min(int(params.get("n", ["50"])[0]), 100)
+            with _log_lock:
+                lines = list(_log_history)[-n:]
+            body = json.dumps({"lines": lines}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            try:
+                self.wfile.write(body)
+            except BrokenPipeError:
+                pass
+
+        elif path == "/logs":
+            import queue as qmod
+            q = qmod.Queue()
+            with _sub_lock:
+                _subscribers.append(q)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+
+            try:
+                while True:
+                    try:
+                        line = q.get(timeout=15)
+                        msg  = f"data: {line}\n\n".encode()
+                        self.wfile.write(msg)
+                        self.wfile.flush()
+                    except Exception:
+                        try:
+                            self.wfile.write(b": ping\n\n")
+                            self.wfile.flush()
+                        except Exception:
+                            break
+            except Exception:
+                pass
+            finally:
+                with _sub_lock:
+                    if q in _subscribers:
+                        _subscribers.remove(q)
+
+        else:
+            self._send_json(404, {"error": "not found"})
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    port   = int(os.environ.get("AGENT_PORT", 8891))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"[agent_server] Listening on :{port}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("[agent_server] Stopped")
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentRepository.kt =====
+package com.jarvismini.agent
+
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+object AgentRepository {
+
+    private const val TAG          = "AgentRepo"
+    private const val DEFAULT_HOST = "192.168.29.48"
+    private const val AGENT_PORT   = 8891
+    private const val TTS_PORT     = 8892
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private fun agentUrl(path: String): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$AGENT_PORT$path"
+    }
+
+    private fun ttsUrl(path: String): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$TTS_PORT$path"
+    }
+
+    suspend fun runTask(
+        task: String,
+        device: String,
+        maxSteps: Int = 20
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("task", task)
+                put("device", device)
+                put("max_steps", maxSteps)
+            }.toString().toRequestBody("application/json".toMediaType())
+
+            val req = Request.Builder()
+                .url(agentUrl("/run"))
+                .post(body)
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                val json = JSONObject(resp.body?.string() ?: "{}")
+                if (resp.isSuccessful) {
+                    Result.success(json.optString("task", task))
+                } else {
+                    Result.failure(Exception(json.optString("error", "start failed")))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "runTask failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun stopAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/stop"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getStatus(): AgentStatus = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url(agentUrl("/status")).get().build()
+            client.newCall(req).execute().use { resp ->
+                val j = JSONObject(resp.body?.string() ?: "{}")
+                AgentStatus(
+                    running = j.optBoolean("running"),
+                    task    = j.optString("task"),
+                    step    = j.optInt("step"),
+                    done    = j.optBoolean("done"),
+                    error   = j.optString("error").ifBlank { null },
+                    lastLog = j.optString("last_log"),
+                )
+            }
+        } catch (e: Exception) {
+            AgentStatus(error = e.message)
+        }
+    }
+
+    /**
+     * Fetches last N lines from server log history.
+     * Used on dashboard resume to restore logs without flooding the UI.
+     */
+    suspend fun fetchLogTail(n: Int = 50): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/logs/tail?n=$n"))
+                .get()
+                .build()
+            client.newCall(req).execute().use { resp ->
+                val j   = JSONObject(resp.body?.string() ?: "{}")
+                val arr = j.optJSONArray("lines") ?: return@use emptyList()
+                List(arr.length()) { arr.getString(it) }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchLogTail failed", e)
+            emptyList()
+        }
+    }
+
+    fun streamLogs(): Flow<String> = flow {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/logs"))
+                .addHeader("Accept", "text/event-stream")
+                .get()
+                .build()
+
+            val sseClient = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(300, TimeUnit.SECONDS)
+                .build()
+
+            sseClient.newCall(req).execute().use { resp ->
+                val source = resp.body?.source() ?: return@use
+                while (!source.exhausted()) {
+                    val line = source.readUtf8Line() ?: break
+                    if (line.startsWith("data: ")) {
+                        val payload = line.removePrefix("data: ").trim()
+                        if (payload.isNotBlank()) emit(payload)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            emit("[connection lost: ${e.message}]")
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun speak(text: String, voiceId: String? = null): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val body = JSONObject().apply {
+                    put("text", text)
+                    if (voiceId != null) put("voice_id", voiceId)
+                }.toString().toRequestBody("application/json".toMediaType())
+
+                val req = Request.Builder()
+                    .url(ttsUrl("/speak"))
+                    .post(body)
+                    .build()
+
+                client.newCall(req).execute().close()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    suspend fun isAgentServerReachable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/health"))
+                .get()
+                .build()
+            val quickClient = OkHttpClient.Builder()
+                .connectTimeout(3, TimeUnit.SECONDS)
+                .readTimeout(3, TimeUnit.SECONDS)
+                .build()
+            quickClient.newCall(req).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+}
+
+data class AgentStatus(
+    val running: Boolean = false,
+    val task:    String  = "",
+    val step:    Int     = 0,
+    val done:    Boolean = false,
+    val error:   String? = null,
+    val lastLog: String  = "",
+)
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
 package com.jarvismini.agent
 
@@ -10,17 +450,17 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class AgentDashboardState(
-    val serverOnline:  Boolean        = false,
-    val running:       Boolean        = false,
-    val task:          String         = "",
-    val step:          Int            = 0,
-    val done:          Boolean        = false,
-    val error:         String?        = null,
-    val logs:          List<LogLine>  = emptyList(),
-    val taskInput:     String         = "",
-    val deviceInput:   String         = "192.168.29.48:40657",
-    val maxSteps:      Int            = 20,
-    val ttsEnabled:    Boolean        = true,
+    val serverOnline:  Boolean       = false,
+    val running:       Boolean       = false,
+    val task:          String        = "",
+    val step:          Int           = 0,
+    val done:          Boolean       = false,
+    val error:         String?       = null,
+    val logs:          List<LogLine> = emptyList(),
+    val taskInput:     String        = "",
+    val deviceInput:   String        = "192.168.29.48:40657",
+    val maxSteps:      Int           = 20,
+    val ttsEnabled:    Boolean       = true,
 )
 
 data class LogLine(
@@ -56,7 +496,10 @@ class AgentDashboardViewModel : ViewModel() {
         viewModelScope.launch {
             val online = AgentRepository.isAgentServerReachable()
             _state.update { it.copy(serverOnline = online) }
-            if (online) pollStatus()
+            if (online) {
+                pollStatus()
+                restoreLogs()   // ← repopulate on resume
+            }
         }
     }
 
@@ -80,7 +523,7 @@ class AgentDashboardViewModel : ViewModel() {
                 .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
 
             startLogStream()
-            watchForCompletion()   // ← auto-speak when done
+            watchForCompletion()
         }
     }
 
@@ -97,15 +540,29 @@ class AgentDashboardViewModel : ViewModel() {
         val last = _state.value.logs
             .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
             .lastOrNull()?.text ?: return
+        viewModelScope.launch { AgentRepository.speak(last) }
+    }
 
+    /**
+     * On resume, fetches last 50 lines from server so dashboard isn't blank.
+     * Skips if logs already present. Re-attaches SSE stream if task still running.
+     */
+    private fun restoreLogs() {
         viewModelScope.launch {
-            AgentRepository.speak(last)
+            if (_state.value.logs.isNotEmpty()) return@launch
+            val lines = AgentRepository.fetchLogTail(50)
+            if (lines.isEmpty()) return@launch
+            pushLog("[dashboard] ── restored last ${lines.size} lines ──", LogLevel.SYSTEM)
+            lines.forEach { pushLog(it, classifyLog(it)) }
+            if (_state.value.running) {
+                startLogStream()
+                watchForCompletion()
+            }
         }
     }
 
     /**
-     * Watches state for done=true, then auto-speaks the last SUCCESS/STEP log line.
-     * Fires once per task run. Respects ttsEnabled toggle.
+     * Auto-speaks last SUCCESS/STEP line when task completes.
      */
     private fun watchForCompletion() {
         completionWatcher?.cancel()
@@ -168,413 +625,3 @@ class AgentDashboardViewModel : ViewModel() {
         super.onCleared()
     }
 }
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
-package com.jarvismini.agent
-
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
-
-// ─── Colours ────────────────────────────────────────────────────────────────
-private val Cyan    = Color(0xFF00E0FF)
-private val DimCyan = Color(0xFF005566)
-private val BgDark  = Color(0xFF060F14)
-private val BgCard  = Color(0xFF0A1A22)
-private val Green   = Color(0xFF00FF88)
-private val Red     = Color(0xFFFF4466)
-private val Yellow  = Color(0xFFFFCC00)
-private val White70 = Color(0xB3FFFFFF)
-private val White40 = Color(0x66FFFFFF)
-
-@Composable
-fun AgentDashboardScreen(
-    onBack: () -> Unit,
-    vm: AgentDashboardViewModel = viewModel()
-) {
-    val state     by vm.state.collectAsState()
-    val context   = LocalContext.current
-    val listState = rememberLazyListState()
-    val scope     = rememberCoroutineScope()
-
-    // Auto-scroll to bottom when new log arrives
-    LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) {
-            listState.animateScrollToItem(state.logs.lastIndex)
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF010A0F))))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-        ) {
-            // ── Header ──────────────────────────────────────────────────────
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = Cyan)
-                }
-                Text(
-                    "AGENT DASHBOARD",
-                    fontSize      = 18.sp,
-                    fontWeight    = FontWeight.Light,
-                    letterSpacing = 4.sp,
-                    color         = Cyan,
-                    fontFamily    = FontFamily.Monospace
-                )
-                Spacer(Modifier.weight(1f))
-                ServerStatusDot(online = state.serverOnline, running = state.running)
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = { vm.checkServer() }) {
-                    Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
-                }
-            }
-
-            // ── Status bar ──────────────────────────────────────────────────
-            if (state.running || state.done) {
-                StatusBar(state)
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // ── Task input ──────────────────────────────────────────────────
-            TaskInputSection(
-                state    = state,
-                onTask   = vm::onTaskInput,
-                onDevice = vm::onDeviceInput,
-                onStart  = vm::startAgent,
-                onStop   = vm::stopAgent,
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            // ── Log toolbar ─────────────────────────────────────────────────
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "LOGS",
-                    fontSize      = 11.sp,
-                    letterSpacing = 3.sp,
-                    color         = DimCyan,
-                    fontFamily    = FontFamily.Monospace
-                )
-                Spacer(Modifier.weight(1f))
-                // TTS toggle
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.VolumeUp,
-                        null,
-                        tint     = if (state.ttsEnabled) Cyan else White40,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Switch(
-                        checked         = state.ttsEnabled,
-                        onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier.height(20.dp),
-                        colors          = SwitchDefaults.colors(
-                            checkedThumbColor   = Cyan,
-                            checkedTrackColor   = DimCyan,
-                            uncheckedThumbColor = White40,
-                            uncheckedTrackColor = BgCard
-                        )
-                    )
-                }
-                if (state.logs.isNotEmpty()) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "${state.logs.size} lines",
-                        fontSize   = 10.sp,
-                        color      = White40,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(
-                        onClick        = vm::clearLogs,
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
-                        Text("Clear", fontSize = 11.sp, color = White40)
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    TextButton(
-                        onClick        = { vm.speakResult(context) },
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
-                        Icon(Icons.Default.VolumeUp, null, tint = Cyan, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Speak", fontSize = 11.sp, color = Cyan)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // ── Log pane ────────────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(BgCard)
-                    .border(0.5.dp, DimCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                if (state.logs.isEmpty()) {
-                    Text(
-                        "No logs yet. Start a task to see agent activity.",
-                        color      = White40,
-                        fontSize   = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier   = Modifier.align(Alignment.Center)
-                    )
-                } else {
-                    LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        items(state.logs, key = { it.hashCode() }) { log ->
-                            LogLineRow(log)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-        }
-    }
-}
-
-// ── Status bar ────────────────────────────────────────────────────────────────
-
-@Composable
-private fun StatusBar(state: AgentDashboardState) {
-    val bg = when {
-        state.error != null -> Red.copy(alpha = 0.15f)
-        state.done          -> Green.copy(alpha = 0.12f)
-        state.running       -> Cyan.copy(alpha = 0.08f)
-        else                -> BgCard
-    }
-    val text = when {
-        state.error != null -> "✗ Error: ${state.error}"
-        state.done          -> "✓ Done in ${state.step} steps"
-        state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
-        else                -> ""
-    }
-    val textColor = when {
-        state.error != null -> Red
-        state.done          -> Green
-        else                -> Cyan
-    }
-    if (text.isBlank()) return
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (state.running) {
-            CircularProgressIndicator(
-                modifier    = Modifier.size(12.dp),
-                color       = Cyan,
-                strokeWidth = 1.5.dp
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(
-            text,
-            color      = textColor,
-            fontSize   = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            maxLines   = 1
-        )
-    }
-}
-
-// ── Task input ────────────────────────────────────────────────────────────────
-
-@Composable
-private fun TaskInputSection(
-    state:    AgentDashboardState,
-    onTask:   (String) -> Unit,
-    onDevice: (String) -> Unit,
-    onStart:  () -> Unit,
-    onStop:   () -> Unit,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(BgCard)
-            .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
-    ) {
-        OutlinedTextField(
-            value           = state.taskInput,
-            onValueChange   = onTask,
-            label           = { Text("Task", color = White40, fontSize = 12.sp) },
-            placeholder     = { Text("Open WhatsApp and message Mummy...", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
-            modifier        = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            minLines        = 2,
-            maxLines        = 4,
-            colors          = agentFieldColors(),
-            textStyle       = LocalTextStyle.current.copy(
-                color      = White70,
-                fontSize   = 13.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value         = state.deviceInput,
-            onValueChange = onDevice,
-            label         = { Text("Device", color = White40, fontSize = 11.sp) },
-            singleLine    = true,
-            modifier      = Modifier.fillMaxWidth(),
-            colors        = agentFieldColors(),
-            textStyle     = LocalTextStyle.current.copy(
-                color      = Cyan,
-                fontSize   = 12.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            if (state.running) {
-                OutlinedButton(
-                    onClick  = onStop,
-                    border   = ButtonDefaults.outlinedButtonBorder.copy(),
-                    colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    Icon(Icons.Default.Stop, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Stop", fontSize = 13.sp)
-                }
-            } else {
-                Button(
-                    onClick  = onStart,
-                    enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline,
-                    colors   = ButtonDefaults.buttonColors(
-                        containerColor = Cyan,
-                        contentColor   = BgDark
-                    ),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Run", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-            }
-        }
-
-        if (!state.serverOnline) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
-                color      = Yellow,
-                fontSize   = 10.sp,
-                fontFamily = FontFamily.Monospace,
-            )
-        }
-    }
-}
-
-// ── Log line ──────────────────────────────────────────────────────────────────
-
-@Composable
-private fun LogLineRow(log: LogLine) {
-    val color = when (log.level) {
-        LogLevel.SUCCESS -> Green
-        LogLevel.ERROR   -> Red
-        LogLevel.WARN    -> Yellow
-        LogLevel.STEP    -> Cyan
-        LogLevel.SYSTEM  -> DimCyan
-        LogLevel.INFO    -> White70
-    }
-    Text(
-        text       = log.text,
-        color      = color,
-        fontSize   = 11.sp,
-        fontFamily = FontFamily.Monospace,
-        lineHeight = 14.sp,
-        modifier   = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 1.dp, horizontal = 2.dp)
-    )
-}
-
-// ── Server dot ────────────────────────────────────────────────────────────────
-
-@Composable
-private fun ServerStatusDot(online: Boolean, running: Boolean) {
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val alpha by pulse.animateFloat(
-        initialValue = 0.4f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dotAlpha"
-    )
-    val color = when {
-        !online -> Red
-        running -> Green.copy(alpha = alpha)
-        else    -> Green
-    }
-    Box(
-        Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(color)
-    )
-}
-
-// ── Field colours ─────────────────────────────────────────────────────────────
-
-@Composable
-private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor   = Cyan,
-    unfocusedBorderColor = DimCyan.copy(alpha = 0.5f),
-    cursorColor          = Cyan,
-    focusedLabelColor    = Cyan,
-)
