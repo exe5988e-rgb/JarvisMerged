@@ -43,8 +43,9 @@ class AgentDashboardViewModel : ViewModel() {
     private val _state = MutableStateFlow(AgentDashboardState())
     val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
 
-    private var logStreamJob: Job? = null
-    private var statusPollJob: Job? = null
+    private var logStreamJob:      Job? = null
+    private var statusPollJob:     Job? = null
+    private var completionWatcher: Job? = null
 
     init {
         checkServer()
@@ -58,13 +59,13 @@ class AgentDashboardViewModel : ViewModel() {
         }
     }
 
-    fun onTaskInput(v: String) = _state.update { it.copy(taskInput = v) }
+    fun onTaskInput(v: String)  = _state.update { it.copy(taskInput = v) }
     fun onDeviceInput(v: String) = _state.update { it.copy(deviceInput = v) }
-    fun onMaxStepsInput(v: Int) = _state.update { it.copy(maxSteps = v) }
-    fun onTtsToggle(v: Boolean) = _state.update { it.copy(ttsEnabled = v) }
+    fun onMaxStepsInput(v: Int)  = _state.update { it.copy(maxSteps = v) }
+    fun onTtsToggle(v: Boolean)  = _state.update { it.copy(ttsEnabled = v) }
 
     fun startAgent() {
-        val s = _state.value
+        val s      = _state.value
         val task   = s.taskInput.trim()
         val device = s.deviceInput.trim()
         if (task.isEmpty()) return
@@ -78,6 +79,7 @@ class AgentDashboardViewModel : ViewModel() {
                 .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
 
             startLogStream()
+            watchForCompletion()   // ← auto-speak when done
         }
     }
 
@@ -100,6 +102,30 @@ class AgentDashboardViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Watches state for done=true, then auto-speaks the last SUCCESS/STEP log line.
+     * Fires once per task run. Respects ttsEnabled toggle.
+     */
+    private fun watchForCompletion() {
+        completionWatcher?.cancel()
+        completionWatcher = viewModelScope.launch {
+            state
+                .filter { it.done && !it.running }
+                .take(1)
+                .collect {
+                    if (_state.value.ttsEnabled) {
+                        val last = _state.value.logs
+                            .filter { l -> l.level == LogLevel.SUCCESS || l.level == LogLevel.STEP }
+                            .lastOrNull()?.text
+                        if (!last.isNullOrBlank()) {
+                            pushLog("[dashboard] Speaking result via TTS...", LogLevel.SYSTEM)
+                            AgentRepository.speak(last)
+                        }
+                    }
+                }
+        }
+    }
+
     private fun startLogStream() {
         logStreamJob?.cancel()
         logStreamJob = viewModelScope.launch {
@@ -116,11 +142,11 @@ class AgentDashboardViewModel : ViewModel() {
                 delay(2000)
                 val status = AgentRepository.getStatus()
                 _state.update { it.copy(
-                    running  = status.running,
-                    task     = status.task,
-                    step     = status.step,
-                    done     = status.done,
-                    error    = status.error,
+                    running      = status.running,
+                    task         = status.task,
+                    step         = status.step,
+                    done         = status.done,
+                    error        = status.error,
                     serverOnline = true,
                 )}
             }
@@ -137,6 +163,7 @@ class AgentDashboardViewModel : ViewModel() {
     override fun onCleared() {
         logStreamJob?.cancel()
         statusPollJob?.cancel()
+        completionWatcher?.cancel()
         super.onCleared()
     }
 }

@@ -45,10 +45,10 @@ fun AgentDashboardScreen(
     onBack: () -> Unit,
     vm: AgentDashboardViewModel = viewModel()
 ) {
-    val state by vm.state.collectAsState()
-    val context  = LocalContext.current
+    val state     by vm.state.collectAsState()
+    val context   = LocalContext.current
     val listState = rememberLazyListState()
-    val scope    = rememberCoroutineScope()
+    val scope     = rememberCoroutineScope()
 
     // Auto-scroll to bottom when new log arrives
     LaunchedEffect(state.logs.size) {
@@ -78,11 +78,11 @@ fun AgentDashboardScreen(
                 }
                 Text(
                     "AGENT DASHBOARD",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Light,
+                    fontSize     = 18.sp,
+                    fontWeight   = FontWeight.Light,
                     letterSpacing = 4.sp,
-                    color = Cyan,
-                    fontFamily = FontFamily.Monospace
+                    color        = Cyan,
+                    fontFamily   = FontFamily.Monospace
                 )
                 Spacer(Modifier.weight(1f))
                 // Server status dot
@@ -117,29 +117,46 @@ fun AgentDashboardScreen(
             ) {
                 Text(
                     "LOGS",
-                    fontSize = 11.sp,
+                    fontSize      = 11.sp,
                     letterSpacing = 3.sp,
-                    color = DimCyan,
-                    fontFamily = FontFamily.Monospace
+                    color         = DimCyan,
+                    fontFamily    = FontFamily.Monospace
                 )
                 Spacer(Modifier.weight(1f))
+                // TTS toggle
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.VolumeUp, null, tint = if (state.ttsEnabled) Cyan else White40, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(2.dp))
+                    Switch(
+                        checked         = state.ttsEnabled,
+                        onCheckedChange = vm::onTtsToggle,
+                        modifier        = Modifier.height(20.dp).padding(0.dp),
+                        colors          = SwitchDefaults.colors(
+                            checkedThumbColor   = Cyan,
+                            checkedTrackColor   = DimCyan,
+                            uncheckedThumbColor = White40,
+                            uncheckedTrackColor = BgCard
+                        )
+                    )
+                }
                 if (state.logs.isNotEmpty()) {
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         "${state.logs.size} lines",
-                        fontSize = 10.sp,
-                        color = White40,
+                        fontSize   = 10.sp,
+                        color      = White40,
                         fontFamily = FontFamily.Monospace
                     )
                     Spacer(Modifier.width(8.dp))
                     TextButton(
-                        onClick = vm::clearLogs,
+                        onClick        = vm::clearLogs,
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                     ) {
                         Text("Clear", fontSize = 11.sp, color = White40)
                     }
                     Spacer(Modifier.width(4.dp))
                     TextButton(
-                        onClick = { vm.speakResult(context) },
+                        onClick        = { vm.speakResult(context) },
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                     ) {
                         Icon(Icons.Default.VolumeUp, null, tint = Cyan, modifier = Modifier.size(14.dp))
@@ -164,10 +181,10 @@ fun AgentDashboardScreen(
                 if (state.logs.isEmpty()) {
                     Text(
                         "No logs yet. Start a task to see agent activity.",
-                        color = White40,
-                        fontSize = 12.sp,
+                        color      = White40,
+                        fontSize   = 12.sp,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.align(Alignment.Center)
+                        modifier   = Modifier.align(Alignment.Center)
                     )
                 } else {
                     LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -215,18 +232,18 @@ private fun StatusBar(state: AgentDashboardState) {
     ) {
         if (state.running) {
             CircularProgressIndicator(
-                modifier = Modifier.size(12.dp),
-                color    = Cyan,
+                modifier    = Modifier.size(12.dp),
+                color       = Cyan,
                 strokeWidth = 1.5.dp
             )
             Spacer(Modifier.width(8.dp))
         }
         Text(
             text,
-            color    = textColor,
-            fontSize = 12.sp,
+            color      = textColor,
+            fontSize   = 12.sp,
             fontFamily = FontFamily.Monospace,
-            maxLines = 1
+            maxLines   = 1
         )
     }
 }
@@ -250,16 +267,16 @@ private fun TaskInputSection(
             .padding(12.dp)
     ) {
         OutlinedTextField(
-            value         = state.taskInput,
-            onValueChange = onTask,
-            label         = { Text("Task", color = White40, fontSize = 12.sp) },
-            placeholder   = { Text("Open WhatsApp and message Mummy...", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
-            modifier      = Modifier.fillMaxWidth(),
+            value           = state.taskInput,
+            onValueChange   = onTask,
+            label           = { Text("Task", color = White40, fontSize = 12.sp) },
+            placeholder     = { Text("Open WhatsApp and message Mummy...", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            modifier        = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            minLines      = 2,
-            maxLines      = 4,
-            colors        = agentFieldColors(),
-            textStyle     = LocalTextStyle.current.copy(
+            minLines        = 2,
+            maxLines        = 4,
+            colors          = agentFieldColors(),
+            textStyle       = LocalTextStyle.current.copy(
                 color      = White70,
                 fontSize   = 13.sp,
                 fontFamily = FontFamily.Monospace
@@ -287,9 +304,9 @@ private fun TaskInputSection(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             if (state.running) {
                 OutlinedButton(
-                    onClick = onStop,
-                    border  = ButtonDefaults.outlinedButtonBorder.copy(),
-                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = Red),
+                    onClick  = onStop,
+                    border   = ButtonDefaults.outlinedButtonBorder.copy(),
+                    colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Icon(Icons.Default.Stop, null, modifier = Modifier.size(16.dp))
@@ -317,8 +334,8 @@ private fun TaskInputSection(
             Spacer(Modifier.height(6.dp))
             Text(
                 "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
-                color = Yellow,
-                fontSize = 10.sp,
+                color      = Yellow,
+                fontSize   = 10.sp,
                 fontFamily = FontFamily.Monospace,
             )
         }
@@ -363,9 +380,9 @@ private fun ServerStatusDot(online: Boolean, running: Boolean) {
         label = "dotAlpha"
     )
     val color = when {
-        !online  -> Red
-        running  -> Green.copy(alpha = alpha)
-        else     -> Green
+        !online -> Red
+        running -> Green.copy(alpha = alpha)
+        else    -> Green
     }
     Box(
         Modifier
