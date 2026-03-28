@@ -15,8 +15,13 @@ Checking if the launcher JVM can be re-used for build. To be re-used, the launch
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.4/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
 Starting process 'Gradle build daemon'. Working directory: /home/runner/.gradle/daemon/8.4 Command: /usr/lib/jvm/temurin-17-jdk-amd64/bin/java --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED -Xmx2048m -Dfile.encoding=UTF-8 -Duser.country -Duser.language=en -Duser.variant -cp /home/runner/.gradle/wrapper/dists/gradle-8.4-all/56r6xik2f6skrm47et0ibifug/gradle-8.4/lib/gradle-launcher-8.4.jar -javaagent:/home/runner/.gradle/wrapper/dists/gradle-8.4-all/56r6xik2f6skrm47et0ibifug/gradle-8.4/lib/agents/gradle-instrumentation-agent-8.4.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.4
 Successfully started process 'Gradle build daemon'
+<<<<<<< Updated upstream
 An attempt to start the daemon took 0.941 secs.
 The client will now receive all logging from the daemon (pid: 2770). The daemon log file: /home/runner/.gradle/daemon/8.4/daemon-2770.out.log
+=======
+An attempt to start the daemon took 0.826 secs.
+The client will now receive all logging from the daemon (pid: 2749). The daemon log file: /home/runner/.gradle/daemon/8.4/daemon-2749.out.log
+>>>>>>> Stashed changes
 Closing daemon's stdin at end of input.
 The daemon will no longer process any standard input.
 Daemon will be stopped at the end of the build 
@@ -35,6 +40,7 @@ Included projects: [root project 'SyncWave', project ':app']
 > Configure project :
 Evaluating root project 'SyncWave' using build file '/home/runner/work/JarvisMerged/JarvisMerged/build.gradle'.
 Compiling build file '/home/runner/work/JarvisMerged/JarvisMerged/build.gradle' using SubsetScriptTransformer.
+<<<<<<< Updated upstream
 Downloading https://dl.google.com/dl/android/maven2/com/android/application/com.android.application.gradle.plugin/8.2.2/com.android.application.gradle.plugin-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download15413574814855895454bin
 Resource missing. [HTTP HEAD: https://dl.google.com/dl/android/maven2/com/android/application/com.android.application.gradle.plugin/8.2.2/com.android.application.gradle.plugin-8.2.2.jar]
 Resource missing. [HTTP HEAD: https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/android/org.jetbrains.kotlin.android.gradle.plugin/1.9.22/org.jetbrains.kotlin.android.gradle.plugin-1.9.22.jar]
@@ -84,9 +90,59 @@ Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-commons/9.2/asm
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/ow2/ow2/1.5/ow2-1.5.pom]
 Downloading https://repo.maven.apache.org/maven2/org/ow2/ow2/1.5/ow2-1.5.pom to /home/runner/.gradle/.tmp/gradle_download10830935405693710522bin
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/apache/apache/9/apache-9.pom]
+=======
+Downloading https://dl.google.com/dl/android/maven2/com/android/application/com.android.application.gradle.plugin/8.2.2/com.android.application.gradle.plugin-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download18445483219144644782bin
+Resource missing. [HTTP HEAD: https://dl.google.com/dl/android/maven2/com/android/application/com.android.application.gradle.plugin/8.2.2/com.android.application.gradle.plugin-8.2.2.jar]
+Resource missing. [HTTP HEAD: https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/android/org.jetbrains.kotlin.android.gradle.plugin/1.9.22/org.jetbrains.kotlin.android.gradle.plugin-1.9.22.jar]
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.2.2/gradle-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download7190109218416682790bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.2.2/gradle-8.2.2.module to /home/runner/.gradle/.tmp/gradle_download11860839128682046852bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/repository/31.2.2/repository-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download11746868700947143394bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/sdk-common/31.2.2/sdk-common-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download17064232592734841144bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/sdklib/31.2.2/sdklib-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download8956792340837391874bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle-settings-api/8.2.2/gradle-settings-api-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download3339908182642042134bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/ddms/ddmlib/31.2.2/ddmlib-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download15531896216889659477bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle-settings-api/8.2.2/gradle-settings-api-8.2.2.module to /home/runner/.gradle/.tmp/gradle_download7495708552359066631bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2-proto/8.2.2-10154469/aapt2-proto-8.2.2-10154469.pom to /home/runner/.gradle/.tmp/gradle_download13535829234548258511bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/crash/31.2.2/crash-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download10683353284407368042bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/aaptcompiler/8.2.2/aaptcompiler-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download1899226026656152206bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/shared/31.2.2/shared-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download3068683233595457172bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/aaptcompiler/8.2.2/aaptcompiler-8.2.2.module to /home/runner/.gradle/.tmp/gradle_download13200958700516930101bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/lint/lint-model/31.2.2/lint-model-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download3541490430651832731bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2-proto/8.2.2-10154469/aapt2-proto-8.2.2-10154469.module to /home/runner/.gradle/.tmp/gradle_download3624075589264919513bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler-common/8.2.2/databinding-compiler-common-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download13227408147208440194bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/databinding/baseLibrary/8.2.2/baseLibrary-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download11061715522157154131bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/lint/lint-typedef-remover/31.2.2/lint-typedef-remover-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download15014585325482254168bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder-test-api/8.2.2/builder-test-api-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download5751384069472012048bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/layoutlib/layoutlib-api/31.2.2/layoutlib-api-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download13198505493533723196bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-device-provider-ddmlib-proto/31.2.2/android-device-provider-ddmlib-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download7537894143955393036bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-common/8.2.2/databinding-common-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download16251902180431353504bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder-test-api/8.2.2/builder-test-api-8.2.2.module to /home/runner/.gradle/.tmp/gradle_download15741294603445402220bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-coverage-proto/31.2.2/android-test-plugin-host-coverage-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download16190891093261538943bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-device-provider-gradle-proto/31.2.2/android-device-provider-gradle-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download3038551779941974832bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-apk-installer-proto/31.2.2/android-test-plugin-host-apk-installer-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download15144419873514340761bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-emulator-control-proto/31.2.2/android-test-plugin-host-emulator-control-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download13750579147899124383bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-additional-test-output-proto/31.2.2/android-test-plugin-host-additional-test-output-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download16517226079510781636bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.0/kotlin-stdlib-jdk8-1.9.0.pom]
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-retention-proto/31.2.2/android-test-plugin-host-retention-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download7513315384506593531bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-result-listener-gradle-proto/31.2.2/android-test-plugin-result-listener-gradle-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download9306241830087878109bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-logcat-proto/31.2.2/android-test-plugin-host-logcat-proto-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download13628869251967427054bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.0/kotlin-stdlib-jdk8-1.9.0.pom to /home/runner/.gradle/.tmp/gradle_download11658619180108121006bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/commons-io/commons-io/2.4/commons-io-2.4.pom]
+Downloading https://repo.maven.apache.org/maven2/commons-io/commons-io/2.4/commons-io-2.4.pom to /home/runner/.gradle/.tmp/gradle_download8624134745030917696bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/ow2/asm/asm-analysis/9.2/asm-analysis-9.2.pom]
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-analysis/9.2/asm-analysis-9.2.pom to /home/runner/.gradle/.tmp/gradle_download4339664851513162269bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/ow2/asm/asm/9.2/asm-9.2.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/ow2/asm/asm-commons/9.2/asm-commons-9.2.pom]
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.pom to /home/runner/.gradle/.tmp/gradle_download17704095785986189622bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/ow2/ow2/1.5/ow2-1.5.pom]
+Downloading https://repo.maven.apache.org/maven2/org/ow2/ow2/1.5/ow2-1.5.pom to /home/runner/.gradle/.tmp/gradle_download9430975019819219660bin
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-commons/9.2/asm-commons-9.2.pom to /home/runner/.gradle/.tmp/gradle_download10849734394115743104bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/apache/commons/commons-parent/25/commons-parent-25.pom]
+>>>>>>> Stashed changes
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/ow2/asm/asm-util/9.2/asm-util-9.2.pom]
 Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/bundletool/1.15.2/bundletool-1.15.2.pom to /home/runner/.gradle/.tmp/gradle_download10935201654152657727bin
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/protobuf/protobuf-java/3.19.3/protobuf-java-3.19.3.pom]
+<<<<<<< Updated upstream
 Downloading https://repo.maven.apache.org/maven2/org/apache/apache/9/apache-9.pom to /home/runner/.gradle/.tmp/gradle_download15304217308140049052bin
 Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-util/9.2/asm-util-9.2.pom to /home/runner/.gradle/.tmp/gradle_download9347180706411328051bin
 Downloading https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java/3.19.3/protobuf-java-3.19.3.pom to /home/runner/.gradle/.tmp/gradle_download15534854280758831054bin
@@ -146,8 +202,73 @@ Downloading https://repo.maven.apache.org/maven2/com/google/errorprone/error_pro
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/errorprone/error_prone_parent/2.10.0/error_prone_parent-2.10.0.pom]
 Downloading https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_parent/2.10.0/error_prone_parent-2.10.0.pom to /home/runner/.gradle/.tmp/gradle_download12738671368677623161bin
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/codehaus/mojo/animal-sniffer-annotations/1.19/animal-sniffer-annotations-1.19.pom]
+=======
+Downloading https://repo.maven.apache.org/maven2/org/apache/commons/commons-parent/25/commons-parent-25.pom to /home/runner/.gradle/.tmp/gradle_download5889570351122898167bin
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-util/9.2/asm-util-9.2.pom to /home/runner/.gradle/.tmp/gradle_download11763350621270260570bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/bundletool/1.15.2/bundletool-1.15.2.pom to /home/runner/.gradle/.tmp/gradle_download15104569123891048645bin
+Downloading https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java/3.19.3/protobuf-java-3.19.3.pom to /home/runner/.gradle/.tmp/gradle_download17668663188060015806bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/protobuf/protobuf-java-util/3.19.3/protobuf-java-util-3.19.3.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java-util/3.19.3/protobuf-java-util-3.19.3.pom to /home/runner/.gradle/.tmp/gradle_download17040090899887214936bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/protobuf/protobuf-parent/3.19.3/protobuf-parent-3.19.3.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-parent/3.19.3/protobuf-parent-3.19.3.pom to /home/runner/.gradle/.tmp/gradle_download5535299181499066240bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/code/gson/gson/2.8.6/gson-2.8.6.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/apache/apache/9/apache-9.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/code/gson/gson/2.8.6/gson-2.8.6.pom to /home/runner/.gradle/.tmp/gradle_download9908185197039556705bin
+Downloading https://repo.maven.apache.org/maven2/org/apache/apache/9/apache-9.pom to /home/runner/.gradle/.tmp/gradle_download13403107763315392570bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/code/gson/gson-parent/2.8.6/gson-parent-2.8.6.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/grpc/grpc-core/1.45.1/grpc-core-1.45.1.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/code/gson/gson-parent/2.8.6/gson-parent-2.8.6.pom to /home/runner/.gradle/.tmp/gradle_download12415227896323782177bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/protobuf/protobuf-bom/3.19.3/protobuf-bom-3.19.3.pom]
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-core/1.45.1/grpc-core-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download4240148489950932356bin
+Downloading https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-bom/3.19.3/protobuf-bom-3.19.3.pom to /home/runner/.gradle/.tmp/gradle_download10261944945212213844bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/grpc/grpc-netty/1.45.1/grpc-netty-1.45.1.pom]
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-netty/1.45.1/grpc-netty-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download13963012965471804585bin
+Downloading https://dl.google.com/dl/android/maven2/com/google/testing/platform/core-proto/0.0.8-alpha08/core-proto-0.0.8-alpha08.pom to /home/runner/.gradle/.tmp/gradle_download771066758707033787bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/grpc/grpc-stub/1.45.1/grpc-stub-1.45.1.pom]
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-stub/1.45.1/grpc-stub-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download15849503398674167264bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/grpc/grpc-protobuf/1.45.1/grpc-protobuf-1.45.1.pom]
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-protobuf/1.45.1/grpc-protobuf-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download446073697514184560bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder/8.2.2/builder-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download4729615752166444034bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle-api/8.2.2/gradle-api-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download17725356466990804801bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder-model/8.2.2/builder-model-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download14469685702016304417bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder-model/8.2.2/builder-model-8.2.2.module to /home/runner/.gradle/.tmp/gradle_download16256212550274277796bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder/8.2.2/builder-8.2.2.module to /home/runner/.gradle/.tmp/gradle_download13852265854238442857bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle-api/8.2.2/gradle-api-8.2.2.module to /home/runner/.gradle/.tmp/gradle_download291719657173397835bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/code/gson/gson/2.10/gson-2.10.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/code/gson/gson/2.10/gson-2.10.pom to /home/runner/.gradle/.tmp/gradle_download5158868466682863100bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/code/gson/gson-parent/2.10/gson-parent-2.10.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/code/gson/gson-parent/2.10/gson-parent-2.10.pom to /home/runner/.gradle/.tmp/gradle_download18234036129683920361bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/xerces/xercesImpl/2.12.0/xercesImpl-2.12.0.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlin/kotlin-reflect/1.9.0/kotlin-reflect-1.9.0.pom]
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/common/31.2.2/common-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download17472957270958551611bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/guava/guava/31.1-jre/guava-31.1-jre.pom]
+Downloading https://repo.maven.apache.org/maven2/xerces/xercesImpl/2.12.0/xercesImpl-2.12.0.pom to /home/runner/.gradle/.tmp/gradle_download10093465418151841680bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-reflect/1.9.0/kotlin-reflect-1.9.0.pom to /home/runner/.gradle/.tmp/gradle_download8289772204660489914bin
+Downloading https://repo.maven.apache.org/maven2/com/google/guava/guava/31.1-jre/guava-31.1-jre.pom to /home/runner/.gradle/.tmp/gradle_download10554641573610473844bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/guava/guava-parent/31.1-jre/guava-parent-31.1-jre.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/guava/guava-parent/31.1-jre/guava-parent-31.1-jre.pom to /home/runner/.gradle/.tmp/gradle_download9629220740126701628bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/dvlib/31.2.2/dvlib-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download7378990836137998871bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/annotations/31.2.2/annotations-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download18063269191975644362bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/protos/31.2.2/protos-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download670753222627238652bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.0/kotlin-stdlib-1.9.0.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.9.0/kotlin-stdlib-jdk7-1.9.0.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.0/kotlin-stdlib-1.9.0.pom to /home/runner/.gradle/.tmp/gradle_download4796282405257182991bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.9.0/kotlin-stdlib-jdk7-1.9.0.pom to /home/runner/.gradle/.tmp/gradle_download15812292235253517894bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.pom]
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.pom to /home/runner/.gradle/.tmp/gradle_download5669303506692345859bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/errorprone/error_prone_annotations/2.5.1/error_prone_annotations-2.5.1.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.5.1/error_prone_annotations-2.5.1.pom to /home/runner/.gradle/.tmp/gradle_download17308976604091978591bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/errorprone/error_prone_parent/2.5.1/error_prone_parent-2.5.1.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_parent/2.5.1/error_prone_parent-2.5.1.pom to /home/runner/.gradle/.tmp/gradle_download8492094148924253362bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/errorprone/error_prone_annotations/2.10.0/error_prone_annotations-2.10.0.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.10.0/error_prone_annotations-2.10.0.pom to /home/runner/.gradle/.tmp/gradle_download13598646924534920378bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/errorprone/error_prone_parent/2.10.0/error_prone_parent-2.10.0.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_parent/2.10.0/error_prone_parent-2.10.0.pom to /home/runner/.gradle/.tmp/gradle_download7850708700630289849bin
+>>>>>>> Stashed changes
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/perfmark/perfmark-api/0.23.0/perfmark-api-0.23.0.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/codehaus/mojo/animal-sniffer-annotations/1.19/animal-sniffer-annotations-1.19.pom]
 Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/grpc/grpc-api/1.45.1/grpc-api-1.45.1.pom]
+<<<<<<< Updated upstream
 Downloading https://repo.maven.apache.org/maven2/org/codehaus/mojo/animal-sniffer-annotations/1.19/animal-sniffer-annotations-1.19.pom to /home/runner/.gradle/.tmp/gradle_download14431534204134180559bin
 Downloading https://repo.maven.apache.org/maven2/io/perfmark/perfmark-api/0.23.0/perfmark-api-0.23.0.pom to /home/runner/.gradle/.tmp/gradle_download9888708625197176418bin
 Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-api/1.45.1/grpc-api-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download2127728315790331277bin
@@ -284,6 +405,144 @@ Downloading https://repo.maven.apache.org/maven2/io/netty/netty-resolver/4.1.72.
 Downloading https://repo.maven.apache.org/maven2/io/netty/netty-common/4.1.72.Final/netty-common-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download6271926299970736137bin
 Downloading https://repo.maven.apache.org/maven2/io/netty/netty-tcnative-classes/2.0.46.Final/netty-tcnative-classes-2.0.46.Final.jar to /home/runner/.gradle/.tmp/gradle_download7975380889290159030bin
 Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/8.2.2/apksig-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download15327963247498500308bin
+=======
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-api/1.45.1/grpc-api-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download15329760984614243020bin
+Downloading https://repo.maven.apache.org/maven2/io/perfmark/perfmark-api/0.23.0/perfmark-api-0.23.0.pom to /home/runner/.gradle/.tmp/gradle_download12990437535161352157bin
+Downloading https://repo.maven.apache.org/maven2/org/codehaus/mojo/animal-sniffer-annotations/1.19/animal-sniffer-annotations-1.19.pom to /home/runner/.gradle/.tmp/gradle_download18144530616646494848bin
+Downloading https://repo.maven.apache.org/maven2/io/perfmark/perfmark-api/0.23.0/perfmark-api-0.23.0.module to /home/runner/.gradle/.tmp/gradle_download17139587276875605383bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/codehaus/mojo/animal-sniffer-parent/1.19/animal-sniffer-parent-1.19.pom]
+Downloading https://repo.maven.apache.org/maven2/org/codehaus/mojo/animal-sniffer-parent/1.19/animal-sniffer-parent-1.19.pom to /home/runner/.gradle/.tmp/gradle_download6638813064317107659bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/codehaus/mojo/mojo-parent/50/mojo-parent-50.pom]
+Downloading https://repo.maven.apache.org/maven2/org/codehaus/mojo/mojo-parent/50/mojo-parent-50.pom to /home/runner/.gradle/.tmp/gradle_download4061050186950315399bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-codec-http2/4.1.72.Final/netty-codec-http2-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec-http2/4.1.72.Final/netty-codec-http2-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download11572022882957579157bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-handler-proxy/4.1.72.Final/netty-handler-proxy-4.1.72.Final.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-parent/4.1.72.Final/netty-parent-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-handler-proxy/4.1.72.Final/netty-handler-proxy-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download15264145789503923487bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-parent/4.1.72.Final/netty-parent-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download13581637687986789785bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/com/google/api/grpc/proto-google-common-protos/2.0.1/proto-google-common-protos-2.0.1.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/grpc/grpc-protobuf-lite/1.45.1/grpc-protobuf-lite-1.45.1.pom]
+Downloading https://repo.maven.apache.org/maven2/com/google/api/grpc/proto-google-common-protos/2.0.1/proto-google-common-protos-2.0.1.pom to /home/runner/.gradle/.tmp/gradle_download11616208789194259842bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-protobuf-lite/1.45.1/grpc-protobuf-lite-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download1280889953124159243bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/tracker/31.2.2/tracker-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download5288903577043135189bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/zipflinger/8.2.2/zipflinger-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download3495937273960673870bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/manifest-merger/31.2.2/manifest-merger-31.2.2.pom to /home/runner/.gradle/.tmp/gradle_download7700179151259782526bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/8.2.2/apksig-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download6927788289220123882bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/signflinger/8.2.2/signflinger-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download7072527645608695526bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/manifest-merger/31.2.2/manifest-merger-31.2.2.module to /home/runner/.gradle/.tmp/gradle_download13818778251834873399bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/apkzlib/8.2.2/apkzlib-8.2.2.pom to /home/runner/.gradle/.tmp/gradle_download17986834605504898919bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/checkerframework/checker-qual/3.12.0/checker-qual-3.12.0.pom]
+Downloading https://repo.maven.apache.org/maven2/org/checkerframework/checker-qual/3.12.0/checker-qual-3.12.0.pom to /home/runner/.gradle/.tmp/gradle_download1888705499340808358bin
+Downloading https://repo.maven.apache.org/maven2/org/checkerframework/checker-qual/3.12.0/checker-qual-3.12.0.module to /home/runner/.gradle/.tmp/gradle_download10128725643799128390bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/xml-apis/xml-apis/1.4.01/xml-apis-1.4.01.pom]
+Downloading https://repo.maven.apache.org/maven2/xml-apis/xml-apis/1.4.01/xml-apis-1.4.01.pom to /home/runner/.gradle/.tmp/gradle_download967234983704654071bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.9.0/kotlin-stdlib-common-1.9.0.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.9.0/kotlin-stdlib-common-1.9.0.pom to /home/runner/.gradle/.tmp/gradle_download5552653370535193285bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/grpc/grpc-context/1.45.1/grpc-context-1.45.1.pom]
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-context/1.45.1/grpc-context-1.45.1.pom to /home/runner/.gradle/.tmp/gradle_download7418352122679694294bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-buffer/4.1.72.Final/netty-buffer-4.1.72.Final.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-common/4.1.72.Final/netty-common-4.1.72.Final.pom]
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-codec/4.1.72.Final/netty-codec-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec/4.1.72.Final/netty-codec-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download17351032800508110335bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-common/4.1.72.Final/netty-common-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download4104227857079960392bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-buffer/4.1.72.Final/netty-buffer-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download11589346473329133734bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-transport/4.1.72.Final/netty-transport-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-transport/4.1.72.Final/netty-transport-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download10843718579038220935bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-handler/4.1.72.Final/netty-handler-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-handler/4.1.72.Final/netty-handler-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download2898715820716028460bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-codec-http/4.1.72.Final/netty-codec-http-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec-http/4.1.72.Final/netty-codec-http-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download16526559763556078879bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-codec-socks/4.1.72.Final/netty-codec-socks-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec-socks/4.1.72.Final/netty-codec-socks-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download6479512850157953235bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-resolver/4.1.72.Final/netty-resolver-4.1.72.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-resolver/4.1.72.Final/netty-resolver-4.1.72.Final.pom to /home/runner/.gradle/.tmp/gradle_download10207082246107240553bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-tcnative-classes/2.0.46.Final/netty-tcnative-classes-2.0.46.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-tcnative-classes/2.0.46.Final/netty-tcnative-classes-2.0.46.Final.pom to /home/runner/.gradle/.tmp/gradle_download3449489869666025116bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/io/netty/netty-tcnative-parent/2.0.46.Final/netty-tcnative-parent-2.0.46.Final.pom]
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-tcnative-parent/2.0.46.Final/netty-tcnative-parent-2.0.46.Final.pom to /home/runner/.gradle/.tmp/gradle_download16880119661490382909bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle-settings-api/8.2.2/gradle-settings-api-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download7894517918428342645bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/lint/lint-model/31.2.2/lint-model-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download4645362068989881257bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder/8.2.2/builder-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download17162447382159818339bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.2.2/gradle-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download12875600884909517265bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/sdk-common/31.2.2/sdk-common-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download10018528480989352766bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/manifest-merger/31.2.2/manifest-merger-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download15631955770777074160bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/sdklib/31.2.2/sdklib-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download2575520156138944267bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/repository/31.2.2/repository-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download2976092142847516542bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle-api/8.2.2/gradle-api-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download9866382807257835524bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder-test-api/8.2.2/builder-test-api-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download729102961709077521bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/ddms/ddmlib/31.2.2/ddmlib-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download12695406519824471895bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2-proto/8.2.2-10154469/aapt2-proto-8.2.2-10154469.jar to /home/runner/.gradle/.tmp/gradle_download13088780933303476300bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/bundletool/1.15.2/bundletool-1.15.2.jar to /home/runner/.gradle/.tmp/gradle_download11664357176898456119bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/aaptcompiler/8.2.2/aaptcompiler-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download9420434386466582310bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/shared/31.2.2/shared-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download9771906959704011339bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/tracker/31.2.2/tracker-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download9388956299944150615bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/crash/31.2.2/crash-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download2289860297523845797bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-common/8.2.2/databinding-common-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download12578758047070916959bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/databinding/databinding-compiler-common/8.2.2/databinding-compiler-common-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download13946482536176742858bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/databinding/baseLibrary/8.2.2/baseLibrary-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download7993618898640464053bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/lint/lint-typedef-remover/31.2.2/lint-typedef-remover-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download17325161159051953964bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-device-provider-gradle-proto/31.2.2/android-device-provider-gradle-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download13853080412419785998bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/layoutlib/layoutlib-api/31.2.2/layoutlib-api-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download15515419287915848837bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-device-provider-ddmlib-proto/31.2.2/android-device-provider-ddmlib-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download12321039552667848416bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-additional-test-output-proto/31.2.2/android-test-plugin-host-additional-test-output-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download2899512875038327958bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-coverage-proto/31.2.2/android-test-plugin-host-coverage-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download2335739745130682500bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-emulator-control-proto/31.2.2/android-test-plugin-host-emulator-control-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download9393777571914336873bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-retention-proto/31.2.2/android-test-plugin-host-retention-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download17103561603818198299bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-result-listener-gradle-proto/31.2.2/android-test-plugin-result-listener-gradle-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download7096703945876068784bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-apk-installer-proto/31.2.2/android-test-plugin-host-apk-installer-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download3742883349079578737bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/utp/android-test-plugin-host-logcat-proto/31.2.2/android-test-plugin-host-logcat-proto-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download8448869997137426801bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.0/kotlin-stdlib-jdk8-1.9.0.jar to /home/runner/.gradle/.tmp/gradle_download8608881243178227265bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/dvlib/31.2.2/dvlib-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download10219117056935421226bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/common/31.2.2/common-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download13915584110995532383bin
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-commons/9.2/asm-commons-9.2.jar to /home/runner/.gradle/.tmp/gradle_download16347722958635016788bin
+Downloading https://repo.maven.apache.org/maven2/commons-io/commons-io/2.4/commons-io-2.4.jar to /home/runner/.gradle/.tmp/gradle_download6911775521976301955bin
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-util/9.2/asm-util-9.2.jar to /home/runner/.gradle/.tmp/gradle_download637148472759244350bin
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-analysis/9.2/asm-analysis-9.2.jar to /home/runner/.gradle/.tmp/gradle_download13522781855745821235bin
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm-tree/9.2/asm-tree-9.2.jar to /home/runner/.gradle/.tmp/gradle_download6130152145308681519bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/builder-model/8.2.2/builder-model-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download9707508599903217416bin
+Downloading https://repo.maven.apache.org/maven2/org/ow2/asm/asm/9.2/asm-9.2.jar to /home/runner/.gradle/.tmp/gradle_download10875980297138889693bin
+Downloading https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java-util/3.19.3/protobuf-java-util-3.19.3.jar to /home/runner/.gradle/.tmp/gradle_download8349825302704764018bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-protobuf/1.45.1/grpc-protobuf-1.45.1.jar to /home/runner/.gradle/.tmp/gradle_download7380308998131413259bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/apkzlib/8.2.2/apkzlib-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download8936334810953616858bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/analytics-library/protos/31.2.2/protos-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download11868166262793923910bin
+Downloading https://repo.maven.apache.org/maven2/com/google/api/grpc/proto-google-common-protos/2.0.1/proto-google-common-protos-2.0.1.jar to /home/runner/.gradle/.tmp/gradle_download6862203860642691140bin
+Downloading https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java/3.19.3/protobuf-java-3.19.3.jar to /home/runner/.gradle/.tmp/gradle_download13822945072853094166bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-netty/1.45.1/grpc-netty-1.45.1.jar to /home/runner/.gradle/.tmp/gradle_download4024218932338140712bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-core/1.45.1/grpc-core-1.45.1.jar to /home/runner/.gradle/.tmp/gradle_download1847318524736766542bin
+Downloading https://repo.maven.apache.org/maven2/com/google/code/gson/gson/2.10/gson-2.10.jar to /home/runner/.gradle/.tmp/gradle_download16026952075990562042bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-stub/1.45.1/grpc-stub-1.45.1.jar to /home/runner/.gradle/.tmp/gradle_download6967429318433185167bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-api/1.45.1/grpc-api-1.45.1.jar to /home/runner/.gradle/.tmp/gradle_download8190052378410687474bin
+Downloading https://dl.google.com/dl/android/maven2/com/google/testing/platform/core-proto/0.0.8-alpha08/core-proto-0.0.8-alpha08.jar to /home/runner/.gradle/.tmp/gradle_download2226412215091425146bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-protobuf-lite/1.45.1/grpc-protobuf-lite-1.45.1.jar to /home/runner/.gradle/.tmp/gradle_download16622289589236994007bin
+Downloading https://repo.maven.apache.org/maven2/com/google/guava/guava/31.1-jre/guava-31.1-jre.jar to /home/runner/.gradle/.tmp/gradle_download14630477550875311789bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-reflect/1.9.0/kotlin-reflect-1.9.0.jar to /home/runner/.gradle/.tmp/gradle_download15355146328028001065bin
+Downloading https://repo.maven.apache.org/maven2/xerces/xercesImpl/2.12.0/xercesImpl-2.12.0.jar to /home/runner/.gradle/.tmp/gradle_download7474252677809312091bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.9.0/kotlin-stdlib-jdk7-1.9.0.jar to /home/runner/.gradle/.tmp/gradle_download10122586499488328616bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.0/kotlin-stdlib-1.9.0.jar to /home/runner/.gradle/.tmp/gradle_download7500906808594285655bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/signflinger/8.2.2/signflinger-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download18369380139002830319bin
+Downloading https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.11.0/error_prone_annotations-2.11.0.jar to /home/runner/.gradle/.tmp/gradle_download5001086945251453926bin
+Downloading https://repo.maven.apache.org/maven2/com/google/j2objc/j2objc-annotations/1.3/j2objc-annotations-1.3.jar to /home/runner/.gradle/.tmp/gradle_download4680259284191782195bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/zipflinger/8.2.2/zipflinger-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download204267255602463370bin
+Downloading https://repo.maven.apache.org/maven2/io/perfmark/perfmark-api/0.23.0/perfmark-api-0.23.0.jar to /home/runner/.gradle/.tmp/gradle_download5885001614897007719bin
+Downloading https://repo.maven.apache.org/maven2/org/codehaus/mojo/animal-sniffer-annotations/1.19/animal-sniffer-annotations-1.19.jar to /home/runner/.gradle/.tmp/gradle_download13953384234561747990bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec-http2/4.1.72.Final/netty-codec-http2-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download183885878762184707bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/annotations/31.2.2/annotations-31.2.2.jar to /home/runner/.gradle/.tmp/gradle_download2039724723744811693bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-handler-proxy/4.1.72.Final/netty-handler-proxy-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download16375845194795709710bin
+Downloading https://repo.maven.apache.org/maven2/org/checkerframework/checker-qual/3.12.0/checker-qual-3.12.0.jar to /home/runner/.gradle/.tmp/gradle_download3486431901059791535bin
+Downloading https://repo.maven.apache.org/maven2/xml-apis/xml-apis/1.4.01/xml-apis-1.4.01.jar to /home/runner/.gradle/.tmp/gradle_download14962611047480329779bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.9.0/kotlin-stdlib-common-1.9.0.jar to /home/runner/.gradle/.tmp/gradle_download12293498374327263731bin
+Downloading https://repo.maven.apache.org/maven2/io/grpc/grpc-context/1.45.1/grpc-context-1.45.1.jar to /home/runner/.gradle/.tmp/gradle_download3107508268783992526bin
+Downloading https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/8.2.2/apksig-8.2.2.jar to /home/runner/.gradle/.tmp/gradle_download17418689056254080049bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec-http/4.1.72.Final/netty-codec-http-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download3105391781342295820bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-handler/4.1.72.Final/netty-handler-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download7546060666657491824bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec-socks/4.1.72.Final/netty-codec-socks-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download10003528985778748213bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-transport/4.1.72.Final/netty-transport-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download13577270720841113098bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-buffer/4.1.72.Final/netty-buffer-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download3875778407917021961bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-resolver/4.1.72.Final/netty-resolver-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download6548047549044911909bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-common/4.1.72.Final/netty-common-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download12956014520311576303bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-codec/4.1.72.Final/netty-codec-4.1.72.Final.jar to /home/runner/.gradle/.tmp/gradle_download3474738391100264030bin
+Downloading https://repo.maven.apache.org/maven2/io/netty/netty-tcnative-classes/2.0.46.Final/netty-tcnative-classes-2.0.46.Final.jar to /home/runner/.gradle/.tmp/gradle_download958410476803934696bin
+>>>>>>> Stashed changes
 Compiling build file '/home/runner/work/JarvisMerged/JarvisMerged/build.gradle' using BuildScriptTransformer.
 
 > Configure project :app
@@ -299,16 +558,16 @@ Selected primary task 'assembleDebug' from project :
 Tasks to be executed: [task ':app:preBuild', task ':app:preDebugBuild', task ':app:mergeDebugNativeDebugMetadata', task ':app:checkKotlinGradlePluginConfigurationErrors', task ':app:generateDebugBuildConfig', task ':app:checkDebugAarMetadata', task ':app:generateDebugResValues', task ':app:mapDebugSourceSetPaths', task ':app:generateDebugResources', task ':app:mergeDebugResources', task ':app:packageDebugResources', task ':app:parseDebugLocalResources', task ':app:createDebugCompatibleScreenManifests', task ':app:extractDeepLinksDebug', task ':app:processDebugMainManifest', task ':app:processDebugManifest', task ':app:processDebugManifestForPackage', task ':app:processDebugResources', task ':app:compileDebugKotlin', task ':app:javaPreCompileDebug', task ':app:compileDebugJavaWithJavac', task ':app:mergeDebugShaders', task ':app:compileDebugShaders', task ':app:generateDebugAssets', task ':app:mergeDebugAssets', task ':app:compressDebugAssets', task ':app:desugarDebugFileDependencies', task ':app:dexBuilderDebug', task ':app:mergeDebugGlobalSynthetics', task ':app:processDebugJavaRes', task ':app:mergeDebugJavaResource', task ':app:checkDebugDuplicateClasses', task ':app:mergeExtDexDebug', task ':app:mergeLibDexDebug', task ':app:mergeProjectDexDebug', task ':app:mergeDebugJniLibFolders', task ':app:mergeDebugNativeLibs', task ':app:stripDebugDebugSymbols', task ':app:validateSigningDebug', task ':app:writeDebugAppMetadata', task ':app:writeDebugSigningConfigVersions', task ':app:packageDebug', task ':app:createDebugApkListingFileRedirect', task ':app:assembleDebug']
 Tasks that were excluded: []
 Resolve mutations for :app:preBuild (Thread[Execution worker,5,main]) started.
-:app:preBuild (Thread[Execution worker,5,main]) started.
+:app:preBuild (Thread[included builds,5,main]) started.
 
 > Task :app:preBuild UP-TO-DATE
 Skipping task ':app:preBuild' as it has no actions.
-Resolve mutations for :app:preDebugBuild (Thread[Execution worker,5,main]) started.
-:app:preDebugBuild (Thread[Execution worker,5,main]) started.
+Resolve mutations for :app:preDebugBuild (Thread[included builds,5,main]) started.
+:app:preDebugBuild (Thread[included builds,5,main]) started.
 
 > Task :app:preDebugBuild UP-TO-DATE
 Skipping task ':app:preDebugBuild' as it has no actions.
-Resolve mutations for :app:mergeDebugNativeDebugMetadata (Thread[Execution worker,5,main]) started.
+Resolve mutations for :app:mergeDebugNativeDebugMetadata (Thread[included builds,5,main]) started.
 :app:mergeDebugNativeDebugMetadata (Thread[Execution worker,5,main]) started.
 
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
@@ -322,7 +581,11 @@ Caching disabled for task ':app:checkKotlinGradlePluginConfigurationErrors' beca
 Task ':app:checkKotlinGradlePluginConfigurationErrors' is not up-to-date because:
   Task has not declared any outputs despite executing actions.
 Resolve mutations for :app:generateDebugBuildConfig (Thread[Execution worker,5,main]) started.
+<<<<<<< Updated upstream
 :app:generateDebugBuildConfig (Thread[included builds,5,main]) started.
+=======
+:app:generateDebugBuildConfig (Thread[Execution worker,5,main]) started.
+>>>>>>> Stashed changes
 
 > Task :app:generateDebugBuildConfig
 Watching 1 directories to track changes
@@ -334,6 +597,7 @@ Watching 0 directories to track changes
 Watching 4 directories to track changes
 Watching 5 directories to track changes
 Watching 6 directories to track changes
+<<<<<<< Updated upstream
 Resolve mutations for :app:checkDebugAarMetadata (Thread[included builds,5,main]) started.
 :app:checkDebugAarMetadata (Thread[included builds,5,main]) started.
 
@@ -388,16 +652,78 @@ Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/file
   Build cache is disabled
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar because:
   Build cache is disabled
+=======
+Resolve mutations for :app:checkDebugAarMetadata (Thread[Execution worker,5,main]) started.
+:app:checkDebugAarMetadata (Thread[Execution worker,5,main]) started.
+
+> Task :app:checkDebugAarMetadata
+Watching 7 directories to track changes
+Downloading https://dl.google.com/dl/android/maven2/androidx/swiperefreshlayout/swiperefreshlayout/1.1.0/swiperefreshlayout-1.1.0.pom to /home/runner/.gradle/.tmp/gradle_download1065832860519942195bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/core/core/1.9.0/core-1.9.0.pom to /home/runner/.gradle/.tmp/gradle_download5639426498414882890bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/core/core/1.9.0/core-1.9.0.module to /home/runner/.gradle/.tmp/gradle_download5187768146878033347bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-process/2.4.1/lifecycle-process-2.4.1.pom to /home/runner/.gradle/.tmp/gradle_download13623486542055191170bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-process/2.4.1/lifecycle-process-2.4.1.module to /home/runner/.gradle/.tmp/gradle_download14914024790253009443bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.3.1/lifecycle-viewmodel-savedstate-2.3.1.pom to /home/runner/.gradle/.tmp/gradle_download17304491222497948200bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.3.1/lifecycle-livedata-core-2.3.1.pom to /home/runner/.gradle/.tmp/gradle_download3764168009657763832bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.3.1/lifecycle-livedata-core-2.3.1.module to /home/runner/.gradle/.tmp/gradle_download2808906426524819866bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.3.1/lifecycle-viewmodel-savedstate-2.3.1.module to /home/runner/.gradle/.tmp/gradle_download3258004958053136937bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.5.1/lifecycle-common-2.5.1.pom to /home/runner/.gradle/.tmp/gradle_download14232471384594463450bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.5.1/lifecycle-common-2.5.1.module to /home/runner/.gradle/.tmp/gradle_download7075096533637295316bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.5.1/lifecycle-viewmodel-savedstate-2.5.1.pom to /home/runner/.gradle/.tmp/gradle_download3497152797211192201bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.5.1/lifecycle-viewmodel-savedstate-2.5.1.module to /home/runner/.gradle/.tmp/gradle_download11494768184502807626bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.4.0/lifecycle-common-2.4.0.pom to /home/runner/.gradle/.tmp/gradle_download13463844615534757094bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.4.0/lifecycle-common-2.4.0.module to /home/runner/.gradle/.tmp/gradle_download3700714740085101537bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.6.1/lifecycle-runtime-2.6.1.pom to /home/runner/.gradle/.tmp/gradle_download5021710844343945596bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.6.1/lifecycle-runtime-2.6.1.module to /home/runner/.gradle/.tmp/gradle_download3093543002461078004bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.6.1/lifecycle-viewmodel-savedstate-2.6.1.pom to /home/runner/.gradle/.tmp/gradle_download9194675364089004830bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.6.1/lifecycle-viewmodel-savedstate-2.6.1.module to /home/runner/.gradle/.tmp/gradle_download8718176945012131754bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel/2.6.1/lifecycle-viewmodel-2.6.1.pom to /home/runner/.gradle/.tmp/gradle_download751599686237134158bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel/2.6.1/lifecycle-viewmodel-2.6.1.module to /home/runner/.gradle/.tmp/gradle_download4708467326133588145bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata/2.0.0/lifecycle-livedata-2.0.0.pom to /home/runner/.gradle/.tmp/gradle_download12090569654251359896bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.6.1/lifecycle-common-2.6.1.pom to /home/runner/.gradle/.tmp/gradle_download14507535832884615042bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.6.1/lifecycle-common-2.6.1.module to /home/runner/.gradle/.tmp/gradle_download4194617015694222785bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata/2.6.1/lifecycle-livedata-2.6.1.pom to /home/runner/.gradle/.tmp/gradle_download5885770009264724089bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata/2.6.1/lifecycle-livedata-2.6.1.module to /home/runner/.gradle/.tmp/gradle_download13418238455882110007bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.6.1/lifecycle-livedata-core-2.6.1.pom to /home/runner/.gradle/.tmp/gradle_download3966430508074230899bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.6.1/lifecycle-livedata-core-2.6.1.module to /home/runner/.gradle/.tmp/gradle_download6679491273711276692bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-process/2.6.1/lifecycle-process-2.6.1.pom to /home/runner/.gradle/.tmp/gradle_download17133147141665030454bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-process/2.6.1/lifecycle-process-2.6.1.module to /home/runner/.gradle/.tmp/gradle_download6053192511975937298bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-android/1.6.4/kotlinx-coroutines-android-1.6.4.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-android/1.6.4/kotlinx-coroutines-android-1.6.4.pom to /home/runner/.gradle/.tmp/gradle_download8997961880422403028bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-bom/1.6.4/kotlinx-coroutines-bom-1.6.4.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-bom/1.6.4/kotlinx-coroutines-bom-1.6.4.pom to /home/runner/.gradle/.tmp/gradle_download5477177893743618284bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-android/1.6.4/kotlinx-coroutines-android-1.6.4.module to /home/runner/.gradle/.tmp/gradle_download8170026809865749346bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core/1.6.4/kotlinx-coroutines-core-1.6.4.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core/1.6.4/kotlinx-coroutines-core-1.6.4.pom to /home/runner/.gradle/.tmp/gradle_download2013045769105096888bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core/1.6.4/kotlinx-coroutines-core-1.6.4.module to /home/runner/.gradle/.tmp/gradle_download18210780264837545974bin
+Resource missing. [HTTP GET: https://dl.google.com/dl/android/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.6.4/kotlinx-coroutines-core-jvm-1.6.4.pom]
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.6.4/kotlinx-coroutines-core-jvm-1.6.4.pom to /home/runner/.gradle/.tmp/gradle_download17972364677736825525bin
+Downloading https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.6.4/kotlinx-coroutines-core-jvm-1.6.4.module to /home/runner/.gradle/.tmp/gradle_download12329195637210298818bin
+Transforming material-1.11.0.aar (com.google.android.material:material:1.11.0) with JetifyTransform
+Transforming constraintlayout-2.0.1.aar (androidx.constraintlayout:constraintlayout:2.0.1) with JetifyTransform
+Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with JetifyTransform
+Transforming appcompat-resources-1.6.1.aar (androidx.appcompat:appcompat-resources:1.6.1) with JetifyTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar because:
+  Build cache is disabled
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/com.google.android.material/material/1.11.0/e46abb2e27abed3ad274ba96b169a4c61fbb11fd/material-1.11.0.aar because:
+  Build cache is disabled
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat-resources/1.6.1/3fe43025e50b556f319b1ff82a730d5a376a31e/appcompat-resources-1.6.1.aar because:
   Build cache is disabled
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat/1.6.1/6c7577004b7ebbee5ed87d512b578dd20e3c8c31/appcompat-1.6.1.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/com.google.android.material/material/1.11.0/e46abb2e27abed3ad274ba96b169a4c61fbb11fd/material-1.11.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
+=======
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat/1.6.1/6c7577004b7ebbee5ed87d512b578dd20e3c8c31/appcompat-1.6.1.aar is not up-to-date because:
   No history is available.
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat-resources/1.6.1/3fe43025e50b556f319b1ff82a730d5a376a31e/appcompat-resources-1.6.1.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar is not up-to-date because:
   No history is available.
 Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with ExtractAarTransform
@@ -406,14 +732,28 @@ Transforming material-1.11.0.aar (com.google.android.material:material:1.11.0) w
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar is not up-to-date because:
+=======
+Transforming constraintlayout-2.0.1.aar (androidx.constraintlayout:constraintlayout:2.0.1) with ExtractAarTransform
+Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with ExtractAarTransform
+Transforming material-1.11.0.aar (com.google.android.material:material:1.11.0) with ExtractAarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat/1.6.1/6c7577004b7ebbee5ed87d512b578dd20e3c8c31/appcompat-1.6.1.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat/1.6.1/6c7577004b7ebbee5ed87d512b578dd20e3c8c31/appcompat-1.6.1.aar is not up-to-date because:
+>>>>>>> Stashed changes
   No history is available.
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/com.google.android.material/material/1.11.0/e46abb2e27abed3ad274ba96b169a4c61fbb11fd/material-1.11.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/com.google.android.material/material/1.11.0/e46abb2e27abed3ad274ba96b169a4c61fbb11fd/material-1.11.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat/1.6.1/6c7577004b7ebbee5ed87d512b578dd20e3c8c31/appcompat-1.6.1.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.appcompat/appcompat/1.6.1/6c7577004b7ebbee5ed87d512b578dd20e3c8c31/appcompat-1.6.1.aar is not up-to-date because:
+=======
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.constraintlayout/constraintlayout/2.0.1/fab633b1873e5c1fbe49d919fab85ed1f8cf47ca/constraintlayout-2.0.1.aar is not up-to-date because:
+>>>>>>> Stashed changes
   No history is available.
 Transforming constraintlayout-2.0.1.aar (androidx.constraintlayout:constraintlayout:2.0.1) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/200be3265c2da2d7f39ccb64351fa845/transformed/constraintlayout-2.0.1 because:
@@ -430,7 +770,11 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/eff7
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/eff7e710aa29c6a43a1e81c06f61df29/transformed/jetified-appcompat-resources-1.6.1 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Downloading https://dl.google.com/dl/android/maven2/androidx/emoji2/emoji2-views-helper/1.2.0/emoji2-views-helper-1.2.0.aar to /home/runner/.gradle/.tmp/gradle_download8264448115051379138bin
+=======
+Downloading https://dl.google.com/dl/android/maven2/androidx/emoji2/emoji2-views-helper/1.2.0/emoji2-views-helper-1.2.0.aar to /home/runner/.gradle/.tmp/gradle_download1924410714098340068bin
+>>>>>>> Stashed changes
 Transforming emoji2-views-helper-1.2.0.aar (androidx.emoji2:emoji2-views-helper:1.2.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.emoji2/emoji2-views-helper/1.2.0/4a22802fc9e88ad232522f04a35d1fdc3e5b4df0/emoji2-views-helper-1.2.0.aar because:
   Build cache is disabled
@@ -442,32 +786,37 @@ Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms
 ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/f843b2d3478c6ba753f511be08b8fa11/transformed/jetified-emoji2-views-helper-1.2.0.aar is not up-to-date because:
   No history is available.
 Transforming emoji2-views-helper-1.2.0.aar (androidx.emoji2:emoji2-views-helper:1.2.0) with AarTransform
+<<<<<<< Updated upstream
 Downloading https://dl.google.com/dl/android/maven2/androidx/swiperefreshlayout/swiperefreshlayout/1.1.0/swiperefreshlayout-1.1.0.aar to /home/runner/.gradle/.tmp/gradle_download2744805230668068746bin
+=======
+Downloading https://dl.google.com/dl/android/maven2/androidx/swiperefreshlayout/swiperefreshlayout/1.1.0/swiperefreshlayout-1.1.0.aar to /home/runner/.gradle/.tmp/gradle_download9978619845081097775bin
+Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with AarTransform
+>>>>>>> Stashed changes
 Transforming swiperefreshlayout-1.1.0.aar (androidx.swiperefreshlayout:swiperefreshlayout:1.1.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.swiperefreshlayout/swiperefreshlayout/1.1.0/2aeac64056fe6cc0420afad0b699a7f9257b8ebe/swiperefreshlayout-1.1.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.swiperefreshlayout/swiperefreshlayout/1.1.0/2aeac64056fe6cc0420afad0b699a7f9257b8ebe/swiperefreshlayout-1.1.0.aar is not up-to-date because:
   No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/1390ed0e93696117e0bd1340aa2458d6/transformed/appcompat-1.6.1 because:
+  Build cache is disabled
 Transforming swiperefreshlayout-1.1.0.aar (androidx.swiperefreshlayout:swiperefreshlayout:1.1.0) with ExtractAarTransform
+AarTransform: /home/runner/.gradle/caches/transforms-3/1390ed0e93696117e0bd1340aa2458d6/transformed/appcompat-1.6.1 is not up-to-date because:
+  No history is available.
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.swiperefreshlayout/swiperefreshlayout/1.1.0/2aeac64056fe6cc0420afad0b699a7f9257b8ebe/swiperefreshlayout-1.1.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.swiperefreshlayout/swiperefreshlayout/1.1.0/2aeac64056fe6cc0420afad0b699a7f9257b8ebe/swiperefreshlayout-1.1.0.aar is not up-to-date because:
   No history is available.
 Transforming swiperefreshlayout-1.1.0.aar (androidx.swiperefreshlayout:swiperefreshlayout:1.1.0) with AarTransform
-Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/82504041c7c2d8eefa1742e9fce3b836/transformed/swiperefreshlayout-1.1.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/82504041c7c2d8eefa1742e9fce3b836/transformed/swiperefreshlayout-1.1.0 is not up-to-date because:
-  No history is available.
-Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/1390ed0e93696117e0bd1340aa2458d6/transformed/appcompat-1.6.1 because:
-  Build cache is disabled
-AarTransform: /home/runner/.gradle/caches/transforms-3/1390ed0e93696117e0bd1340aa2458d6/transformed/appcompat-1.6.1 is not up-to-date because:
   No history is available.
 Transforming viewpager2-1.0.0.aar (androidx.viewpager2:viewpager2:1.0.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.viewpager2/viewpager2/1.0.0/91c378a09ddff66e1bb73e90edeac53487d2832b/viewpager2-1.0.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.viewpager2/viewpager2/1.0.0/91c378a09ddff66e1bb73e90edeac53487d2832b/viewpager2-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Downloading https://dl.google.com/dl/android/maven2/androidx/emoji2/emoji2/1.2.0/emoji2-1.2.0.aar to /home/runner/.gradle/.tmp/gradle_download13998358571913048424bin
 Transforming viewpager2-1.0.0.aar (androidx.viewpager2:viewpager2:1.0.0) with ExtractAarTransform
 Transforming emoji2-1.2.0.aar (androidx.emoji2:emoji2:1.2.0) with JetifyTransform
@@ -485,11 +834,18 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4b3a
 Transforming material-1.11.0.aar (com.google.android.material:material:1.11.0) with AarTransform
 AarTransform: /home/runner/.gradle/caches/transforms-3/4b3ad8ec29879db50f390fac60e4166e/transformed/jetified-viewpager2-1.0.0 is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/269d4a321b8b3b15ed1cb151ad66685f/transformed/jetified-emoji2-views-helper-1.2.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/269d4a321b8b3b15ed1cb151ad66685f/transformed/jetified-emoji2-views-helper-1.2.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with JetifyTransform
+=======
+Transforming material-1.11.0.aar (com.google.android.material:material:1.11.0) with AarTransform
+Downloading https://dl.google.com/dl/android/maven2/androidx/emoji2/emoji2/1.2.0/emoji2-1.2.0.aar to /home/runner/.gradle/.tmp/gradle_download16067715621653240934bin
+>>>>>>> Stashed changes
 Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.fragment/fragment/1.3.6/6391fc504e7c0f24051ac8b9da3f0ba4d1241dff/fragment-1.3.6.aar because:
   Build cache is disabled
@@ -500,16 +856,43 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/3a34
 AarTransform: /home/runner/.gradle/caches/transforms-3/3a347358b13a1901f4709358b2ed9945/transformed/material-1.11.0 is not up-to-date because:
   No history is available.
 Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with ExtractAarTransform
+<<<<<<< Updated upstream
 Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with ExtractAarTransform
+=======
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.fragment/fragment/1.3.6/6391fc504e7c0f24051ac8b9da3f0ba4d1241dff/fragment-1.3.6.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.fragment/fragment/1.3.6/6391fc504e7c0f24051ac8b9da3f0ba4d1241dff/fragment-1.3.6.aar is not up-to-date because:
+  No history is available.
+Transforming viewpager2-1.0.0.aar (androidx.viewpager2:viewpager2:1.0.0) with ExtractAarTransform
+Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with JetifyTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/0fd32ae978000a402a270548b5b7e596/transformed/jetified-viewpager2-1.0.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/0fd32ae978000a402a270548b5b7e596/transformed/jetified-viewpager2-1.0.0.aar is not up-to-date because:
+  No history is available.
+Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with ExtractAarTransform
+Transforming emoji2-1.2.0.aar (androidx.emoji2:emoji2:1.2.0) with JetifyTransform
+Transforming viewpager2-1.0.0.aar (androidx.viewpager2:viewpager2:1.0.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4b3ad8ec29879db50f390fac60e4166e/transformed/jetified-viewpager2-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/4b3ad8ec29879db50f390fac60e4166e/transformed/jetified-viewpager2-1.0.0 is not up-to-date because:
+  No history is available.
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.emoji2/emoji2/1.2.0/2c95c9aa87788e4d9ce692ecfc961db004e57480/emoji2-1.2.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.emoji2/emoji2/1.2.0/2c95c9aa87788e4d9ce692ecfc961db004e57480/emoji2-1.2.0.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Transforming activity-1.8.0.aar (androidx.activity:activity:1.8.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.activity/activity/1.8.0/4266e2118d565daa20212d1726e11f41e1a4d0ca/activity-1.8.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.activity/activity/1.8.0/4266e2118d565daa20212d1726e11f41e1a4d0ca/activity-1.8.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.fragment/fragment/1.3.6/6391fc504e7c0f24051ac8b9da3f0ba4d1241dff/fragment-1.3.6.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.fragment/fragment/1.3.6/6391fc504e7c0f24051ac8b9da3f0ba4d1241dff/fragment-1.3.6.aar is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with AarTransform
 Transforming fragment-1.3.6.aar (androidx.fragment:fragment:1.3.6) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/f857ed6359b5be8e560853431861bafa/transformed/fragment-1.3.6 because:
@@ -518,15 +901,25 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/f857ed6359b5be8e560853431
   No history is available.
 Transforming drawerlayout-1.1.1.aar (androidx.drawerlayout:drawerlayout:1.1.1) with JetifyTransform
 Transforming coordinatorlayout-1.1.0.aar (androidx.coordinatorlayout:coordinatorlayout:1.1.0) with JetifyTransform
+<<<<<<< Updated upstream
+=======
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.coordinatorlayout/coordinatorlayout/1.1.0/8eeb7baf75b9595d017642a460df5af3bb9fa4e1/coordinatorlayout-1.1.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.coordinatorlayout/coordinatorlayout/1.1.0/8eeb7baf75b9595d017642a460df5af3bb9fa4e1/coordinatorlayout-1.1.0.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.drawerlayout/drawerlayout/1.1.1/1b2b049e1e88589510ddd4d93f2699b46ecd73dd/drawerlayout-1.1.1.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.drawerlayout/drawerlayout/1.1.1/1b2b049e1e88589510ddd4d93f2699b46ecd73dd/drawerlayout-1.1.1.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming emoji2-1.2.0.aar (androidx.emoji2:emoji2:1.2.0) with ExtractAarTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.coordinatorlayout/coordinatorlayout/1.1.0/8eeb7baf75b9595d017642a460df5af3bb9fa4e1/coordinatorlayout-1.1.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.coordinatorlayout/coordinatorlayout/1.1.0/8eeb7baf75b9595d017642a460df5af3bb9fa4e1/coordinatorlayout-1.1.0.aar is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Transforming coordinatorlayout-1.1.0.aar (androidx.coordinatorlayout:coordinatorlayout:1.1.0) with ExtractAarTransform
 Transforming drawerlayout-1.1.1.aar (androidx.drawerlayout:drawerlayout:1.1.1) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.coordinatorlayout/coordinatorlayout/1.1.0/8eeb7baf75b9595d017642a460df5af3bb9fa4e1/coordinatorlayout-1.1.0.aar because:
@@ -537,6 +930,7 @@ Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.drawerlayout/drawerlayout/1.1.1/1b2b049e1e88589510ddd4d93f2699b46ecd73dd/drawerlayout-1.1.1.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming drawerlayout-1.1.1.aar (androidx.drawerlayout:drawerlayout:1.1.1) with AarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/1236627df403a758a9367c70a431961e/transformed/jetified-emoji2-1.2.0.aar because:
   Build cache is disabled
@@ -546,16 +940,23 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/fc1f
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/fc1fa3c9bb04819bb481e180355a8187/transformed/drawerlayout-1.1.1 is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Transforming coordinatorlayout-1.1.0.aar (androidx.coordinatorlayout:coordinatorlayout:1.1.0) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/585a83745d6f9e1fac22fc0bb53982d6/transformed/coordinatorlayout-1.1.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/585a83745d6f9e1fac22fc0bb53982d6/transformed/coordinatorlayout-1.1.0 is not up-to-date because:
   No history is available.
 Transforming dynamicanimation-1.0.0.aar (androidx.dynamicanimation:dynamicanimation:1.0.0) with JetifyTransform
+<<<<<<< Updated upstream
+=======
+Transforming drawerlayout-1.1.1.aar (androidx.drawerlayout:drawerlayout:1.1.1) with AarTransform
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.dynamicanimation/dynamicanimation/1.0.0/e980497a58fb319d471f3bb78d066b926a08ba8e/dynamicanimation-1.0.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.dynamicanimation/dynamicanimation/1.0.0/e980497a58fb319d471f3bb78d066b926a08ba8e/dynamicanimation-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming transition-1.2.0.aar (androidx.transition:transition:1.2.0) with JetifyTransform
 Transforming dynamicanimation-1.0.0.aar (androidx.dynamicanimation:dynamicanimation:1.0.0) with ExtractAarTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.transition/transition/1.2.0/28003577e8b32f5417bfe899bbdc7a333dc81c9f/transition-1.2.0.aar because:
@@ -563,10 +964,19 @@ Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/file
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.transition/transition/1.2.0/28003577e8b32f5417bfe899bbdc7a333dc81c9f/transition-1.2.0.aar is not up-to-date because:
   No history is available.
 Transforming emoji2-1.2.0.aar (androidx.emoji2:emoji2:1.2.0) with AarTransform
+=======
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/fc1fa3c9bb04819bb481e180355a8187/transformed/drawerlayout-1.1.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/fc1fa3c9bb04819bb481e180355a8187/transformed/drawerlayout-1.1.1 is not up-to-date because:
+  No history is available.
+Transforming dynamicanimation-1.0.0.aar (androidx.dynamicanimation:dynamicanimation:1.0.0) with ExtractAarTransform
+Transforming transition-1.2.0.aar (androidx.transition:transition:1.2.0) with JetifyTransform
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.dynamicanimation/dynamicanimation/1.0.0/e980497a58fb319d471f3bb78d066b926a08ba8e/dynamicanimation-1.0.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.dynamicanimation/dynamicanimation/1.0.0/e980497a58fb319d471f3bb78d066b926a08ba8e/dynamicanimation-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming activity-1.8.0.aar (androidx.activity:activity:1.8.0) with ExtractAarTransform
 Transforming dynamicanimation-1.0.0.aar (androidx.dynamicanimation:dynamicanimation:1.0.0) with AarTransform
 Transforming transition-1.2.0.aar (androidx.transition:transition:1.2.0) with ExtractAarTransform
@@ -580,6 +990,17 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/c4dab8d1a445d82bbdf5c45e5
   No history is available.
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/30d526ea02ad71fbce5e405cfff95b4b/transformed/dynamicanimation-1.0.0 because:
   Build cache is disabled
+=======
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.transition/transition/1.2.0/28003577e8b32f5417bfe899bbdc7a333dc81c9f/transition-1.2.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.transition/transition/1.2.0/28003577e8b32f5417bfe899bbdc7a333dc81c9f/transition-1.2.0.aar is not up-to-date because:
+  No history is available.
+Transforming emoji2-1.2.0.aar (androidx.emoji2:emoji2:1.2.0) with ExtractAarTransform
+Transforming dynamicanimation-1.0.0.aar (androidx.dynamicanimation:dynamicanimation:1.0.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/30d526ea02ad71fbce5e405cfff95b4b/transformed/dynamicanimation-1.0.0 because:
+  Build cache is disabled
+Transforming transition-1.2.0.aar (androidx.transition:transition:1.2.0) with ExtractAarTransform
+>>>>>>> Stashed changes
 AarTransform: /home/runner/.gradle/caches/transforms-3/30d526ea02ad71fbce5e405cfff95b4b/transformed/dynamicanimation-1.0.0 is not up-to-date because:
   No history is available.
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.transition/transition/1.2.0/28003577e8b32f5417bfe899bbdc7a333dc81c9f/transition-1.2.0.aar because:
@@ -587,6 +1008,7 @@ Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.transition/transition/1.2.0/28003577e8b32f5417bfe899bbdc7a333dc81c9f/transition-1.2.0.aar is not up-to-date because:
   No history is available.
 Transforming vectordrawable-animated-1.1.0.aar (androidx.vectordrawable:vectordrawable-animated:1.1.0) with JetifyTransform
+<<<<<<< Updated upstream
 Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable-animated/1.1.0/fcda1161354501471c30a4e077af6b5c4d4eddc6/vectordrawable-animated-1.1.0.aar because:
   Build cache is disabled
@@ -612,22 +1034,69 @@ Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable/1.1.0/eac7a364fff534035a2a6cb17770a1288315f69f/vectordrawable-1.1.0.aar is not up-to-date because:
   No history is available.
+=======
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/1236627df403a758a9367c70a431961e/transformed/jetified-emoji2-1.2.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/1236627df403a758a9367c70a431961e/transformed/jetified-emoji2-1.2.0.aar is not up-to-date because:
+  No history is available.
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable-animated/1.1.0/fcda1161354501471c30a4e077af6b5c4d4eddc6/vectordrawable-animated-1.1.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable-animated/1.1.0/fcda1161354501471c30a4e077af6b5c4d4eddc6/vectordrawable-animated-1.1.0.aar is not up-to-date because:
+  No history is available.
+Transforming vectordrawable-animated-1.1.0.aar (androidx.vectordrawable:vectordrawable-animated:1.1.0) with ExtractAarTransform
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable-animated/1.1.0/fcda1161354501471c30a4e077af6b5c4d4eddc6/vectordrawable-animated-1.1.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable-animated/1.1.0/fcda1161354501471c30a4e077af6b5c4d4eddc6/vectordrawable-animated-1.1.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with JetifyTransform
 Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with ExtractAarTransform
+=======
+Transforming emoji2-1.2.0.aar (androidx.emoji2:emoji2:1.2.0) with AarTransform
+Transforming transition-1.2.0.aar (androidx.transition:transition:1.2.0) with AarTransform
+Transforming vectordrawable-animated-1.1.0.aar (androidx.vectordrawable:vectordrawable-animated:1.1.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/3d5a9a4578d2969d4bd4315ff0055d9a/transformed/transition-1.2.0 because:
+  Build cache is disabled
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/66dc8b9ec968443c743a9777841e4739/transformed/vectordrawable-animated-1.1.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/3d5a9a4578d2969d4bd4315ff0055d9a/transformed/transition-1.2.0 is not up-to-date because:
+  No history is available.
+AarTransform: /home/runner/.gradle/caches/transforms-3/66dc8b9ec968443c743a9777841e4739/transformed/vectordrawable-animated-1.1.0 is not up-to-date because:
+  No history is available.
+Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with JetifyTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/c4dab8d1a445d82bbdf5c45e5c471e0a/transformed/jetified-emoji2-1.2.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/c4dab8d1a445d82bbdf5c45e5c471e0a/transformed/jetified-emoji2-1.2.0 is not up-to-date because:
+  No history is available.
+Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with JetifyTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable/1.1.0/eac7a364fff534035a2a6cb17770a1288315f69f/vectordrawable-1.1.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable/1.1.0/eac7a364fff534035a2a6cb17770a1288315f69f/vectordrawable-1.1.0.aar is not up-to-date because:
+  No history is available.
+Transforming activity-1.8.0.aar (androidx.activity:activity:1.8.0) with ExtractAarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/dae44e3199d5b2e35d2e8d55bd0428b5/transformed/jetified-activity-1.8.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/dae44e3199d5b2e35d2e8d55bd0428b5/transformed/jetified-activity-1.8.0.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Transforming viewpager-1.0.0.aar (androidx.viewpager:viewpager:1.0.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.viewpager/viewpager/1.0.0/1f90e13820f96c2fb868f9674079a551678d68b2/viewpager-1.0.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.viewpager/viewpager/1.0.0/1f90e13820f96c2fb868f9674079a551678d68b2/viewpager-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with AarTransform
 Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/0988849ee3e77325ef337f2ffafb2d11/transformed/vectordrawable-1.1.0 because:
+=======
+Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with ExtractAarTransform
+Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with ExtractAarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable/1.1.0/eac7a364fff534035a2a6cb17770a1288315f69f/vectordrawable-1.1.0.aar because:
+>>>>>>> Stashed changes
   Build cache is disabled
-AarTransform: /home/runner/.gradle/caches/transforms-3/0988849ee3e77325ef337f2ffafb2d11/transformed/vectordrawable-1.1.0 is not up-to-date because:
+Transforming viewpager-1.0.0.aar (androidx.viewpager:viewpager:1.0.0) with ExtractAarTransform
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.vectordrawable/vectordrawable/1.1.0/eac7a364fff534035a2a6cb17770a1288315f69f/vectordrawable-1.1.0.aar is not up-to-date because:
   No history is available.
 Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with JetifyTransform
 Transforming viewpager-1.0.0.aar (androidx.viewpager:viewpager:1.0.0) with ExtractAarTransform
@@ -637,6 +1106,7 @@ Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.viewpager/viewpager/1.0.0/1f90e13820f96c2fb868f9674079a551678d68b2/viewpager-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.legacy/legacy-support-core-utils/1.0.0/9b9570042115da8629519090dfeb71df75da59fc/legacy-support-core-utils-1.0.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.legacy/legacy-support-core-utils/1.0.0/9b9570042115da8629519090dfeb71df75da59fc/legacy-support-core-utils-1.0.0.aar is not up-to-date because:
@@ -645,16 +1115,49 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/66dc
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/66dc8b9ec968443c743a9777841e4739/transformed/vectordrawable-animated-1.1.0 is not up-to-date because:
   No history is available.
+=======
+Transforming activity-1.8.0.aar (androidx.activity:activity:1.8.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/c150d6625fb3963b1b053f0898b29d15/transformed/jetified-activity-1.8.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/c150d6625fb3963b1b053f0898b29d15/transformed/jetified-activity-1.8.0 is not up-to-date because:
+  No history is available.
+Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/0988849ee3e77325ef337f2ffafb2d11/transformed/vectordrawable-1.1.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/0988849ee3e77325ef337f2ffafb2d11/transformed/vectordrawable-1.1.0 is not up-to-date because:
+  No history is available.
+Transforming vectordrawable-1.1.0.aar (androidx.vectordrawable:vectordrawable:1.1.0) with AarTransform
+Transforming viewpager-1.0.0.aar (androidx.viewpager:viewpager:1.0.0) with AarTransform
+Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with JetifyTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/aa9dac9ab2d258627f948822db9c060b/transformed/viewpager-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/aa9dac9ab2d258627f948822db9c060b/transformed/viewpager-1.0.0 is not up-to-date because:
+  No history is available.
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.legacy/legacy-support-core-utils/1.0.0/9b9570042115da8629519090dfeb71df75da59fc/legacy-support-core-utils-1.0.0.aar because:
+  Build cache is disabled
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with JetifyTransform
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.legacy/legacy-support-core-utils/1.0.0/9b9570042115da8629519090dfeb71df75da59fc/legacy-support-core-utils-1.0.0.aar is not up-to-date because:
+  No history is available.
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with JetifyTransform
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.loader/loader/1.0.0/8af8b6cec0da85c207d03e15840e0722cbc71e70/loader-1.0.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.loader/loader/1.0.0/8af8b6cec0da85c207d03e15840e0722cbc71e70/loader-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with ExtractAarTransform
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with JetifyTransform
+=======
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with JetifyTransform
+Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with ExtractAarTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with ExtractAarTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with ExtractAarTransform
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.legacy/legacy-support-core-utils/1.0.0/9b9570042115da8629519090dfeb71df75da59fc/legacy-support-core-utils-1.0.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.legacy/legacy-support-core-utils/1.0.0/9b9570042115da8629519090dfeb71df75da59fc/legacy-support-core-utils-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with ExtractAarTransform
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with ExtractAarTransform
 Transforming viewpager-1.0.0.aar (androidx.viewpager:viewpager:1.0.0) with AarTransform
@@ -672,23 +1175,49 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/8311
 AarTransform: /home/runner/.gradle/caches/transforms-3/831154553d1c84c4abf19d8078d8e5bc/transformed/legacy-support-core-utils-1.0.0 is not up-to-date because:
   No history is available.
 Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with JetifyTransform
+=======
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.recyclerview/recyclerview/1.1.0/8b4f97752ddcbc712af46d208aebd46585cde63b/recyclerview-1.1.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.recyclerview/recyclerview/1.1.0/8b4f97752ddcbc712af46d208aebd46585cde63b/recyclerview-1.1.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with AarTransform
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with AarTransform
 Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with JetifyTransform
+=======
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.loader/loader/1.0.0/8af8b6cec0da85c207d03e15840e0722cbc71e70/loader-1.0.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.loader/loader/1.0.0/8af8b6cec0da85c207d03e15840e0722cbc71e70/loader-1.0.0.aar is not up-to-date because:
+  No history is available.
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with ExtractAarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.recyclerview/recyclerview/1.1.0/8b4f97752ddcbc712af46d208aebd46585cde63b/recyclerview-1.1.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.recyclerview/recyclerview/1.1.0/8b4f97752ddcbc712af46d208aebd46585cde63b/recyclerview-1.1.0.aar is not up-to-date because:
+  No history is available.
+Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/831154553d1c84c4abf19d8078d8e5bc/transformed/legacy-support-core-utils-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/831154553d1c84c4abf19d8078d8e5bc/transformed/legacy-support-core-utils-1.0.0 is not up-to-date because:
+  No history is available.
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with AarTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with AarTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with JetifyTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with ExtractAarTransform
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/01f7d78fabd2acbda8eb52dcfdfcb4d8/transformed/loader-1.0.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/01f7d78fabd2acbda8eb52dcfdfcb4d8/transformed/loader-1.0.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with ExtractAarTransform
 Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.recyclerview/recyclerview/1.1.0/8b4f97752ddcbc712af46d208aebd46585cde63b/recyclerview-1.1.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.recyclerview/recyclerview/1.1.0/8b4f97752ddcbc712af46d208aebd46585cde63b/recyclerview-1.1.0.aar is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with JetifyTransform
 Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.customview/customview/1.1.0/a030aaf64c5419a89f7d91a33755c4629a43471/customview-1.1.0.aar because:
@@ -708,6 +1237,7 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/093f
 AarTransform: /home/runner/.gradle/caches/transforms-3/093fd2e52a8fcd6b58e03256006286dc/transformed/customview-1.1.0 is not up-to-date because:
   No history is available.
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+<<<<<<< Updated upstream
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core/1.12.0/5aa3088ed93ba8ebaea2b8a83befdfa829339e7a/core-1.12.0.aar because:
   Build cache is disabled
@@ -715,20 +1245,36 @@ Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) w
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core/1.12.0/5aa3088ed93ba8ebaea2b8a83befdfa829339e7a/core-1.12.0.aar is not up-to-date because:
   No history is available.
 Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with AarTransform
+=======
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with AarTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core/1.12.0/5aa3088ed93ba8ebaea2b8a83befdfa829339e7a/core-1.12.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core/1.12.0/5aa3088ed93ba8ebaea2b8a83befdfa829339e7a/core-1.12.0.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/0780361fbfc02d60bbedcf624638433b/transformed/recyclerview-1.1.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/0780361fbfc02d60bbedcf624638433b/transformed/recyclerview-1.1.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+=======
+>>>>>>> Stashed changes
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core/1.12.0/5aa3088ed93ba8ebaea2b8a83befdfa829339e7a/core-1.12.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core/1.12.0/5aa3088ed93ba8ebaea2b8a83befdfa829339e7a/core-1.12.0.aar is not up-to-date because:
   No history is available.
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
@@ -737,9 +1283,12 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/db3f
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/db3f6b8020888a7f113f2982cc217484/transformed/core-1.12.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+=======
+>>>>>>> Stashed changes
 Transforming savedstate-1.2.1.aar (androidx.savedstate:savedstate:1.2.1) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.savedstate/savedstate/1.2.1/e364fc9dec32aa569d855f85864e50250318a093/savedstate-1.2.1.aar because:
   Build cache is disabled
@@ -755,6 +1304,7 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/be6e
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/be6eef0429a268cff5a976e65c0a3ebc/transformed/jetified-savedstate-1.2.1 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-process/2.6.1/lifecycle-process-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download17143993319236810919bin
 Transforming lifecycle-process-2.6.1.aar (androidx.lifecycle:lifecycle-process:2.6.1) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-process/2.6.1/1cda99630dfe13ea65f63d05821187bfe87a5967/lifecycle-process-2.6.1.aar because:
@@ -788,6 +1338,9 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/884f
 AarTransform: /home/runner/.gradle/caches/transforms-3/884ff50124331334b950ccd18aba8e68/transformed/lifecycle-livedata-2.6.1 is not up-to-date because:
   No history is available.
 Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.6.1/lifecycle-livedata-core-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download5849167608253585882bin
+=======
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.6.1/lifecycle-livedata-core-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download7061334898354796840bin
+>>>>>>> Stashed changes
 Transforming lifecycle-livedata-core-2.6.1.aar (androidx.lifecycle:lifecycle-livedata-core:2.6.1) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-livedata-core/2.6.1/23f66885a260f0a2cd6540927ea8795484afd2da/lifecycle-livedata-core-2.6.1.aar because:
   Build cache is disabled
@@ -803,7 +1356,43 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/7394
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/7394e92b1c8f049e2d75df259411992f/transformed/lifecycle-livedata-core-2.6.1 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel/2.6.1/lifecycle-viewmodel-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download17561732499729451962bin
+=======
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-process/2.6.1/lifecycle-process-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download2948938163469688867bin
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata/2.6.1/lifecycle-livedata-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download15375689450060326670bin
+Transforming lifecycle-livedata-2.6.1.aar (androidx.lifecycle:lifecycle-livedata:2.6.1) with JetifyTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-livedata/2.6.1/e7f6d9e232bf035af69c030917c1ccda8e840b57/lifecycle-livedata-2.6.1.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-livedata/2.6.1/e7f6d9e232bf035af69c030917c1ccda8e840b57/lifecycle-livedata-2.6.1.aar is not up-to-date because:
+  No history is available.
+Transforming lifecycle-livedata-2.6.1.aar (androidx.lifecycle:lifecycle-livedata:2.6.1) with ExtractAarTransform
+Transforming lifecycle-process-2.6.1.aar (androidx.lifecycle:lifecycle-process:2.6.1) with JetifyTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-livedata/2.6.1/e7f6d9e232bf035af69c030917c1ccda8e840b57/lifecycle-livedata-2.6.1.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-livedata/2.6.1/e7f6d9e232bf035af69c030917c1ccda8e840b57/lifecycle-livedata-2.6.1.aar is not up-to-date because:
+  No history is available.
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-process/2.6.1/1cda99630dfe13ea65f63d05821187bfe87a5967/lifecycle-process-2.6.1.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-process/2.6.1/1cda99630dfe13ea65f63d05821187bfe87a5967/lifecycle-process-2.6.1.aar is not up-to-date because:
+  No history is available.
+Transforming lifecycle-process-2.6.1.aar (androidx.lifecycle:lifecycle-process:2.6.1) with ExtractAarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/ac8908b5860f6ae8fc5d3ddd1d04c857/transformed/jetified-lifecycle-process-2.6.1.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/ac8908b5860f6ae8fc5d3ddd1d04c857/transformed/jetified-lifecycle-process-2.6.1.aar is not up-to-date because:
+  No history is available.
+Transforming lifecycle-livedata-2.6.1.aar (androidx.lifecycle:lifecycle-livedata:2.6.1) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/884ff50124331334b950ccd18aba8e68/transformed/lifecycle-livedata-2.6.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/884ff50124331334b950ccd18aba8e68/transformed/lifecycle-livedata-2.6.1 is not up-to-date because:
+  No history is available.
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel/2.6.1/lifecycle-viewmodel-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download6004079432722946463bin
+Transforming lifecycle-process-2.6.1.aar (androidx.lifecycle:lifecycle-process:2.6.1) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/ea8e01bdab487f57e89cfd2a57773ff1/transformed/jetified-lifecycle-process-2.6.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/ea8e01bdab487f57e89cfd2a57773ff1/transformed/jetified-lifecycle-process-2.6.1 is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Transforming lifecycle-viewmodel-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel:2.6.1) with JetifyTransform
 Transforming lifecycle-viewmodel-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel:2.6.1) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-viewmodel/2.6.1/fa35bfdbbe0e7df1573e377cbdd15de35176141d/lifecycle-viewmodel-2.6.1.aar because:
@@ -823,11 +1412,18 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/2c52
 AarTransform: /home/runner/.gradle/caches/transforms-3/2c5257ca0b4750fbc6993d9832ce9e8a/transformed/lifecycle-viewmodel-2.6.1 is not up-to-date because:
   No history is available.
 Transforming core-ktx-1.12.0.aar (androidx.core:core-ktx:1.12.0) with JetifyTransform
+<<<<<<< Updated upstream
 Transforming annotation-experimental-1.3.0.aar (androidx.annotation:annotation-experimental:1.3.0) with JetifyTransform
+=======
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core-ktx/1.12.0/1b80a40d6f34eb52c8de87c186feb57aa2a43ada/core-ktx-1.12.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.core/core-ktx/1.12.0/1b80a40d6f34eb52c8de87c186feb57aa2a43ada/core-ktx-1.12.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
+=======
+Transforming annotation-experimental-1.3.0.aar (androidx.annotation:annotation-experimental:1.3.0) with JetifyTransform
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.annotation/annotation-experimental/1.3.0/5087c6f545117dcd474e69e1a93cacec9d7334af/annotation-experimental-1.3.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.annotation/annotation-experimental/1.3.0/5087c6f545117dcd474e69e1a93cacec9d7334af/annotation-experimental-1.3.0.aar is not up-to-date because:
@@ -837,27 +1433,80 @@ Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/0de9c1cb89a0a21726f1ddddc0a6e883/transformed/jetified-annotation-experimental-1.3.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
+=======
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.6.1/lifecycle-viewmodel-savedstate-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download9517074463676183555bin
+>>>>>>> Stashed changes
 Transforming core-ktx-1.12.0.aar (androidx.core:core-ktx:1.12.0) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/ef291685a4d91f2f84e619c10fcc3539/transformed/jetified-core-ktx-1.12.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/ef291685a4d91f2f84e619c10fcc3539/transformed/jetified-core-ktx-1.12.0.aar is not up-to-date because:
   No history is available.
-Transforming annotation-experimental-1.3.0.aar (androidx.annotation:annotation-experimental:1.3.0) with AarTransform
-Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/55ad8ab1556954c38d621789326c4ac1/transformed/jetified-annotation-experimental-1.3.0 because:
-  Build cache is disabled
-AarTransform: /home/runner/.gradle/caches/transforms-3/55ad8ab1556954c38d621789326c4ac1/transformed/jetified-annotation-experimental-1.3.0 is not up-to-date because:
-  No history is available.
-Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.6.1/lifecycle-runtime-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download11048787235684141484bin
-Transforming cursoradapter-1.0.0.aar (androidx.cursoradapter:cursoradapter:1.0.0) with JetifyTransform
-Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cursoradapter/cursoradapter/1.0.0/74014983a86b83cbce534dec4e7aa9312f5f5d82/cursoradapter-1.0.0.aar because:
-  Build cache is disabled
-JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cursoradapter/cursoradapter/1.0.0/74014983a86b83cbce534dec4e7aa9312f5f5d82/cursoradapter-1.0.0.aar is not up-to-date because:
-  No history is available.
 Transforming core-ktx-1.12.0.aar (androidx.core:core-ktx:1.12.0) with AarTransform
+Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1) with JetifyTransform
+Transforming annotation-experimental-1.3.0.aar (androidx.annotation:annotation-experimental:1.3.0) with AarTransform
+<<<<<<< Updated upstream
+=======
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/780c71dd374ec3576a1888cfa199f044/transformed/jetified-core-ktx-1.12.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/780c71dd374ec3576a1888cfa199f044/transformed/jetified-core-ktx-1.12.0 is not up-to-date because:
   No history is available.
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-viewmodel-savedstate/2.6.1/7cac77a315e1c8235a1f0c7d041c3c5e565f0f4b/lifecycle-viewmodel-savedstate-2.6.1.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-viewmodel-savedstate/2.6.1/7cac77a315e1c8235a1f0c7d041c3c5e565f0f4b/lifecycle-viewmodel-savedstate-2.6.1.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/55ad8ab1556954c38d621789326c4ac1/transformed/jetified-annotation-experimental-1.3.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/55ad8ab1556954c38d621789326c4ac1/transformed/jetified-annotation-experimental-1.3.0 is not up-to-date because:
+  No history is available.
+<<<<<<< Updated upstream
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.6.1/lifecycle-runtime-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download11048787235684141484bin
+=======
+>>>>>>> Stashed changes
+Transforming cursoradapter-1.0.0.aar (androidx.cursoradapter:cursoradapter:1.0.0) with JetifyTransform
+Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with JetifyTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cursoradapter/cursoradapter/1.0.0/74014983a86b83cbce534dec4e7aa9312f5f5d82/cursoradapter-1.0.0.aar because:
+  Build cache is disabled
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.interpolator/interpolator/1.0.0/8a01fa254a23b9388571eb6334b03707c7d122d7/interpolator-1.0.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cursoradapter/cursoradapter/1.0.0/74014983a86b83cbce534dec4e7aa9312f5f5d82/cursoradapter-1.0.0.aar is not up-to-date because:
+  No history is available.
+<<<<<<< Updated upstream
+Transforming core-ktx-1.12.0.aar (androidx.core:core-ktx:1.12.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/780c71dd374ec3576a1888cfa199f044/transformed/jetified-core-ktx-1.12.0 because:
+=======
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.interpolator/interpolator/1.0.0/8a01fa254a23b9388571eb6334b03707c7d122d7/interpolator-1.0.0.aar is not up-to-date because:
+  No history is available.
+Transforming cursoradapter-1.0.0.aar (androidx.cursoradapter:cursoradapter:1.0.0) with ExtractAarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cursoradapter/cursoradapter/1.0.0/74014983a86b83cbce534dec4e7aa9312f5f5d82/cursoradapter-1.0.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cursoradapter/cursoradapter/1.0.0/74014983a86b83cbce534dec4e7aa9312f5f5d82/cursoradapter-1.0.0.aar is not up-to-date because:
+  No history is available.
+Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with ExtractAarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.interpolator/interpolator/1.0.0/8a01fa254a23b9388571eb6334b03707c7d122d7/interpolator-1.0.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.interpolator/interpolator/1.0.0/8a01fa254a23b9388571eb6334b03707c7d122d7/interpolator-1.0.0.aar is not up-to-date because:
+  No history is available.
+Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1) with ExtractAarTransform
+Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.6.1/lifecycle-runtime-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download15065334348996359480bin
+Transforming cursoradapter-1.0.0.aar (androidx.cursoradapter:cursoradapter:1.0.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/e0940d7b2b369d6364bcbb6b227ecf03/transformed/cursoradapter-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/e0940d7b2b369d6364bcbb6b227ecf03/transformed/cursoradapter-1.0.0 is not up-to-date because:
+  No history is available.
+Transforming lifecycle-runtime-2.6.1.aar (androidx.lifecycle:lifecycle-runtime:2.6.1) with JetifyTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/844014423c912ea79a2e76d9c82bf430/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/844014423c912ea79a2e76d9c82bf430/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1.aar is not up-to-date because:
+  No history is available.
+Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/2f19315d4b9ea45848b284ee34587948/transformed/interpolator-1.0.0 because:
+>>>>>>> Stashed changes
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/2f19315d4b9ea45848b284ee34587948/transformed/interpolator-1.0.0 is not up-to-date because:
+  No history is available.
+<<<<<<< Updated upstream
 Transforming cursoradapter-1.0.0.aar (androidx.cursoradapter:cursoradapter:1.0.0) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cursoradapter/cursoradapter/1.0.0/74014983a86b83cbce534dec4e7aa9312f5f5d82/cursoradapter-1.0.0.aar because:
   Build cache is disabled
@@ -881,15 +1530,38 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/e0940d7b2b369d6364bcbb6b2
 Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with ExtractAarTransform
 Transforming lifecycle-runtime-2.6.1.aar (androidx.lifecycle:lifecycle-runtime:2.6.1) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.interpolator/interpolator/1.0.0/8a01fa254a23b9388571eb6334b03707c7d122d7/interpolator-1.0.0.aar because:
+=======
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-runtime/2.6.1/f0ef27053faa89b3ec06c4f118cea0a15edde35b/lifecycle-runtime-2.6.1.aar because:
   Build cache is disabled
-ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.interpolator/interpolator/1.0.0/8a01fa254a23b9388571eb6334b03707c7d122d7/interpolator-1.0.0.aar is not up-to-date because:
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-runtime/2.6.1/f0ef27053faa89b3ec06c4f118cea0a15edde35b/lifecycle-runtime-2.6.1.aar is not up-to-date because:
   No history is available.
 Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with JetifyTransform
 Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with ExtractAarTransform
+Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with AarTransform
+Transforming lifecycle-runtime-2.6.1.aar (androidx.lifecycle:lifecycle-runtime:2.6.1) with ExtractAarTransform
+Transforming cardview-1.0.0.aar (androidx.cardview:cardview:1.0.0) with JetifyTransform
+Transforming versionedparcelable-1.1.1.aar (androidx.versionedparcelable:versionedparcelable:1.1.1) with JetifyTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cardview/cardview/1.0.0/158dbc2e2bc502815821191b04446b8f663c1874/cardview-1.0.0.aar because:
+>>>>>>> Stashed changes
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cardview/cardview/1.0.0/158dbc2e2bc502815821191b04446b8f663c1874/cardview-1.0.0.aar is not up-to-date because:
+  No history is available.
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.versionedparcelable/versionedparcelable/1.1.1/18e18071e7715679e0593c570217edeb5ca48b9e/versionedparcelable-1.1.1.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.versionedparcelable/versionedparcelable/1.1.1/18e18071e7715679e0593c570217edeb5ca48b9e/versionedparcelable-1.1.1.aar is not up-to-date because:
+  No history is available.
+<<<<<<< Updated upstream
+Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with JetifyTransform
+Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with ExtractAarTransform
+=======
+Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1) with AarTransform
+Transforming cardview-1.0.0.aar (androidx.cardview:cardview:1.0.0) with ExtractAarTransform
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-runtime/2.6.1/f0ef27053faa89b3ec06c4f118cea0a15edde35b/lifecycle-runtime-2.6.1.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-runtime/2.6.1/f0ef27053faa89b3ec06c4f118cea0a15edde35b/lifecycle-runtime-2.6.1.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with AarTransform
 Transforming interpolator-1.0.0.aar (androidx.interpolator:interpolator:1.0.0) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/2f19315d4b9ea45848b284ee34587948/transformed/interpolator-1.0.0 because:
@@ -915,41 +1587,82 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4c99
 AarTransform: /home/runner/.gradle/caches/transforms-3/4c99685c9a3b53a84587d4da3afaf2a1/transformed/lifecycle-runtime-2.6.1 is not up-to-date because:
   No history is available.
 Transforming cardview-1.0.0.aar (androidx.cardview:cardview:1.0.0) with ExtractAarTransform
+=======
+Transforming versionedparcelable-1.1.1.aar (androidx.versionedparcelable:versionedparcelable:1.1.1) with ExtractAarTransform
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cardview/cardview/1.0.0/158dbc2e2bc502815821191b04446b8f663c1874/cardview-1.0.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.cardview/cardview/1.0.0/158dbc2e2bc502815821191b04446b8f663c1874/cardview-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Downloading https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.6.1/lifecycle-viewmodel-savedstate-2.6.1.aar to /home/runner/.gradle/.tmp/gradle_download10994396591485050445bin
 Transforming versionedparcelable-1.1.1.aar (androidx.versionedparcelable:versionedparcelable:1.1.1) with ExtractAarTransform
+=======
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/c0dfd2bfd601b3407e2055c12828e266/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/c0dfd2bfd601b3407e2055c12828e266/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1 is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.versionedparcelable/versionedparcelable/1.1.1/18e18071e7715679e0593c570217edeb5ca48b9e/versionedparcelable-1.1.1.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.versionedparcelable/versionedparcelable/1.1.1/18e18071e7715679e0593c570217edeb5ca48b9e/versionedparcelable-1.1.1.aar is not up-to-date because:
   No history is available.
 Transforming cardview-1.0.0.aar (androidx.cardview:cardview:1.0.0) with AarTransform
+Transforming versionedparcelable-1.1.1.aar (androidx.versionedparcelable:versionedparcelable:1.1.1) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/7192bc092133145dc42fdafeebe5edee/transformed/cardview-1.0.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/7192bc092133145dc42fdafeebe5edee/transformed/cardview-1.0.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming startup-runtime-1.1.1.aar (androidx.startup:startup-runtime:1.1.1) with JetifyTransform
 Transforming versionedparcelable-1.1.1.aar (androidx.versionedparcelable:versionedparcelable:1.1.1) with AarTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.startup/startup-runtime/1.1.1/9d4ba67056aff98b69eadc1477c19a1e67cb9470/startup-runtime-1.1.1.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.startup/startup-runtime/1.1.1/9d4ba67056aff98b69eadc1477c19a1e67cb9470/startup-runtime-1.1.1.aar is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/e8333ca665914a156343ce4413b08e05/transformed/versionedparcelable-1.1.1 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/e8333ca665914a156343ce4413b08e05/transformed/versionedparcelable-1.1.1 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
+=======
+Transforming lifecycle-runtime-2.6.1.aar (androidx.lifecycle:lifecycle-runtime:2.6.1) with AarTransform
+Transforming startup-runtime-1.1.1.aar (androidx.startup:startup-runtime:1.1.1) with JetifyTransform
+>>>>>>> Stashed changes
 Transforming tracing-1.0.0.aar (androidx.tracing:tracing:1.0.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.tracing/tracing/1.0.0/69cef34711dffbc517e7a0a419ec4a98f84f496a/tracing-1.0.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.tracing/tracing/1.0.0/69cef34711dffbc517e7a0a419ec4a98f84f496a/tracing-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
+=======
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.startup/startup-runtime/1.1.1/9d4ba67056aff98b69eadc1477c19a1e67cb9470/startup-runtime-1.1.1.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.startup/startup-runtime/1.1.1/9d4ba67056aff98b69eadc1477c19a1e67cb9470/startup-runtime-1.1.1.aar is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4c99685c9a3b53a84587d4da3afaf2a1/transformed/lifecycle-runtime-2.6.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/4c99685c9a3b53a84587d4da3afaf2a1/transformed/lifecycle-runtime-2.6.1 is not up-to-date because:
+  No history is available.
+Transforming core-runtime-2.2.0.aar (androidx.arch.core:core-runtime:2.2.0) with JetifyTransform
+Transforming startup-runtime-1.1.1.aar (androidx.startup:startup-runtime:1.1.1) with ExtractAarTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar is not up-to-date because:
+  No history is available.
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/44a90069115ddeef9329d311f187c5a1/transformed/jetified-startup-runtime-1.1.1.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/44a90069115ddeef9329d311f187c5a1/transformed/jetified-startup-runtime-1.1.1.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Transforming tracing-1.0.0.aar (androidx.tracing:tracing:1.0.0) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/1a0198602103c5eed5d84908a77e7701/transformed/jetified-tracing-1.0.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/1a0198602103c5eed5d84908a77e7701/transformed/jetified-tracing-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming startup-runtime-1.1.1.aar (androidx.startup:startup-runtime:1.1.1) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/44a90069115ddeef9329d311f187c5a1/transformed/jetified-startup-runtime-1.1.1.aar because:
   Build cache is disabled
@@ -957,40 +1670,75 @@ ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/44a90069115ddeef93
   No history is available.
 Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1) with JetifyTransform
 Transforming tracing-1.0.0.aar (androidx.tracing:tracing:1.0.0) with AarTransform
+=======
+Transforming core-runtime-2.2.0.aar (androidx.arch.core:core-runtime:2.2.0) with ExtractAarTransform
+Transforming tracing-1.0.0.aar (androidx.tracing:tracing:1.0.0) with AarTransform
+Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar because:
+  Build cache is disabled
+ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar is not up-to-date because:
+  No history is available.
+Transforming startup-runtime-1.1.1.aar (androidx.startup:startup-runtime:1.1.1) with AarTransform
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/089264b2e688caaa3eea64733a23d387/transformed/jetified-tracing-1.0.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/089264b2e688caaa3eea64733a23d387/transformed/jetified-tracing-1.0.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-viewmodel-savedstate/2.6.1/7cac77a315e1c8235a1f0c7d041c3c5e565f0f4b/lifecycle-viewmodel-savedstate-2.6.1.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-viewmodel-savedstate/2.6.1/7cac77a315e1c8235a1f0c7d041c3c5e565f0f4b/lifecycle-viewmodel-savedstate-2.6.1.aar is not up-to-date because:
   No history is available.
 Transforming startup-runtime-1.1.1.aar (androidx.startup:startup-runtime:1.1.1) with AarTransform
 Transforming core-runtime-2.2.0.aar (androidx.arch.core:core-runtime:2.2.0) with JetifyTransform
+=======
+Transforming core-runtime-2.2.0.aar (androidx.arch.core:core-runtime:2.2.0) with AarTransform
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/ce3e9ac7dc18033e0f3e95d90653e06f/transformed/jetified-startup-runtime-1.1.1 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/ce3e9ac7dc18033e0f3e95d90653e06f/transformed/jetified-startup-runtime-1.1.1 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar is not up-to-date because:
   No history is available.
 Transforming documentfile-1.0.0.aar (androidx.documentfile:documentfile:1.0.0) with JetifyTransform
 Transforming core-runtime-2.2.0.aar (androidx.arch.core:core-runtime:2.2.0) with ExtractAarTransform
+=======
+Transforming documentfile-1.0.0.aar (androidx.documentfile:documentfile:1.0.0) with JetifyTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/b142b6c20290fb766ef825d652df3fe1/transformed/core-runtime-2.2.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/b142b6c20290fb766ef825d652df3fe1/transformed/core-runtime-2.2.0 is not up-to-date because:
+  No history is available.
+Transforming localbroadcastmanager-1.0.0.aar (androidx.localbroadcastmanager:localbroadcastmanager:1.0.0) with JetifyTransform
+>>>>>>> Stashed changes
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.documentfile/documentfile/1.0.0/66104345c90cd8c2fd5ad2d3aad692b280e10c32/documentfile-1.0.0.aar because:
   Build cache is disabled
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.documentfile/documentfile/1.0.0/66104345c90cd8c2fd5ad2d3aad692b280e10c32/documentfile-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.arch.core/core-runtime/2.2.0/39705982680d78556b679ef9d5400d4f17509b0b/core-runtime-2.2.0.aar is not up-to-date because:
   No history is available.
 Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1) with ExtractAarTransform
+=======
+Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with JetifyTransform
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.localbroadcastmanager/localbroadcastmanager/1.0.0/2734f31c8321e83ce6b60570d14777fc33cc2ece/localbroadcastmanager-1.0.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.localbroadcastmanager/localbroadcastmanager/1.0.0/2734f31c8321e83ce6b60570d14777fc33cc2ece/localbroadcastmanager-1.0.0.aar is not up-to-date because:
+  No history is available.
+Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.print/print/1.0.0/7722094652c48ebe27acc94d74a55e759e4635ff/print-1.0.0.aar because:
+  Build cache is disabled
+JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.print/print/1.0.0/7722094652c48ebe27acc94d74a55e759e4635ff/print-1.0.0.aar is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Transforming documentfile-1.0.0.aar (androidx.documentfile:documentfile:1.0.0) with ExtractAarTransform
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.documentfile/documentfile/1.0.0/66104345c90cd8c2fd5ad2d3aad692b280e10c32/documentfile-1.0.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.documentfile/documentfile/1.0.0/66104345c90cd8c2fd5ad2d3aad692b280e10c32/documentfile-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/844014423c912ea79a2e76d9c82bf430/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/transforms-3/844014423c912ea79a2e76d9c82bf430/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1.aar is not up-to-date because:
@@ -1014,10 +1762,15 @@ Downloading https://dl.google.com/dl/android/maven2/androidx/profileinstaller/pr
 Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with JetifyTransform
 Transforming localbroadcastmanager-1.0.0.aar (androidx.localbroadcastmanager:localbroadcastmanager:1.0.0) with ExtractAarTransform
 Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1) with AarTransform
+=======
+Transforming localbroadcastmanager-1.0.0.aar (androidx.localbroadcastmanager:localbroadcastmanager:1.0.0) with ExtractAarTransform
+Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with ExtractAarTransform
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.localbroadcastmanager/localbroadcastmanager/1.0.0/2734f31c8321e83ce6b60570d14777fc33cc2ece/localbroadcastmanager-1.0.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.localbroadcastmanager/localbroadcastmanager/1.0.0/2734f31c8321e83ce6b60570d14777fc33cc2ece/localbroadcastmanager-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/c0dfd2bfd601b3407e2055c12828e266/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/c0dfd2bfd601b3407e2055c12828e266/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1 is not up-to-date because:
@@ -1027,10 +1780,13 @@ Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/file
 JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.print/print/1.0.0/7722094652c48ebe27acc94d74a55e759e4635ff/print-1.0.0.aar is not up-to-date because:
   No history is available.
 Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with ExtractAarTransform
+=======
+>>>>>>> Stashed changes
 Caching disabled for ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.print/print/1.0.0/7722094652c48ebe27acc94d74a55e759e4635ff/print-1.0.0.aar because:
   Build cache is disabled
 ExtractAarTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.print/print/1.0.0/7722094652c48ebe27acc94d74a55e759e4635ff/print-1.0.0.aar is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Transforming localbroadcastmanager-1.0.0.aar (androidx.localbroadcastmanager:localbroadcastmanager:1.0.0) with AarTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/3cc5eec4d3d75ddd44c6f87e13376c5a/transformed/localbroadcastmanager-1.0.0 because:
   Build cache is disabled
@@ -1041,6 +1797,24 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/9f8c
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/9f8c877c8681b091e214e9f229249373/transformed/print-1.0.0 is not up-to-date because:
   No history is available.
+=======
+Transforming documentfile-1.0.0.aar (androidx.documentfile:documentfile:1.0.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/741f67f54b92bb66608a14c2bfe46110/transformed/documentfile-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/741f67f54b92bb66608a14c2bfe46110/transformed/documentfile-1.0.0 is not up-to-date because:
+  No history is available.
+Transforming localbroadcastmanager-1.0.0.aar (androidx.localbroadcastmanager:localbroadcastmanager:1.0.0) with AarTransform
+Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/3cc5eec4d3d75ddd44c6f87e13376c5a/transformed/localbroadcastmanager-1.0.0 because:
+  Build cache is disabled
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/9f8c877c8681b091e214e9f229249373/transformed/print-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/3cc5eec4d3d75ddd44c6f87e13376c5a/transformed/localbroadcastmanager-1.0.0 is not up-to-date because:
+  No history is available.
+AarTransform: /home/runner/.gradle/caches/transforms-3/9f8c877c8681b091e214e9f229249373/transformed/print-1.0.0 is not up-to-date because:
+  No history is available.
+Downloading https://dl.google.com/dl/android/maven2/androidx/profileinstaller/profileinstaller/1.3.0/profileinstaller-1.3.0.aar to /home/runner/.gradle/.tmp/gradle_download6855577721066453859bin
+>>>>>>> Stashed changes
 Transforming profileinstaller-1.3.0.aar (androidx.profileinstaller:profileinstaller:1.3.0) with JetifyTransform
 Caching disabled for JetifyTransform: /home/runner/.gradle/caches/modules-2/files-2.1/androidx.profileinstaller/profileinstaller/1.3.0/624641814089cd7bebf427aafa68ac089fb38261/profileinstaller-1.3.0.aar because:
   Build cache is disabled
@@ -1093,6 +1867,10 @@ Transforming constraintlayout-2.0.1.aar (androidx.constraintlayout:constraintlay
 Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with JetifyTransform
 Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with ExtractAarTransform
 Transforming appcompat-1.6.1.aar (androidx.appcompat:appcompat:1.6.1) with AarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/eff7e710aa29c6a43a1e81c06f61df29/transformed/jetified-appcompat-resources-1.6.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/eff7e710aa29c6a43a1e81c06f61df29/transformed/jetified-appcompat-resources-1.6.1 is not up-to-date because:
+  No history is available.
 Transforming swiperefreshlayout-1.1.0.aar (androidx.swiperefreshlayout:swiperefreshlayout:1.1.0) with JetifyTransform
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/eff7e710aa29c6a43a1e81c06f61df29/transformed/jetified-appcompat-resources-1.6.1 because:
   Build cache is disabled
@@ -1149,6 +1927,7 @@ Transforming viewpager-1.0.0.aar (androidx.viewpager:viewpager:1.0.0) with AarTr
 Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with JetifyTransform
 Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with ExtractAarTransform
 Transforming legacy-support-core-utils-1.0.0.aar (androidx.legacy:legacy-support-core-utils:1.0.0) with AarTransform
+<<<<<<< Updated upstream
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with JetifyTransform
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with ExtractAarTransform
 Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with AarTransform
@@ -1211,6 +1990,61 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/82504041c7c2d8eefa1742e9f
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
 AarTransform: /home/runner/.gradle/caches/transforms-3/1390ed0e93696117e0bd1340aa2458d6/transformed/appcompat-1.6.1 is not up-to-date because:
   No history is available.
+=======
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/3a347358b13a1901f4709358b2ed9945/transformed/material-1.11.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/3a347358b13a1901f4709358b2ed9945/transformed/material-1.11.0 is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/1390ed0e93696117e0bd1340aa2458d6/transformed/appcompat-1.6.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/1390ed0e93696117e0bd1340aa2458d6/transformed/appcompat-1.6.1 is not up-to-date because:
+  No history is available.
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with JetifyTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with ExtractAarTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with AarTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with JetifyTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with ExtractAarTransform
+Transforming loader-1.0.0.aar (androidx.loader:loader:1.0.0) with AarTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with JetifyTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/82504041c7c2d8eefa1742e9fce3b836/transformed/swiperefreshlayout-1.1.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/82504041c7c2d8eefa1742e9fce3b836/transformed/swiperefreshlayout-1.1.0 is not up-to-date because:
+  No history is available.
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with ExtractAarTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with AarTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with JetifyTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with ExtractAarTransform
+Transforming recyclerview-1.1.0.aar (androidx.recyclerview:recyclerview:1.1.0) with AarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with JetifyTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with ExtractAarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with AarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with JetifyTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with ExtractAarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with AarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with JetifyTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with ExtractAarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with AarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with JetifyTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with ExtractAarTransform
+Transforming customview-1.1.0.aar (androidx.customview:customview:1.1.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+>>>>>>> Stashed changes
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
@@ -1224,6 +2058,18 @@ Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
 Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+<<<<<<< Updated upstream
+=======
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with JetifyTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with ExtractAarTransform
+Transforming core-1.12.0.aar (androidx.core:core:1.12.0) with AarTransform
+>>>>>>> Stashed changes
 Transforming savedstate-1.2.1.aar (androidx.savedstate:savedstate:1.2.1) with JetifyTransform
 Transforming savedstate-1.2.1.aar (androidx.savedstate:savedstate:1.2.1) with ExtractAarTransform
 Transforming savedstate-1.2.1.aar (androidx.savedstate:savedstate:1.2.1) with AarTransform
@@ -1254,6 +2100,10 @@ Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecy
 Transforming lifecycle-viewmodel-savedstate-2.6.1.aar (androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1) with AarTransform
 Transforming core-ktx-1.12.0.aar (androidx.core:core-ktx:1.12.0) with JetifyTransform
 Transforming core-ktx-1.12.0.aar (androidx.core:core-ktx:1.12.0) with ExtractAarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/c4dab8d1a445d82bbdf5c45e5c471e0a/transformed/jetified-emoji2-1.2.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/c4dab8d1a445d82bbdf5c45e5c471e0a/transformed/jetified-emoji2-1.2.0 is not up-to-date because:
+  No history is available.
 Transforming core-ktx-1.12.0.aar (androidx.core:core-ktx:1.12.0) with AarTransform
 Transforming annotation-experimental-1.3.0.aar (androidx.annotation:annotation-experimental:1.3.0) with JetifyTransform
 Transforming annotation-experimental-1.3.0.aar (androidx.annotation:annotation-experimental:1.3.0) with ExtractAarTransform
@@ -1300,7 +2150,24 @@ Transforming localbroadcastmanager-1.0.0.aar (androidx.localbroadcastmanager:loc
 Transforming localbroadcastmanager-1.0.0.aar (androidx.localbroadcastmanager:localbroadcastmanager:1.0.0) with AarTransform
 Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with JetifyTransform
 Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with ExtractAarTransform
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/269d4a321b8b3b15ed1cb151ad66685f/transformed/jetified-emoji2-views-helper-1.2.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/269d4a321b8b3b15ed1cb151ad66685f/transformed/jetified-emoji2-views-helper-1.2.0 is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4b3ad8ec29879db50f390fac60e4166e/transformed/jetified-viewpager2-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/4b3ad8ec29879db50f390fac60e4166e/transformed/jetified-viewpager2-1.0.0 is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/200be3265c2da2d7f39ccb64351fa845/transformed/constraintlayout-2.0.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/200be3265c2da2d7f39ccb64351fa845/transformed/constraintlayout-2.0.1 is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/f857ed6359b5be8e560853431861bafa/transformed/fragment-1.3.6 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/f857ed6359b5be8e560853431861bafa/transformed/fragment-1.3.6 is not up-to-date because:
+  No history is available.
 Transforming print-1.0.0.aar (androidx.print:print:1.0.0) with AarTransform
+<<<<<<< Updated upstream
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4b3ad8ec29879db50f390fac60e4166e/transformed/jetified-viewpager2-1.0.0 because:
   Build cache is disabled
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/f857ed6359b5be8e560853431861bafa/transformed/fragment-1.3.6 because:
@@ -1309,6 +2176,8 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/4b3ad8ec29879db50f390fac6
   No history is available.
 AarTransform: /home/runner/.gradle/caches/transforms-3/f857ed6359b5be8e560853431861bafa/transformed/fragment-1.3.6 is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/c150d6625fb3963b1b053f0898b29d15/transformed/jetified-activity-1.8.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/c150d6625fb3963b1b053f0898b29d15/transformed/jetified-activity-1.8.0 is not up-to-date because:
@@ -1329,18 +2198,36 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/30d5
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/30d526ea02ad71fbce5e405cfff95b4b/transformed/dynamicanimation-1.0.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/66dc8b9ec968443c743a9777841e4739/transformed/vectordrawable-animated-1.1.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/66dc8b9ec968443c743a9777841e4739/transformed/vectordrawable-animated-1.1.0 is not up-to-date because:
   No history is available.
+=======
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/3d5a9a4578d2969d4bd4315ff0055d9a/transformed/transition-1.2.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/3d5a9a4578d2969d4bd4315ff0055d9a/transformed/transition-1.2.0 is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/66dc8b9ec968443c743a9777841e4739/transformed/vectordrawable-animated-1.1.0 because:
+  Build cache is disabled
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/aa9dac9ab2d258627f948822db9c060b/transformed/viewpager-1.0.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/66dc8b9ec968443c743a9777841e4739/transformed/vectordrawable-animated-1.1.0 is not up-to-date because:
+  No history is available.
+AarTransform: /home/runner/.gradle/caches/transforms-3/aa9dac9ab2d258627f948822db9c060b/transformed/viewpager-1.0.0 is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/0988849ee3e77325ef337f2ffafb2d11/transformed/vectordrawable-1.1.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/0988849ee3e77325ef337f2ffafb2d11/transformed/vectordrawable-1.1.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/aa9dac9ab2d258627f948822db9c060b/transformed/viewpager-1.0.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/aa9dac9ab2d258627f948822db9c060b/transformed/viewpager-1.0.0 is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/831154553d1c84c4abf19d8078d8e5bc/transformed/legacy-support-core-utils-1.0.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/831154553d1c84c4abf19d8078d8e5bc/transformed/legacy-support-core-utils-1.0.0 is not up-to-date because:
@@ -1361,6 +2248,7 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/db3f
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/db3f6b8020888a7f113f2982cc217484/transformed/core-1.12.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/be6eef0429a268cff5a976e65c0a3ebc/transformed/jetified-savedstate-1.2.1 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/be6eef0429a268cff5a976e65c0a3ebc/transformed/jetified-savedstate-1.2.1 is not up-to-date because:
@@ -1369,9 +2257,23 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/7394
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/7394e92b1c8f049e2d75df259411992f/transformed/lifecycle-livedata-core-2.6.1 is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/ea8e01bdab487f57e89cfd2a57773ff1/transformed/jetified-lifecycle-process-2.6.1 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/ea8e01bdab487f57e89cfd2a57773ff1/transformed/jetified-lifecycle-process-2.6.1 is not up-to-date because:
+  No history is available.
+<<<<<<< Updated upstream
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/884ff50124331334b950ccd18aba8e68/transformed/lifecycle-livedata-2.6.1 because:
+=======
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/be6eef0429a268cff5a976e65c0a3ebc/transformed/jetified-savedstate-1.2.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/be6eef0429a268cff5a976e65c0a3ebc/transformed/jetified-savedstate-1.2.1 is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/7394e92b1c8f049e2d75df259411992f/transformed/lifecycle-livedata-core-2.6.1 because:
+>>>>>>> Stashed changes
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/884ff50124331334b950ccd18aba8e68/transformed/lifecycle-livedata-2.6.1 is not up-to-date because:
   No history is available.
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/884ff50124331334b950ccd18aba8e68/transformed/lifecycle-livedata-2.6.1 because:
   Build cache is disabled
@@ -1384,11 +2286,19 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/2c5257ca0b4750fbc6993d983
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4c99685c9a3b53a84587d4da3afaf2a1/transformed/lifecycle-runtime-2.6.1 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/4c99685c9a3b53a84587d4da3afaf2a1/transformed/lifecycle-runtime-2.6.1 is not up-to-date because:
+<<<<<<< Updated upstream
+=======
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/780c71dd374ec3576a1888cfa199f044/transformed/jetified-core-ktx-1.12.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/780c71dd374ec3576a1888cfa199f044/transformed/jetified-core-ktx-1.12.0 is not up-to-date because:
+>>>>>>> Stashed changes
   No history is available.
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/c0dfd2bfd601b3407e2055c12828e266/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/c0dfd2bfd601b3407e2055c12828e266/transformed/jetified-lifecycle-viewmodel-savedstate-2.6.1 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/780c71dd374ec3576a1888cfa199f044/transformed/jetified-core-ktx-1.12.0 because:
   Build cache is disabled
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/e0940d7b2b369d6364bcbb6b227ecf03/transformed/cursoradapter-1.0.0 because:
@@ -1397,6 +2307,8 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/780c71dd374ec3576a1888cfa
   No history is available.
 AarTransform: /home/runner/.gradle/caches/transforms-3/e0940d7b2b369d6364bcbb6b227ecf03/transformed/cursoradapter-1.0.0 is not up-to-date because:
   No history is available.
+=======
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/55ad8ab1556954c38d621789326c4ac1/transformed/jetified-annotation-experimental-1.3.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/55ad8ab1556954c38d621789326c4ac1/transformed/jetified-annotation-experimental-1.3.0 is not up-to-date because:
@@ -1413,6 +2325,7 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/e833
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/e8333ca665914a156343ce4413b08e05/transformed/versionedparcelable-1.1.1 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4fe9f85f1db47f470d7a1d0e318b4ef2/transformed/jetified-profileinstaller-1.3.0 because:
   Build cache is disabled
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/ce3e9ac7dc18033e0f3e95d90653e06f/transformed/jetified-startup-runtime-1.1.1 because:
@@ -1421,6 +2334,16 @@ AarTransform: /home/runner/.gradle/caches/transforms-3/4fe9f85f1db47f470d7a1d0e3
   No history is available.
 AarTransform: /home/runner/.gradle/caches/transforms-3/ce3e9ac7dc18033e0f3e95d90653e06f/transformed/jetified-startup-runtime-1.1.1 is not up-to-date because:
   No history is available.
+=======
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/ce3e9ac7dc18033e0f3e95d90653e06f/transformed/jetified-startup-runtime-1.1.1 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/ce3e9ac7dc18033e0f3e95d90653e06f/transformed/jetified-startup-runtime-1.1.1 is not up-to-date because:
+  No history is available.
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/4fe9f85f1db47f470d7a1d0e318b4ef2/transformed/jetified-profileinstaller-1.3.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/4fe9f85f1db47f470d7a1d0e318b4ef2/transformed/jetified-profileinstaller-1.3.0 is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/089264b2e688caaa3eea64733a23d387/transformed/jetified-tracing-1.0.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/089264b2e688caaa3eea64733a23d387/transformed/jetified-tracing-1.0.0 is not up-to-date because:
@@ -1433,6 +2356,13 @@ Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/741f
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/741f67f54b92bb66608a14c2bfe46110/transformed/documentfile-1.0.0 is not up-to-date because:
   No history is available.
+<<<<<<< Updated upstream
+=======
+Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/b142b6c20290fb766ef825d652df3fe1/transformed/core-runtime-2.2.0 because:
+  Build cache is disabled
+AarTransform: /home/runner/.gradle/caches/transforms-3/b142b6c20290fb766ef825d652df3fe1/transformed/core-runtime-2.2.0 is not up-to-date because:
+  No history is available.
+>>>>>>> Stashed changes
 Caching disabled for AarTransform: /home/runner/.gradle/caches/transforms-3/3cc5eec4d3d75ddd44c6f87e13376c5a/transformed/localbroadcastmanager-1.0.0 because:
   Build cache is disabled
 AarTransform: /home/runner/.gradle/caches/transforms-3/3cc5eec4d3d75ddd44c6f87e13376c5a/transformed/localbroadcastmanager-1.0.0 is not up-to-date because:
@@ -1665,5 +2595,9 @@ Caused by: [mipmap-mdpi-v4/ic_launcher] /home/runner/work/JarvisMerged/JarvisMer
 	... 127 more
 
 
+<<<<<<< Updated upstream
 BUILD FAILED in 30s
+=======
+BUILD FAILED in 26s
+>>>>>>> Stashed changes
 6 actionable tasks: 6 executed
