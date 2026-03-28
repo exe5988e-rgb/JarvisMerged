@@ -9,17 +9,17 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class AgentDashboardState(
-    val serverOnline:  Boolean        = false,
-    val running:       Boolean        = false,
-    val task:          String         = "",
-    val step:          Int            = 0,
-    val done:          Boolean        = false,
-    val error:         String?        = null,
-    val logs:          List<LogLine>  = emptyList(),
-    val taskInput:     String         = "",
-    val deviceInput:   String         = "192.168.29.48:40657",
-    val maxSteps:      Int            = 20,
-    val ttsEnabled:    Boolean        = true,
+    val serverOnline:  Boolean       = false,
+    val running:       Boolean       = false,
+    val task:          String        = "",
+    val step:          Int           = 0,
+    val done:          Boolean       = false,
+    val error:         String?       = null,
+    val logs:          List<LogLine> = emptyList(),
+    val taskInput:     String        = "",
+    val deviceInput:   String        = "192.168.29.48:40657",
+    val maxSteps:      Int           = 20,
+    val ttsEnabled:    Boolean       = true,
 )
 
 data class LogLine(
@@ -55,7 +55,10 @@ class AgentDashboardViewModel : ViewModel() {
         viewModelScope.launch {
             val online = AgentRepository.isAgentServerReachable()
             _state.update { it.copy(serverOnline = online) }
-            if (online) pollStatus()
+            if (online) {
+                pollStatus()
+                restoreLogs()   // ← repopulate on resume
+            }
         }
     }
 
@@ -79,7 +82,7 @@ class AgentDashboardViewModel : ViewModel() {
                 .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
 
             startLogStream()
-            watchForCompletion()   // ← auto-speak when done
+            watchForCompletion()
         }
     }
 
@@ -96,15 +99,29 @@ class AgentDashboardViewModel : ViewModel() {
         val last = _state.value.logs
             .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
             .lastOrNull()?.text ?: return
+        viewModelScope.launch { AgentRepository.speak(last) }
+    }
 
+    /**
+     * On resume, fetches last 50 lines from server so dashboard isn't blank.
+     * Skips if logs already present. Re-attaches SSE stream if task still running.
+     */
+    private fun restoreLogs() {
         viewModelScope.launch {
-            AgentRepository.speak(last)
+            if (_state.value.logs.isNotEmpty()) return@launch
+            val lines = AgentRepository.fetchLogTail(50)
+            if (lines.isEmpty()) return@launch
+            pushLog("[dashboard] ── restored last ${lines.size} lines ──", LogLevel.SYSTEM)
+            lines.forEach { pushLog(it, classifyLog(it)) }
+            if (_state.value.running) {
+                startLogStream()
+                watchForCompletion()
+            }
         }
     }
 
     /**
-     * Watches state for done=true, then auto-speaks the last SUCCESS/STEP log line.
-     * Fires once per task run. Respects ttsEnabled toggle.
+     * Auto-speaks last SUCCESS/STEP line when task completes.
      */
     private fun watchForCompletion() {
         completionWatcher?.cancel()

@@ -1,6 +1,5 @@
 package com.jarvismini.agent
 
-import android.content.Context
 import android.util.Log
 import com.jarvismini.core.JarvisPrefs
 import kotlinx.coroutines.Dispatchers
@@ -17,9 +16,7 @@ import java.util.concurrent.TimeUnit
 
 object AgentRepository {
 
-    private const val TAG = "AgentRepo"
-
-    // Default: Phone A Termux IP + agent_server port
+    private const val TAG          = "AgentRepo"
     private const val DEFAULT_HOST = "192.168.29.48"
     private const val AGENT_PORT   = 8891
     private const val TTS_PORT     = 8892
@@ -30,7 +27,7 @@ object AgentRepository {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private fun agentUrl(path: String, ctx: Context? = null): String {
+    private fun agentUrl(path: String): String {
         val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
         return "http://$host:$AGENT_PORT$path"
     }
@@ -90,12 +87,12 @@ object AgentRepository {
             client.newCall(req).execute().use { resp ->
                 val j = JSONObject(resp.body?.string() ?: "{}")
                 AgentStatus(
-                    running   = j.optBoolean("running"),
-                    task      = j.optString("task"),
-                    step      = j.optInt("step"),
-                    done      = j.optBoolean("done"),
-                    error     = j.optString("error").ifBlank { null },
-                    lastLog   = j.optString("last_log"),
+                    running = j.optBoolean("running"),
+                    task    = j.optString("task"),
+                    step    = j.optInt("step"),
+                    done    = j.optBoolean("done"),
+                    error   = j.optString("error").ifBlank { null },
+                    lastLog = j.optString("last_log"),
                 )
             }
         } catch (e: Exception) {
@@ -104,8 +101,26 @@ object AgentRepository {
     }
 
     /**
-     * SSE log stream — emits clean log lines as they arrive.
+     * Fetches last N lines from server log history.
+     * Used on dashboard resume to restore logs without flooding the UI.
      */
+    suspend fun fetchLogTail(n: Int = 50): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/logs/tail?n=$n"))
+                .get()
+                .build()
+            client.newCall(req).execute().use { resp ->
+                val j   = JSONObject(resp.body?.string() ?: "{}")
+                val arr = j.optJSONArray("lines") ?: return@use emptyList()
+                List(arr.length()) { arr.getString(it) }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchLogTail failed", e)
+            emptyList()
+        }
+    }
+
     fun streamLogs(): Flow<String> = flow {
         try {
             val req = Request.Builder()
@@ -160,11 +175,11 @@ object AgentRepository {
                 .url(agentUrl("/health"))
                 .get()
                 .build()
-            val client = OkHttpClient.Builder()
+            val quickClient = OkHttpClient.Builder()
                 .connectTimeout(3, TimeUnit.SECONDS)
                 .readTimeout(3, TimeUnit.SECONDS)
                 .build()
-            client.newCall(req).execute().use { it.isSuccessful }
+            quickClient.newCall(req).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             false
         }
@@ -172,10 +187,10 @@ object AgentRepository {
 }
 
 data class AgentStatus(
-    val running: Boolean  = false,
-    val task:    String   = "",
-    val step:    Int      = 0,
-    val done:    Boolean  = false,
-    val error:   String?  = null,
-    val lastLog: String   = "",
+    val running: Boolean = false,
+    val task:    String  = "",
+    val step:    Int     = 0,
+    val done:    Boolean = false,
+    val error:   String? = null,
+    val lastLog: String  = "",
 )
