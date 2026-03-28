@@ -5,10 +5,24 @@ FILE TREE (SELECTED FOLDERS)
 .
 ├── app
 │   ├── build.gradle.kts
+│   ├── build.gradle.kts.backup
+│   ├── keystore
+│   ├── proguard-rules.pro
 │   ├── src
+│   │   ├── androidTest
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── ExampleAndroidTest.kt
+│   │   ├── debug
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── DebugBuildConfig.kt
 │   │   ├── main
 │   │   │   ├── AndroidManifest.xml
 │   │   │   ├── cpp
+│   │   │   │   ├── llama.cpp
 │   │   │   │   ├── llama_context.cpp
 │   │   │   │   ├── llama_context.h
 │   │   │   │   ├── native_bridge.cpp
@@ -95,7 +109,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
 │   │   │   │   │   │   ├── voice
 │   │   │   │   │   │   │   ├── VoiceModule.kt
-│   │   │   │   │   │   │   ├── VoiceTriggerManager.kt
 │   │   │   ├── res
 │   │   │   │   ├── drawable
 │   │   │   │   │   ├── bg_input.xml
@@ -110,11 +123,32 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   ├── mipmap-anydpi-v26
 │   │   │   │   │   ├── ic_launcher.xml
 │   │   │   │   │   ├── ic_launcher_round.xml
+│   │   │   │   ├── mipmap-hdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
 │   │   │   │   ├── mipmap-mdpi
 │   │   │   │   │   ├── ic_launcher.png
 │   │   │   │   │   ├── ic_launcher_background.png
 │   │   │   │   │   ├── ic_launcher_foreground.png
 │   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xhdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xxhdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xxxhdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
 │   │   │   │   ├── values
 │   │   │   │   │   ├── attrs.xml
 │   │   │   │   │   ├── colors.xml
@@ -125,6 +159,11 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── call_accessibility_config.xml
 │   │   │   │   │   ├── network_security_config.xml
 │   │   │   │   │   ├── notification_listener.xml
+│   │   ├── test
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── ExampleUnitTest.kt
 ├── modules
 │   ├── automation
 │   │   ├── build.gradle.kts
@@ -444,6 +483,15 @@ dependencies {
     implementation(project(":modules:callhandler"))
 
 }
+
+
+//===== FILE: app/proguard-rules.pro =====
+
+
+//===== FILE: app/src/androidTest/java/com/jarvismini/ExampleAndroidTest.kt =====
+
+
+//===== FILE: app/src/debug/java/com/jarvismini/DebugBuildConfig.kt =====
 
 
 //===== FILE: app/src/main/AndroidManifest.xml =====
@@ -3450,6 +3498,7 @@ object LlmBackendFactory {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 package com.jarvismini.llm
 
@@ -6720,13 +6769,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.ui.components.*
-import com.jarvismini.voice.VoiceTriggerManager
 
 @Composable
 fun EnhancedHomeScreen(
@@ -6737,19 +6784,9 @@ fun EnhancedHomeScreen(
     onNavigateToDebug:         () -> Unit,
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
-    // Called when voice produces a task string — parent routes it to AgentDashboard
-    onVoiceTask: ((String) -> Unit)? = null,
 ) {
-    val context = LocalContext.current
+    var isListening by remember { mutableStateOf(false) }
 
-    // ── Voice trigger ────────────────────────────────────────────────────────
-    val vtm = remember { VoiceTriggerManager(context) }
-    DisposableEffect(Unit) { onDispose { vtm.destroy() } }
-
-    var isListening   by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
-
-    // ── Pulse animation ──────────────────────────────────────────────────────
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by pulseAnimation.animateFloat(
         initialValue = 0.3f,
@@ -6811,33 +6848,7 @@ fun EnhancedHomeScreen(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
                     .size(200.dp)
-                    .clickable {
-                        if (isListening) {
-                            // User tapped again — cancel
-                            vtm.stop()
-                            isListening   = false
-                            statusMessage = "TAP TO ACTIVATE"
-                        } else {
-                            isListening   = true
-                            statusMessage = "LISTENING..."
-                            vtm.start(
-                                onReady  = {
-                                    isListening   = true
-                                    statusMessage = "LISTENING..."
-                                },
-                                onResult = { task ->
-                                    isListening   = false
-                                    statusMessage = "HEARD: $task"
-                                    // Route to agent dashboard with the spoken task
-                                    onVoiceTask?.invoke(task) ?: onNavigateToAgent()
-                                },
-                                onError  = { err ->
-                                    isListening   = false
-                                    statusMessage = err
-                                }
-                            )
-                        }
-                    }
+                    .clickable { isListening = !isListening }
             ) {
                 // Outer ring
                 Box(
@@ -6892,7 +6903,7 @@ fun EnhancedHomeScreen(
             Spacer(Modifier.height(20.dp))
 
             Text(
-                text       = statusMessage,
+                text       = if (isListening) "LISTENING..." else "TAP TO ACTIVATE",
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace,
                 color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
@@ -6933,11 +6944,11 @@ fun EnhancedHomeScreen(
             Spacer(Modifier.height(16.dp))
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { StatusCard("Neural Networks",   "Online",  true) }
-                item { StatusCard("Voice Recognition", "Active",  true) }
-                item { StatusCard("Automation Engine", "Standby", false) }
-                item { StatusCard("Local LLM",         "Ready",   true) }
-                item { StatusCard("Agent Server",      "Standby", false) }
+                item { StatusCard("Neural Networks",    "Online",  true) }
+                item { StatusCard("Voice Recognition",  "Active",  true) }
+                item { StatusCard("Automation Engine",  "Standby", false) }
+                item { StatusCard("Local LLM",          "Ready",   true) }
+                item { StatusCard("Agent Server",       "Standby", false) }
             }
         }
     }
@@ -7961,20 +7972,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jarvismini.ProgressInitializer
-import com.jarvismini.agent.AgentDashboardScreen
-import com.jarvismini.agent.AgentDashboardViewModel
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.chat.JarvisChatScreen
 import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.calendar.DayCalendarScreen
-import com.jarvismini.ui.chat.JarvisChatScreen
-import com.jarvismini.ui.checklist.JarvisChecklistScreen
+import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
-import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.ui.llm.TermuxCommandViewModel
-import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.agent.AgentDashboardScreen
 
 enum class MainTab {
     Home,
@@ -7996,9 +8006,6 @@ fun MainScreen() {
 
     var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-
-    // Shared AgentDashboardViewModel so voice tasks from Home flow into the dashboard
-    val agentVm: AgentDashboardViewModel = viewModel()
 
     if (showBoot) {
         BootScreen(onBootComplete = { showBoot = false })
@@ -8028,11 +8035,6 @@ fun MainScreen() {
             onNavigateToDebug         = { selectedTab = MainTab.Debug },
             onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
             onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
-            onVoiceTask               = { task ->
-                // Pre-fill the task field in the agent VM, then open dashboard
-                agentVm.onTaskInput(task)
-                selectedTab = MainTab.AgentDashboard
-            }
         )
         MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Calendar     -> {
@@ -8043,10 +8045,7 @@ fun MainScreen() {
         MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-        MainTab.AgentDashboard -> AgentDashboardScreen(
-            onBack = { selectedTab = MainTab.Home },
-            vm     = agentVm,
-        )
+        MainTab.AgentDashboard -> AgentDashboardScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 
@@ -8612,22 +8611,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 item {
                     SettingsTile(
-                        "Server Status",
-                        if (isServerRunning) "Running on $serverIpAddress:8081" else "Stopped — tap to start",
-                        if (isServerRunning) Icons.Default.CheckCircle else Icons.Default.Cancel
-                    ) {
-                        if (isServerRunning) {
-                            LanServerService.stop(context)
-                            isServerRunning = false
-                        } else {
-                            LanServerService.start(context)
-                            isServerRunning = true
-                            serverIpAddress = getLocalIpAddress()
-                        }
-                    }
-                }
-                item {
-                    SettingsTile(
                         "Pairing Mode",
                         if (isPairingMode) "Active ($pairingTimeLeft sec remaining)" else "Disabled — tap to enable",
                         if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled
@@ -8774,11 +8757,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     if (showDeviceListDialog) {
         DeviceListDialog(
             devices   = pairedDevices,
-            onDismiss = { showDeviceListDialog = false },
-            onUnpair  = { deviceId ->
-                securityManager.unpairDevice(deviceId)
-                pairedDevices = securityManager.getPairedDevices()
-            }
+            onDismiss = { showDeviceListDialog = false }
         )
     }
 }
@@ -9125,12 +9104,8 @@ private fun PairingInstructionsDialog(
 
 @Composable
 private fun DeviceListDialog(
-    devices: List<com.jarvismini.security.TrustedDevice>,
-    onDismiss: () -> Unit,
-    onUnpair: (String) -> Unit
+    devices: List<com.jarvismini.security.TrustedDevice>, onDismiss: () -> Unit
 ) {
-    var deviceToUnpair by remember { mutableStateOf<String?>(null) }
-
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -9150,14 +9125,10 @@ private fun DeviceListDialog(
                         Icon(Icons.Default.Devices, null,
                             tint = Color(0xFF00E0FF), modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
+                        Column {
                             Text(d.name, fontSize = 13.sp, color = Color.White)
                             Text(d.ipAddress, fontSize = 11.sp,
                                 color = Color.White.copy(0.5f), fontFamily = FontFamily.Monospace)
-                        }
-                        IconButton(onClick = { deviceToUnpair = d.id }) {
-                            Icon(Icons.Default.Delete, "Unpair",
-                                tint = Color(0xFFFF4444), modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -9167,27 +9138,6 @@ private fun DeviceListDialog(
                 Text("Close", color = Color(0xFF00E0FF))
             }
         }
-    }
-
-    deviceToUnpair?.let { deviceId ->
-        AlertDialog(
-            onDismissRequest = { deviceToUnpair = null },
-            title = { Text("Unpair Device?", color = Color(0xFF00E0FF)) },
-            text  = { Text("This device will lose access to this server.",
-                color = Color.White.copy(0.8f)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onUnpair(deviceId)
-                    deviceToUnpair = null
-                }) { Text("UNPAIR", color = Color(0xFFFF4444)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { deviceToUnpair = null }) {
-                    Text("CANCEL", color = Color(0xFF00E0FF))
-                }
-            },
-            containerColor = Color(0xFF0A1A22)
-        )
     }
 }
 
@@ -10088,119 +10038,6 @@ object VoiceModule {
 }
 
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceTriggerManager.kt =====
-package com.jarvismini.voice
-
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.util.Log
-import java.util.Locale
-
-/**
- * VoiceTriggerManager — OPT 13: Voice Trigger (Speech-to-Text input)
- *
- * Wraps Android SpeechRecognizer lifecycle. Call from a single composable
- * or ViewModel; must be created on the main thread.
- *
- * Usage:
- *   val vtm = remember { VoiceTriggerManager(context) }
- *   DisposableEffect(Unit) { onDispose { vtm.destroy() } }
- *   vtm.start(onResult = { task -> ... })
- *   vtm.stop()
- */
-class VoiceTriggerManager(private val context: Context) {
-
-    companion object {
-        private const val TAG = "VoiceTriggerManager"
-    }
-
-    private var recognizer: SpeechRecognizer? = null
-
-    private val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-    }
-
-    /**
-     * Start listening.
-     * @param onResult   called with the recognised text (trimmed, non-blank)
-     * @param onError    called with a human-readable error string
-     * @param onReady    called when mic is open and recording has begun
-     */
-    fun start(
-        onResult: (String) -> Unit,
-        onError:  (String) -> Unit = {},
-        onReady:  ()       -> Unit = {},
-    ) {
-        destroyRecognizer()
-
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            onError("Speech recognition not available on this device")
-            return
-        }
-
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    Log.d(TAG, "Ready for speech")
-                    onReady()
-                }
-                override fun onResults(results: Bundle?) {
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull()?.trim() ?: ""
-                    Log.d(TAG, "Result: $text")
-                    if (text.isNotBlank()) onResult(text)
-                }
-                override fun onError(error: Int) {
-                    val msg = errorMessage(error)
-                    Log.w(TAG, "STT error $error: $msg")
-                    onError(msg)
-                }
-                override fun onBeginningOfSpeech()           {}
-                override fun onEndOfSpeech()                 {}
-                override fun onRmsChanged(rmsdB: Float)      {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onPartialResults(partial: Bundle?) {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            startListening(intent)
-        }
-    }
-
-    fun stop() {
-        recognizer?.stopListening()
-    }
-
-    fun destroy() {
-        destroyRecognizer()
-    }
-
-    private fun destroyRecognizer() {
-        recognizer?.destroy()
-        recognizer = null
-    }
-
-    private fun errorMessage(code: Int) = when (code) {
-        SpeechRecognizer.ERROR_AUDIO                 -> "Audio recording error"
-        SpeechRecognizer.ERROR_CLIENT                -> "Client-side error"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Missing RECORD_AUDIO permission"
-        SpeechRecognizer.ERROR_NETWORK               -> "Network error"
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT       -> "Network timeout"
-        SpeechRecognizer.ERROR_NO_MATCH              -> "No speech recognised — try again"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY       -> "Recogniser busy — try again"
-        SpeechRecognizer.ERROR_SERVER                -> "Server error"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT        -> "No speech detected"
-        else                                         -> "Unknown error ($code)"
-    }
-}
-
-
 //===== FILE: app/src/main/res/drawable/bg_input.xml =====
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
@@ -10612,6 +10449,9 @@ class VoiceTriggerManager(private val context: Context) {
  <notification-listener-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/service_desc" />
+
+
+//===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
 
 
 //===== FILE: modules/automation/build.gradle.kts =====

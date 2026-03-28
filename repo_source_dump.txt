@@ -5,10 +5,24 @@ FILE TREE (SELECTED FOLDERS)
 .
 ├── app
 │   ├── build.gradle.kts
+│   ├── build.gradle.kts.backup
+│   ├── keystore
+│   ├── proguard-rules.pro
 │   ├── src
+│   │   ├── androidTest
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── ExampleAndroidTest.kt
+│   │   ├── debug
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── DebugBuildConfig.kt
 │   │   ├── main
 │   │   │   ├── AndroidManifest.xml
 │   │   │   ├── cpp
+│   │   │   │   ├── llama.cpp
 │   │   │   │   ├── llama_context.cpp
 │   │   │   │   ├── llama_context.h
 │   │   │   │   ├── native_bridge.cpp
@@ -95,7 +109,6 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
 │   │   │   │   │   │   ├── voice
 │   │   │   │   │   │   │   ├── VoiceModule.kt
-│   │   │   │   │   │   │   ├── VoiceTriggerManager.kt
 │   │   │   ├── res
 │   │   │   │   ├── drawable
 │   │   │   │   │   ├── bg_input.xml
@@ -110,11 +123,32 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   ├── mipmap-anydpi-v26
 │   │   │   │   │   ├── ic_launcher.xml
 │   │   │   │   │   ├── ic_launcher_round.xml
+│   │   │   │   ├── mipmap-hdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
 │   │   │   │   ├── mipmap-mdpi
 │   │   │   │   │   ├── ic_launcher.png
 │   │   │   │   │   ├── ic_launcher_background.png
 │   │   │   │   │   ├── ic_launcher_foreground.png
 │   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xhdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xxhdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
+│   │   │   │   ├── mipmap-xxxhdpi
+│   │   │   │   │   ├── ic_launcher_background.png
+│   │   │   │   │   ├── ic_launcher_foreground.png
+│   │   │   │   │   ├── name1.png
+│   │   │   │   │   ├── name2.png
 │   │   │   │   ├── values
 │   │   │   │   │   ├── attrs.xml
 │   │   │   │   │   ├── colors.xml
@@ -125,6 +159,11 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── call_accessibility_config.xml
 │   │   │   │   │   ├── network_security_config.xml
 │   │   │   │   │   ├── notification_listener.xml
+│   │   ├── test
+│   │   │   ├── java
+│   │   │   │   ├── com
+│   │   │   │   │   ├── jarvismini
+│   │   │   │   │   │   ├── ExampleUnitTest.kt
 ├── modules
 │   ├── automation
 │   │   ├── build.gradle.kts
@@ -412,6 +451,18 @@ android {
     implementation(project(":modules:callhandler"))
 
 }
+
+//===== FILE: app/proguard-rules.pro =====
+// TYPE: FULL
+
+
+//===== FILE: app/src/androidTest/java/com/jarvismini/ExampleAndroidTest.kt =====
+// TYPE: FULL
+
+
+//===== FILE: app/src/debug/java/com/jarvismini/DebugBuildConfig.kt =====
+// TYPE: FULL
+
 
 //===== FILE: app/src/main/AndroidManifest.xml =====
 // TYPE: SNAPSHOT (LARGE FILE)
@@ -1866,6 +1917,7 @@ object LlmBackendFactory {
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
+//===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 package com.jarvismini.llm
 
 import android.content.Context
@@ -1915,7 +1967,6 @@ class TermuxLlamaClient(
     private val serverPort: Int = serverPortOverride ?: run {
         if (isPaired) {
             val savedPort = prefs.getString("server_port", null)?.toIntOrNull()
-            Log.d(tag, "Loaded paired port: $savedPort")
 
 // ... FILE TRUNCATED ...
 
@@ -3306,13 +3357,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.ui.components.*
-import com.jarvismini.voice.VoiceTriggerManager
 
 @Composable
 fun EnhancedHomeScreen(
@@ -3323,17 +3372,19 @@ fun EnhancedHomeScreen(
     onNavigateToDebug:         () -> Unit,
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
-    // Called when voice produces a task string — parent routes it to AgentDashboard
-    onVoiceTask: ((String) -> Unit)? = null,
 ) {
-    val context = LocalContext.current
+    var isListening by remember { mutableStateOf(false) }
 
-    // ── Voice trigger ────────────────────────────────────────────────────────
-    val vtm = remember { VoiceTriggerManager(context) }
-    DisposableEffect(Unit) { onDispose { vtm.destroy() } }
-
-    var isListening   by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
+    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by pulseAnimation.animateFloat(
+        initialValue = 0.3f,
+        targetValue  = 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
 
 // ... FILE TRUNCATED ...
 
@@ -3518,20 +3569,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jarvismini.ProgressInitializer
-import com.jarvismini.agent.AgentDashboardScreen
-import com.jarvismini.agent.AgentDashboardViewModel
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.chat.JarvisChatScreen
 import com.jarvismini.ui.calendar.CalendarViewModel
 import com.jarvismini.ui.calendar.DayCalendarScreen
-import com.jarvismini.ui.chat.JarvisChatScreen
-import com.jarvismini.ui.checklist.JarvisChecklistScreen
+import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
-import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.ui.llm.TermuxCommandViewModel
-import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.agent.AgentDashboardScreen
 
 enum class MainTab {
     Home,
@@ -3554,21 +3604,25 @@ fun MainScreen() {
     var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
 
-    // Shared AgentDashboardViewModel so voice tasks from Home flow into the dashboard
-    val agentVm: AgentDashboardViewModel = viewModel()
-
     if (showBoot) {
         BootScreen(onBootComplete = { showBoot = false })
         return
     }
 
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks   = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
 
 // ... FILE TRUNCATED ...
 
-                // Pre-fill the task field in the agent VM, then open dashboard
-                agentVm.onTaskInput(task)
-                selectedTab = MainTab.AgentDashboard
-            }
+            onNavigateToChat          = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings      = { selectedTab = MainTab.Settings },
+            onNavigateToDebug         = { selectedTab = MainTab.Debug },
+            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
+            onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
         )
         MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Calendar     -> {
@@ -3579,10 +3633,7 @@ fun MainScreen() {
         MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-        MainTab.AgentDashboard -> AgentDashboardScreen(
-            onBack = { selectedTab = MainTab.Home },
-            vm     = agentVm,
-        )
+        MainTab.AgentDashboard -> AgentDashboardScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 
@@ -4132,82 +4183,6 @@ object VoiceModule {
     enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
 }
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceTriggerManager.kt =====
-// TYPE: SNAPSHOT (LARGE FILE)
-package com.jarvismini.voice
-
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.util.Log
-import java.util.Locale
-
-/**
- * VoiceTriggerManager — OPT 13: Voice Trigger (Speech-to-Text input)
- *
- * Wraps Android SpeechRecognizer lifecycle. Call from a single composable
- * or ViewModel; must be created on the main thread.
- *
- * Usage:
- *   val vtm = remember { VoiceTriggerManager(context) }
- *   DisposableEffect(Unit) { onDispose { vtm.destroy() } }
- *   vtm.start(onResult = { task -> ... })
- *   vtm.stop()
- */
-class VoiceTriggerManager(private val context: Context) {
-
-    companion object {
-        private const val TAG = "VoiceTriggerManager"
-    }
-
-    private var recognizer: SpeechRecognizer? = null
-
-    private val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-    }
-
-    /**
-     * Start listening.
-     * @param onResult   called with the recognised text (trimmed, non-blank)
-     * @param onError    called with a human-readable error string
-     * @param onReady    called when mic is open and recording has begun
-     */
-    fun start(
-        onResult: (String) -> Unit,
-        onError:  (String) -> Unit = {},
-        onReady:  ()       -> Unit = {},
-    ) {
-        destroyRecognizer()
-
-// ... FILE TRUNCATED ...
-
-    }
-
-    private fun destroyRecognizer() {
-        recognizer?.destroy()
-        recognizer = null
-    }
-
-    private fun errorMessage(code: Int) = when (code) {
-        SpeechRecognizer.ERROR_AUDIO                 -> "Audio recording error"
-        SpeechRecognizer.ERROR_CLIENT                -> "Client-side error"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Missing RECORD_AUDIO permission"
-        SpeechRecognizer.ERROR_NETWORK               -> "Network error"
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT       -> "Network timeout"
-        SpeechRecognizer.ERROR_NO_MATCH              -> "No speech recognised — try again"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY       -> "Recogniser busy — try again"
-        SpeechRecognizer.ERROR_SERVER                -> "Server error"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT        -> "No speech detected"
-        else                                         -> "Unknown error ($code)"
-    }
-}
-
 //===== FILE: app/src/main/res/drawable/bg_input.xml =====
 // TYPE: FULL
 <?xml version="1.0" encoding="utf-8"?>
@@ -4576,6 +4551,10 @@ class VoiceTriggerManager(private val context: Context) {
  <notification-listener-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/service_desc" />
+
+
+//===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
+// TYPE: FULL
 
 
 //===== FILE: modules/automation/build.gradle.kts =====
