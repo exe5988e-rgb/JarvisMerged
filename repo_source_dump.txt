@@ -1280,14 +1280,14 @@ fun AgentDashboardScreen(
     onBack: () -> Unit,
     vm: AgentDashboardViewModel = viewModel()
 ) {
-    val state by vm.state.collectAsState()
-    val context  = LocalContext.current
+    val state     by vm.state.collectAsState()
+    val context   = LocalContext.current
     val listState = rememberLazyListState()
 
 // ... FILE TRUNCATED ...
 
-        running  -> Green.copy(alpha = alpha)
-        else     -> Green
+        running -> Green.copy(alpha = alpha)
+        else    -> Green
     }
     Box(
         Modifier
@@ -1354,15 +1354,14 @@ class AgentDashboardViewModel : ViewModel() {
     private val _state = MutableStateFlow(AgentDashboardState())
     val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
 
-    private var logStreamJob: Job? = null
-    private var statusPollJob: Job? = null
+    private var logStreamJob:      Job? = null
+    private var statusPollJob:     Job? = null
+    private var completionWatcher: Job? = null
 
     init {
-        checkServer()
 
 // ... FILE TRUNCATED ...
 
-                    error    = status.error,
                     serverOnline = true,
                 )}
             }
@@ -1379,6 +1378,7 @@ class AgentDashboardViewModel : ViewModel() {
     override fun onCleared() {
         logStreamJob?.cancel()
         statusPollJob?.cancel()
+        completionWatcher?.cancel()
         super.onCleared()
     }
 }
