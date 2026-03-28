@@ -1320,17 +1320,17 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class AgentDashboardState(
-    val serverOnline:  Boolean        = false,
-    val running:       Boolean        = false,
-    val task:          String         = "",
-    val step:          Int            = 0,
-    val done:          Boolean        = false,
-    val error:         String?        = null,
-    val logs:          List<LogLine>  = emptyList(),
-    val taskInput:     String         = "",
-    val deviceInput:   String         = "192.168.29.48:40657",
-    val maxSteps:      Int            = 20,
-    val ttsEnabled:    Boolean        = true,
+    val serverOnline:  Boolean       = false,
+    val running:       Boolean       = false,
+    val task:          String        = "",
+    val step:          Int           = 0,
+    val done:          Boolean       = false,
+    val error:         String?       = null,
+    val logs:          List<LogLine> = emptyList(),
+    val taskInput:     String        = "",
+    val deviceInput:   String        = "192.168.29.48:40657",
+    val maxSteps:      Int           = 20,
+    val ttsEnabled:    Boolean       = true,
 )
 
 data class LogLine(
@@ -1387,7 +1387,6 @@ class AgentDashboardViewModel : ViewModel() {
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.agent
 
-import android.content.Context
 import android.util.Log
 import com.jarvismini.core.JarvisPrefs
 import kotlinx.coroutines.Dispatchers
@@ -1404,9 +1403,7 @@ import java.util.concurrent.TimeUnit
 
 object AgentRepository {
 
-    private const val TAG = "AgentRepo"
-
-    // Default: Phone A Termux IP + agent_server port
+    private const val TAG          = "AgentRepo"
     private const val DEFAULT_HOST = "192.168.29.48"
     private const val AGENT_PORT   = 8891
     private const val TTS_PORT     = 8892
@@ -1417,7 +1414,7 @@ object AgentRepository {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private fun agentUrl(path: String, ctx: Context? = null): String {
+    private fun agentUrl(path: String): String {
         val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
         return "http://$host:$AGENT_PORT$path"
     }
@@ -1435,15 +1432,18 @@ object AgentRepository {
         try {
             val body = JSONObject().apply {
                 put("task", task)
+                put("device", device)
+                put("max_steps", maxSteps)
+            }.toString().toRequestBody("application/json".toMediaType())
 
 // ... FILE TRUNCATED ...
 
                 .build()
-            val client = OkHttpClient.Builder()
+            val quickClient = OkHttpClient.Builder()
                 .connectTimeout(3, TimeUnit.SECONDS)
                 .readTimeout(3, TimeUnit.SECONDS)
                 .build()
-            client.newCall(req).execute().use { it.isSuccessful }
+            quickClient.newCall(req).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             false
         }
@@ -1451,12 +1451,12 @@ object AgentRepository {
 }
 
 data class AgentStatus(
-    val running: Boolean  = false,
-    val task:    String   = "",
-    val step:    Int      = 0,
-    val done:    Boolean  = false,
-    val error:   String?  = null,
-    val lastLog: String   = "",
+    val running: Boolean = false,
+    val task:    String  = "",
+    val step:    Int     = 0,
+    val done:    Boolean = false,
+    val error:   String? = null,
+    val lastLog: String  = "",
 )
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/api/ApiGateway.kt =====
