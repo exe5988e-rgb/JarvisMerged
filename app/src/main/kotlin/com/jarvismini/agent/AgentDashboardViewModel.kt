@@ -1,10 +1,8 @@
 package com.jarvismini.agent
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jarvismini.core.JarvisPrefs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -45,13 +43,11 @@ class AgentDashboardViewModel : ViewModel() {
     private val _state = MutableStateFlow(AgentDashboardState())
     val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
 
-    private var logStreamJob:  Job? = null
+    private var logStreamJob: Job? = null
     private var statusPollJob: Job? = null
-    private var autoSpeakJob:  Job? = null   // watches for task completion and speaks
 
     init {
         checkServer()
-        observeDoneForAutoSpeak()
     }
 
     fun checkServer() {
@@ -62,10 +58,10 @@ class AgentDashboardViewModel : ViewModel() {
         }
     }
 
-    fun onTaskInput(v: String)   = _state.update { it.copy(taskInput = v) }
+    fun onTaskInput(v: String) = _state.update { it.copy(taskInput = v) }
     fun onDeviceInput(v: String) = _state.update { it.copy(deviceInput = v) }
-    fun onMaxStepsInput(v: Int)  = _state.update { it.copy(maxSteps = v) }
-    fun onTtsToggle(v: Boolean)  = _state.update { it.copy(ttsEnabled = v) }
+    fun onMaxStepsInput(v: Int) = _state.update { it.copy(maxSteps = v) }
+    fun onTtsToggle(v: Boolean) = _state.update { it.copy(ttsEnabled = v) }
 
     fun startAgent() {
         val s = _state.value
@@ -94,47 +90,14 @@ class AgentDashboardViewModel : ViewModel() {
 
     fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
 
-    // Manual "Speak" button — speaks last SUCCESS/STEP log line
-    fun speakResult(context: Context? = null) {
+    fun speakResult(context: Context) {
         val last = _state.value.logs
             .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
             .lastOrNull()?.text ?: return
 
-        val voiceId = resolveVoiceId()
         viewModelScope.launch {
-            AgentRepository.speak(last, voiceId)
+            AgentRepository.speak(last)
         }
-    }
-
-    // ── Auto-speak watcher ────────────────────────────────────────────────────
-    // Fires automatically when the agent finishes (done flips true) and TTS is on.
-    // Speaks the last SUCCESS line so Sir hears the result hands-free.
-    private fun observeDoneForAutoSpeak() {
-        autoSpeakJob?.cancel()
-        autoSpeakJob = viewModelScope.launch {
-            var prevDone = false
-            state.collect { s ->
-                if (s.done && !prevDone && s.ttsEnabled) {
-                    // Task just completed — find best line to speak
-                    val toSpeak = s.logs
-                        .filter { it.level == LogLevel.SUCCESS }
-                        .lastOrNull()?.text
-                        ?: s.logs.lastOrNull()?.text
-                    if (!toSpeak.isNullOrBlank()) {
-                        val voiceId = resolveVoiceId()
-                        AgentRepository.speak(toSpeak, voiceId)
-                    }
-                }
-                prevDone = s.done
-            }
-        }
-    }
-
-    // Reads the voice ID that was saved in Settings (elevenlabs_voice_id pref).
-    // Falls back to the Jarvis custom voice if not set.
-    private fun resolveVoiceId(): String {
-        val saved = JarvisPrefs.getString("elevenlabs_voice_id")
-        return if (!saved.isNullOrBlank()) saved else "lNiTyQyEeDoFcsYb4RUT"  // Jarvis voice
     }
 
     private fun startLogStream() {
@@ -153,11 +116,11 @@ class AgentDashboardViewModel : ViewModel() {
                 delay(2000)
                 val status = AgentRepository.getStatus()
                 _state.update { it.copy(
-                    running      = status.running,
-                    task         = status.task,
-                    step         = status.step,
-                    done         = status.done,
-                    error        = status.error,
+                    running  = status.running,
+                    task     = status.task,
+                    step     = status.step,
+                    done     = status.done,
+                    error    = status.error,
                     serverOnline = true,
                 )}
             }
@@ -174,7 +137,6 @@ class AgentDashboardViewModel : ViewModel() {
     override fun onCleared() {
         logStreamJob?.cancel()
         statusPollJob?.cancel()
-        autoSpeakJob?.cancel()
         super.onCleared()
     }
 }
