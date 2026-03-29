@@ -45,7 +45,6 @@ fun EnhancedHomeScreen(
     onNavigateToChat:          () -> Unit = {},
     onNavigateToAgent:         () -> Unit = {},
     onNavigateToCalendar:      () -> Unit = {},
-    // ↓ four params added to match MainScreen.kt call site
     onNavigateToChecklist:     () -> Unit = {},
     onNavigateToSettings:      () -> Unit = {},
     onNavigateToDebug:         () -> Unit = {},
@@ -88,7 +87,6 @@ fun EnhancedHomeScreen(
         ) {
             Spacer(Modifier.height(48.dp))
 
-            // ── Orb ───────────────────────────────────────────────────────────
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -148,7 +146,6 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // ── Quick access ──────────────────────────────────────────────────
             SectionLabel("QUICK ACCESS")
             Spacer(Modifier.height(8.dp))
             LazyRow(
@@ -170,7 +167,6 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── System status ─────────────────────────────────────────────────
             SectionLabel("SYSTEM STATUS")
             Spacer(Modifier.height(8.dp))
             LazyColumn(
@@ -207,8 +203,8 @@ private fun quickActions(
     onChat:      () -> Unit,
     onAgent:     () -> Unit,
     onCalendar:  () -> Unit,
-    onChecklist: () -> Unit,   // was missing — Tasks card was {}
-    onTermux:    () -> Unit,   // was missing — Terminal card was {}
+    onChecklist: () -> Unit,
+    onTermux:    () -> Unit,
 ) = listOf(
     QuickAction("Chat",     Icons.Default.Chat,          onChat),
     QuickAction("Calendar", Icons.Default.CalendarToday, onCalendar),
