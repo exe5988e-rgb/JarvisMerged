@@ -1,41 +1,594 @@
-//===== TERMUXFILE: start_jarvis_services.sh =====
-#!/data/data/com.termux/files/usr/bin/bash
-WORKFLOWS=~/workflows
-AGENT_DIR=$WORKFLOWS/test/jarvis-agent
-LOG_DIR=$WORKFLOWS
+//===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceTriggerManager.kt =====
+package com.jarvismini.voice
 
-echo "[services] Stopping old instances..."
-pkill -f agent_server.py        2>/dev/null
-pkill -f elevenlabs_tts.py      2>/dev/null
-pkill -f jarvis_conversation.py 2>/dev/null
-sleep 1
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
-# Load Gemini key — exported so child processes inherit it
-GEMINI_KEY_FILE=$WORKFLOWS/.gemini_key
-if [ -f "$GEMINI_KEY_FILE" ]; then
-    export GEMINI_API_KEY=$(cat "$GEMINI_KEY_FILE" | tr -d '[:space:]')
-    echo "[services] Gemini key loaded"
-else
-    echo "[services] ⚠  No .gemini_key file found at $GEMINI_KEY_FILE"
-fi
+/**
+ * VoiceTriggerManager
+ *
+ * Mode 1 — Orb tap  : call startListening() → one-shot recognition → processTranscript()
+ * Mode 2 — Wake word: always-on loop listening for "hey jarvis" / "jarvis"
+ *                     → on hit: speak "Yes?" → startListening() for command
+ *
+ * Transcript → POST /chat on jarvis_conversation server (8893)
+ * Response:
+ *   CHAT → ElevenLabs speaks reply
+ *   TASK → ElevenLabs speaks acknowledgement, agent_server executes task
+ */
+object VoiceTriggerManager {
 
-echo "[services] Starting agent_server (8891)..."
-nohup python3 $AGENT_DIR/agent_server.py \
-    > $LOG_DIR/agent_server.log 2>&1 &
-sleep 1
+    private const val TAG          = "VoiceTrigger"
+    private const val CONV_PORT    = 8893
+    private const val DEFAULT_HOST = "192.168.29.48"
+    private val WAKE_WORDS         = listOf("hey jarvis", "jarvis", "ok jarvis")
 
-echo "[services] Starting elevenlabs_tts (8892)..."
-nohup python3 $WORKFLOWS/elevenlabs_tts.py \
-    > $LOG_DIR/tts_server.log 2>&1 &
-sleep 1
+    private val scope   = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val handler = Handler(Looper.getMainLooper())
+    private val http    = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .build()
 
-echo "[services] Starting jarvis_conversation (8893)..."
-nohup python3 $AGENT_DIR/jarvis_conversation.py \
-    > $LOG_DIR/conversation_server.log 2>&1 &
-sleep 2
+    private var recognizer:     SpeechRecognizer? = null
+    private var wakeRecognizer: SpeechRecognizer? = null
+    private var appContext:     Context?           = null
+    private var isListeningMain = false
+    private var wakeWordEnabled = false
 
-echo "[services] Health checks..."
-curl -sf http://127.0.0.1:8891/health && echo " agent_server      OK" || echo " agent_server      FAILED"
-curl -sf http://127.0.0.1:8892/health && echo " elevenlabs_tts    OK" || echo " elevenlabs_tts    FAILED"
-curl -sf http://127.0.0.1:8893/health && echo " jarvis_conv       OK" || echo " jarvis_conv       FAILED"
-echo "[services] Done."
+    // ── State ─────────────────────────────────────────────────────────────────
+
+    enum class VoiceState { IDLE, WAKE_LISTENING, ACTIVE_LISTENING, PROCESSING }
+
+    private val _state = MutableStateFlow(VoiceState.IDLE)
+    val state: StateFlow<VoiceState> = _state
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    fun init(context: Context, vm: VoiceModule) {
+        appContext = context.applicationContext
+        vm.init(context)
+    }
+
+    fun destroy() {
+        stopWakeWord()
+        recognizer?.destroy()
+        recognizer = null
+        VoiceModule.destroy()
+    }
+
+    // ── Orb tap ───────────────────────────────────────────────────────────────
+
+    fun startListening() {
+        if (isListeningMain) return
+        val ctx = appContext ?: return
+        isListeningMain = true
+        _state.value    = VoiceState.ACTIVE_LISTENING
+
+        recognizer?.destroy()
+        recognizer = SpeechRecognizer.createSpeechRecognizer(ctx).apply {
+            setRecognitionListener(mainListener)
+            startListening(buildIntent(continuous = false))
+        }
+    }
+
+    fun stopListening() {
+        recognizer?.stopListening()
+        isListeningMain = false
+        _state.value    = VoiceState.IDLE
+    }
+
+    // ── Wake word ─────────────────────────────────────────────────────────────
+
+    fun startWakeWord() {
+        if (wakeWordEnabled) return
+        wakeWordEnabled = true
+        _startWakeLoop()
+    }
+
+    fun stopWakeWord() {
+        wakeWordEnabled = false
+        wakeRecognizer?.destroy()
+        wakeRecognizer  = null
+        if (_state.value == VoiceState.WAKE_LISTENING) _state.value = VoiceState.IDLE
+    }
+
+    private fun _startWakeLoop() {
+        if (!wakeWordEnabled) return
+        val ctx = appContext ?: return
+        _state.value = VoiceState.WAKE_LISTENING
+
+        wakeRecognizer?.destroy()
+        wakeRecognizer = SpeechRecognizer.createSpeechRecognizer(ctx).apply {
+            setRecognitionListener(wakeListener)
+            startListening(buildIntent(continuous = true))
+        }
+    }
+
+    // ── Speech intent ─────────────────────────────────────────────────────────
+
+    private fun buildIntent(continuous: Boolean) =
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.ENGLISH)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, continuous)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            if (continuous) {
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 0L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            }
+        }
+
+    // ── Process transcript ────────────────────────────────────────────────────
+
+    private fun processTranscript(text: String) {
+        if (text.isBlank()) return
+        Log.d(TAG, "Transcript: $text")
+        _state.value = VoiceState.PROCESSING
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+                val body = JSONObject().apply { put("text", text) }
+                    .toString().toRequestBody("application/json".toMediaType())
+
+                val req = Request.Builder()
+                    .url("http://$host:$CONV_PORT/chat")
+                    .post(body)
+                    .build()
+
+                http.newCall(req).execute().use { resp ->
+                    val json  = JSONObject(resp.body?.string() ?: "{}")
+                    val reply = json.optString("reply", "")
+
+                    scope.launch(Dispatchers.Main) {
+                        _state.value = if (wakeWordEnabled) VoiceState.WAKE_LISTENING else VoiceState.IDLE
+                    }
+
+                    if (reply.isNotBlank()) {
+                        VoiceModule.speak(reply)
+                    }
+                }
+
+                if (wakeWordEnabled) handler.postDelayed({ _startWakeLoop() }, 500)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "processTranscript failed: ${e.message}")
+                scope.launch(Dispatchers.Main) {
+                    _state.value = if (wakeWordEnabled) VoiceState.WAKE_LISTENING else VoiceState.IDLE
+                }
+                VoiceModule.speak("Sorry, I couldn't reach my brain. Check the conversation server.")
+                if (wakeWordEnabled) handler.postDelayed({ _startWakeLoop() }, 1000)
+            }
+        }
+    }
+
+    // ── Main listener (orb tap) ───────────────────────────────────────────────
+
+    private val mainListener = object : RecognitionListener {
+        override fun onResults(results: Bundle) {
+            isListeningMain = false
+            val text = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?.firstOrNull() ?: ""
+            processTranscript(text)
+        }
+        override fun onError(error: Int) {
+            isListeningMain = false
+            _state.value    = VoiceState.IDLE
+            Log.w(TAG, "Main listen error: $error")
+        }
+        override fun onReadyForSpeech(p: Bundle?) {}
+        override fun onBeginningOfSpeech()         {}
+        override fun onRmsChanged(v: Float)        {}
+        override fun onBufferReceived(b: ByteArray?) {}
+        override fun onEndOfSpeech()               {}
+        override fun onPartialResults(p: Bundle?)  {}
+        override fun onEvent(t: Int, p: Bundle?)   {}
+    }
+
+    // ── Wake word listener ────────────────────────────────────────────────────
+
+    private val wakeListener = object : RecognitionListener {
+        override fun onResults(results: Bundle) {
+            val text = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?.firstOrNull()?.lowercase() ?: ""
+            Log.d(TAG, "Wake heard: $text")
+
+            if (WAKE_WORDS.any { text.contains(it) }) {
+                wakeRecognizer?.destroy()
+                wakeRecognizer = null
+                _state.value   = VoiceState.ACTIVE_LISTENING
+                scope.launch { VoiceModule.speak("Yes?") }
+                handler.postDelayed({ startListening() }, 800)
+            } else {
+                handler.postDelayed({ _startWakeLoop() }, 300)
+            }
+        }
+        override fun onError(error: Int) {
+            Log.w(TAG, "Wake error: $error — restarting")
+            handler.postDelayed({ _startWakeLoop() }, 500)
+        }
+        override fun onReadyForSpeech(p: Bundle?) {}
+        override fun onBeginningOfSpeech()         {}
+        override fun onRmsChanged(v: Float)        {}
+        override fun onBufferReceived(b: ByteArray?) {}
+        override fun onEndOfSpeech()               {}
+        override fun onPartialResults(p: Bundle?)  {}
+        override fun onEvent(t: Int, p: Bundle?)   {}
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceModule.kt =====
+package com.jarvismini.voice
+
+import android.content.Context
+import android.speech.tts.TextToSpeech
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.Locale
+import java.util.concurrent.TimeUnit
+
+object VoiceModule {
+
+    private const val TAG          = "VoiceModule"
+    private const val TTS_PORT     = 8892
+    private const val DEFAULT_HOST = "192.168.29.48"
+
+    private var systemTts:      TextToSpeech? = null
+    private var systemTtsReady: Boolean       = false
+
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    fun init(context: Context) {
+        systemTts = TextToSpeech(context) { status ->
+            systemTtsReady = (status == TextToSpeech.SUCCESS)
+            if (systemTtsReady) systemTts?.language = Locale.ENGLISH
+            Log.d(TAG, "System TTS ready: $systemTtsReady")
+        }
+    }
+
+    fun destroy() {
+        systemTts?.stop()
+        systemTts?.shutdown()
+        systemTts = null
+    }
+
+    suspend fun speak(
+        text:    String,
+        voiceId: String?   = null,
+        mode:    SpeakMode = SpeakMode.AUTO
+    ) {
+        if (text.isBlank()) return
+        when (mode) {
+            SpeakMode.ELEVENLABS_ONLY -> speakElevenLabs(text, voiceId)
+            SpeakMode.SYSTEM_ONLY     -> speakSystem(text)
+            SpeakMode.AUTO -> {
+                val ok = speakElevenLabs(text, voiceId)
+                if (!ok) speakSystem(text)
+            }
+        }
+    }
+
+    private suspend fun speakElevenLabs(text: String, voiceId: String?): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+                val body = JSONObject().apply {
+                    put("text", text)
+                    if (voiceId != null) put("voice_id", voiceId)
+                }.toString().toRequestBody("application/json".toMediaType())
+
+                val req = Request.Builder()
+                    .url("http://$host:$TTS_PORT/speak")
+                    .post(body)
+                    .build()
+
+                val resp = http.newCall(req).execute()
+                val ok   = resp.isSuccessful
+                resp.close()
+                ok
+            } catch (e: Exception) {
+                Log.w(TAG, "ElevenLabs failed: ${e.message}")
+                false
+            }
+        }
+
+    private fun speakSystem(text: String) {
+        if (!systemTtsReady) { Log.w(TAG, "System TTS not ready"); return }
+        systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "j_${System.currentTimeMillis()}")
+    }
+}
+
+enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
+package com.jarvismini.ui.home
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.jarvismini.ui.components.HologramCanvas
+import com.jarvismini.voice.VoiceModule
+import com.jarvismini.voice.VoiceTriggerManager
+
+private val Cyan    = Color(0xFF00E0FF)
+private val DimCyan = Color(0xFF005566)
+private val BgDark  = Color(0xFF060F14)
+private val BgCard  = Color(0xFF0A1A22)
+private val Green   = Color(0xFF00FF88)
+private val Red     = Color(0xFFFF4466)
+private val White70 = Color(0xB3FFFFFF)
+private val White40 = Color(0x66FFFFFF)
+
+@Composable
+fun EnhancedHomeScreen(
+    onNavigateToChat:     () -> Unit = {},
+    onNavigateToAgent:    () -> Unit = {},
+    onNavigateToCalendar: () -> Unit = {},
+) {
+    val context     = LocalContext.current
+    val voiceState  by VoiceTriggerManager.state.collectAsState()
+
+    val isListening  = voiceState == VoiceTriggerManager.VoiceState.ACTIVE_LISTENING
+    val isProcessing = voiceState == VoiceTriggerManager.VoiceState.PROCESSING
+    val wakeActive   = voiceState == VoiceTriggerManager.VoiceState.WAKE_LISTENING
+
+    LaunchedEffect(Unit) {
+        VoiceTriggerManager.init(context, VoiceModule)
+        VoiceTriggerManager.startWakeWord()
+    }
+
+    val pulse = rememberInfiniteTransition(label = "orbPulse")
+    val pulseAlpha by pulse.animateFloat(
+        0.4f, 1f,
+        infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulseAlpha"
+    )
+    val orbScale by pulse.animateFloat(
+        1f, 1.06f,
+        infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "orbScale"
+    )
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF010A0F))))
+    ) {
+        HologramCanvas()
+
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.height(48.dp))
+
+            // ── Orb ───────────────────────────────────────────────────────────
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(220.dp)
+                    .scale(if (isListening || isProcessing) orbScale else 1f)
+                    .clickable {
+                        if (isListening) VoiceTriggerManager.stopListening()
+                        else VoiceTriggerManager.startListening()
+                    }
+            ) {
+                OrbRing(200.dp, Cyan.copy(alpha = if (isListening) pulseAlpha else 0.15f))
+                OrbRing(150.dp, Cyan.copy(alpha = if (isListening) pulseAlpha * 0.7f else 0.25f))
+                OrbRing(100.dp, Cyan.copy(alpha = if (isListening) pulseAlpha * 0.9f else 0.4f))
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    Cyan.copy(alpha = if (isListening) 0.6f else 0.3f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                ) {
+                    Icon(
+                        imageVector = when {
+                            isProcessing -> Icons.Default.HourglassEmpty
+                            isListening  -> Icons.Default.Mic
+                            else         -> Icons.Default.MicNone
+                        },
+                        contentDescription = null,
+                        tint     = Cyan,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                text = when {
+                    isProcessing -> "THINKING..."
+                    isListening  -> "LISTENING..."
+                    wakeActive   -> "SAY \"HEY JARVIS\""
+                    else         -> "TAP TO ACTIVATE"
+                },
+                color         = if (isListening || isProcessing) Cyan else White40,
+                fontSize      = 11.sp,
+                letterSpacing = 3.sp,
+                fontFamily    = FontFamily.Monospace,
+                fontWeight    = FontWeight.Light
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            // ── Quick access ──────────────────────────────────────────────────
+            SectionLabel("QUICK ACCESS")
+            Spacer(Modifier.height(8.dp))
+            LazyRow(
+                contentPadding        = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(quickActions(onNavigateToChat, onNavigateToAgent, onNavigateToCalendar)) {
+                    QuickActionCard(it)
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // ── System status ─────────────────────────────────────────────────
+            SectionLabel("SYSTEM STATUS")
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(
+                contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier            = Modifier.fillMaxWidth()
+            ) {
+                items(systemStatusItems(voiceState)) { StatusCard(it) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        color         = DimCyan,
+        fontSize      = 10.sp,
+        letterSpacing = 3.sp,
+        fontFamily    = FontFamily.Monospace,
+        modifier      = Modifier.padding(start = 16.dp).fillMaxWidth()
+    )
+}
+
+@Composable
+private fun OrbRing(size: Dp, color: Color) {
+    Box(Modifier.size(size).clip(CircleShape).border(1.dp, color, CircleShape))
+}
+
+data class QuickAction(val label: String, val icon: ImageVector, val onClick: () -> Unit)
+
+private fun quickActions(onChat: () -> Unit, onAgent: () -> Unit, onCalendar: () -> Unit) = listOf(
+    QuickAction("Chat",     Icons.Default.Chat,          onChat),
+    QuickAction("Calendar", Icons.Default.CalendarToday, onCalendar),
+    QuickAction("Tasks",    Icons.Default.CheckCircle,   {}),
+    QuickAction("Terminal", Icons.Default.Terminal,      {}),
+    QuickAction("Agent",    Icons.Default.SmartToy,      onAgent),
+)
+
+@Composable
+private fun QuickActionCard(action: QuickAction) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .size(90.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(BgCard)
+            .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            .clickable { action.onClick() }
+            .padding(8.dp)
+    ) {
+        Icon(action.icon, null, tint = Cyan, modifier = Modifier.size(28.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(action.label, fontSize = 10.sp, color = White70, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+    }
+}
+
+data class StatusItem(val label: String, val value: String, val ok: Boolean)
+
+private fun systemStatusItems(voiceState: VoiceTriggerManager.VoiceState) = listOf(
+    StatusItem("Neural Networks",  "ONLINE",  true),
+    StatusItem("Voice Recognition",
+        when (voiceState) {
+            VoiceTriggerManager.VoiceState.ACTIVE_LISTENING -> "LISTENING"
+            VoiceTriggerManager.VoiceState.WAKE_LISTENING   -> "WATCHING"
+            VoiceTriggerManager.VoiceState.PROCESSING       -> "THINKING"
+            else                                             -> "STANDBY"
+        },
+        voiceState != VoiceTriggerManager.VoiceState.IDLE
+    ),
+    StatusItem("Automation Engine", "ONLINE",  true),
+    StatusItem("Conversation AI",   "GEMINI",  true),
+    StatusItem("Agent Server",      "8891",    true),
+    StatusItem("TTS Server",        "JARVIS",  true),
+)
+
+@Composable
+private fun StatusCard(item: StatusItem) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(BgCard)
+            .border(0.5.dp, DimCyan.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(item.label, fontSize = 12.sp, color = White70, fontFamily = FontFamily.Monospace)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(if (item.ok) Green else Red))
+            Spacer(Modifier.width(6.dp))
+            Text(item.value, fontSize = 11.sp, color = if (item.ok) Green else Red, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
