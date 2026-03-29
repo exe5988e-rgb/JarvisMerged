@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
-// ─── Colours ────────────────────────────────────────────────────────────────
 private val Cyan    = Color(0xFF00E0FF)
 private val DimCyan = Color(0xFF005566)
 private val BgDark  = Color(0xFF060F14)
@@ -42,15 +41,21 @@ private val White40 = Color(0x66FFFFFF)
 
 @Composable
 fun AgentDashboardScreen(
-    onBack: () -> Unit,
-    vm: AgentDashboardViewModel = viewModel()
+    onBack:      () -> Unit,
+    initialTask: String? = null,
+    vm:          AgentDashboardViewModel = viewModel()
 ) {
     val state     by vm.state.collectAsState()
     val context   = LocalContext.current
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
 
-    // Auto-scroll to bottom when new log arrives
+    LaunchedEffect(initialTask) {
+        if (!initialTask.isNullOrBlank()) {
+            vm.onTaskInput(initialTask)
+        }
+    }
+
     LaunchedEffect(state.logs.size) {
         if (state.logs.isNotEmpty()) {
             listState.animateScrollToItem(state.logs.lastIndex)
@@ -67,7 +72,6 @@ fun AgentDashboardScreen(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
         ) {
-            // ── Header ──────────────────────────────────────────────────────
             Spacer(Modifier.height(12.dp))
             Row(
                 Modifier.fillMaxWidth(),
@@ -92,13 +96,11 @@ fun AgentDashboardScreen(
                 }
             }
 
-            // ── Status bar ──────────────────────────────────────────────────
             if (state.running || state.done) {
                 StatusBar(state)
                 Spacer(Modifier.height(8.dp))
             }
 
-            // ── Task input ──────────────────────────────────────────────────
             TaskInputSection(
                 state    = state,
                 onTask   = vm::onTaskInput,
@@ -109,7 +111,6 @@ fun AgentDashboardScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // ── Log toolbar ─────────────────────────────────────────────────
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -122,7 +123,6 @@ fun AgentDashboardScreen(
                     fontFamily    = FontFamily.Monospace
                 )
                 Spacer(Modifier.weight(1f))
-                // TTS toggle
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.VolumeUp,
@@ -172,7 +172,6 @@ fun AgentDashboardScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // ── Log pane ────────────────────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -203,8 +202,6 @@ fun AgentDashboardScreen(
         }
     }
 }
-
-// ── Status bar ────────────────────────────────────────────────────────────────
 
 @Composable
 private fun StatusBar(state: AgentDashboardState) {
@@ -251,8 +248,6 @@ private fun StatusBar(state: AgentDashboardState) {
         )
     }
 }
-
-// ── Task input ────────────────────────────────────────────────────────────────
 
 @Composable
 private fun TaskInputSection(
@@ -346,8 +341,6 @@ private fun TaskInputSection(
     }
 }
 
-// ── Log line ──────────────────────────────────────────────────────────────────
-
 @Composable
 private fun LogLineRow(log: LogLine) {
     val color = when (log.level) {
@@ -369,8 +362,6 @@ private fun LogLineRow(log: LogLine) {
             .padding(vertical = 1.dp, horizontal = 2.dp)
     )
 }
-
-// ── Server dot ────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ServerStatusDot(online: Boolean, running: Boolean) {
@@ -395,8 +386,6 @@ private fun ServerStatusDot(online: Boolean, running: Boolean) {
             .background(color)
     )
 }
-
-// ── Field colours ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
