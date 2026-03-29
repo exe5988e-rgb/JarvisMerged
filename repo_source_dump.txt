@@ -3364,7 +3364,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.ui.components.*
-import com.jarvismini.voice.VoiceModule
 import com.jarvismini.voice.VoiceTriggerManager
 
 @Composable
@@ -3376,16 +3375,17 @@ fun EnhancedHomeScreen(
     onNavigateToDebug:         () -> Unit,
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
+    // Called when voice produces a task string — parent routes it to AgentDashboard
+    onVoiceTask: ((String) -> Unit)? = null,
 ) {
-    val context    = LocalContext.current
-    val voiceState by VoiceTriggerManager.state.collectAsState()
+    val context = LocalContext.current
 
-    val isListening  = voiceState == VoiceTriggerManager.VoiceState.ACTIVE_LISTENING
-    val isProcessing = voiceState == VoiceTriggerManager.VoiceState.PROCESSING
+    // ── Voice trigger ────────────────────────────────────────────────────────
+    val vtm = remember { VoiceTriggerManager(context) }
+    DisposableEffect(Unit) { onDispose { vtm.destroy() } }
 
-    LaunchedEffect(Unit) {
-        VoiceTriggerManager.init(context, VoiceModule)
-        VoiceTriggerManager.startWakeWord()
+    var isListening   by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
 
 // ... FILE TRUNCATED ...
 
@@ -3568,7 +3568,6 @@ package com.jarvismini.ui.main
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
 import com.jarvismini.core.routine.RoutineProvider
@@ -3581,7 +3580,6 @@ import com.jarvismini.ui.settings.SettingsScreen
 import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.llm.TermuxCommandScreen
-import com.jarvismini.ui.llm.TermuxCommandViewModel
 import com.jarvismini.agent.AgentDashboardScreen
 
 enum class MainTab {
@@ -3601,6 +3599,7 @@ fun MainScreen() {
 
     var showBoot    by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
+    var voiceTask   by remember { mutableStateOf<String?>(null) }
 
     var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
     var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
@@ -3614,16 +3613,14 @@ fun MainScreen() {
         ProgressInitializer.registerAllBlocks(context)
         blocks   = ProgressRepository.getTodayBlocks()
         routines = RoutineProvider.getAllRoutines(context)
+    }
 
 // ... FILE TRUNCATED ...
 
-            onNavigateToChat          = { selectedTab = MainTab.Chat },
-            onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
-            onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
-            onNavigateToSettings      = { selectedTab = MainTab.Settings },
-            onNavigateToDebug         = { selectedTab = MainTab.Debug },
-            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
-            onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
+            onVoiceTask               = { task ->
+                voiceTask   = task
+                selectedTab = MainTab.AgentDashboard
+            },
         )
         MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Calendar     -> {
@@ -3634,7 +3631,10 @@ fun MainScreen() {
         MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-        MainTab.AgentDashboard -> AgentDashboardScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.AgentDashboard -> AgentDashboardScreen(
+            onBack      = { selectedTab = MainTab.Home },
+            initialTask = voiceTask.also { voiceTask = null },
+        )
     }
 }
 
@@ -4201,8 +4201,6 @@ import com.jarvismini.core.JarvisPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -4213,50 +4211,52 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * VoiceTriggerManager
+ * VoiceTriggerManager — class (one instance per screen lifecycle)
  *
- * Mode 1 — Orb tap  : call startListening() → one-shot recognition → processTranscript()
- * Mode 2 — Wake word: always-on loop listening for "hey jarvis" / "jarvis"
- *                     → on hit: speak "Yes?" → startListening() for command
+ * Usage:
+ *   val vtm = remember { VoiceTriggerManager(context) }
+ *   DisposableEffect(Unit) { onDispose { vtm.destroy() } }
  *
- * Transcript → POST /chat on jarvis_conversation server (8893)
- * Response:
- *   CHAT → ElevenLabs speaks reply
- *   TASK → ElevenLabs speaks acknowledgement, agent_server executes task
+ *   vtm.start(
+ *     onReady  = { /* mic open */ },
+ *     onResult = { transcript -> /* do something with text */ },
+ *     onError  = { msg -> /* show error */ }
+ *   )
+ *   vtm.stop()
+ *
+ * onResult receives the full Jarvis reply text (CHAT) or acknowledgement (TASK).
+ * For TASK responses, the agent_server dispatch is handled server-side by jarvis_conversation.py.
  */
-object VoiceTriggerManager {
+class VoiceTriggerManager(private val context: Context) {
 
-    private const val TAG          = "VoiceTrigger"
-    private const val CONV_PORT    = 8893
-    private const val DEFAULT_HOST = "192.168.29.48"
-    private val WAKE_WORDS         = listOf("hey jarvis", "jarvis", "ok jarvis")
+    private val TAG          = "VoiceTrigger"
+    private val CONV_PORT    = 8893
+    private val DEFAULT_HOST = "192.168.29.48"
 
     private val scope   = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val handler = Handler(Looper.getMainLooper())
     private val http    = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
 
 // ... FILE TRUNCATED ...
 
-                _state.value   = VoiceState.ACTIVE_LISTENING
-                scope.launch { VoiceModule.speak("Yes?") }
-                handler.postDelayed({ startListening() }, 800)
-            } else {
-                handler.postDelayed({ _startWakeLoop() }, 300)
-            }
         }
         override fun onError(error: Int) {
-            Log.w(TAG, "Wake error: $error — restarting")
-            handler.postDelayed({ _startWakeLoop() }, 500)
+            val msg = when (error) {
+                SpeechRecognizer.ERROR_NO_MATCH        -> "No speech detected"
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT  -> "Listening timed out"
+                SpeechRecognizer.ERROR_NETWORK         -> "Network error"
+                SpeechRecognizer.ERROR_AUDIO           -> "Audio error"
+                else                                   -> "Error $error"
+            }
+            Log.w(TAG, "Recognition error: $msg")
+            handler.post { onErrorCb?.invoke(msg) }
         }
-        override fun onReadyForSpeech(p: Bundle?) {}
-        override fun onBeginningOfSpeech()         {}
-        override fun onRmsChanged(v: Float)        {}
-        override fun onBufferReceived(b: ByteArray?) {}
-        override fun onEndOfSpeech()               {}
-        override fun onPartialResults(p: Bundle?)  {}
-        override fun onEvent(t: Int, p: Bundle?)   {}
+        override fun onBeginningOfSpeech()                {}
+        override fun onRmsChanged(v: Float)               {}
+        override fun onBufferReceived(b: ByteArray?)      {}
+        override fun onEndOfSpeech()                      {}
+        override fun onPartialResults(p: Bundle?)         {}
+        override fun onEvent(t: Int, p: Bundle?)          {}
     }
 }
 
