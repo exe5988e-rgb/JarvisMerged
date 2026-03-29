@@ -191,7 +191,7 @@ fun AgentDashboardScreen(
                     )
                 } else {
                     LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        items(state.logs, key = { it.hashCode() }) { log ->
+                        items(state.logs, key = { it.id }) { log ->
                             LogLineRow(log)
                         }
                     }

@@ -23,6 +23,7 @@ data class AgentDashboardState(
 )
 
 data class LogLine(
+    val id:    Long,
     val text:  String,
     val level: LogLevel = LogLevel.INFO,
 )
@@ -57,7 +58,7 @@ class AgentDashboardViewModel : ViewModel() {
             _state.update { it.copy(serverOnline = online) }
             if (online) {
                 pollStatus()
-                restoreLogs()   // ← repopulate on resume
+                restoreLogs()
             }
         }
     }
@@ -102,10 +103,6 @@ class AgentDashboardViewModel : ViewModel() {
         viewModelScope.launch { AgentRepository.speak(last) }
     }
 
-    /**
-     * On resume, fetches last 50 lines from server so dashboard isn't blank.
-     * Skips if logs already present. Re-attaches SSE stream if task still running.
-     */
     private fun restoreLogs() {
         viewModelScope.launch {
             if (_state.value.logs.isNotEmpty()) return@launch
@@ -120,9 +117,6 @@ class AgentDashboardViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Auto-speaks last SUCCESS/STEP line when task completes.
-     */
     private fun watchForCompletion() {
         completionWatcher?.cancel()
         completionWatcher = viewModelScope.launch {
@@ -172,7 +166,7 @@ class AgentDashboardViewModel : ViewModel() {
 
     private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
         _state.update { s ->
-            val logs = (s.logs + LogLine(text, level)).takeLast(200)
+            val logs = (s.logs + LogLine(id = System.nanoTime(), text = text, level = level)).takeLast(200)
             s.copy(logs = logs)
         }
     }
