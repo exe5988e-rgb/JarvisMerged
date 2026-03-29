@@ -5,12 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -25,32 +24,28 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jarvismini.core.voice.VoiceModule
-import com.jarvismini.core.voice.VoiceTriggerManager
+import com.jarvismini.ui.components.HologramCanvas
+import com.jarvismini.voice.VoiceModule
+import com.jarvismini.voice.VoiceTriggerManager
 
-// ── Colour tokens (kept identical to original) ──────────────────────────────
-private val BgDark  = Color(0xFF0A0E1A)
-private val BgCard  = Color(0xFF111827)
-private val Cyan    = Color(0xFF00D4FF)
-private val DimCyan = Color(0xFF00A8CC)
+private val Cyan    = Color(0xFF00E0FF)
+private val DimCyan = Color(0xFF005566)
+private val BgDark  = Color(0xFF060F14)
+private val BgCard  = Color(0xFF0A1A22)
 private val Green   = Color(0xFF00FF88)
-private val Red     = Color(0xFFFF4444)
+private val Red     = Color(0xFFFF4466)
 private val White70 = Color(0xB3FFFFFF)
 private val White40 = Color(0x66FFFFFF)
 
-// ── Data models ──────────────────────────────────────────────────────────────
-private data class QuickAction(val label: String, val icon: ImageVector, val onClick: () -> Unit)
-private data class StatusItem(val label: String, val value: String, val ok: Boolean)
-
-// ── Screen ───────────────────────────────────────────────────────────────────
 @Composable
 fun EnhancedHomeScreen(
     onNavigateToChat:          () -> Unit = {},
     onNavigateToAgent:         () -> Unit = {},
     onNavigateToCalendar:      () -> Unit = {},
-    // ↓ these four were missing — added to fix the build
+    // ↓ four params added to match MainScreen.kt call site
     onNavigateToChecklist:     () -> Unit = {},
     onNavigateToSettings:      () -> Unit = {},
     onNavigateToDebug:         () -> Unit = {},
@@ -74,84 +69,63 @@ fun EnhancedHomeScreen(
         infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "pulseAlpha"
     )
-    val pulseScale by pulse.animateFloat(
-        0.95f, 1.05f,
-        infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulseScale"
+    val orbScale by pulse.animateFloat(
+        1f, 1.06f,
+        infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "orbScale"
     )
 
     Box(
         Modifier
             .fillMaxSize()
-            .background(BgDark)
+            .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF010A0F))))
     ) {
+        HologramCanvas()
+
         Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(48.dp))
 
-            // ── Header ────────────────────────────────────────────────────
-            Text(
-                "J.A.R.V.I.S",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                color = Cyan,
-                letterSpacing = 6.sp
-            )
-            Text(
-                "MINI  //  SYSTEM ONLINE",
-                fontSize = 10.sp,
-                color = White40,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 3.sp
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            // ── Central orb ───────────────────────────────────────────────
+            // ── Orb ───────────────────────────────────────────────────────────
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(160.dp)
-                    .scale(if (isListening || isProcessing) pulseScale else 1f)
+                    .size(220.dp)
+                    .scale(if (isListening || isProcessing) orbScale else 1f)
+                    .clickable {
+                        if (isListening) VoiceTriggerManager.stopListening()
+                        else VoiceTriggerManager.startListening()
+                    }
             ) {
+                OrbRing(200.dp, Cyan.copy(alpha = if (isListening) pulseAlpha else 0.15f))
+                OrbRing(150.dp, Cyan.copy(alpha = if (isListening) pulseAlpha * 0.7f else 0.25f))
+                OrbRing(100.dp, Cyan.copy(alpha = if (isListening) pulseAlpha * 0.9f else 0.4f))
+
                 Box(
-                    Modifier
-                        .size(160.dp)
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(80.dp)
                         .clip(CircleShape)
                         .background(
                             Brush.radialGradient(
                                 listOf(
-                                    Cyan.copy(alpha = if (isListening) pulseAlpha else 0.15f),
+                                    Cyan.copy(alpha = if (isListening) 0.6f else 0.3f),
                                     Color.Transparent
                                 )
                             )
                         )
-                )
-                Box(
-                    Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
-                        .background(BgCard)
-                        .border(
-                            1.5.dp,
-                            if (isListening) Cyan else if (wakeActive) Green else DimCyan.copy(0.5f),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (isListening) Icons.Default.Mic
-                        else if (isProcessing) Icons.Default.HourglassTop
-                        else Icons.Default.Mic,
+                        imageVector = when {
+                            isProcessing -> Icons.Default.HourglassEmpty
+                            isListening  -> Icons.Default.Mic
+                            else         -> Icons.Default.MicNone
+                        },
                         contentDescription = null,
-                        tint = if (isListening) Cyan else White70,
-                        modifier = Modifier.size(36.dp)
+                        tint     = Cyan,
+                        modifier = Modifier.size(40.dp)
                     )
                 }
             }
@@ -159,81 +133,87 @@ fun EnhancedHomeScreen(
             Spacer(Modifier.height(12.dp))
 
             Text(
-                when {
-                    isListening  -> "LISTENING …"
-                    isProcessing -> "PROCESSING …"
-                    wakeActive   -> "WAKE WORD ACTIVE"
-                    else         -> "SAY  \"HEY JARVIS\""
+                text = when {
+                    isProcessing -> "THINKING..."
+                    isListening  -> "LISTENING..."
+                    wakeActive   -> "SAY \"HEY JARVIS\""
+                    else         -> "TAP TO ACTIVATE"
                 },
-                fontSize = 12.sp,
-                color = if (isListening) Cyan else White40,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 2.sp
+                color         = if (isListening || isProcessing) Cyan else White40,
+                fontSize      = 11.sp,
+                letterSpacing = 3.sp,
+                fontFamily    = FontFamily.Monospace,
+                fontWeight    = FontWeight.Light
             )
 
             Spacer(Modifier.height(32.dp))
 
-            // ── Quick actions ─────────────────────────────────────────────
-            Text(
-                "QUICK ACCESS",
-                fontSize = 10.sp,
-                color = White40,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 3.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Tasks → Checklist, Terminal → TermuxCommand now wired
+            // ── Quick access ──────────────────────────────────────────────────
+            SectionLabel("QUICK ACCESS")
+            Spacer(Modifier.height(8.dp))
+            LazyRow(
+                contentPadding        = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 items(
                     quickActions(
-                        onChat      = onNavigateToChat,
-                        onAgent     = onNavigateToAgent,
-                        onCalendar  = onNavigateToCalendar,
-                        onChecklist = onNavigateToChecklist,
-                        onTermux    = onNavigateToTermuxCommand,
+                        onNavigateToChat,
+                        onNavigateToAgent,
+                        onNavigateToCalendar,
+                        onNavigateToChecklist,
+                        onNavigateToTermuxCommand,
                     )
-                ) { action ->
-                    QuickActionCard(action)
+                ) {
+                    QuickActionCard(it)
                 }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // ── System status ─────────────────────────────────────────────
-            Text(
-                "SYSTEM STATUS",
-                fontSize = 10.sp,
-                color = White40,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 3.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
-            systemStatusItems(voiceState).forEach { item ->
-                StatusRow(item)
-                Spacer(Modifier.height(4.dp))
+            // ── System status ─────────────────────────────────────────────────
+            SectionLabel("SYSTEM STATUS")
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(
+                contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier            = Modifier.fillMaxWidth()
+            ) {
+                items(systemStatusItems(voiceState)) { StatusCard(it) }
             }
-
-            Spacer(Modifier.height(32.dp))
         }
     }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        color         = DimCyan,
+        fontSize      = 10.sp,
+        letterSpacing = 3.sp,
+        fontFamily    = FontFamily.Monospace,
+        modifier      = Modifier.padding(start = 16.dp).fillMaxWidth()
+    )
+}
+
+@Composable
+private fun OrbRing(size: Dp, color: Color) {
+    Box(Modifier.size(size).clip(CircleShape).border(1.dp, color, CircleShape))
+}
+
+data class QuickAction(val label: String, val icon: ImageVector, val onClick: () -> Unit)
+
 private fun quickActions(
     onChat:      () -> Unit,
     onAgent:     () -> Unit,
     onCalendar:  () -> Unit,
-    onChecklist: () -> Unit,
-    onTermux:    () -> Unit,
+    onChecklist: () -> Unit,   // was missing — Tasks card was {}
+    onTermux:    () -> Unit,   // was missing — Terminal card was {}
 ) = listOf(
     QuickAction("Chat",     Icons.Default.Chat,          onChat),
     QuickAction("Calendar", Icons.Default.CalendarToday, onCalendar),
-    QuickAction("Tasks",    Icons.Default.CheckCircle,   onChecklist),   // was {}
-    QuickAction("Terminal", Icons.Default.Terminal,      onTermux),      // was {}
+    QuickAction("Tasks",    Icons.Default.CheckCircle,   onChecklist),
+    QuickAction("Terminal", Icons.Default.Terminal,      onTermux),
     QuickAction("Agent",    Icons.Default.SmartToy,      onAgent),
 )
 
@@ -251,20 +231,15 @@ private fun QuickActionCard(action: QuickAction) {
     ) {
         Icon(action.icon, null, tint = Cyan, modifier = Modifier.size(28.dp))
         Spacer(Modifier.height(6.dp))
-        Text(
-            action.label,
-            fontSize = 10.sp,
-            color = White70,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.sp
-        )
+        Text(action.label, fontSize = 10.sp, color = White70, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
     }
 }
 
+data class StatusItem(val label: String, val value: String, val ok: Boolean)
+
 private fun systemStatusItems(voiceState: VoiceTriggerManager.VoiceState) = listOf(
-    StatusItem("Neural Networks",   "ONLINE",   true),
-    StatusItem(
-        "Voice Recognition",
+    StatusItem("Neural Networks",  "ONLINE",  true),
+    StatusItem("Voice Recognition",
         when (voiceState) {
             VoiceTriggerManager.VoiceState.ACTIVE_LISTENING -> "LISTENING"
             VoiceTriggerManager.VoiceState.WAKE_LISTENING   -> "WATCHING"
@@ -273,41 +248,29 @@ private fun systemStatusItems(voiceState: VoiceTriggerManager.VoiceState) = list
         },
         voiceState != VoiceTriggerManager.VoiceState.IDLE
     ),
-    StatusItem("Automation Engine", "READY",    true),
-    StatusItem("Bridge Service",    "ACTIVE",   true),
+    StatusItem("Automation Engine", "ONLINE",  true),
+    StatusItem("Conversation AI",   "GEMINI",  true),
+    StatusItem("Agent Server",      "8891",    true),
+    StatusItem("TTS Server",        "JARVIS",  true),
 )
 
 @Composable
-private fun StatusRow(item: StatusItem) {
+private fun StatusCard(item: StatusItem) {
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(BgCard)
-            .border(0.5.dp, DimCyan.copy(0.2f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .border(0.5.dp, DimCyan.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Box(
-            Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(if (item.ok) Green else Red)
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            item.label,
-            fontSize = 11.sp,
-            color = White70,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            item.value,
-            fontSize = 11.sp,
-            color = if (item.ok) Green else Red,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.sp
-        )
+        Text(item.label, fontSize = 12.sp, color = White70, fontFamily = FontFamily.Monospace)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(if (item.ok) Green else Red))
+            Spacer(Modifier.width(6.dp))
+            Text(item.value, fontSize = 11.sp, color = if (item.ok) Green else Red, fontFamily = FontFamily.Monospace)
+        }
     }
 }
