@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvismini.ui.components.*
-import com.jarvismini.voice.VoiceModule
 import com.jarvismini.voice.VoiceTriggerManager
 
 @Composable
@@ -38,18 +37,19 @@ fun EnhancedHomeScreen(
     onNavigateToDebug:         () -> Unit,
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
+    // Called when voice produces a task string — parent routes it to AgentDashboard
+    onVoiceTask: ((String) -> Unit)? = null,
 ) {
-    val context    = LocalContext.current
-    val voiceState by VoiceTriggerManager.state.collectAsState()
+    val context = LocalContext.current
 
-    val isListening  = voiceState == VoiceTriggerManager.VoiceState.ACTIVE_LISTENING
-    val isProcessing = voiceState == VoiceTriggerManager.VoiceState.PROCESSING
+    // ── Voice trigger ────────────────────────────────────────────────────────
+    val vtm = remember { VoiceTriggerManager(context) }
+    DisposableEffect(Unit) { onDispose { vtm.destroy() } }
 
-    LaunchedEffect(Unit) {
-        VoiceTriggerManager.init(context, VoiceModule)
-        VoiceTriggerManager.startWakeWord()
-    }
+    var isListening   by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
 
+    // ── Pulse animation ──────────────────────────────────────────────────────
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by pulseAnimation.animateFloat(
         initialValue = 0.3f,
@@ -112,8 +112,29 @@ fun EnhancedHomeScreen(
                 modifier         = Modifier
                     .size(200.dp)
                     .clickable {
-                        if (isListening) VoiceTriggerManager.stopListening()
-                        else VoiceTriggerManager.startListening()
+                        if (isListening) {
+                            vtm.stop()
+                            isListening   = false
+                            statusMessage = "TAP TO ACTIVATE"
+                        } else {
+                            isListening   = true
+                            statusMessage = "LISTENING..."
+                            vtm.start(
+                                onReady  = {
+                                    isListening   = true
+                                    statusMessage = "LISTENING..."
+                                },
+                                onResult = { result ->
+                                    isListening   = false
+                                    statusMessage = "TAP TO ACTIVATE"
+                                    onVoiceTask?.invoke(result) ?: onNavigateToAgent()
+                                },
+                                onError  = { err ->
+                                    isListening   = false
+                                    statusMessage = err
+                                }
+                            )
+                        }
                     }
             ) {
                 // Outer ring
@@ -156,11 +177,7 @@ fun EnhancedHomeScreen(
                         )
                 ) {
                     Icon(
-                        imageVector        = when {
-                            isProcessing -> Icons.Default.HourglassEmpty
-                            isListening  -> Icons.Default.MicOff
-                            else         -> Icons.Default.Mic
-                        },
+                        imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
                         contentDescription = "Voice",
                         tint               = Color(0xFF00E0FF),
                         modifier           = Modifier
@@ -173,11 +190,7 @@ fun EnhancedHomeScreen(
             Spacer(Modifier.height(20.dp))
 
             Text(
-                text       = when {
-                    isProcessing -> "THINKING..."
-                    isListening  -> "LISTENING..."
-                    else         -> "TAP TO ACTIVATE"
-                },
+                text       = statusMessage,
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace,
                 color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
@@ -197,11 +210,11 @@ fun EnhancedHomeScreen(
             Spacer(Modifier.height(16.dp))
 
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { QuickActionCard("Chat",     Icons.Default.Chat,         onNavigateToChat) }
+                item { QuickActionCard("Chat",     Icons.Default.Chat,          onNavigateToChat) }
                 item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
-                item { QuickActionCard("Tasks",    Icons.Default.Checklist,    onNavigateToChecklist) }
-                item { QuickActionCard("Terminal", Icons.Default.Terminal,     onNavigateToTermuxCommand) }
-                item { QuickActionCard("Agent",    Icons.Default.SmartToy,     onNavigateToAgent) }
+                item { QuickActionCard("Tasks",    Icons.Default.Checklist,     onNavigateToChecklist) }
+                item { QuickActionCard("Terminal", Icons.Default.Terminal,      onNavigateToTermuxCommand) }
+                item { QuickActionCard("Agent",    Icons.Default.SmartToy,      onNavigateToAgent) }
             }
 
             Spacer(Modifier.height(40.dp))
@@ -218,10 +231,10 @@ fun EnhancedHomeScreen(
             Spacer(Modifier.height(16.dp))
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { StatusCard("Neural Networks",    "Online",  true) }
-                item { StatusCard("Voice Recognition",  if (isListening) "Listening" else if (isProcessing) "Thinking" else "Active", isListening || isProcessing) }
-                item { StatusCard("Automation Engine",  "Standby", false) }
-                item { StatusCard("Local LLM",          "Ready",   true) }
+                item { StatusCard("Neural Networks",   "Online",  true) }
+                item { StatusCard("Voice Recognition", "Active",  true) }
+                item { StatusCard("Automation Engine", "Standby", false) }
+                item { StatusCard("Local LLM",         "Ready",   true) }
                 item { StatusCard("Agent Server",       "Standby", false) }
             }
         }
