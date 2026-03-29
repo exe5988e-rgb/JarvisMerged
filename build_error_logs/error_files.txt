@@ -1,94 +1,335 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
 
-// ❌ ERRORS IN THIS FILE (4 error(s)):
-// Line 65: Cannot find a parameter with this name: onNavigateToChecklist
-// Line 66: Cannot find a parameter with this name: onNavigateToSettings
-// Line 67: Cannot find a parameter with this name: onNavigateToDebug
-// Line 68: Cannot find a parameter with this name: onNavigateToTermuxCommand
+// ❌ ERRORS IN THIS FILE (14 error(s)):
+// Line 30: Unresolved reference: voice
+// Line 31: Unresolved reference: voice
+// Line 60: Unresolved reference: VoiceTriggerManager
+// Line 62: Unresolved reference: VoiceTriggerManager
+// Line 63: Unresolved reference: VoiceTriggerManager
+// Line 64: Unresolved reference: VoiceTriggerManager
+// Line 67: Unresolved reference: VoiceModule
+// Line 67: Unresolved reference: VoiceTriggerManager
+// Line 68: Unresolved reference: VoiceTriggerManager
+// Line 264: Unresolved reference: VoiceTriggerManager
+// Line 269: Unresolved reference: VoiceTriggerManager
+// Line 270: Unresolved reference: VoiceTriggerManager
+// Line 271: Unresolved reference: VoiceTriggerManager
+// Line 274: Unresolved reference: VoiceTriggerManager
 
-   1    package com.jarvismini.ui.main
+   1    package com.jarvismini.ui.home
    2    
-   3    import androidx.compose.runtime.*
-   4    import androidx.compose.ui.platform.LocalContext
-   5    import androidx.lifecycle.viewmodel.compose.viewModel
-   6    import com.jarvismini.ProgressInitializer
-   7    import com.jarvismini.core.progress.*
-   8    import com.jarvismini.core.routine.RoutineProvider
-   9    import com.jarvismini.ui.boot.BootScreen
-  10    import com.jarvismini.ui.home.EnhancedHomeScreen
-  11    import com.jarvismini.ui.chat.JarvisChatScreen
-  12    import com.jarvismini.ui.calendar.CalendarViewModel
-  13    import com.jarvismini.ui.calendar.DayCalendarScreen
-  14    import com.jarvismini.ui.settings.SettingsScreen
-  15    import com.jarvismini.ui.debug.DebugScreen
-  16    import com.jarvismini.ui.checklist.JarvisChecklistScreen
-  17    import com.jarvismini.ui.llm.TermuxCommandScreen
-  18    import com.jarvismini.ui.llm.TermuxCommandViewModel
-  19    import com.jarvismini.agent.AgentDashboardScreen
-  20    
-  21    enum class MainTab {
-  22        Home,
-  23        Chat,
-  24        Calendar,
-  25        Checklist,
-  26        Settings,
-  27        Debug,
-  28        TermuxCommand,
-  29        AgentDashboard,
-  30    }
-  31    
-  32    @Composable
-  33    fun MainScreen() {
-  34        val context = LocalContext.current
-  35    
-  36        var showBoot    by remember { mutableStateOf(true) }
-  37        var selectedTab by remember { mutableStateOf(MainTab.Home) }
-  38    
-  39        var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-  40        var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-  41    
-  42        if (showBoot) {
-  43            BootScreen(onBootComplete = { showBoot = false })
-  44            return
-  45        }
+   3    import androidx.compose.animation.core.*
+   4    import androidx.compose.foundation.background
+   5    import androidx.compose.foundation.border
+   6    import androidx.compose.foundation.clickable
+   7    import androidx.compose.foundation.layout.*
+   8    import androidx.compose.foundation.lazy.LazyRow
+   9    import androidx.compose.foundation.lazy.items
+  10    import androidx.compose.foundation.rememberScrollState
+  11    import androidx.compose.foundation.shape.CircleShape
+  12    import androidx.compose.foundation.shape.RoundedCornerShape
+  13    import androidx.compose.foundation.verticalScroll
+  14    import androidx.compose.material.icons.Icons
+  15    import androidx.compose.material.icons.filled.*
+  16    import androidx.compose.material3.*
+  17    import androidx.compose.runtime.*
+  18    import androidx.compose.ui.Alignment
+  19    import androidx.compose.ui.Modifier
+  20    import androidx.compose.ui.draw.clip
+  21    import androidx.compose.ui.draw.scale
+  22    import androidx.compose.ui.graphics.Brush
+  23    import androidx.compose.ui.graphics.Color
+  24    import androidx.compose.ui.graphics.vector.ImageVector
+  25    import androidx.compose.ui.platform.LocalContext
+  26    import androidx.compose.ui.text.font.FontFamily
+  27    import androidx.compose.ui.text.font.FontWeight
+  28    import androidx.compose.ui.unit.dp
+  29    import androidx.compose.ui.unit.sp
+  30 ❌ import com.jarvismini.core.voice.VoiceModule
+  31 ❌ import com.jarvismini.core.voice.VoiceTriggerManager
+  32    
+  33    // ── Colour tokens (kept identical to original) ──────────────────────────────
+  34    private val BgDark  = Color(0xFF0A0E1A)
+  35    private val BgCard  = Color(0xFF111827)
+  36    private val Cyan    = Color(0xFF00D4FF)
+  37    private val DimCyan = Color(0xFF00A8CC)
+  38    private val Green   = Color(0xFF00FF88)
+  39    private val Red     = Color(0xFFFF4444)
+  40    private val White70 = Color(0xB3FFFFFF)
+  41    private val White40 = Color(0x66FFFFFF)
+  42    
+  43    // ── Data models ──────────────────────────────────────────────────────────────
+  44    private data class QuickAction(val label: String, val icon: ImageVector, val onClick: () -> Unit)
+  45    private data class StatusItem(val label: String, val value: String, val ok: Boolean)
   46    
-  47        LaunchedEffect(Unit) {
-  48            ProgressInitializer.registerAllBlocks(context)
-  49            blocks   = ProgressRepository.getTodayBlocks()
-  50            routines = RoutineProvider.getAllRoutines(context)
-  51        }
-  52    
-  53        LaunchedEffect(selectedTab) {
-  54            if (selectedTab == MainTab.Checklist) {
-  55                ProgressInitializer.registerAllBlocks(context)
-  56                blocks   = ProgressRepository.getTodayBlocks()
-  57                routines = RoutineProvider.getAllRoutines(context)
-  58            }
-  59        }
-  60    
-  61        when (selectedTab) {
-  62            MainTab.Home -> EnhancedHomeScreen(
-  63                onNavigateToChat          = { selectedTab = MainTab.Chat },
-  64                onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
-  65 ❌             onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
-  66 ❌             onNavigateToSettings      = { selectedTab = MainTab.Settings },
-  67 ❌             onNavigateToDebug         = { selectedTab = MainTab.Debug },
-  68 ❌             onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
-  69                onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
-  70            )
-  71            MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-  72            MainTab.Calendar     -> {
-  73                val vm = remember { CalendarViewModel(context) }
-  74                DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
-  75            }
-  76            MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
-  77            MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-  78            MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-  79            MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-  80            MainTab.AgentDashboard -> AgentDashboardScreen(onBack = { selectedTab = MainTab.Home })
-  81        }
-  82    }
+  47    // ── Screen ───────────────────────────────────────────────────────────────────
+  48    @Composable
+  49    fun EnhancedHomeScreen(
+  50        onNavigateToChat:          () -> Unit = {},
+  51        onNavigateToAgent:         () -> Unit = {},
+  52        onNavigateToCalendar:      () -> Unit = {},
+  53        // ↓ these four were missing — added to fix the build
+  54        onNavigateToChecklist:     () -> Unit = {},
+  55        onNavigateToSettings:      () -> Unit = {},
+  56        onNavigateToDebug:         () -> Unit = {},
+  57        onNavigateToTermuxCommand: () -> Unit = {},
+  58    ) {
+  59        val context     = LocalContext.current
+  60 ❌     val voiceState  by VoiceTriggerManager.state.collectAsState()
+  61    
+  62 ❌     val isListening  = voiceState == VoiceTriggerManager.VoiceState.ACTIVE_LISTENING
+  63 ❌     val isProcessing = voiceState == VoiceTriggerManager.VoiceState.PROCESSING
+  64 ❌     val wakeActive   = voiceState == VoiceTriggerManager.VoiceState.WAKE_LISTENING
+  65    
+  66        LaunchedEffect(Unit) {
+  67 ❌         VoiceTriggerManager.init(context, VoiceModule)
+  68 ❌         VoiceTriggerManager.startWakeWord()
+  69        }
+  70    
+  71        val pulse = rememberInfiniteTransition(label = "orbPulse")
+  72        val pulseAlpha by pulse.animateFloat(
+  73            0.4f, 1f,
+  74            infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+  75            label = "pulseAlpha"
+  76        )
+  77        val pulseScale by pulse.animateFloat(
+  78            0.95f, 1.05f,
+  79            infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+  80            label = "pulseScale"
+  81        )
+  82    
+  83        Box(
+  84            Modifier
+  85                .fillMaxSize()
+  86                .background(BgDark)
+  87        ) {
+  88            Column(
+  89                Modifier
+  90                    .fillMaxSize()
+  91                    .verticalScroll(rememberScrollState())
+  92                    .padding(16.dp),
+  93                horizontalAlignment = Alignment.CenterHorizontally
+  94            ) {
+  95                Spacer(Modifier.height(32.dp))
+  96    
+  97                // ── Header ────────────────────────────────────────────────────
+  98                Text(
+  99                    "J.A.R.V.I.S",
+ 100                    fontSize = 28.sp,
+ 101                    fontWeight = FontWeight.Bold,
+ 102                    fontFamily = FontFamily.Monospace,
+ 103                    color = Cyan,
+ 104                    letterSpacing = 6.sp
+ 105                )
+ 106                Text(
+ 107                    "MINI  //  SYSTEM ONLINE",
+ 108                    fontSize = 10.sp,
+ 109                    color = White40,
+ 110                    fontFamily = FontFamily.Monospace,
+ 111                    letterSpacing = 3.sp
+ 112                )
+ 113    
+ 114                Spacer(Modifier.height(32.dp))
+ 115    
+ 116                // ── Central orb ───────────────────────────────────────────────
+ 117                Box(
+ 118                    contentAlignment = Alignment.Center,
+ 119                    modifier = Modifier
+ 120                        .size(160.dp)
+ 121                        .scale(if (isListening || isProcessing) pulseScale else 1f)
+ 122                ) {
+ 123                    Box(
+ 124                        Modifier
+ 125                            .size(160.dp)
+ 126                            .clip(CircleShape)
+ 127                            .background(
+ 128                                Brush.radialGradient(
+ 129                                    listOf(
+ 130                                        Cyan.copy(alpha = if (isListening) pulseAlpha else 0.15f),
+ 131                                        Color.Transparent
+ 132                                    )
+ 133                                )
+ 134                            )
+ 135                    )
+ 136                    Box(
+ 137                        Modifier
+ 138                            .size(100.dp)
+ 139                            .clip(CircleShape)
+ 140                            .background(BgCard)
+ 141                            .border(
+ 142                                1.5.dp,
+ 143                                if (isListening) Cyan else if (wakeActive) Green else DimCyan.copy(0.5f),
+ 144                                CircleShape
+ 145                            ),
+ 146                        contentAlignment = Alignment.Center
+ 147                    ) {
+ 148                        Icon(
+ 149                            if (isListening) Icons.Default.Mic
+ 150                            else if (isProcessing) Icons.Default.HourglassTop
+ 151                            else Icons.Default.Mic,
+ 152                            contentDescription = null,
+ 153                            tint = if (isListening) Cyan else White70,
+ 154                            modifier = Modifier.size(36.dp)
+ 155                        )
+ 156                    }
+ 157                }
+ 158    
+ 159                Spacer(Modifier.height(12.dp))
+ 160    
+ 161                Text(
+ 162                    when {
+ 163                        isListening  -> "LISTENING …"
+ 164                        isProcessing -> "PROCESSING …"
+ 165                        wakeActive   -> "WAKE WORD ACTIVE"
+ 166                        else         -> "SAY  \"HEY JARVIS\""
+ 167                    },
+ 168                    fontSize = 12.sp,
+ 169                    color = if (isListening) Cyan else White40,
+ 170                    fontFamily = FontFamily.Monospace,
+ 171                    letterSpacing = 2.sp
+ 172                )
+ 173    
+ 174                Spacer(Modifier.height(32.dp))
+ 175    
+ 176                // ── Quick actions ─────────────────────────────────────────────
+ 177                Text(
+ 178                    "QUICK ACCESS",
+ 179                    fontSize = 10.sp,
+ 180                    color = White40,
+ 181                    fontFamily = FontFamily.Monospace,
+ 182                    letterSpacing = 3.sp,
+ 183                    modifier = Modifier
+ 184                        .fillMaxWidth()
+ 185                        .padding(bottom = 8.dp)
+ 186                )
+ 187                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+ 188                    // Tasks → Checklist, Terminal → TermuxCommand now wired
+ 189                    items(
+ 190                        quickActions(
+ 191                            onChat      = onNavigateToChat,
+ 192                            onAgent     = onNavigateToAgent,
+ 193                            onCalendar  = onNavigateToCalendar,
+ 194                            onChecklist = onNavigateToChecklist,
+ 195                            onTermux    = onNavigateToTermuxCommand,
+ 196                        )
+ 197                    ) { action ->
+ 198                        QuickActionCard(action)
+ 199                    }
+ 200                }
+ 201    
+ 202                Spacer(Modifier.height(24.dp))
+ 203    
+ 204                // ── System status ─────────────────────────────────────────────
+ 205                Text(
+ 206                    "SYSTEM STATUS",
+ 207                    fontSize = 10.sp,
+ 208                    color = White40,
+ 209                    fontFamily = FontFamily.Monospace,
+ 210                    letterSpacing = 3.sp,
+ 211                    modifier = Modifier
+ 212                        .fillMaxWidth()
+ 213                        .padding(bottom = 8.dp)
+ 214                )
+ 215                systemStatusItems(voiceState).forEach { item ->
+ 216                    StatusRow(item)
+ 217                    Spacer(Modifier.height(4.dp))
+ 218                }
+ 219    
+ 220                Spacer(Modifier.height(32.dp))
+ 221            }
+ 222        }
+ 223    }
+ 224    
+ 225    // ── Helpers ──────────────────────────────────────────────────────────────────
+ 226    private fun quickActions(
+ 227        onChat:      () -> Unit,
+ 228        onAgent:     () -> Unit,
+ 229        onCalendar:  () -> Unit,
+ 230        onChecklist: () -> Unit,
+ 231        onTermux:    () -> Unit,
+ 232    ) = listOf(
+ 233        QuickAction("Chat",     Icons.Default.Chat,          onChat),
+ 234        QuickAction("Calendar", Icons.Default.CalendarToday, onCalendar),
+ 235        QuickAction("Tasks",    Icons.Default.CheckCircle,   onChecklist),   // was {}
+ 236        QuickAction("Terminal", Icons.Default.Terminal,      onTermux),      // was {}
+ 237        QuickAction("Agent",    Icons.Default.SmartToy,      onAgent),
+ 238    )
+ 239    
+ 240    @Composable
+ 241    private fun QuickActionCard(action: QuickAction) {
+ 242        Column(
+ 243            horizontalAlignment = Alignment.CenterHorizontally,
+ 244            modifier = Modifier
+ 245                .size(90.dp)
+ 246                .clip(RoundedCornerShape(12.dp))
+ 247                .background(BgCard)
+ 248                .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+ 249                .clickable { action.onClick() }
+ 250                .padding(8.dp)
+ 251        ) {
+ 252            Icon(action.icon, null, tint = Cyan, modifier = Modifier.size(28.dp))
+ 253            Spacer(Modifier.height(6.dp))
+ 254            Text(
+ 255                action.label,
+ 256                fontSize = 10.sp,
+ 257                color = White70,
+ 258                fontFamily = FontFamily.Monospace,
+ 259                letterSpacing = 1.sp
+ 260            )
+ 261        }
+ 262    }
+ 263    
+ 264 ❌ private fun systemStatusItems(voiceState: VoiceTriggerManager.VoiceState) = listOf(
+ 265        StatusItem("Neural Networks",   "ONLINE",   true),
+ 266        StatusItem(
+ 267            "Voice Recognition",
+ 268            when (voiceState) {
+ 269 ❌             VoiceTriggerManager.VoiceState.ACTIVE_LISTENING -> "LISTENING"
+ 270 ❌             VoiceTriggerManager.VoiceState.WAKE_LISTENING   -> "WATCHING"
+ 271 ❌             VoiceTriggerManager.VoiceState.PROCESSING       -> "THINKING"
+ 272                else                                             -> "STANDBY"
+ 273            },
+ 274 ❌         voiceState != VoiceTriggerManager.VoiceState.IDLE
+ 275        ),
+ 276        StatusItem("Automation Engine", "READY",    true),
+ 277        StatusItem("Bridge Service",    "ACTIVE",   true),
+ 278    )
+ 279    
+ 280    @Composable
+ 281    private fun StatusRow(item: StatusItem) {
+ 282        Row(
+ 283            Modifier
+ 284                .fillMaxWidth()
+ 285                .clip(RoundedCornerShape(8.dp))
+ 286                .background(BgCard)
+ 287                .border(0.5.dp, DimCyan.copy(0.2f), RoundedCornerShape(8.dp))
+ 288                .padding(horizontal = 12.dp, vertical = 8.dp),
+ 289            verticalAlignment = Alignment.CenterVertically
+ 290        ) {
+ 291            Box(
+ 292                Modifier
+ 293                    .size(6.dp)
+ 294                    .clip(CircleShape)
+ 295                    .background(if (item.ok) Green else Red)
+ 296            )
+ 297            Spacer(Modifier.width(10.dp))
+ 298            Text(
+ 299                item.label,
+ 300                fontSize = 11.sp,
+ 301                color = White70,
+ 302                fontFamily = FontFamily.Monospace,
+ 303                modifier = Modifier.weight(1f)
+ 304            )
+ 305            Text(
+ 306                item.value,
+ 307                fontSize = 11.sp,
+ 308                color = if (item.ok) Green else Red,
+ 309                fontFamily = FontFamily.Monospace,
+ 310                letterSpacing = 1.sp
+ 311            )
+ 312        }
+ 313    }
 
 
