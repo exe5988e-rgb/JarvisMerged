@@ -12507,20 +12507,25 @@ object JarvisPrefs {
         )
     }
 
-    fun putLong(key: String, value: Long) =
-        prefs.edit().putLong(key, value).apply()
+    private fun isReady(): Boolean = ::prefs.isInitialized
+
+    fun putLong(key: String, value: Long) {
+        if (isReady()) prefs.edit().putLong(key, value).apply()
+    }
 
     fun getLong(key: String, def: Long = 0L): Long =
-        prefs.getLong(key, def)
+        if (isReady()) prefs.getLong(key, def) else def
 
-    fun putString(key: String, value: String) =
-        prefs.edit().putString(key, value).apply()
+    fun putString(key: String, value: String) {
+        if (isReady()) prefs.edit().putString(key, value).apply()
+    }
 
     fun getString(key: String, def: String? = null): String? =
-        prefs.getString(key, def)
+        if (isReady()) prefs.getString(key, def) else def
 
-    fun remove(key: String) =
-        prefs.edit().remove(key).apply()
+    fun remove(key: String) {
+        if (isReady()) prefs.edit().remove(key).apply()
+    }
 }
 
 
