@@ -1,16 +1,3 @@
-// ============================================================
-// AI-OUTPUT — Build Fix (attempt 2)
-// Root cause: wrong import paths in previous output.
-//   Used: com.jarvismini.core.voice.*
-//   Correct: com.jarvismini.voice.*  (per VoiceModule.kt / VoiceTriggerManager.kt)
-//
-// Changes vs original source (minimal, surgical):
-//   1. EnhancedHomeScreen() — added 4 missing lambda params
-//   2. quickActions()       — added onChecklist + onTermux params,
-//                             wired to Tasks and Terminal cards (were {})
-//   Everything else is identical to the source dump.
-// ============================================================
-
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
 package com.jarvismini.ui.home
 
@@ -59,7 +46,6 @@ fun EnhancedHomeScreen(
     onNavigateToChat:          () -> Unit = {},
     onNavigateToAgent:         () -> Unit = {},
     onNavigateToCalendar:      () -> Unit = {},
-    // ↓ four params added to match MainScreen.kt call site
     onNavigateToChecklist:     () -> Unit = {},
     onNavigateToSettings:      () -> Unit = {},
     onNavigateToDebug:         () -> Unit = {},
@@ -102,7 +88,6 @@ fun EnhancedHomeScreen(
         ) {
             Spacer(Modifier.height(48.dp))
 
-            // ── Orb ───────────────────────────────────────────────────────────
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -162,7 +147,6 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // ── Quick access ──────────────────────────────────────────────────
             SectionLabel("QUICK ACCESS")
             Spacer(Modifier.height(8.dp))
             LazyRow(
@@ -184,7 +168,6 @@ fun EnhancedHomeScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // ── System status ─────────────────────────────────────────────────
             SectionLabel("SYSTEM STATUS")
             Spacer(Modifier.height(8.dp))
             LazyColumn(
@@ -221,8 +204,8 @@ private fun quickActions(
     onChat:      () -> Unit,
     onAgent:     () -> Unit,
     onCalendar:  () -> Unit,
-    onChecklist: () -> Unit,   // was missing — Tasks card was {}
-    onTermux:    () -> Unit,   // was missing — Terminal card was {}
+    onChecklist: () -> Unit,
+    onTermux:    () -> Unit,
 ) = listOf(
     QuickAction("Chat",     Icons.Default.Chat,          onChat),
     QuickAction("Calendar", Icons.Default.CalendarToday, onCalendar),
