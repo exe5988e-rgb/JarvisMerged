@@ -11,26 +11,17 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/**
- * VoiceModule — Jarvis voice output
- *
- * Priority:
- *   1. ElevenLabs via agent_server TTS proxy (port 8892) — natural voice
- *   2. Android system TTS — fallback if server unreachable
- *
- * Multi-key rotation and voice selection are handled server-side.
- * This class just POSTs to the Termux TTS server.
- */
 object VoiceModule {
 
-    private const val TAG       = "VoiceModule"
-    private const val TTS_PORT  = 8892
+    private const val TAG          = "VoiceModule"
+    private const val TTS_PORT     = 8892
     private const val DEFAULT_HOST = "192.168.29.48"
 
-    private var systemTts: TextToSpeech? = null
-    private var systemTtsReady = false
+    private var systemTts:      TextToSpeech? = null
+    private var systemTtsReady: Boolean       = false
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
@@ -40,6 +31,7 @@ object VoiceModule {
     fun init(context: Context) {
         systemTts = TextToSpeech(context) { status ->
             systemTtsReady = (status == TextToSpeech.SUCCESS)
+            if (systemTtsReady) systemTts?.language = Locale.ENGLISH
             Log.d(TAG, "System TTS ready: $systemTtsReady")
         }
     }
@@ -50,12 +42,9 @@ object VoiceModule {
         systemTts = null
     }
 
-    /**
-     * Speak text. Tries ElevenLabs server first, falls back to Android TTS.
-     */
     suspend fun speak(
         text:    String,
-        voiceId: String? = null,
+        voiceId: String?   = null,
         mode:    SpeakMode = SpeakMode.AUTO
     ) {
         if (text.isBlank()) return
@@ -86,22 +75,17 @@ object VoiceModule {
                 val resp = http.newCall(req).execute()
                 val ok   = resp.isSuccessful
                 resp.close()
-                Log.d(TAG, "ElevenLabs TTS: ${if (ok) "ok" else "failed"}")
                 ok
             } catch (e: Exception) {
-                Log.w(TAG, "ElevenLabs unreachable: ${e.message}")
+                Log.w(TAG, "ElevenLabs failed: ${e.message}")
                 false
             }
         }
 
     private fun speakSystem(text: String) {
-        if (!systemTtsReady) {
-            Log.w(TAG, "System TTS not ready")
-            return
-        }
-        systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis_${System.currentTimeMillis()}")
-        Log.d(TAG, "System TTS: $text")
+        if (!systemTtsReady) { Log.w(TAG, "System TTS not ready"); return }
+        systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "j_${System.currentTimeMillis()}")
     }
-
-    enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
 }
+
+enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
