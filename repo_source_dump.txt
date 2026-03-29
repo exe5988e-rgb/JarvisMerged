@@ -1265,7 +1265,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
-// ─── Colours ────────────────────────────────────────────────────────────────
 private val Cyan    = Color(0xFF00E0FF)
 private val DimCyan = Color(0xFF005566)
 private val BgDark  = Color(0xFF060F14)
@@ -1278,8 +1277,9 @@ private val White40 = Color(0x66FFFFFF)
 
 @Composable
 fun AgentDashboardScreen(
-    onBack: () -> Unit,
-    vm: AgentDashboardViewModel = viewModel()
+    onBack:      () -> Unit,
+    initialTask: String? = null,
+    vm:          AgentDashboardViewModel = viewModel()
 ) {
     val state     by vm.state.collectAsState()
     val context   = LocalContext.current
@@ -1287,6 +1287,8 @@ fun AgentDashboardScreen(
 
 // ... FILE TRUNCATED ...
 
+    val color = when {
+        !online -> Red
         running -> Green.copy(alpha = alpha)
         else    -> Green
     }
@@ -1297,8 +1299,6 @@ fun AgentDashboardScreen(
             .background(color)
     )
 }
-
-// ── Field colours ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
