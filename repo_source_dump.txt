@@ -1335,6 +1335,7 @@ data class AgentDashboardState(
 )
 
 data class LogLine(
+    val id:    Long,
     val text:  String,
     val level: LogLevel = LogLevel.INFO,
 )
@@ -1359,7 +1360,6 @@ class AgentDashboardViewModel : ViewModel() {
     private var statusPollJob:     Job? = null
     private var completionWatcher: Job? = null
 
-    init {
 
 // ... FILE TRUNCATED ...
 
@@ -1371,7 +1371,7 @@ class AgentDashboardViewModel : ViewModel() {
 
     private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
         _state.update { s ->
-            val logs = (s.logs + LogLine(text, level)).takeLast(200)
+            val logs = (s.logs + LogLine(id = System.nanoTime(), text = text, level = level)).takeLast(200)
             s.copy(logs = logs)
         }
     }
