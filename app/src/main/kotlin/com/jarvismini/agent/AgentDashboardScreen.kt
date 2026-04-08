@@ -89,14 +89,14 @@ fun AgentDashboardScreen(
                     fontFamily    = FontFamily.Monospace
                 )
                 Spacer(Modifier.weight(1f))
-                ServerStatusDot(online = state.serverOnline, running = state.running)
+                ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { vm.checkServer() }) {
                     Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
                 }
             }
 
-            if (state.running || state.done) {
+            if (state.running || state.done || state.paused) {
                 StatusBar(state)
                 Spacer(Modifier.height(8.dp))
             }
@@ -107,6 +107,8 @@ fun AgentDashboardScreen(
                 onDevice = vm::onDeviceInput,
                 onStart  = vm::startAgent,
                 onStop   = vm::stopAgent,
+                onPause  = vm::pauseAgent,
+                onResume = vm::resumeAgent,
             )
 
             Spacer(Modifier.height(8.dp))
@@ -207,18 +209,21 @@ fun AgentDashboardScreen(
 private fun StatusBar(state: AgentDashboardState) {
     val bg = when {
         state.error != null -> Red.copy(alpha = 0.15f)
+        state.paused        -> Yellow.copy(alpha = 0.12f)
         state.done          -> Green.copy(alpha = 0.12f)
         state.running       -> Cyan.copy(alpha = 0.08f)
         else                -> BgCard
     }
     val text = when {
         state.error != null -> "✗ Error: ${state.error}"
+        state.paused        -> "⏸ Paused at step ${state.step}  —  ${state.task.take(50)}"
         state.done          -> "✓ Done in ${state.step} steps"
         state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
         else                -> ""
     }
     val textColor = when {
         state.error != null -> Red
+        state.paused        -> Yellow
         state.done          -> Green
         else                -> Cyan
     }
@@ -231,7 +236,7 @@ private fun StatusBar(state: AgentDashboardState) {
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (state.running) {
+        if (state.running && !state.paused) {
             CircularProgressIndicator(
                 modifier    = Modifier.size(12.dp),
                 color       = Cyan,
@@ -256,6 +261,8 @@ private fun TaskInputSection(
     onDevice: (String) -> Unit,
     onStart:  () -> Unit,
     onStop:   () -> Unit,
+    onPause:  () -> Unit,
+    onResume: () -> Unit,
 ) {
     Column(
         Modifier
@@ -300,11 +307,38 @@ private fun TaskInputSection(
 
         Spacer(Modifier.height(10.dp))
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
             if (state.running) {
+                // ── Pause / Resume button ──────────────────────────────────
+                if (state.paused) {
+                    OutlinedButton(
+                        onClick  = onResume,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Green),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Resume", fontSize = 13.sp)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick  = onPause,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Pause", fontSize = 13.sp)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                // ── Stop button ────────────────────────────────────────────
                 OutlinedButton(
                     onClick  = onStop,
-                    border   = ButtonDefaults.outlinedButtonBorder.copy(),
                     colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
                     modifier = Modifier.height(38.dp)
                 ) {
@@ -363,8 +397,9 @@ private fun LogLineRow(log: LogLine) {
     )
 }
 
+// Session 17: paused param added — dot turns yellow when paused
 @Composable
-private fun ServerStatusDot(online: Boolean, running: Boolean) {
+private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
     val pulse = rememberInfiniteTransition(label = "pulse")
     val alpha by pulse.animateFloat(
         initialValue = 0.4f, targetValue = 1f,
@@ -376,6 +411,7 @@ private fun ServerStatusDot(online: Boolean, running: Boolean) {
     )
     val color = when {
         !online -> Red
+        paused  -> Yellow.copy(alpha = alpha)
         running -> Green.copy(alpha = alpha)
         else    -> Green
     }

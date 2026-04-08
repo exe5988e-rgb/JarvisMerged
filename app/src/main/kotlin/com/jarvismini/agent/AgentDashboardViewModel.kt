@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 data class AgentDashboardState(
     val serverOnline:  Boolean       = false,
     val running:       Boolean       = false,
+    val paused:        Boolean       = false,   // Session 17
     val task:          String        = "",
     val step:          Int           = 0,
     val done:          Boolean       = false,
@@ -75,7 +76,7 @@ class AgentDashboardViewModel : ViewModel() {
         if (task.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(logs = emptyList(), done = false, error = null) }
+            _state.update { it.copy(logs = emptyList(), done = false, error = null, paused = false) }
             pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
 
             AgentRepository.runTask(task, device, s.maxSteps)
@@ -93,6 +94,36 @@ class AgentDashboardViewModel : ViewModel() {
             pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
         }
     }
+
+    // ── Session 17: pause / resume ────────────────────────────────────────────
+
+    fun pauseAgent() {
+        viewModelScope.launch {
+            AgentRepository.pauseAgent()
+                .onSuccess {
+                    _state.update { it.copy(paused = true) }
+                    pushLog("[dashboard] ⏸ Agent paused", LogLevel.WARN)
+                }
+                .onFailure {
+                    pushLog("[dashboard] ✗ Pause failed: ${it.message}", LogLevel.ERROR)
+                }
+        }
+    }
+
+    fun resumeAgent() {
+        viewModelScope.launch {
+            AgentRepository.resumeAgent()
+                .onSuccess {
+                    _state.update { it.copy(paused = false) }
+                    pushLog("[dashboard] ▶ Agent resumed", LogLevel.SYSTEM)
+                }
+                .onFailure {
+                    pushLog("[dashboard] ✗ Resume failed: ${it.message}", LogLevel.ERROR)
+                }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
 
@@ -158,6 +189,7 @@ class AgentDashboardViewModel : ViewModel() {
                     step         = status.step,
                     done         = status.done,
                     error        = status.error,
+                    paused       = status.paused,
                     serverOnline = true,
                 )}
             }

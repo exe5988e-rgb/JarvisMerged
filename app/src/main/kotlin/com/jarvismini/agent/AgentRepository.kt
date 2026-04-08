@@ -81,6 +81,38 @@ object AgentRepository {
         }
     }
 
+    // ── Session 17: pause / resume ────────────────────────────────────────────
+
+    suspend fun pauseAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/pause"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "pauseAgent failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resumeAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/resume"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "resumeAgent failed", e)
+            Result.failure(e)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     suspend fun getStatus(): AgentStatus = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder().url(agentUrl("/status")).get().build()
@@ -92,6 +124,7 @@ object AgentRepository {
                     step    = j.optInt("step"),
                     done    = j.optBoolean("done"),
                     error   = j.optString("error").ifBlank { null },
+                    paused  = j.optBoolean("paused"),
                     lastLog = j.optString("last_log"),
                 )
             }
@@ -100,10 +133,6 @@ object AgentRepository {
         }
     }
 
-    /**
-     * Fetches last N lines from server log history.
-     * Used on dashboard resume to restore logs without flooding the UI.
-     */
     suspend fun fetchLogTail(n: Int = 50): List<String> = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
@@ -192,5 +221,6 @@ data class AgentStatus(
     val step:    Int     = 0,
     val done:    Boolean = false,
     val error:   String? = null,
+    val paused:  Boolean = false,
     val lastLog: String  = "",
 )
