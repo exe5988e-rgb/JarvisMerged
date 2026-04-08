@@ -1,1454 +1,969 @@
-//===== TERMUXFILE: test/jarvis-agent/agent/self_repair.py =====
-#!/usr/bin/env python3
+//===== TERMUXFILE: test/jarvis-agent/agent/controller.py =====
 """
-self_repair.py  —  Jarvis Self-Repair Module  (Session 17)
-~/workflows/test/jarvis-agent/agent/self_repair.py
+agent/controller.py  —  Jarvis Agent Controller
 
-Capabilities:
-  1. find_file()        — search codebase by filename or content keyword
-  2. read_file()        — read any file under JARVIS_ROOT safely
-  3. write_file()       — write/patch a file with auto .bak backup
-  4. push_to_bridge()   — send a file to Phone B over HTTP (/file_push)
-  5. pull_from_bridge() — pull a file Phone B staged for us (/file_pull)
-  6. request_fix()      — ask Claude via bridge to fix a file, deploy answer
-  7. dump_codebase()    — regenerate new_dump.txt via slash.sh
-  8. pause()            — create pause flag, agent stops after current step
-  9. resume()           — remove pause flag, agent continues
-  10. is_paused()       — check if pause flag exists
+Session 15 (OPT 12): Hierarchical Task Planner wired in.
+  - TaskPlanner created in run() after health check
+  - planner.tick() called at start of every run_step()
+  - planner.current_goal_description() passed to build_prompt() as sub_goal=
+  - policy engine also receives sub-goal task string for better matching
+  - state.sub_goal_label / sub_goal_index updated each step for logging
+  - planner.done() checked alongside state.is_finished()
 
-All write ops create a .bak copy first.
-Cross-device transfers use the existing bridge HTTP on port 8890.
+Session 15 (OPT 13): Bridge auto-recovery wired into llm_client.py
+
+Session 15 (multi-AI summarize):
+  - save_clipboard goal: runs shell research_<app> = termux-clipboard-get
+    immediately after copy_ai_response — no LLM call, no step waste
+  - summarize_memory goal: collects all research_* keys from memory,
+    calls Groq with a merge prompt, stores result in memory["summary"]
+  - paste_and_send uses {summary} from memory when planner.has_summarize()
+
+Session 15 fix (OPT 13):
+  - wait action handled in run_step(): sleep 4s, re-screenshot, no dispatch
+    Prevents retry loops when Phone B returns 'wait' from bridge timeout
+    or when action_parser converts 'Sending...' → wait via ui_echo filter
+
+Session 16 fix (stale UI + wait loop):
+  - OPT7 prediction hit: validate predicted screen activity matches live
+    activity before serving cached elements. If mismatch → fresh dump.
+    Prevents popup/stale elements from a previous Gemini visit being served
+    as the current Gemini screen.
+  - wait action now calls invalidate_cache(device) before sleeping so the
+    next step always gets a fresh UI dump instead of the same stale screen.
+  - type action now also calls invalidate_cache(device) after execution.
+    Typing changes the screen (send button appears, suggestions load) but
+    the activity string stays the same — OPT7 was serving the stale
+    pre-type cache, hiding the Send button entirely.
+  - invalidate_cache now also called in the error retry handler. When
+    Phone B drops mid-step the tap fires but invalidate never ran —
+    next step would serve stale cache. Now cleared on every exception.
+
+Session 17: Pause gate added.
+  - run_step() checks is_paused() at the very top, blocking until resumed.
+  - PAUSE_FLAG = ~/workflows/.jarvis_pause (same path used by agent_server).
 """
 
+import sys
 import os
-import re
-import json
-import shutil
-import requests
-import subprocess
-from pathlib import Path
-from datetime import datetime
+import time
+import argparse
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
-HOME        = Path.home()
-JARVIS_ROOT = HOME / "workflows" / "test"
-AGENT_ROOT  = JARVIS_ROOT / "jarvis-agent"
-SLASH_SH    = JARVIS_ROOT / "extract_ai_output.sh"
-DUMP_OUT    = HOME / "new_dump.txt"
-PAUSE_FLAG  = HOME / "workflows" / ".jarvis_pause"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
-# Phone B bridge — HTTP port is fixed at 8890
-BRIDGE_URL  = "http://192.168.29.110:8890"
+from perception.screen_capture  import capture_screen
+from perception.ui_parser        import parse_ui, invalidate_cache
+from perception.screen_map       import ScreenMap
+from perception.transition_memory import TransitionMemory
+from reasoning.prompt_builder    import build_prompt
+from reasoning.llm_client        import generate, health_check
+from reasoning.action_parser     import parse_action
+from reasoning.policy_engine     import get_policy_actions
+from reasoning.skill_library     import get_skill_actions, learn_skill
+from reasoning.task_state        import extract_from_ui, substitute_memory
+from reasoning.task_planner      import TaskPlanner          # OPT 12
+from executor.adb_executor       import execute, get_device
+from agent.state                 import AgentState
 
-# ── ANSI colours ───────────────────────────────────────────────────────────────
-G = "\033[1;32m"; Y = "\033[1;33m"; R = "\033[1;31m"
-C = "\033[1;36m"; W = "\033[1;37m"; D = "\033[2m";  X = "\033[0m"
+# ── Config ────────────────────────────────────────────────────────────────────
 
-def _log(tag: str, msg: str, colour: str = W):
-    ts = datetime.now().strftime("%H:%M:%S")
-    print(f"{D}[{ts}]{X} {colour}[{tag}]{X} {msg}")
+DEFAULT_DEVICE     = "192.168.29.48:39245"
+DEFAULT_TASK       = "Open WhatsApp"
+DEFAULT_MODEL      = os.path.expanduser(
+    "~/ai-workspace/llama.cpp/models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf"
+)
+LOOP_SLEEP         = 1.5
+MAX_EMPTY_WAITS    = 5
+AGENT_SERVER_PORT  = 8891
+WAIT_ACTION_SLEEP  = 4   # OPT 13: seconds to idle when action == "wait"
 
-# ── 1. find_file ───────────────────────────────────────────────────────────────
+# Session 17: pause flag path (must match agent_server.py)
+PAUSE_FLAG = os.path.expanduser("~/workflows/.jarvis_pause")
 
-def find_file(name: str = "", keyword: str = "",
-              root: Path = JARVIS_ROOT) -> list:
-    """
-    Search files under root by filename substring and/or content keyword.
-    Returns list of dicts: {path, size, match_lines}
-    """
-    results = []
-    name_lo = name.lower()
-    for p in Path(root).rglob("*"):
-        if not p.is_file():
-            continue
-        if p.suffix in (".pyc", ".pyo") or "__pycache__" in p.parts:
-            continue
-        if name_lo and name_lo not in p.name.lower():
-            continue
-        entry = {"path": str(p), "size": p.stat().st_size, "match_lines": []}
-        if keyword:
-            try:
-                kw_lo = keyword.lower()
-                lines = p.read_text(errors="replace").splitlines()
-                entry["match_lines"] = [
-                    f"L{i+1}: {ln.rstrip()}"
-                    for i, ln in enumerate(lines)
-                    if kw_lo in ln.lower()
-                ]
-                if name_lo == "" and not entry["match_lines"]:
-                    continue   # keyword given but no match — skip
-            except Exception:
-                pass
-        results.append(entry)
+APP_PACKAGES = {
+    "whatsapp":  "com.whatsapp",
+    "youtube":   "com.google.android.youtube",
+    "chrome":    "com.android.chrome",
+    "settings":  "com.android.settings",
+    "playstore": "com.android.vending",
+    "gemini":    "com.google.android.apps.bard",
+    "chatgpt":   "com.openai.chatgpt",
+    "copilot":   "com.microsoft.copilot",
+    "grok":      "com.x.android.grok",
+    "claude app":"com.anthropic.claude",
+}
 
-    _log("find_file", f"{len(results)} result(s) for name={name!r} keyword={keyword!r}", G)
-    for r in results:
-        ml = f"  ({len(r['match_lines'])} matches)" if r["match_lines"] else ""
-        _log("find_file", f"  {r['path']}{ml}", D)
-    return results
+_AI_PKG_FRAGMENTS = ["bard", "openai", "microsoft.copilot", "anthropic", "x.android.grok"]
 
-# ── 2. read_file ───────────────────────────────────────────────────────────────
+# ── Singletons ────────────────────────────────────────────────────────────────
 
-def read_file(path: str) -> str:
-    """
-    Read a file. Accepts absolute path or path relative to JARVIS_ROOT.
-    Returns file content as string, or error message prefixed with [ERROR].
-    """
-    p = Path(path)
-    if not p.is_absolute():
-        p = JARVIS_ROOT / path
-    if not p.exists():
-        msg = f"[ERROR] File not found: {p}"
-        _log("read_file", msg, R)
-        return msg
-    try:
-        content = p.read_text(errors="replace")
-        _log("read_file", f"Read {len(content)} chars from {p}", G)
-        return content
-    except Exception as e:
-        msg = f"[ERROR] Could not read {p}: {e}"
-        _log("read_file", msg, R)
-        return msg
+_sm = ScreenMap()
+_tm = TransitionMemory()
 
-# ── 3. write_file ──────────────────────────────────────────────────────────────
-
-def write_file(path: str, content: str, backup: bool = True) -> bool:
-    """
-    Write content to path. Creates parent dirs automatically.
-    Saves a .bak copy of the original if backup=True and file exists.
-    Returns True on success.
-    """
-    p = Path(path)
-    if not p.is_absolute():
-        p = JARVIS_ROOT / path
-    p.parent.mkdir(parents=True, exist_ok=True)
-
-    if backup and p.exists():
-        bak = p.with_suffix(p.suffix + ".bak")
-        shutil.copy2(p, bak)
-        _log("write_file", f"Backup saved: {bak}", Y)
-
-    try:
-        p.write_text(content)
-        _log("write_file", f"Written {len(content)} chars to {p}", G)
-        return True
-    except Exception as e:
-        _log("write_file", f"[ERROR] Write failed: {e}", R)
-        return False
-
-# ── 4. push_to_bridge ─────────────────────────────────────────────────────────
-
-def push_to_bridge(local_path: str, remote_name: str = "") -> bool:
-    """
-    Send a file to Phone B bridge via POST /file_push.
-    remote_name: filename Phone B will save it as (default: same basename).
-    Phone B saves it to ~/staged/<remote_name>.
-    """
-    p = Path(local_path)
-    if not p.is_absolute():
-        p = JARVIS_ROOT / local_path
-    if not p.exists():
-        _log("push_to_bridge", f"[ERROR] File not found: {p}", R)
-        return False
-
-    remote_name = remote_name or p.name
-    try:
-        resp = requests.post(
-            f"{BRIDGE_URL}/file_push",
-            json={"name": remote_name, "content": p.read_text(errors="replace")},
-            timeout=15
-        )
-        if resp.ok:
-            _log("push_to_bridge", f"Pushed {p.name} → Phone B staged/{remote_name}", G)
-            return True
-        else:
-            _log("push_to_bridge", f"[ERROR] Bridge returned {resp.status_code}: {resp.text[:80]}", R)
-            return False
-    except Exception as e:
-        _log("push_to_bridge", f"[ERROR] {e}", R)
-        return False
-
-# ── 5. pull_from_bridge ───────────────────────────────────────────────────────
-
-def pull_from_bridge(remote_name: str, save_to: str = "") -> str:
-    """
-    Pull a file that Phone B has staged for us via GET /file_pull?name=<remote_name>.
-    Saves to save_to path (default: ~/workflows/test/<remote_name>).
-    Returns saved path or empty string on failure.
-    """
-    save_path = Path(save_to) if save_to else JARVIS_ROOT / remote_name
-    try:
-        resp = requests.get(
-            f"{BRIDGE_URL}/file_pull",
-            params={"name": remote_name},
-            timeout=15
-        )
-        if resp.ok:
-            data = resp.json()
-            content = data.get("content", "")
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            save_path.write_text(content)
-            _log("pull_from_bridge", f"Pulled {remote_name} → {save_path}", G)
-            return str(save_path)
-        else:
-            _log("pull_from_bridge", f"[ERROR] {resp.status_code}: {resp.text[:80]}", R)
-            return ""
-    except Exception as e:
-        _log("pull_from_bridge", f"[ERROR] {e}", R)
-        return ""
-
-# ── 6. request_fix ────────────────────────────────────────────────────────────
-
-def request_fix(file_path: str, problem: str, deploy: bool = True) -> str:
-    """
-    Ask Claude (via bridge) to fix a file.
-    Sends the file content + problem description as a prompt.
-    If deploy=True and Claude returns fixed code, writes it back automatically.
-
-    Returns Claude's raw response text.
-    """
-    content = read_file(file_path)
-    if content.startswith("[ERROR]"):
-        return content
-
-    prompt = (
-        f"You are fixing a bug in the Jarvis Android agent codebase.\n\n"
-        f"FILE: {file_path}\n"
-        f"PROBLEM: {problem}\n\n"
-        f"CURRENT CODE:\n```python\n{content}\n```\n\n"
-        f"Return ONLY the complete fixed file content with no explanation. "
-        f"Use the header format: //===== TERMUXFILE: {file_path} ====="
-    )
-
-    _log("request_fix", f"Sending fix request for {file_path} to bridge...", Y)
-    try:
-        resp = requests.post(
-            f"{BRIDGE_URL}/chat",
-            json={"prompt": prompt},
-            timeout=180
-        )
-        if not resp.ok:
-            _log("request_fix", f"[ERROR] Bridge {resp.status_code}", R)
-            return f"[ERROR] Bridge returned {resp.status_code}"
-
-        response_text = resp.json().get("response", "")
-        _log("request_fix", f"Got {len(response_text)} chars from Claude", G)
-
-        if deploy and response_text and not response_text.startswith("[ERROR]"):
-            # Extract code between the file header and next header (or EOF)
-            pattern = r"//===== TERMUXFILE:[^\n]*=====\n(.*?)(?=//=====|\Z)"
-            m = re.search(pattern, response_text, re.DOTALL)
-            code = m.group(1).strip() if m else response_text.strip()
-            if len(code) > 50:
-                write_file(file_path, code)
-                _log("request_fix", f"Deployed fix to {file_path}", G)
-            else:
-                _log("request_fix", "Response too short to deploy — check manually", Y)
-
-        return response_text
-    except Exception as e:
-        _log("request_fix", f"[ERROR] {e}", R)
-        return f"[ERROR] {e}"
-
-# ── 7. dump_codebase ──────────────────────────────────────────────────────────
-
-def dump_codebase(output: str = str(DUMP_OUT)) -> bool:
-    """
-    Regenerate new_dump.txt by running:
-      bash slash.sh ~/workflows/test > <output>
-    Returns True on success.
-    """
-    if not SLASH_SH.exists():
-        _log("dump_codebase", f"[ERROR] slash.sh not found at {SLASH_SH}", R)
-        return False
-    try:
-        _log("dump_codebase", f"Running slash.sh → {output} ...", Y)
-        with open(output, "w") as f:
-            result = subprocess.run(
-                ["bash", str(SLASH_SH), str(JARVIS_ROOT)],
-                stdout=f, stderr=subprocess.PIPE, timeout=60
-            )
-        if result.returncode == 0:
-            size = Path(output).stat().st_size
-            _log("dump_codebase", f"Dump written: {output} ({size} bytes)", G)
-            return True
-        else:
-            _log("dump_codebase", f"[ERROR] slash.sh exited {result.returncode}: {result.stderr.decode()[:200]}", R)
-            return False
-    except Exception as e:
-        _log("dump_codebase", f"[ERROR] {e}", R)
-        return False
-
-# ── 8/9/10. pause / resume / is_paused ───────────────────────────────────────
-
-def pause() -> bool:
-    """Create the pause flag. Agent will freeze after its current step."""
-    try:
-        PAUSE_FLAG.parent.mkdir(parents=True, exist_ok=True)
-        PAUSE_FLAG.touch()
-        _log("pause", f"Pause flag created: {PAUSE_FLAG}", Y)
-        return True
-    except Exception as e:
-        _log("pause", f"[ERROR] {e}", R)
-        return False
-
-def resume() -> bool:
-    """Remove the pause flag. Agent will continue on next iteration."""
-    try:
-        PAUSE_FLAG.unlink(missing_ok=True)
-        _log("resume", f"Pause flag removed — agent will resume", G)
-        return True
-    except Exception as e:
-        _log("resume", f"[ERROR] {e}", R)
-        return False
+# ── Session 17: pause helpers ─────────────────────────────────────────────────
 
 def is_paused() -> bool:
     """Return True if the pause flag file exists."""
-    return PAUSE_FLAG.exists()
+    return os.path.exists(PAUSE_FLAG)
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def get_top_activity(device: str) -> str:
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["adb", "-s", device, "shell", "dumpsys", "activity", "activities"],
+            capture_output=True, text=True, timeout=8
+        )
+        import re
+        m = re.search(
+            r'\*\s*Hist\s*#\d+:\s*ActivityRecord\{[^ ]+\s*[^ ]+\s*([^ ]+)\s*t\d+\}',
+            r.stdout
+        )
+        if m:
+            return m.group(1)
+    except Exception as e:
+        print(f"[controller] activity error: {e}")
+    return ""
+
+def extract_apps_in_order(task: str) -> list:
+    import re
+    task_lc = task.lower()
+    found   = []
+    for app, pkg in APP_PACKAGES.items():
+        if app in task_lc and app not in found:
+            found.append(app)
+    return found
+
+def _screen_name(activity: str) -> str:
+    if not activity:
+        return "unknown"
+    parts = activity.split("/")
+    return parts[-1].replace("Activity", "").lower() if parts else activity
+
+def _action_label(action: dict, ui: list) -> str:
+    act = action.get("action", "?")
+    if act == "tap":
+        tid = action.get("target")
+        if isinstance(tid, int):
+            label = next((e["text"][:30] for e in ui if e["id"] == tid), f"id={tid}")
+            return f"tap:{label}"
+        return f"tap:({action.get('x')},{action.get('y')})"
+    if act == "type":
+        return f"type:{action.get('text','')[:20]}"
+    return act
+
+def _is_on_launcher(device: str) -> bool:
+    act = get_top_activity(device)
+    return "launcher" in act.lower() or "home" in act.lower()
+
+def _is_on_ai_screen(ui: list) -> bool:
+    return any(
+        any(frag in el.get("package", "").lower() for frag in _AI_PKG_FRAGMENTS)
+        for el in ui
+    )
+
+def _compile_research(memory: dict, task: str) -> str:
+    lines = ["Research Report", f"Task: {task}", "=" * 40, ""]
+    for key, value in memory.items():
+        label = key.replace("_", " ").title()
+        lines.append(f"{label}:")
+        lines.append(str(value))
+        lines.append("")
+    return "\n".join(lines)
+
+def _summarize_memory(memory: dict, task: str, model_path: str) -> str:
+    """
+    OPT 13 — Collect all research_* keys from memory, call LLM to merge
+    into a single concise summary. Stores result in memory["summary"].
+    Returns the summary string.
+    """
+    research_keys = {k: v for k, v in memory.items() if k.startswith("research_")}
+    if not research_keys:
+        print("[summarize] no research_* keys found in memory — skipping")
+        return ""
+
+    sections = []
+    for key, value in research_keys.items():
+        app_name = key.replace("research_", "").capitalize()
+        sections.append(f"=== {app_name} ===\n{value}")
+
+    combined = "\n\n".join(sections)
+    prompt = (
+        f"You are a research assistant. The following are research results from multiple AI apps "
+        f"on the topic: \"{task}\"\n\n"
+        f"{combined}\n\n"
+        f"Merge these into ONE concise summary (max 300 words). "
+        f"Output ONLY the summary text, no headers, no preamble."
+    )
+
+    print(f"[summarize] calling LLM to merge {len(research_keys)} research results...")
+    try:
+        summary = generate(prompt, model_path=model_path, max_tokens=400)
+        summary = summary.strip()
+        print(f"[summarize] summary ({len(summary)} chars): {summary[:100]!r}")
+        memory["summary"] = summary
+        return summary
+    except Exception as e:
+        print(f"[summarize] LLM call failed: {e}")
+        fallback = combined[:1000]
+        memory["summary"] = fallback
+        return fallback
+
+def _clipboard_via_server() -> str:
+    import urllib.request, json
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["termux-clipboard-get"],
+            capture_output=True, text=True, timeout=5
+        )
+        text = r.stdout.strip()
+        if text:
+            print(f"[clipboard] subprocess success: {text[:60]!r}")
+            return text
+    except Exception as e:
+        print(f"[clipboard] subprocess failed: {e}")
+    try:
+        url = f"http://127.0.0.1:{AGENT_SERVER_PORT}/clipboard"
+        with urllib.request.urlopen(url, timeout=6) as resp:
+            data = json.loads(resp.read().decode())
+            text = data.get("text", "")
+            if text:
+                print(f"[clipboard] /clipboard success: {text[:60]!r}")
+            return text
+    except Exception as e:
+        print(f"[clipboard] /clipboard failed: {e}")
+        return ""
+
+def _resolve_action(action: dict, ui: list, memory: dict,
+                    task: str = "", device: str = "") -> dict:
+    act = action.get("action")
+
+    if act == "extract":
+        key        = action.get("key", "")
+        value_hint = action.get("value", "")
+        if key in memory and len(str(memory[key])) > 60:
+            print(f"[memory] extract {key!r} BLOCKED — shell already set {len(str(memory[key]))} chars")
+            return {**action, "resolved_value": memory[key]}
+        is_ai_screen = any(
+            any(frag in el.get("package", "").lower() for frag in _AI_PKG_FRAGMENTS)
+            for el in ui
+        )
+        if is_ai_screen and key in memory and str(memory.get(key, "")).strip() == "":
+            copy_el = next((e for e in ui if e.get("text", "").strip() == "Copy"), None)
+            if copy_el:
+                print(f"[memory] extract {key!r} on AI screen — redirecting to tap Copy")
+                return {"action": "tap", "target": copy_el["id"]}
+        resolved = extract_from_ui(key, ui, value_hint)
+        print(f"[memory] extract {key!r} = {resolved!r}")
+        return {**action, "resolved_value": resolved or ""}
+
+    if act == "type":
+        t           = action.get("text", "")
+        substituted = substitute_memory(t, memory)
+        if substituted != t:
+            print(f"[memory] substituted {t!r} → {substituted!r}")
+        return {**action, "text": substituted}
+
+    if act == "shell":
+        import subprocess
+        key     = action.get("key", "result")
+        command = action.get("command", "")
+        if "termux-clipboard-get" in command:
+            print(f"[shell] clipboard → routing via _clipboard_via_server()")
+            output = _clipboard_via_server()
+            print(f"[shell] clipboard result: {output[:100]!r}")
+            if not output:
+                print(f"[shell] WARNING: clipboard empty — Copy tap may not have registered")
+            return {**action, "resolved_value": output, "key": key}
+        result = subprocess.run(
+            command, shell=True,
+            capture_output=True, text=True, timeout=30
+        )
+        output = result.stdout.strip()
+        if not output and result.stderr:
+            output = result.stderr.strip()
+        print(f"[shell] {command!r} → {output[:100]!r}")
+        return {**action, "resolved_value": output, "key": key}
+
+    if act == "share_file":
+        import subprocess
+        filename = action.get("filename", "research.txt")
+        filepath = f"/sdcard/{filename}"
+        cmd = (
+            f"am start -a android.intent.action.SEND "
+            f"-t text/plain "
+            f"--eu android.intent.extra.STREAM file://{filepath} "
+            f"--ez android.intent.extra.REPLACE_EXTRAS false "
+            f"com.whatsapp"
+        )
+        result = subprocess.run(cmd, shell=True, capture_output=True,
+                                text=True, timeout=10)
+        print(f"[share] intent fired: {result.stdout.strip() or 'ok'}")
+        return {**action, "resolved_path": filepath}
+
+    if act == "save_file":
+        import subprocess, base64 as _b64
+        filename = action.get("filename", "research.txt")
+        content  = action.get("content") or _compile_research(memory, task)
+        filepath = f"/sdcard/{filename}"
+        dev      = device or DEFAULT_DEVICE
+        encoded  = _b64.b64encode(content.encode("utf-8")).decode("ascii")
+        subprocess.run(["adb", "-s", dev, "shell",
+                        f"echo '{encoded}' | base64 -d > {filepath}"],
+                       capture_output=True, timeout=15)
+        print(f"[file] saved {len(content)} chars → {filepath}")
+        return {**action, "resolved_path": filepath}
+
+    return action
+
+
+# ── Step ──────────────────────────────────────────────────────────────────────
+
+def run_step(state: AgentState, device: str, model_path: str,
+             max_skill_steps: int = 0, planner: TaskPlanner = None):
+
+    # ── Session 17: pause gate ────────────────────────────────────────────────
+    while is_paused():
+        print("[controller] ⏸ PAUSED — waiting for resume...")
+        time.sleep(2)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    print(f"\n{'='*56}\n  STEP {state.step+1}  |  {state.task}\n{'='*56}")
+
+    img      = capture_screen(adb_device=device)
+    state.last_screen = img
+
+    activity   = get_top_activity(device)
+    ui         = None
+    current_id = None
+
+    if state.last_screen_id and state.last_action_label:
+        predicted_id = _tm.get_predicted_screen(
+            state.last_screen_id, state.last_action_label
+        )
+        if predicted_id:
+            predicted_screen = _sm.get_screen(predicted_id)
+            if predicted_screen and predicted_screen.get("elements"):
+                # Session 16 fix: validate predicted screen activity matches
+                # current live activity. A stale popup screen stored under
+                # the same Gemini activity would otherwise get served here.
+                predicted_activity = predicted_screen.get("activity", "")
+                activity_match = (not predicted_activity or
+                                  not activity or
+                                  predicted_activity == activity)
+                if not activity_match:
+                    print(f"[OPT7] activity mismatch: predicted={predicted_activity!r} "
+                          f"live={activity!r} — skipping cache, fresh dump")
+                elif any(frag in activity for frag in _AI_PKG_FRAGMENTS):
+                    # AI app screens change every step (input state, response
+                    # loading, send button) — never serve from cache
+                    print(f"[OPT7] AI app screen — always fresh dump")
+                elif predicted_screen.get("visits", 0) >= 10:
+                    cached_els = predicted_screen["elements"]
+                    print(f"[OPT7] prediction hit: {predicted_screen['name']} "
+                          f"({predicted_screen.get('visits',0)} visits) — skipping dump")
+                    ui = [dict(e, id=i+1) if "id" not in e else e
+                          for i, e in enumerate(cached_els)]
+                    texts = [e.get("text", "") for e in ui]
+                    if any(len(t) > 200 or "\n[controller]" in t
+                           or "\n[ui_parser]" in t for t in texts):
+                        print("[OPT7] cached UI looks stale/corrupt — doing fresh dump")
+                        ui = None
+                    else:
+                        current_id = predicted_id
+
+    if ui is None:
+        ui = parse_ui(img, adb_device=device)
+        current_id = _sm.identify(activity, ui) if activity else None
+
+    state.last_ui = ui
+    print(f"[step] UI: {[e['text'] for e in ui[:8]]}")
+
+    if current_id and state.last_screen_id and state.last_action_label:
+        _tm.record(state.last_screen_id, state.last_action_label, current_id)
+        _sm.record_transition(state.last_screen_id, state.last_action_label, current_id)
+
+    _tm.clear_pending()
+
+    if current_id:
+        screen_info = _sm.get_screen(current_id)
+        if screen_info:
+            print(f"[map] screen: {screen_info['name']} ({current_id[:8]})")
+
+    # OPT 12: Tick planner
+    if planner and not planner.is_single_goal():
+        planner.tick(activity, ui, state.history, state.memory)
+        goal = planner.current_goal()
+        if goal:
+            state.sub_goal_label = goal.type
+            state.sub_goal_index = planner.plan.index
+            planner.print_status()
+
+            # ── save_clipboard goal: execute inline, no LLM call ─────────────
+            if goal.type == "save_clipboard":
+                print(f"[PLANNER] executing save_clipboard → key={goal.key}")
+                output = _clipboard_via_server()
+                if output:
+                    state.memory[goal.key] = output
+                    print(f"[PLANNER] save_clipboard: stored {len(output)} chars as {goal.key!r}")
+                    state.record({"action": "shell", "key": goal.key,
+                                  "command": "termux-clipboard-get"},
+                                 ui)
+                else:
+                    print(f"[PLANNER] save_clipboard: clipboard empty — will retry next step")
+                state.step += 1
+                return
+
+            # ── summarize_memory goal: call LLM inline ───────────────────────
+            if goal.type == "summarize_memory":
+                print(f"[PLANNER] executing summarize_memory")
+                summary = _summarize_memory(state.memory, state.task, model_path)
+                if summary:
+                    state.record({"action": "shell", "key": "summary",
+                                  "command": "summarize_memory"}, ui)
+                state.step += 1
+                return
+
+        if planner.done():
+            print("[PLANNER] all sub-goals complete → task done")
+            state.done = True
+            return
+
+    # Determine effective task for policy/skill/LLM
+    if planner and not planner.is_single_goal() and not planner.done():
+        effective_task = planner.current_goal_description()
+        sub_goal_desc  = effective_task
+    else:
+        effective_task = state.task
+        sub_goal_desc  = None
+
+    # If summarize_memory was in plan, substitute {summary} in paste_and_send
+    if planner and planner.has_summarize() and "summary" in state.memory:
+        state.memory.setdefault("_paste_override", state.memory["summary"])
+
+    # OPT 4 v2
+    if state.app_index < len(state.task_apps):
+        next_app = state.task_apps[state.app_index]
+        pkg      = APP_PACKAGES.get(next_app, "")
+        is_ai_app = any(frag in pkg for frag in _AI_PKG_FRAGMENTS)
+        if not is_ai_app and state.app_index > 0:
+            prev_app     = state.task_apps[state.app_index - 1]
+            prev_pkg     = APP_PACKAGES.get(prev_app, "")
+            prev_was_ai  = any(frag in prev_pkg for frag in _AI_PKG_FRAGMENTS)
+            if prev_was_ai:
+                already_copied = any("Copy" in h and "tap" in h for h in state.history)
+                if not already_copied:
+                    print(f"[OPT4v2] blocked — {prev_app} Copy not done yet, falling through to policy")
+
+        if _is_on_launcher(device) and not _is_on_ai_screen(ui):
+            print(f"[OPT4v2] launcher -> launching {next_app} ({pkg})")
+            generate("", model_path=model_path, bypass_pkg=pkg)
+            label = f"opt4_launch:{next_app}"
+            state.history.append(label)
+            state.last_action_label = label
+            state.last_screen_id    = current_id
+            state.step += 1
+            state.app_index += 1
+            invalidate_cache(device)
+            _tm.set_pending(current_id, label)
+            return
+        elif _is_on_ai_screen(ui):
+            print(f"[OPT4v2] blocked — still on AI app screen, waiting for capture")
+
+    # Empty UI
+    if not ui:
+        state.empty_ui_count += 1
+        print(f"[step] empty UI ({state.empty_ui_count}/{MAX_EMPTY_WAITS})")
+        if state.empty_ui_count >= MAX_EMPTY_WAITS:
+            state.done = True
+            return
+        time.sleep(2)
+        state.step += 1
+        return
+    state.empty_ui_count = 0
+
+    # Policy Engine
+    policy_actions = get_policy_actions(
+        effective_task, activity, ui, state.history, state.memory
+    )
+    if policy_actions:
+        print(f"[policy] matched — executing {len(policy_actions)} actions")
+        policy_done = False
+        for action in policy_actions:
+            action = _resolve_action(action, ui, state.memory,
+                                     task=state.task, device=device)
+            print(f"[policy] action: {action}")
+            execute(action, ui, adb_device=device)
+            label = _action_label(action, ui)
+            state.record(action, ui)
+            state.last_action_label = label
+            state.last_screen_id    = current_id
+            if action.get("action") == "done":
+                policy_done = True
+                break
+        _tm.set_pending(current_id, state.last_action_label)
+        if policy_done:
+            learn_skill(state.task, state.history, ui)
+            state.done = True
+        return
+
+    # Skill Library
+    skill_actions = get_skill_actions(
+        effective_task, ui,
+        history=state.history,
+        max_steps=max_skill_steps
+    ) if max_skill_steps else []
+
+    if skill_actions:
+        print(f"[skill] matched — executing {len(skill_actions)} actions")
+        for action in skill_actions:
+            action = _resolve_action(action, ui, state.memory,
+                                     task=state.task, device=device)
+            print(f"[skill] action: {action}")
+            execute(action, ui, adb_device=device)
+            label = _action_label(action, ui)
+            state.record(action, ui)
+            state.last_action_label = label
+            state.last_screen_id    = current_id
+        _tm.set_pending(current_id, state.last_action_label)
+        return
+
+    # LLM
+    prompt = build_prompt(
+        effective_task,
+        ui,
+        history=state.history,
+        memory=state.memory,
+        sub_goal=sub_goal_desc,
+    )
+    raw    = generate(prompt, model_path=model_path)
+    action = parse_action(raw, ui)
+
+    # ── OPT 13: wait action — AI still generating, pause and re-screenshot ───
+    if action.get("action") == "wait":
+        warn = action.get("_warn", "")
+        print(f"[step] WAIT — {warn or 'AI generating'} — invalidating cache, sleeping {WAIT_ACTION_SLEEP}s")
+        invalidate_cache(device)   # Session 16 fix: force fresh dump next step
+        time.sleep(WAIT_ACTION_SLEEP)
+        state.step += 1
+        # Do NOT update last_action_label so transition memory stays clean
+        return
+    # ─────────────────────────────────────────────────────────────────────────
+
+    action = _resolve_action(action, ui, state.memory,
+                             task=state.task, device=device)
+    print(f"[llm] action: {action}")
+    execute(action, ui, adb_device=device)
+
+    # Invalidate cache after every LLM action — any action can change screen
+    # contents while activity stays the same (send button after type, input
+    # focus after tap, etc). Matches v0: unconditional invalidate every step.
+    invalidate_cache(device)
+
+    label   = _action_label(action, ui)
+    outcome = _screen_name(get_top_activity(device))
+    state.record(action, ui, outcome_screen=outcome)
+    state.last_action_label = label
+    state.last_screen_id    = current_id
+    _tm.set_pending(current_id, label)
+
+    if action.get("action") == "done":
+        learn_skill(state.task, state.history, ui)
+        state.done = True
+
+
+def run(task, device, model_path, max_steps=20, max_skill_steps=0):
+    print(f"\n{'#'*56}\n  JARVIS  |  {task}\n  Device : {device}\n{'#'*56}\n")
+
+    hc = health_check()
+    print(f"[init] backends: {hc}")
+    if not any([hc["phone_b"], hc["proxy"], hc["llamafile"], hc["binary"]]):
+        print("[init] WARNING: no LLM backend reachable!")
+
+    _sm.print_stats()
+    _tm.print_stats()
+
+    # OPT 12: Create planner
+    planner = TaskPlanner(task)
+
+    state                   = AgentState(task=task, max_steps=max_steps)
+    state.task_apps         = extract_apps_in_order(task)
+    state.app_index         = 0
+    state.empty_ui_count    = 0
+    state.last_screen_id    = None
+    state.last_action_label = None
+    print(f"[init] task_apps: {state.task_apps}")
+    if max_skill_steps:
+        print(f"[init] max_skill_steps: {max_skill_steps} "
+              f"(threshold: {int(max_skill_steps*0.8)})")
+
+    while not state.is_finished() and not planner.done():
+        try:
+            run_step(state, device=device, model_path=model_path,
+                     max_skill_steps=max_skill_steps, planner=planner)
+        except KeyboardInterrupt:
+            print("\n[controller] interrupted")
+            break
+        except Exception as e:
+            print(f"[controller] step error: {e}")
+            import traceback; traceback.print_exc()
+            # Invalidate cache on error — the action may have partially
+            # executed (tap fired) but invalidate_cache never ran.
+            # Without this, the next step serves stale pre-action cache.
+            try:
+                invalidate_cache(device)
+            except Exception:
+                pass
+            time.sleep(3)
+            state.step += 1
+            continue
+
+        if state.done:
+            print(f"\n[controller] done in {state.step} steps")
+            break
+
+        time.sleep(LOOP_SLEEP)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task",            default=DEFAULT_TASK)
+    parser.add_argument("--device",          default=DEFAULT_DEVICE)
+    parser.add_argument("--model",           default=DEFAULT_MODEL)
+    parser.add_argument("--max-steps",       type=int, default=20)
+    parser.add_argument("--max-skill-steps", type=int, default=0)
+    args = parser.parse_args()
+    run(args.task, args.device, args.model,
+        max_steps=args.max_steps,
+        max_skill_steps=args.max_skill_steps)
 
 
 //===== TERMUXFILE: test/jarvis-agent/agent_server.py =====
-#!/usr/bin/env python3
-"""
-agent_server.py  —  Jarvis HTTP bridge for JarvisMinI Android app
-Phone A  —  port 8891
-
-Endpoints:
-  POST /run          — start agent task
-  POST /stop         — stop agent
-  POST /pause        — pause agent (creates ~/.workflows/.jarvis_pause)
-  POST /resume       — resume agent (removes flag)
-  GET  /status       — current agent status + paused field
-  GET  /logs         — SSE log stream
-  GET  /logs/tail    — last N log lines
-  GET  /health       — server health
-
-Session 17: added /pause and /resume endpoints.
-"""
-
 import json
+import os
+import signal
+import subprocess
 import threading
 import time
-import subprocess
-import sys
-import os
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from pathlib import Path
 from collections import deque
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse, parse_qs
 
-PORT       = 8891
-HOME       = Path.home()
-PAUSE_FLAG = HOME / "workflows" / ".jarvis_pause"
+# ── Pause flag path (must match controller.py) ────────────────────────────────
 
-# ── Agent process state ────────────────────────────────────────────────────────
-_lock         = threading.Lock()
-_agent_proc   = None
-_agent_task   = ""
-_agent_step   = 0
-_agent_done   = False
-_agent_error  = None
-_log_buffer   = deque(maxlen=500)
-_sse_clients  = []
+PAUSE_FLAG = os.path.expanduser("~/workflows/.jarvis_pause")
+
+# ── State ─────────────────────────────────────────────────────────────────────
+
+_state = {
+    "running":   False,
+    "task":      "",
+    "step":      0,
+    "done":      False,
+    "error":     None,
+    "last_log":  "",
+    "paused":    False,
+}
+_state_lock   = threading.Lock()
+_log_history  = deque(maxlen=500)
+_log_lock     = threading.Lock()
+_subscribers  = []
+_sub_lock     = threading.Lock()
+_proc         = None
+_proc_lock    = threading.Lock()
+
+# ── Noise filter ──────────────────────────────────────────────────────────────
+
+_NOISE_PREFIXES = ("llama_", "ggml_", "build:", "sampling params:")
+
+def _is_noise(line: str) -> bool:
+    s = line.strip()
+    return any(s.startswith(p) for p in _NOISE_PREFIXES)
+
+# ── Log helpers ───────────────────────────────────────────────────────────────
 
 def _push_log(line: str):
-    with _lock:
-        _log_buffer.append(line)
+    if _is_noise(line):
+        return
+    with _log_lock:
+        _log_history.append(line)
+    with _state_lock:
+        _state["last_log"] = line
+    with _sub_lock:
         dead = []
-        for q in _sse_clients:
+        for q in _subscribers:
             try:
-                q.append(line)
+                q.put_nowait(line)
             except Exception:
                 dead.append(q)
-        for d in dead:
-            _sse_clients.remove(d)
+        for q in dead:
+            _subscribers.remove(q)
 
-def _stream_proc(proc):
-    global _agent_done, _agent_error, _agent_step
-    for raw in proc.stdout:
-        line = raw.decode(errors="replace").rstrip()
-        _push_log(line)
-        if "STEP" in line and "|" in line:
-            try:
-                _agent_step = int(line.split("STEP")[1].split("|")[0].strip())
-            except Exception:
-                pass
-    proc.wait()
-    with _lock:
-        _agent_done  = True
-        if proc.returncode != 0:
-            _agent_error = f"exited {proc.returncode}"
-    _push_log(f"[agent_server] process exited ({proc.returncode})")
-
-# ── Pause helpers ──────────────────────────────────────────────────────────────
-
-def _pause_agent() -> dict:
-    try:
-        PAUSE_FLAG.parent.mkdir(parents=True, exist_ok=True)
-        PAUSE_FLAG.touch()
-        _push_log("[agent_server] ⏸ Agent paused")
-        return {"paused": True, "flag": str(PAUSE_FLAG)}
-    except Exception as e:
-        return {"paused": False, "error": str(e)}
-
-def _resume_agent() -> dict:
-    try:
-        PAUSE_FLAG.unlink(missing_ok=True)
-        _push_log("[agent_server] ▶ Agent resumed")
-        return {"paused": False, "flag": str(PAUSE_FLAG)}
-    except Exception as e:
-        return {"paused": False, "error": str(e)}
+# ── Pause / Resume helpers ────────────────────────────────────────────────────
 
 def _is_paused() -> bool:
-    return PAUSE_FLAG.exists()
+    return os.path.exists(PAUSE_FLAG)
 
-# ── HTTP handler ───────────────────────────────────────────────────────────────
+def _do_pause() -> dict:
+    try:
+        os.makedirs(os.path.dirname(PAUSE_FLAG), exist_ok=True)
+        open(PAUSE_FLAG, "w").close()
+        with _state_lock:
+            _state["paused"] = True
+        _push_log("[agent_server] ⏸ Agent paused")
+        return {"paused": True, "flag": PAUSE_FLAG}
+    except Exception as e:
+        return {"paused": False, "error": str(e)}
+
+def _do_resume() -> dict:
+    try:
+        if os.path.exists(PAUSE_FLAG):
+            os.remove(PAUSE_FLAG)
+        with _state_lock:
+            _state["paused"] = False
+        _push_log("[agent_server] ▶ Agent resumed")
+        return {"paused": False, "flag": PAUSE_FLAG}
+    except Exception as e:
+        return {"paused": False, "error": str(e)}
+
+# ── Controller subprocess ─────────────────────────────────────────────────────
+
+def _run_controller(task: str, device: str, max_steps: int):
+    global _proc
+    cmd = [
+        "python3",
+        os.path.expanduser("~/workflows/test/jarvis-agent/agent/controller.py"),
+        "--device", device,
+        "--task", task,
+        "--max-steps", str(max_steps),
+    ]
+    with _state_lock:
+        _state.update({"running": True, "task": task, "step": 0,
+                        "done": False, "error": None, "paused": False})
+
+    try:
+        with _proc_lock:
+            _proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+
+        for line in _proc.stdout:
+            line = line.rstrip()
+            _push_log(line)
+            if "STEP" in line and "|" in line:
+                try:
+                    step = int(line.split("STEP")[1].split("|")[0].strip())
+                    with _state_lock:
+                        _state["step"] = step
+                except Exception:
+                    pass
+            # Sync paused state from controller log lines
+            if "⏸ PAUSED" in line:
+                with _state_lock:
+                    _state["paused"] = True
+            elif line.startswith("[controller]") and "PAUSED" not in line:
+                # Only clear paused flag if the controller is actively running
+                if _is_paused() is False:
+                    with _state_lock:
+                        _state["paused"] = False
+
+        _proc.wait()
+        rc = _proc.returncode
+
+        with _state_lock:
+            _state["running"] = False
+            _state["done"]    = True
+            _state["paused"]  = False
+            if rc != 0 and rc is not None:
+                _state["error"] = f"exit code {rc}"
+
+        _push_log(f"[agent_server] Task complete (exit {rc})")
+
+    except Exception as e:
+        with _state_lock:
+            _state.update({"running": False, "done": True, "error": str(e), "paused": False})
+        _push_log(f"[agent_server] ✗ Exception: {e}")
+
+# ── HTTP handler ──────────────────────────────────────────────────────────────
 
 class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
-        print(f"[agent_server] {fmt % args}")
+        pass
 
-    def send_json(self, code, data):
-        body = json.dumps(data).encode()
+    def _send_json(self, code: int, obj: dict):
+        body = json.dumps(obj).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except BrokenPipeError:
+            pass
+
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(length)) if length else {}
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+
+        if path == "/run":
+            body = self._read_json()
+            with _state_lock:
+                already = _state["running"]
+            if already:
+                self._send_json(409, {"error": "already running"})
+                return
+            task      = body.get("task", "")
+            device    = body.get("device", "192.168.29.48:40657")
+            max_steps = int(body.get("max_steps", 20))
+            # Clear any stale pause flag on new run
+            _do_resume()
+            threading.Thread(
+                target=_run_controller,
+                args=(task, device, max_steps),
+                daemon=True
+            ).start()
+            self._send_json(200, {"ok": True, "task": task})
+
+        elif path == "/stop":
+            with _proc_lock:
+                p = _proc
+            if p and p.poll() is None:
+                try:
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                except Exception:
+                    p.terminate()
+                _push_log("[agent_server] Stop signal sent")
+            with _state_lock:
+                _state.update({"running": False, "done": True, "paused": False})
+            # Also remove pause flag so it doesn't linger
+            try:
+                if os.path.exists(PAUSE_FLAG):
+                    os.remove(PAUSE_FLAG)
+            except Exception:
+                pass
+            self._send_json(200, {"ok": True})
+
+        elif path == "/pause":
+            result = _do_pause()
+            self._send_json(200, {"ok": True, **result})
+
+        elif path == "/resume":
+            result = _do_resume()
+            self._send_json(200, {"ok": True, **result})
+
+        else:
+            self._send_json(404, {"error": "not found"})
 
     def do_GET(self):
-        if self.path == "/health":
-            self.send_json(200, {
-                "success": True, "service": "agent_server",
-                "port": PORT, "paused": _is_paused()
-            })
+        parsed = urlparse(self.path)
+        path   = parsed.path
+        params = parse_qs(parsed.query)
 
-        elif self.path == "/status":
-            with _lock:
-                self.send_json(200, {
-                    "running":  _agent_proc is not None and _agent_proc.poll() is None,
-                    "task":     _agent_task,
-                    "step":     _agent_step,
-                    "done":     _agent_done,
-                    "error":    _agent_error,
-                    "paused":   _is_paused(),
-                    "last_log": list(_log_buffer)[-1] if _log_buffer else "",
-                })
+        if path == "/status":
+            with _state_lock:
+                s = dict(_state)
+            # Always reflect the real file state for paused
+            s["paused"] = _is_paused()
+            self._send_json(200, s)
 
-        elif self.path.startswith("/logs/tail"):
-            n = 50
-            if "n=" in self.path:
+        elif path == "/health":
+            self._send_json(200, {"ok": True, "paused": _is_paused()})
+
+        elif path == "/clipboard":
+            # Reads system clipboard via termux-clipboard-get.
+            # controller.py calls this instead of subprocess because ADB shell
+            # user cannot access Termux clipboard — only Termux user can.
+            # Retry loop — Copy tap may not have propagated to clipboard yet.
+            text = ""
+            last_err = None
+            for attempt in range(10):
                 try:
-                    n = int(self.path.split("n=")[1].split("&")[0])
-                except Exception:
-                    pass
-            with _lock:
-                lines = list(_log_buffer)[-n:]
-            self.send_json(200, {"lines": lines})
+                    result = subprocess.run(
+                        ["termux-clipboard-get"],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    text = result.stdout.strip()
+                    if text:
+                        break
+                except Exception as e:
+                    last_err = str(e)
+                time.sleep(0.5)
+            if text:
+                self._send_json(200, {"ok": True, "text": text, "attempts": attempt + 1})
+            else:
+                self._send_json(200, {"ok": False, "text": "",
+                                      "error": last_err or "clipboard empty after 10 attempts"})
 
-        elif self.path == "/logs":
-            # SSE stream
+        elif path == "/logs/tail":
+            n = min(int(params.get("n", ["50"])[0]), 100)
+            with _log_lock:
+                lines = list(_log_history)[-n:]
+            body = json.dumps({"lines": lines}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            try:
+                self.wfile.write(body)
+            except BrokenPipeError:
+                pass
+
+        elif path == "/logs":
+            import queue as qmod
+            q = qmod.Queue()
+            with _sub_lock:
+                _subscribers.append(q)
+
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Connection", "keep-alive")
             self.end_headers()
-            q = deque()
-            with _lock:
-                _sse_clients.append(q)
+
             try:
                 while True:
-                    if q:
-                        line = q.popleft()
-                        self.wfile.write(f"data: {line}\n\n".encode())
+                    try:
+                        line = q.get(timeout=15)
+                        msg  = f"data: {line}\n\n".encode()
+                        self.wfile.write(msg)
                         self.wfile.flush()
-                    else:
-                        time.sleep(0.2)
+                    except Exception:
+                        try:
+                            self.wfile.write(b": ping\n\n")
+                            self.wfile.flush()
+                        except Exception:
+                            break
             except Exception:
                 pass
             finally:
-                with _lock:
-                    if q in _sse_clients:
-                        _sse_clients.remove(q)
-        else:
-            self.send_json(404, {"error": "not found"})
-
-    def do_POST(self):
-        global _agent_proc, _agent_task, _agent_step, _agent_done, _agent_error
-
-        length = int(self.headers.get("Content-Length", 0))
-        body   = self.rfile.read(length)
-        try:
-            data = json.loads(body.decode()) if length else {}
-        except Exception:
-            data = {}
-
-        # ── /pause ──────────────────────────────────────────────────────────
-        if self.path == "/pause":
-            result = _pause_agent()
-            self.send_json(200, {"success": True, **result})
-
-        # ── /resume ─────────────────────────────────────────────────────────
-        elif self.path == "/resume":
-            result = _resume_agent()
-            self.send_json(200, {"success": True, **result})
-
-        # ── /stop ───────────────────────────────────────────────────────────
-        elif self.path == "/stop":
-            if _agent_proc and _agent_proc.poll() is None:
-                _agent_proc.terminate()
-                _push_log("[agent_server] Stop signal sent")
-            self.send_json(200, {"success": True})
-
-        # ── /run ────────────────────────────────────────────────────────────
-        elif self.path == "/run":
-            task     = data.get("task", "").strip()
-            device   = data.get("device", "").strip()
-            max_steps = int(data.get("max_steps", 20))
-
-            if not task:
-                self.send_json(400, {"success": False, "error": "missing task"})
-                return
-
-            if _agent_proc and _agent_proc.poll() is None:
-                self.send_json(409, {"success": False, "error": "agent already running"})
-                return
-
-            # Clear pause flag on new run
-            PAUSE_FLAG.unlink(missing_ok=True)
-
-            _agent_task  = task
-            _agent_step  = 0
-            _agent_done  = False
-            _agent_error = None
-
-            controller = str(HOME / "workflows/test/jarvis-agent/agent/controller.py")
-            cmd = [sys.executable, controller,
-                   "--task", task,
-                   "--max-steps", str(max_steps)]
-            if device:
-                cmd += ["--device", device]
-
-            _push_log(f"[agent_server] Starting: {task[:80]}")
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT)
-            _agent_proc = proc
-            threading.Thread(target=_stream_proc, args=(proc,), daemon=True).start()
-            self.send_json(200, {"success": True, "task": task})
+                with _sub_lock:
+                    if q in _subscribers:
+                        _subscribers.remove(q)
 
         else:
-            self.send_json(404, {"error": "not found"})
+            self._send_json(404, {"error": "not found"})
 
+
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("╔══════════════════════════════════════════════════════╗")
-    print("║  JARVIS AGENT SERVER  —  Phone A (OPPO)             ║")
-    print("╚══════════════════════════════════════════════════════╝")
-    print(f"  Port      : {PORT}")
-    print(f"  Pause flag: {PAUSE_FLAG}")
-    print(f"  Session   : 17 (pause/resume added)")
-    print()
-    server = HTTPServer(("0.0.0.0", PORT), Handler)
+    port   = int(os.environ.get("AGENT_PORT", 8891))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"[agent_server] Listening on :{port}")
+    print(f"[agent_server] Pause flag  : {PAUSE_FLAG}")
+    print(f"[agent_server] Session 17  : /pause and /resume endpoints active")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n[agent_server] Stopped.")
-
-
-//===== TERMUXFILE: test/jarvis-agent/agent/controller.py =====
-# SESSION 17 PATCH — add this block at the very top of run_step()
-# Find the run_step() method and insert the pause check as the first thing.
-#
-# FIND this line in run_step():
-#   def run_step(self, ...):
-#
-# ADD immediately after the docstring / first line of the method body:
-#
-#   # ── Session 17: pause gate ──────────────────────────────────────────────
-#   from agent.self_repair import is_paused
-#   while is_paused():
-#       print("[controller] ⏸ PAUSED — waiting for resume...")
-#       time.sleep(2)
-#   # ────────────────────────────────────────────────────────────────────────
-#
-# That's the only change needed in controller.py.
-# Everything else (self_repair.py, agent_server.py, Kotlin files) is self-contained.
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentRepository.kt =====
-package com.jarvismini.agent
-
-import android.util.Log
-import com.jarvismini.core.JarvisPrefs
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
-import java.util.concurrent.TimeUnit
-
-object AgentRepository {
-
-    private const val TAG          = "AgentRepo"
-    private const val DEFAULT_HOST = "192.168.29.48"
-    private const val AGENT_PORT   = 8891
-    private const val TTS_PORT     = 8892
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    private fun agentUrl(path: String): String {
-        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
-        return "http://$host:$AGENT_PORT$path"
-    }
-
-    private fun ttsUrl(path: String): String {
-        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
-        return "http://$host:$TTS_PORT$path"
-    }
-
-    suspend fun runTask(
-        task: String,
-        device: String,
-        maxSteps: Int = 20
-    ): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val body = JSONObject().apply {
-                put("task", task)
-                put("device", device)
-                put("max_steps", maxSteps)
-            }.toString().toRequestBody("application/json".toMediaType())
-
-            val req = Request.Builder()
-                .url(agentUrl("/run"))
-                .post(body)
-                .build()
-
-            client.newCall(req).execute().use { resp ->
-                val json = JSONObject(resp.body?.string() ?: "{}")
-                if (resp.isSuccessful) {
-                    Result.success(json.optString("task", task))
-                } else {
-                    Result.failure(Exception(json.optString("error", "start failed")))
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "runTask failed", e)
-            Result.failure(e)
-        }
-    }
-
-    suspend fun stopAgent(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder()
-                .url(agentUrl("/stop"))
-                .post("{}".toRequestBody("application/json".toMediaType()))
-                .build()
-            client.newCall(req).execute().close()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // ── Session 17: pause / resume ────────────────────────────────────────────
-
-    suspend fun pauseAgent(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder()
-                .url(agentUrl("/pause"))
-                .post("{}".toRequestBody("application/json".toMediaType()))
-                .build()
-            client.newCall(req).execute().close()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "pauseAgent failed", e)
-            Result.failure(e)
-        }
-    }
-
-    suspend fun resumeAgent(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder()
-                .url(agentUrl("/resume"))
-                .post("{}".toRequestBody("application/json".toMediaType()))
-                .build()
-            client.newCall(req).execute().close()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "resumeAgent failed", e)
-            Result.failure(e)
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-
-    suspend fun getStatus(): AgentStatus = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder().url(agentUrl("/status")).get().build()
-            client.newCall(req).execute().use { resp ->
-                val j = JSONObject(resp.body?.string() ?: "{}")
-                AgentStatus(
-                    running = j.optBoolean("running"),
-                    task    = j.optString("task"),
-                    step    = j.optInt("step"),
-                    done    = j.optBoolean("done"),
-                    error   = j.optString("error").ifBlank { null },
-                    paused  = j.optBoolean("paused"),
-                    lastLog = j.optString("last_log"),
-                )
-            }
-        } catch (e: Exception) {
-            AgentStatus(error = e.message)
-        }
-    }
-
-    suspend fun fetchLogTail(n: Int = 50): List<String> = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder()
-                .url(agentUrl("/logs/tail?n=$n"))
-                .get()
-                .build()
-            client.newCall(req).execute().use { resp ->
-                val j   = JSONObject(resp.body?.string() ?: "{}")
-                val arr = j.optJSONArray("lines") ?: return@use emptyList()
-                List(arr.length()) { arr.getString(it) }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchLogTail failed", e)
-            emptyList()
-        }
-    }
-
-    fun streamLogs(): Flow<String> = flow {
-        try {
-            val req = Request.Builder()
-                .url(agentUrl("/logs"))
-                .addHeader("Accept", "text/event-stream")
-                .get()
-                .build()
-
-            val sseClient = OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(300, TimeUnit.SECONDS)
-                .build()
-
-            sseClient.newCall(req).execute().use { resp ->
-                val source = resp.body?.source() ?: return@use
-                while (!source.exhausted()) {
-                    val line = source.readUtf8Line() ?: break
-                    if (line.startsWith("data: ")) {
-                        val payload = line.removePrefix("data: ").trim()
-                        if (payload.isNotBlank()) emit(payload)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            emit("[connection lost: ${e.message}]")
-        }
-    }.flowOn(Dispatchers.IO)
-
-    suspend fun speak(text: String, voiceId: String? = null): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            try {
-                val body = JSONObject().apply {
-                    put("text", text)
-                    if (voiceId != null) put("voice_id", voiceId)
-                }.toString().toRequestBody("application/json".toMediaType())
-
-                val req = Request.Builder()
-                    .url(ttsUrl("/speak"))
-                    .post(body)
-                    .build()
-
-                client.newCall(req).execute().close()
-                Result.success(Unit)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-
-    suspend fun isAgentServerReachable(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder()
-                .url(agentUrl("/health"))
-                .get()
-                .build()
-            val quickClient = OkHttpClient.Builder()
-                .connectTimeout(3, TimeUnit.SECONDS)
-                .readTimeout(3, TimeUnit.SECONDS)
-                .build()
-            quickClient.newCall(req).execute().use { it.isSuccessful }
-        } catch (e: Exception) {
-            false
-        }
-    }
-}
-
-data class AgentStatus(
-    val running: Boolean = false,
-    val task:    String  = "",
-    val step:    Int     = 0,
-    val done:    Boolean = false,
-    val error:   String? = null,
-    val paused:  Boolean = false,
-    val lastLog: String  = "",
-)
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
-package com.jarvismini.agent
-
-import android.content.Context
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-
-data class AgentDashboardState(
-    val serverOnline:  Boolean       = false,
-    val running:       Boolean       = false,
-    val paused:        Boolean       = false,   // Session 17
-    val task:          String        = "",
-    val step:          Int           = 0,
-    val done:          Boolean       = false,
-    val error:         String?       = null,
-    val logs:          List<LogLine> = emptyList(),
-    val taskInput:     String        = "",
-    val deviceInput:   String        = "192.168.29.48:40657",
-    val maxSteps:      Int           = 20,
-    val ttsEnabled:    Boolean       = true,
-)
-
-data class LogLine(
-    val id:    Long,
-    val text:  String,
-    val level: LogLevel = LogLevel.INFO,
-)
-
-enum class LogLevel { INFO, STEP, SUCCESS, ERROR, WARN, SYSTEM }
-
-fun classifyLog(line: String): LogLevel = when {
-    line.contains("✓") || line.contains("Task complete") || line.contains("completed") -> LogLevel.SUCCESS
-    line.contains("✗") || line.contains("ERROR") || line.contains("error:", ignoreCase = true) -> LogLevel.ERROR
-    line.contains("WARNING") || line.contains("WARN") || line.contains("Retry") -> LogLevel.WARN
-    line.contains("STEP") && line.contains("|") -> LogLevel.STEP
-    line.startsWith("[server]") || line.startsWith("[agent_server]") -> LogLevel.SYSTEM
-    else -> LogLevel.INFO
-}
-
-class AgentDashboardViewModel : ViewModel() {
-
-    private val _state = MutableStateFlow(AgentDashboardState())
-    val state: StateFlow<AgentDashboardState> = _state.asStateFlow()
-
-    private var logStreamJob:      Job? = null
-    private var statusPollJob:     Job? = null
-    private var completionWatcher: Job? = null
-
-    init {
-        checkServer()
-    }
-
-    fun checkServer() {
-        viewModelScope.launch {
-            val online = AgentRepository.isAgentServerReachable()
-            _state.update { it.copy(serverOnline = online) }
-            if (online) {
-                pollStatus()
-                restoreLogs()
-            }
-        }
-    }
-
-    fun onTaskInput(v: String)   = _state.update { it.copy(taskInput = v) }
-    fun onDeviceInput(v: String) = _state.update { it.copy(deviceInput = v) }
-    fun onMaxStepsInput(v: Int)  = _state.update { it.copy(maxSteps = v) }
-    fun onTtsToggle(v: Boolean)  = _state.update { it.copy(ttsEnabled = v) }
-
-    fun startAgent() {
-        val s      = _state.value
-        val task   = s.taskInput.trim()
-        val device = s.deviceInput.trim()
-        if (task.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(logs = emptyList(), done = false, error = null, paused = false) }
-            pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
-
-            AgentRepository.runTask(task, device, s.maxSteps)
-                .onSuccess { pushLog("[dashboard] Agent started: $it", LogLevel.SYSTEM) }
-                .onFailure { pushLog("[dashboard] ✗ Failed: ${it.message}", LogLevel.ERROR) }
-
-            startLogStream()
-            watchForCompletion()
-        }
-    }
-
-    fun stopAgent() {
-        viewModelScope.launch {
-            AgentRepository.stopAgent()
-            pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
-        }
-    }
-
-    // ── Session 17: pause / resume ────────────────────────────────────────────
-
-    fun pauseAgent() {
-        viewModelScope.launch {
-            AgentRepository.pauseAgent()
-                .onSuccess {
-                    _state.update { it.copy(paused = true) }
-                    pushLog("[dashboard] ⏸ Agent paused", LogLevel.WARN)
-                }
-                .onFailure {
-                    pushLog("[dashboard] ✗ Pause failed: ${it.message}", LogLevel.ERROR)
-                }
-        }
-    }
-
-    fun resumeAgent() {
-        viewModelScope.launch {
-            AgentRepository.resumeAgent()
-                .onSuccess {
-                    _state.update { it.copy(paused = false) }
-                    pushLog("[dashboard] ▶ Agent resumed", LogLevel.SYSTEM)
-                }
-                .onFailure {
-                    pushLog("[dashboard] ✗ Resume failed: ${it.message}", LogLevel.ERROR)
-                }
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-
-    fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
-
-    fun speakResult(context: Context) {
-        val last = _state.value.logs
-            .filter { it.level == LogLevel.SUCCESS || it.level == LogLevel.STEP }
-            .lastOrNull()?.text ?: return
-        viewModelScope.launch { AgentRepository.speak(last) }
-    }
-
-    private fun restoreLogs() {
-        viewModelScope.launch {
-            if (_state.value.logs.isNotEmpty()) return@launch
-            val lines = AgentRepository.fetchLogTail(50)
-            if (lines.isEmpty()) return@launch
-            pushLog("[dashboard] ── restored last ${lines.size} lines ──", LogLevel.SYSTEM)
-            lines.forEach { pushLog(it, classifyLog(it)) }
-            if (_state.value.running) {
-                startLogStream()
-                watchForCompletion()
-            }
-        }
-    }
-
-    private fun watchForCompletion() {
-        completionWatcher?.cancel()
-        completionWatcher = viewModelScope.launch {
-            state
-                .filter { it.done && !it.running }
-                .take(1)
-                .collect {
-                    if (_state.value.ttsEnabled) {
-                        val last = _state.value.logs
-                            .filter { l -> l.level == LogLevel.SUCCESS || l.level == LogLevel.STEP }
-                            .lastOrNull()?.text
-                        if (!last.isNullOrBlank()) {
-                            pushLog("[dashboard] Speaking result via TTS...", LogLevel.SYSTEM)
-                            AgentRepository.speak(last)
-                        }
-                    }
-                }
-        }
-    }
-
-    private fun startLogStream() {
-        logStreamJob?.cancel()
-        logStreamJob = viewModelScope.launch {
-            AgentRepository.streamLogs().collect { line ->
-                pushLog(line, classifyLog(line))
-            }
-        }
-    }
-
-    private fun pollStatus() {
-        statusPollJob?.cancel()
-        statusPollJob = viewModelScope.launch {
-            while (true) {
-                delay(2000)
-                val status = AgentRepository.getStatus()
-                _state.update { it.copy(
-                    running      = status.running,
-                    task         = status.task,
-                    step         = status.step,
-                    done         = status.done,
-                    error        = status.error,
-                    paused       = status.paused,
-                    serverOnline = true,
-                )}
-            }
-        }
-    }
-
-    private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
-        _state.update { s ->
-            val logs = (s.logs + LogLine(id = System.nanoTime(), text = text, level = level)).takeLast(200)
-            s.copy(logs = logs)
-        }
-    }
-
-    override fun onCleared() {
-        logStreamJob?.cancel()
-        statusPollJob?.cancel()
-        completionWatcher?.cancel()
-        super.onCleared()
-    }
-}
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
-package com.jarvismini.agent
-
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
-
-private val Cyan    = Color(0xFF00E0FF)
-private val DimCyan = Color(0xFF005566)
-private val BgDark  = Color(0xFF060F14)
-private val BgCard  = Color(0xFF0A1A22)
-private val Green   = Color(0xFF00FF88)
-private val Red     = Color(0xFFFF4466)
-private val Yellow  = Color(0xFFFFCC00)
-private val White70 = Color(0xB3FFFFFF)
-private val White40 = Color(0x66FFFFFF)
-
-@Composable
-fun AgentDashboardScreen(
-    onBack:      () -> Unit,
-    initialTask: String? = null,
-    vm:          AgentDashboardViewModel = viewModel()
-) {
-    val state     by vm.state.collectAsState()
-    val context   = LocalContext.current
-    val listState = rememberLazyListState()
-    val scope     = rememberCoroutineScope()
-
-    LaunchedEffect(initialTask) {
-        if (!initialTask.isNullOrBlank()) {
-            vm.onTaskInput(initialTask)
-        }
-    }
-
-    LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) {
-            listState.animateScrollToItem(state.logs.lastIndex)
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF010A0F))))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-        ) {
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = Cyan)
-                }
-                Text(
-                    "AGENT DASHBOARD",
-                    fontSize      = 18.sp,
-                    fontWeight    = FontWeight.Light,
-                    letterSpacing = 4.sp,
-                    color         = Cyan,
-                    fontFamily    = FontFamily.Monospace
-                )
-                Spacer(Modifier.weight(1f))
-                ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = { vm.checkServer() }) {
-                    Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
-                }
-            }
-
-            if (state.running || state.done || state.paused) {
-                StatusBar(state)
-                Spacer(Modifier.height(8.dp))
-            }
-
-            TaskInputSection(
-                state    = state,
-                onTask   = vm::onTaskInput,
-                onDevice = vm::onDeviceInput,
-                onStart  = vm::startAgent,
-                onStop   = vm::stopAgent,
-                onPause  = vm::pauseAgent,
-                onResume = vm::resumeAgent,
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "LOGS",
-                    fontSize      = 11.sp,
-                    letterSpacing = 3.sp,
-                    color         = DimCyan,
-                    fontFamily    = FontFamily.Monospace
-                )
-                Spacer(Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.VolumeUp,
-                        null,
-                        tint     = if (state.ttsEnabled) Cyan else White40,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Switch(
-                        checked         = state.ttsEnabled,
-                        onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier.height(20.dp),
-                        colors          = SwitchDefaults.colors(
-                            checkedThumbColor   = Cyan,
-                            checkedTrackColor   = DimCyan,
-                            uncheckedThumbColor = White40,
-                            uncheckedTrackColor = BgCard
-                        )
-                    )
-                }
-                if (state.logs.isNotEmpty()) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "${state.logs.size} lines",
-                        fontSize   = 10.sp,
-                        color      = White40,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(
-                        onClick        = vm::clearLogs,
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
-                        Text("Clear", fontSize = 11.sp, color = White40)
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    TextButton(
-                        onClick        = { vm.speakResult(context) },
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
-                        Icon(Icons.Default.VolumeUp, null, tint = Cyan, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Speak", fontSize = 11.sp, color = Cyan)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(BgCard)
-                    .border(0.5.dp, DimCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                if (state.logs.isEmpty()) {
-                    Text(
-                        "No logs yet. Start a task to see agent activity.",
-                        color      = White40,
-                        fontSize   = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier   = Modifier.align(Alignment.Center)
-                    )
-                } else {
-                    LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        items(state.logs, key = { it.id }) { log ->
-                            LogLineRow(log)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-        }
-    }
-}
-
-@Composable
-private fun StatusBar(state: AgentDashboardState) {
-    val bg = when {
-        state.error != null -> Red.copy(alpha = 0.15f)
-        state.paused        -> Yellow.copy(alpha = 0.12f)
-        state.done          -> Green.copy(alpha = 0.12f)
-        state.running       -> Cyan.copy(alpha = 0.08f)
-        else                -> BgCard
-    }
-    val text = when {
-        state.error != null -> "✗ Error: ${state.error}"
-        state.paused        -> "⏸ Paused at step ${state.step}  —  ${state.task.take(50)}"
-        state.done          -> "✓ Done in ${state.step} steps"
-        state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
-        else                -> ""
-    }
-    val textColor = when {
-        state.error != null -> Red
-        state.paused        -> Yellow
-        state.done          -> Green
-        else                -> Cyan
-    }
-    if (text.isBlank()) return
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (state.running && !state.paused) {
-            CircularProgressIndicator(
-                modifier    = Modifier.size(12.dp),
-                color       = Cyan,
-                strokeWidth = 1.5.dp
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(
-            text,
-            color      = textColor,
-            fontSize   = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            maxLines   = 1
-        )
-    }
-}
-
-@Composable
-private fun TaskInputSection(
-    state:    AgentDashboardState,
-    onTask:   (String) -> Unit,
-    onDevice: (String) -> Unit,
-    onStart:  () -> Unit,
-    onStop:   () -> Unit,
-    onPause:  () -> Unit,
-    onResume: () -> Unit,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(BgCard)
-            .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
-    ) {
-        OutlinedTextField(
-            value           = state.taskInput,
-            onValueChange   = onTask,
-            label           = { Text("Task", color = White40, fontSize = 12.sp) },
-            placeholder     = { Text("Open WhatsApp and message Mummy...", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
-            modifier        = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            minLines        = 2,
-            maxLines        = 4,
-            colors          = agentFieldColors(),
-            textStyle       = LocalTextStyle.current.copy(
-                color      = White70,
-                fontSize   = 13.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value         = state.deviceInput,
-            onValueChange = onDevice,
-            label         = { Text("Device", color = White40, fontSize = 11.sp) },
-            singleLine    = true,
-            modifier      = Modifier.fillMaxWidth(),
-            colors        = agentFieldColors(),
-            textStyle     = LocalTextStyle.current.copy(
-                color      = Cyan,
-                fontSize   = 12.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
-            if (state.running) {
-                // ── Pause / Resume button ──────────────────────────────────
-                if (state.paused) {
-                    OutlinedButton(
-                        onClick  = onResume,
-                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Green),
-                        modifier = Modifier.height(38.dp)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Resume", fontSize = 13.sp)
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick  = onPause,
-                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
-                        modifier = Modifier.height(38.dp)
-                    ) {
-                        Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Pause", fontSize = 13.sp)
-                    }
-                }
-                Spacer(Modifier.width(8.dp))
-                // ── Stop button ────────────────────────────────────────────
-                OutlinedButton(
-                    onClick  = onStop,
-                    colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    Icon(Icons.Default.Stop, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Stop", fontSize = 13.sp)
-                }
-            } else {
-                Button(
-                    onClick  = onStart,
-                    enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline,
-                    colors   = ButtonDefaults.buttonColors(
-                        containerColor = Cyan,
-                        contentColor   = BgDark
-                    ),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Run", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-            }
-        }
-
-        if (!state.serverOnline) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
-                color      = Yellow,
-                fontSize   = 10.sp,
-                fontFamily = FontFamily.Monospace,
-            )
-        }
-    }
-}
-
-@Composable
-private fun LogLineRow(log: LogLine) {
-    val color = when (log.level) {
-        LogLevel.SUCCESS -> Green
-        LogLevel.ERROR   -> Red
-        LogLevel.WARN    -> Yellow
-        LogLevel.STEP    -> Cyan
-        LogLevel.SYSTEM  -> DimCyan
-        LogLevel.INFO    -> White70
-    }
-    Text(
-        text       = log.text,
-        color      = color,
-        fontSize   = 11.sp,
-        fontFamily = FontFamily.Monospace,
-        lineHeight = 14.sp,
-        modifier   = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 1.dp, horizontal = 2.dp)
-    )
-}
-
-// Session 17: paused param added — dot turns yellow when paused
-@Composable
-private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val alpha by pulse.animateFloat(
-        initialValue = 0.4f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dotAlpha"
-    )
-    val color = when {
-        !online -> Red
-        paused  -> Yellow.copy(alpha = alpha)
-        running -> Green.copy(alpha = alpha)
-        else    -> Green
-    }
-    Box(
-        Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(color)
-    )
-}
-
-@Composable
-private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor   = Cyan,
-    unfocusedBorderColor = DimCyan.copy(alpha = 0.5f),
-    cursorColor          = Cyan,
-    focusedLabelColor    = Cyan,
-)
+        print("[agent_server] Stopped")
