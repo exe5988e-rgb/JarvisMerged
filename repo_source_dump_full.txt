@@ -1713,14 +1713,14 @@ fun AgentDashboardScreen(
                     fontFamily    = FontFamily.Monospace
                 )
                 Spacer(Modifier.weight(1f))
-                ServerStatusDot(online = state.serverOnline, running = state.running)
+                ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { vm.checkServer() }) {
                     Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
                 }
             }
 
-            if (state.running || state.done) {
+            if (state.running || state.done || state.paused) {
                 StatusBar(state)
                 Spacer(Modifier.height(8.dp))
             }
@@ -1731,6 +1731,8 @@ fun AgentDashboardScreen(
                 onDevice = vm::onDeviceInput,
                 onStart  = vm::startAgent,
                 onStop   = vm::stopAgent,
+                onPause  = vm::pauseAgent,
+                onResume = vm::resumeAgent,
             )
 
             Spacer(Modifier.height(8.dp))
@@ -1831,18 +1833,21 @@ fun AgentDashboardScreen(
 private fun StatusBar(state: AgentDashboardState) {
     val bg = when {
         state.error != null -> Red.copy(alpha = 0.15f)
+        state.paused        -> Yellow.copy(alpha = 0.12f)
         state.done          -> Green.copy(alpha = 0.12f)
         state.running       -> Cyan.copy(alpha = 0.08f)
         else                -> BgCard
     }
     val text = when {
         state.error != null -> "✗ Error: ${state.error}"
+        state.paused        -> "⏸ Paused at step ${state.step}  —  ${state.task.take(50)}"
         state.done          -> "✓ Done in ${state.step} steps"
         state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
         else                -> ""
     }
     val textColor = when {
         state.error != null -> Red
+        state.paused        -> Yellow
         state.done          -> Green
         else                -> Cyan
     }
@@ -1855,7 +1860,7 @@ private fun StatusBar(state: AgentDashboardState) {
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (state.running) {
+        if (state.running && !state.paused) {
             CircularProgressIndicator(
                 modifier    = Modifier.size(12.dp),
                 color       = Cyan,
@@ -1880,6 +1885,8 @@ private fun TaskInputSection(
     onDevice: (String) -> Unit,
     onStart:  () -> Unit,
     onStop:   () -> Unit,
+    onPause:  () -> Unit,
+    onResume: () -> Unit,
 ) {
     Column(
         Modifier
@@ -1924,11 +1931,38 @@ private fun TaskInputSection(
 
         Spacer(Modifier.height(10.dp))
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
             if (state.running) {
+                // ── Pause / Resume button ──────────────────────────────────
+                if (state.paused) {
+                    OutlinedButton(
+                        onClick  = onResume,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Green),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Resume", fontSize = 13.sp)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick  = onPause,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Pause", fontSize = 13.sp)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                // ── Stop button ────────────────────────────────────────────
                 OutlinedButton(
                     onClick  = onStop,
-                    border   = ButtonDefaults.outlinedButtonBorder.copy(),
                     colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
                     modifier = Modifier.height(38.dp)
                 ) {
@@ -1987,8 +2021,9 @@ private fun LogLineRow(log: LogLine) {
     )
 }
 
+// Session 17: paused param added — dot turns yellow when paused
 @Composable
-private fun ServerStatusDot(online: Boolean, running: Boolean) {
+private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
     val pulse = rememberInfiniteTransition(label = "pulse")
     val alpha by pulse.animateFloat(
         initialValue = 0.4f, targetValue = 1f,
@@ -2000,6 +2035,7 @@ private fun ServerStatusDot(online: Boolean, running: Boolean) {
     )
     val color = when {
         !online -> Red
+        paused  -> Yellow.copy(alpha = alpha)
         running -> Green.copy(alpha = alpha)
         else    -> Green
     }
@@ -2034,6 +2070,7 @@ import kotlinx.coroutines.launch
 data class AgentDashboardState(
     val serverOnline:  Boolean       = false,
     val running:       Boolean       = false,
+    val paused:        Boolean       = false,   // Session 17
     val task:          String        = "",
     val step:          Int           = 0,
     val done:          Boolean       = false,
@@ -2098,7 +2135,7 @@ class AgentDashboardViewModel : ViewModel() {
         if (task.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(logs = emptyList(), done = false, error = null) }
+            _state.update { it.copy(logs = emptyList(), done = false, error = null, paused = false) }
             pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
 
             AgentRepository.runTask(task, device, s.maxSteps)
@@ -2116,6 +2153,36 @@ class AgentDashboardViewModel : ViewModel() {
             pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
         }
     }
+
+    // ── Session 17: pause / resume ────────────────────────────────────────────
+
+    fun pauseAgent() {
+        viewModelScope.launch {
+            AgentRepository.pauseAgent()
+                .onSuccess {
+                    _state.update { it.copy(paused = true) }
+                    pushLog("[dashboard] ⏸ Agent paused", LogLevel.WARN)
+                }
+                .onFailure {
+                    pushLog("[dashboard] ✗ Pause failed: ${it.message}", LogLevel.ERROR)
+                }
+        }
+    }
+
+    fun resumeAgent() {
+        viewModelScope.launch {
+            AgentRepository.resumeAgent()
+                .onSuccess {
+                    _state.update { it.copy(paused = false) }
+                    pushLog("[dashboard] ▶ Agent resumed", LogLevel.SYSTEM)
+                }
+                .onFailure {
+                    pushLog("[dashboard] ✗ Resume failed: ${it.message}", LogLevel.ERROR)
+                }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
 
@@ -2181,6 +2248,7 @@ class AgentDashboardViewModel : ViewModel() {
                     step         = status.step,
                     done         = status.done,
                     error        = status.error,
+                    paused       = status.paused,
                     serverOnline = true,
                 )}
             }
@@ -2287,6 +2355,38 @@ object AgentRepository {
         }
     }
 
+    // ── Session 17: pause / resume ────────────────────────────────────────────
+
+    suspend fun pauseAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/pause"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "pauseAgent failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resumeAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/resume"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "resumeAgent failed", e)
+            Result.failure(e)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     suspend fun getStatus(): AgentStatus = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder().url(agentUrl("/status")).get().build()
@@ -2298,6 +2398,7 @@ object AgentRepository {
                     step    = j.optInt("step"),
                     done    = j.optBoolean("done"),
                     error   = j.optString("error").ifBlank { null },
+                    paused  = j.optBoolean("paused"),
                     lastLog = j.optString("last_log"),
                 )
             }
@@ -2306,10 +2407,6 @@ object AgentRepository {
         }
     }
 
-    /**
-     * Fetches last N lines from server log history.
-     * Used on dashboard resume to restore logs without flooding the UI.
-     */
     suspend fun fetchLogTail(n: Int = 50): List<String> = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
@@ -2398,6 +2495,7 @@ data class AgentStatus(
     val step:    Int     = 0,
     val done:    Boolean = false,
     val error:   String? = null,
+    val paused:  Boolean = false,
     val lastLog: String  = "",
 )
 

@@ -1287,8 +1287,8 @@ fun AgentDashboardScreen(
 
 // ... FILE TRUNCATED ...
 
-    val color = when {
         !online -> Red
+        paused  -> Yellow.copy(alpha = alpha)
         running -> Green.copy(alpha = alpha)
         else    -> Green
     }
@@ -1323,6 +1323,7 @@ import kotlinx.coroutines.launch
 data class AgentDashboardState(
     val serverOnline:  Boolean       = false,
     val running:       Boolean       = false,
+    val paused:        Boolean       = false,   // Session 17
     val task:          String        = "",
     val step:          Int           = 0,
     val done:          Boolean       = false,
@@ -1359,7 +1360,6 @@ class AgentDashboardViewModel : ViewModel() {
     private var logStreamJob:      Job? = null
     private var statusPollJob:     Job? = null
     private var completionWatcher: Job? = null
-
 
 // ... FILE TRUNCATED ...
 
@@ -1439,7 +1439,6 @@ object AgentRepository {
 
 // ... FILE TRUNCATED ...
 
-                .build()
             val quickClient = OkHttpClient.Builder()
                 .connectTimeout(3, TimeUnit.SECONDS)
                 .readTimeout(3, TimeUnit.SECONDS)
@@ -1457,6 +1456,7 @@ data class AgentStatus(
     val step:    Int     = 0,
     val done:    Boolean = false,
     val error:   String? = null,
+    val paused:  Boolean = false,
     val lastLog: String  = "",
 )
 
