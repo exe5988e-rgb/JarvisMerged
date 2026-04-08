@@ -1,4 +1,810 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
+//===== TERMUXFILE: test/jarvis-agent/agent/self_repair.py =====
+#!/usr/bin/env python3
+"""
+self_repair.py  —  Jarvis Self-Repair Module  (Session 17)
+~/workflows/test/jarvis-agent/agent/self_repair.py
+
+Capabilities:
+  1. find_file()        — search codebase by filename or content keyword
+  2. read_file()        — read any file under JARVIS_ROOT safely
+  3. write_file()       — write/patch a file with auto .bak backup
+  4. push_to_bridge()   — send a file to Phone B over HTTP (/file_push)
+  5. pull_from_bridge() — pull a file Phone B staged for us (/file_pull)
+  6. request_fix()      — ask Claude via bridge to fix a file, deploy answer
+  7. dump_codebase()    — regenerate new_dump.txt via slash.sh
+  8. pause()            — create pause flag, agent stops after current step
+  9. resume()           — remove pause flag, agent continues
+  10. is_paused()       — check if pause flag exists
+
+All write ops create a .bak copy first.
+Cross-device transfers use the existing bridge HTTP on port 8890.
+"""
+
+import os
+import re
+import json
+import shutil
+import requests
+import subprocess
+from pathlib import Path
+from datetime import datetime
+
+# ── Paths ──────────────────────────────────────────────────────────────────────
+HOME        = Path.home()
+JARVIS_ROOT = HOME / "workflows" / "test"
+AGENT_ROOT  = JARVIS_ROOT / "jarvis-agent"
+SLASH_SH    = JARVIS_ROOT / "extract_ai_output.sh"
+DUMP_OUT    = HOME / "new_dump.txt"
+PAUSE_FLAG  = HOME / "workflows" / ".jarvis_pause"
+
+# Phone B bridge — HTTP port is fixed at 8890
+BRIDGE_URL  = "http://192.168.29.110:8890"
+
+# ── ANSI colours ───────────────────────────────────────────────────────────────
+G = "\033[1;32m"; Y = "\033[1;33m"; R = "\033[1;31m"
+C = "\033[1;36m"; W = "\033[1;37m"; D = "\033[2m";  X = "\033[0m"
+
+def _log(tag: str, msg: str, colour: str = W):
+    ts = datetime.now().strftime("%H:%M:%S")
+    print(f"{D}[{ts}]{X} {colour}[{tag}]{X} {msg}")
+
+# ── 1. find_file ───────────────────────────────────────────────────────────────
+
+def find_file(name: str = "", keyword: str = "",
+              root: Path = JARVIS_ROOT) -> list:
+    """
+    Search files under root by filename substring and/or content keyword.
+    Returns list of dicts: {path, size, match_lines}
+    """
+    results = []
+    name_lo = name.lower()
+    for p in Path(root).rglob("*"):
+        if not p.is_file():
+            continue
+        if p.suffix in (".pyc", ".pyo") or "__pycache__" in p.parts:
+            continue
+        if name_lo and name_lo not in p.name.lower():
+            continue
+        entry = {"path": str(p), "size": p.stat().st_size, "match_lines": []}
+        if keyword:
+            try:
+                kw_lo = keyword.lower()
+                lines = p.read_text(errors="replace").splitlines()
+                entry["match_lines"] = [
+                    f"L{i+1}: {ln.rstrip()}"
+                    for i, ln in enumerate(lines)
+                    if kw_lo in ln.lower()
+                ]
+                if name_lo == "" and not entry["match_lines"]:
+                    continue   # keyword given but no match — skip
+            except Exception:
+                pass
+        results.append(entry)
+
+    _log("find_file", f"{len(results)} result(s) for name={name!r} keyword={keyword!r}", G)
+    for r in results:
+        ml = f"  ({len(r['match_lines'])} matches)" if r["match_lines"] else ""
+        _log("find_file", f"  {r['path']}{ml}", D)
+    return results
+
+# ── 2. read_file ───────────────────────────────────────────────────────────────
+
+def read_file(path: str) -> str:
+    """
+    Read a file. Accepts absolute path or path relative to JARVIS_ROOT.
+    Returns file content as string, or error message prefixed with [ERROR].
+    """
+    p = Path(path)
+    if not p.is_absolute():
+        p = JARVIS_ROOT / path
+    if not p.exists():
+        msg = f"[ERROR] File not found: {p}"
+        _log("read_file", msg, R)
+        return msg
+    try:
+        content = p.read_text(errors="replace")
+        _log("read_file", f"Read {len(content)} chars from {p}", G)
+        return content
+    except Exception as e:
+        msg = f"[ERROR] Could not read {p}: {e}"
+        _log("read_file", msg, R)
+        return msg
+
+# ── 3. write_file ──────────────────────────────────────────────────────────────
+
+def write_file(path: str, content: str, backup: bool = True) -> bool:
+    """
+    Write content to path. Creates parent dirs automatically.
+    Saves a .bak copy of the original if backup=True and file exists.
+    Returns True on success.
+    """
+    p = Path(path)
+    if not p.is_absolute():
+        p = JARVIS_ROOT / path
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    if backup and p.exists():
+        bak = p.with_suffix(p.suffix + ".bak")
+        shutil.copy2(p, bak)
+        _log("write_file", f"Backup saved: {bak}", Y)
+
+    try:
+        p.write_text(content)
+        _log("write_file", f"Written {len(content)} chars to {p}", G)
+        return True
+    except Exception as e:
+        _log("write_file", f"[ERROR] Write failed: {e}", R)
+        return False
+
+# ── 4. push_to_bridge ─────────────────────────────────────────────────────────
+
+def push_to_bridge(local_path: str, remote_name: str = "") -> bool:
+    """
+    Send a file to Phone B bridge via POST /file_push.
+    remote_name: filename Phone B will save it as (default: same basename).
+    Phone B saves it to ~/staged/<remote_name>.
+    """
+    p = Path(local_path)
+    if not p.is_absolute():
+        p = JARVIS_ROOT / local_path
+    if not p.exists():
+        _log("push_to_bridge", f"[ERROR] File not found: {p}", R)
+        return False
+
+    remote_name = remote_name or p.name
+    try:
+        resp = requests.post(
+            f"{BRIDGE_URL}/file_push",
+            json={"name": remote_name, "content": p.read_text(errors="replace")},
+            timeout=15
+        )
+        if resp.ok:
+            _log("push_to_bridge", f"Pushed {p.name} → Phone B staged/{remote_name}", G)
+            return True
+        else:
+            _log("push_to_bridge", f"[ERROR] Bridge returned {resp.status_code}: {resp.text[:80]}", R)
+            return False
+    except Exception as e:
+        _log("push_to_bridge", f"[ERROR] {e}", R)
+        return False
+
+# ── 5. pull_from_bridge ───────────────────────────────────────────────────────
+
+def pull_from_bridge(remote_name: str, save_to: str = "") -> str:
+    """
+    Pull a file that Phone B has staged for us via GET /file_pull?name=<remote_name>.
+    Saves to save_to path (default: ~/workflows/test/<remote_name>).
+    Returns saved path or empty string on failure.
+    """
+    save_path = Path(save_to) if save_to else JARVIS_ROOT / remote_name
+    try:
+        resp = requests.get(
+            f"{BRIDGE_URL}/file_pull",
+            params={"name": remote_name},
+            timeout=15
+        )
+        if resp.ok:
+            data = resp.json()
+            content = data.get("content", "")
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            save_path.write_text(content)
+            _log("pull_from_bridge", f"Pulled {remote_name} → {save_path}", G)
+            return str(save_path)
+        else:
+            _log("pull_from_bridge", f"[ERROR] {resp.status_code}: {resp.text[:80]}", R)
+            return ""
+    except Exception as e:
+        _log("pull_from_bridge", f"[ERROR] {e}", R)
+        return ""
+
+# ── 6. request_fix ────────────────────────────────────────────────────────────
+
+def request_fix(file_path: str, problem: str, deploy: bool = True) -> str:
+    """
+    Ask Claude (via bridge) to fix a file.
+    Sends the file content + problem description as a prompt.
+    If deploy=True and Claude returns fixed code, writes it back automatically.
+
+    Returns Claude's raw response text.
+    """
+    content = read_file(file_path)
+    if content.startswith("[ERROR]"):
+        return content
+
+    prompt = (
+        f"You are fixing a bug in the Jarvis Android agent codebase.\n\n"
+        f"FILE: {file_path}\n"
+        f"PROBLEM: {problem}\n\n"
+        f"CURRENT CODE:\n```python\n{content}\n```\n\n"
+        f"Return ONLY the complete fixed file content with no explanation. "
+        f"Use the header format: //===== TERMUXFILE: {file_path} ====="
+    )
+
+    _log("request_fix", f"Sending fix request for {file_path} to bridge...", Y)
+    try:
+        resp = requests.post(
+            f"{BRIDGE_URL}/chat",
+            json={"prompt": prompt},
+            timeout=180
+        )
+        if not resp.ok:
+            _log("request_fix", f"[ERROR] Bridge {resp.status_code}", R)
+            return f"[ERROR] Bridge returned {resp.status_code}"
+
+        response_text = resp.json().get("response", "")
+        _log("request_fix", f"Got {len(response_text)} chars from Claude", G)
+
+        if deploy and response_text and not response_text.startswith("[ERROR]"):
+            # Extract code between the file header and next header (or EOF)
+            pattern = r"//===== TERMUXFILE:[^\n]*=====\n(.*?)(?=//=====|\Z)"
+            m = re.search(pattern, response_text, re.DOTALL)
+            code = m.group(1).strip() if m else response_text.strip()
+            if len(code) > 50:
+                write_file(file_path, code)
+                _log("request_fix", f"Deployed fix to {file_path}", G)
+            else:
+                _log("request_fix", "Response too short to deploy — check manually", Y)
+
+        return response_text
+    except Exception as e:
+        _log("request_fix", f"[ERROR] {e}", R)
+        return f"[ERROR] {e}"
+
+# ── 7. dump_codebase ──────────────────────────────────────────────────────────
+
+def dump_codebase(output: str = str(DUMP_OUT)) -> bool:
+    """
+    Regenerate new_dump.txt by running:
+      bash slash.sh ~/workflows/test > <output>
+    Returns True on success.
+    """
+    if not SLASH_SH.exists():
+        _log("dump_codebase", f"[ERROR] slash.sh not found at {SLASH_SH}", R)
+        return False
+    try:
+        _log("dump_codebase", f"Running slash.sh → {output} ...", Y)
+        with open(output, "w") as f:
+            result = subprocess.run(
+                ["bash", str(SLASH_SH), str(JARVIS_ROOT)],
+                stdout=f, stderr=subprocess.PIPE, timeout=60
+            )
+        if result.returncode == 0:
+            size = Path(output).stat().st_size
+            _log("dump_codebase", f"Dump written: {output} ({size} bytes)", G)
+            return True
+        else:
+            _log("dump_codebase", f"[ERROR] slash.sh exited {result.returncode}: {result.stderr.decode()[:200]}", R)
+            return False
+    except Exception as e:
+        _log("dump_codebase", f"[ERROR] {e}", R)
+        return False
+
+# ── 8/9/10. pause / resume / is_paused ───────────────────────────────────────
+
+def pause() -> bool:
+    """Create the pause flag. Agent will freeze after its current step."""
+    try:
+        PAUSE_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        PAUSE_FLAG.touch()
+        _log("pause", f"Pause flag created: {PAUSE_FLAG}", Y)
+        return True
+    except Exception as e:
+        _log("pause", f"[ERROR] {e}", R)
+        return False
+
+def resume() -> bool:
+    """Remove the pause flag. Agent will continue on next iteration."""
+    try:
+        PAUSE_FLAG.unlink(missing_ok=True)
+        _log("resume", f"Pause flag removed — agent will resume", G)
+        return True
+    except Exception as e:
+        _log("resume", f"[ERROR] {e}", R)
+        return False
+
+def is_paused() -> bool:
+    """Return True if the pause flag file exists."""
+    return PAUSE_FLAG.exists()
+
+
+//===== TERMUXFILE: test/jarvis-agent/agent_server.py =====
+#!/usr/bin/env python3
+"""
+agent_server.py  —  Jarvis HTTP bridge for JarvisMinI Android app
+Phone A  —  port 8891
+
+Endpoints:
+  POST /run          — start agent task
+  POST /stop         — stop agent
+  POST /pause        — pause agent (creates ~/.workflows/.jarvis_pause)
+  POST /resume       — resume agent (removes flag)
+  GET  /status       — current agent status + paused field
+  GET  /logs         — SSE log stream
+  GET  /logs/tail    — last N log lines
+  GET  /health       — server health
+
+Session 17: added /pause and /resume endpoints.
+"""
+
+import json
+import threading
+import time
+import subprocess
+import sys
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+from collections import deque
+
+PORT       = 8891
+HOME       = Path.home()
+PAUSE_FLAG = HOME / "workflows" / ".jarvis_pause"
+
+# ── Agent process state ────────────────────────────────────────────────────────
+_lock         = threading.Lock()
+_agent_proc   = None
+_agent_task   = ""
+_agent_step   = 0
+_agent_done   = False
+_agent_error  = None
+_log_buffer   = deque(maxlen=500)
+_sse_clients  = []
+
+def _push_log(line: str):
+    with _lock:
+        _log_buffer.append(line)
+        dead = []
+        for q in _sse_clients:
+            try:
+                q.append(line)
+            except Exception:
+                dead.append(q)
+        for d in dead:
+            _sse_clients.remove(d)
+
+def _stream_proc(proc):
+    global _agent_done, _agent_error, _agent_step
+    for raw in proc.stdout:
+        line = raw.decode(errors="replace").rstrip()
+        _push_log(line)
+        if "STEP" in line and "|" in line:
+            try:
+                _agent_step = int(line.split("STEP")[1].split("|")[0].strip())
+            except Exception:
+                pass
+    proc.wait()
+    with _lock:
+        _agent_done  = True
+        if proc.returncode != 0:
+            _agent_error = f"exited {proc.returncode}"
+    _push_log(f"[agent_server] process exited ({proc.returncode})")
+
+# ── Pause helpers ──────────────────────────────────────────────────────────────
+
+def _pause_agent() -> dict:
+    try:
+        PAUSE_FLAG.parent.mkdir(parents=True, exist_ok=True)
+        PAUSE_FLAG.touch()
+        _push_log("[agent_server] ⏸ Agent paused")
+        return {"paused": True, "flag": str(PAUSE_FLAG)}
+    except Exception as e:
+        return {"paused": False, "error": str(e)}
+
+def _resume_agent() -> dict:
+    try:
+        PAUSE_FLAG.unlink(missing_ok=True)
+        _push_log("[agent_server] ▶ Agent resumed")
+        return {"paused": False, "flag": str(PAUSE_FLAG)}
+    except Exception as e:
+        return {"paused": False, "error": str(e)}
+
+def _is_paused() -> bool:
+    return PAUSE_FLAG.exists()
+
+# ── HTTP handler ───────────────────────────────────────────────────────────────
+
+class Handler(BaseHTTPRequestHandler):
+
+    def log_message(self, fmt, *args):
+        print(f"[agent_server] {fmt % args}")
+
+    def send_json(self, code, data):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_json(200, {
+                "success": True, "service": "agent_server",
+                "port": PORT, "paused": _is_paused()
+            })
+
+        elif self.path == "/status":
+            with _lock:
+                self.send_json(200, {
+                    "running":  _agent_proc is not None and _agent_proc.poll() is None,
+                    "task":     _agent_task,
+                    "step":     _agent_step,
+                    "done":     _agent_done,
+                    "error":    _agent_error,
+                    "paused":   _is_paused(),
+                    "last_log": list(_log_buffer)[-1] if _log_buffer else "",
+                })
+
+        elif self.path.startswith("/logs/tail"):
+            n = 50
+            if "n=" in self.path:
+                try:
+                    n = int(self.path.split("n=")[1].split("&")[0])
+                except Exception:
+                    pass
+            with _lock:
+                lines = list(_log_buffer)[-n:]
+            self.send_json(200, {"lines": lines})
+
+        elif self.path == "/logs":
+            # SSE stream
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            q = deque()
+            with _lock:
+                _sse_clients.append(q)
+            try:
+                while True:
+                    if q:
+                        line = q.popleft()
+                        self.wfile.write(f"data: {line}\n\n".encode())
+                        self.wfile.flush()
+                    else:
+                        time.sleep(0.2)
+            except Exception:
+                pass
+            finally:
+                with _lock:
+                    if q in _sse_clients:
+                        _sse_clients.remove(q)
+        else:
+            self.send_json(404, {"error": "not found"})
+
+    def do_POST(self):
+        global _agent_proc, _agent_task, _agent_step, _agent_done, _agent_error
+
+        length = int(self.headers.get("Content-Length", 0))
+        body   = self.rfile.read(length)
+        try:
+            data = json.loads(body.decode()) if length else {}
+        except Exception:
+            data = {}
+
+        # ── /pause ──────────────────────────────────────────────────────────
+        if self.path == "/pause":
+            result = _pause_agent()
+            self.send_json(200, {"success": True, **result})
+
+        # ── /resume ─────────────────────────────────────────────────────────
+        elif self.path == "/resume":
+            result = _resume_agent()
+            self.send_json(200, {"success": True, **result})
+
+        # ── /stop ───────────────────────────────────────────────────────────
+        elif self.path == "/stop":
+            if _agent_proc and _agent_proc.poll() is None:
+                _agent_proc.terminate()
+                _push_log("[agent_server] Stop signal sent")
+            self.send_json(200, {"success": True})
+
+        # ── /run ────────────────────────────────────────────────────────────
+        elif self.path == "/run":
+            task     = data.get("task", "").strip()
+            device   = data.get("device", "").strip()
+            max_steps = int(data.get("max_steps", 20))
+
+            if not task:
+                self.send_json(400, {"success": False, "error": "missing task"})
+                return
+
+            if _agent_proc and _agent_proc.poll() is None:
+                self.send_json(409, {"success": False, "error": "agent already running"})
+                return
+
+            # Clear pause flag on new run
+            PAUSE_FLAG.unlink(missing_ok=True)
+
+            _agent_task  = task
+            _agent_step  = 0
+            _agent_done  = False
+            _agent_error = None
+
+            controller = str(HOME / "workflows/test/jarvis-agent/agent/controller.py")
+            cmd = [sys.executable, controller,
+                   "--task", task,
+                   "--max-steps", str(max_steps)]
+            if device:
+                cmd += ["--device", device]
+
+            _push_log(f"[agent_server] Starting: {task[:80]}")
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT)
+            _agent_proc = proc
+            threading.Thread(target=_stream_proc, args=(proc,), daemon=True).start()
+            self.send_json(200, {"success": True, "task": task})
+
+        else:
+            self.send_json(404, {"error": "not found"})
+
+
+if __name__ == "__main__":
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║  JARVIS AGENT SERVER  —  Phone A (OPPO)             ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print(f"  Port      : {PORT}")
+    print(f"  Pause flag: {PAUSE_FLAG}")
+    print(f"  Session   : 17 (pause/resume added)")
+    print()
+    server = HTTPServer(("0.0.0.0", PORT), Handler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[agent_server] Stopped.")
+
+
+//===== TERMUXFILE: test/jarvis-agent/agent/controller.py =====
+# SESSION 17 PATCH — add this block at the very top of run_step()
+# Find the run_step() method and insert the pause check as the first thing.
+#
+# FIND this line in run_step():
+#   def run_step(self, ...):
+#
+# ADD immediately after the docstring / first line of the method body:
+#
+#   # ── Session 17: pause gate ──────────────────────────────────────────────
+#   from agent.self_repair import is_paused
+#   while is_paused():
+#       print("[controller] ⏸ PAUSED — waiting for resume...")
+#       time.sleep(2)
+#   # ────────────────────────────────────────────────────────────────────────
+#
+# That's the only change needed in controller.py.
+# Everything else (self_repair.py, agent_server.py, Kotlin files) is self-contained.
+
+
+//===== FILE: jarvis/app/src/main/kotlin/com/jarvismini/agent/AgentRepository.kt =====
+package com.jarvismini.agent
+
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+object AgentRepository {
+
+    private const val TAG          = "AgentRepo"
+    private const val DEFAULT_HOST = "192.168.29.48"
+    private const val AGENT_PORT   = 8891
+    private const val TTS_PORT     = 8892
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private fun agentUrl(path: String): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$AGENT_PORT$path"
+    }
+
+    private fun ttsUrl(path: String): String {
+        val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        return "http://$host:$TTS_PORT$path"
+    }
+
+    suspend fun runTask(
+        task: String,
+        device: String,
+        maxSteps: Int = 20
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("task", task)
+                put("device", device)
+                put("max_steps", maxSteps)
+            }.toString().toRequestBody("application/json".toMediaType())
+
+            val req = Request.Builder()
+                .url(agentUrl("/run"))
+                .post(body)
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                val json = JSONObject(resp.body?.string() ?: "{}")
+                if (resp.isSuccessful) {
+                    Result.success(json.optString("task", task))
+                } else {
+                    Result.failure(Exception(json.optString("error", "start failed")))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "runTask failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun stopAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/stop"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ── Session 17: pause / resume ────────────────────────────────────────────
+
+    suspend fun pauseAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/pause"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "pauseAgent failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resumeAgent(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/resume"))
+                .post("{}".toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().close()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "resumeAgent failed", e)
+            Result.failure(e)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    suspend fun getStatus(): AgentStatus = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url(agentUrl("/status")).get().build()
+            client.newCall(req).execute().use { resp ->
+                val j = JSONObject(resp.body?.string() ?: "{}")
+                AgentStatus(
+                    running = j.optBoolean("running"),
+                    task    = j.optString("task"),
+                    step    = j.optInt("step"),
+                    done    = j.optBoolean("done"),
+                    error   = j.optString("error").ifBlank { null },
+                    paused  = j.optBoolean("paused"),
+                    lastLog = j.optString("last_log"),
+                )
+            }
+        } catch (e: Exception) {
+            AgentStatus(error = e.message)
+        }
+    }
+
+    suspend fun fetchLogTail(n: Int = 50): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/logs/tail?n=$n"))
+                .get()
+                .build()
+            client.newCall(req).execute().use { resp ->
+                val j   = JSONObject(resp.body?.string() ?: "{}")
+                val arr = j.optJSONArray("lines") ?: return@use emptyList()
+                List(arr.length()) { arr.getString(it) }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchLogTail failed", e)
+            emptyList()
+        }
+    }
+
+    fun streamLogs(): Flow<String> = flow {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/logs"))
+                .addHeader("Accept", "text/event-stream")
+                .get()
+                .build()
+
+            val sseClient = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(300, TimeUnit.SECONDS)
+                .build()
+
+            sseClient.newCall(req).execute().use { resp ->
+                val source = resp.body?.source() ?: return@use
+                while (!source.exhausted()) {
+                    val line = source.readUtf8Line() ?: break
+                    if (line.startsWith("data: ")) {
+                        val payload = line.removePrefix("data: ").trim()
+                        if (payload.isNotBlank()) emit(payload)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            emit("[connection lost: ${e.message}]")
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun speak(text: String, voiceId: String? = null): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val body = JSONObject().apply {
+                    put("text", text)
+                    if (voiceId != null) put("voice_id", voiceId)
+                }.toString().toRequestBody("application/json".toMediaType())
+
+                val req = Request.Builder()
+                    .url(ttsUrl("/speak"))
+                    .post(body)
+                    .build()
+
+                client.newCall(req).execute().close()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    suspend fun isAgentServerReachable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url(agentUrl("/health"))
+                .get()
+                .build()
+            val quickClient = OkHttpClient.Builder()
+                .connectTimeout(3, TimeUnit.SECONDS)
+                .readTimeout(3, TimeUnit.SECONDS)
+                .build()
+            quickClient.newCall(req).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+}
+
+data class AgentStatus(
+    val running: Boolean = false,
+    val task:    String  = "",
+    val step:    Int     = 0,
+    val done:    Boolean = false,
+    val error:   String? = null,
+    val paused:  Boolean = false,
+    val lastLog: String  = "",
+)
+
+
+//===== FILE: jarvis/app/src/main/kotlin/com/jarvismini/agent/AgentDashboardViewModel.kt =====
 package com.jarvismini.agent
 
 import android.content.Context
@@ -12,6 +818,7 @@ import kotlinx.coroutines.launch
 data class AgentDashboardState(
     val serverOnline:  Boolean       = false,
     val running:       Boolean       = false,
+    val paused:        Boolean       = false,   // Session 17
     val task:          String        = "",
     val step:          Int           = 0,
     val done:          Boolean       = false,
@@ -76,7 +883,7 @@ class AgentDashboardViewModel : ViewModel() {
         if (task.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(logs = emptyList(), done = false, error = null) }
+            _state.update { it.copy(logs = emptyList(), done = false, error = null, paused = false) }
             pushLog("[dashboard] Sending task to agent server...", LogLevel.SYSTEM)
 
             AgentRepository.runTask(task, device, s.maxSteps)
@@ -94,6 +901,36 @@ class AgentDashboardViewModel : ViewModel() {
             pushLog("[dashboard] Stop signal sent", LogLevel.SYSTEM)
         }
     }
+
+    // ── Session 17: pause / resume ────────────────────────────────────────────
+
+    fun pauseAgent() {
+        viewModelScope.launch {
+            AgentRepository.pauseAgent()
+                .onSuccess {
+                    _state.update { it.copy(paused = true) }
+                    pushLog("[dashboard] ⏸ Agent paused", LogLevel.WARN)
+                }
+                .onFailure {
+                    pushLog("[dashboard] ✗ Pause failed: ${it.message}", LogLevel.ERROR)
+                }
+        }
+    }
+
+    fun resumeAgent() {
+        viewModelScope.launch {
+            AgentRepository.resumeAgent()
+                .onSuccess {
+                    _state.update { it.copy(paused = false) }
+                    pushLog("[dashboard] ▶ Agent resumed", LogLevel.SYSTEM)
+                }
+                .onFailure {
+                    pushLog("[dashboard] ✗ Resume failed: ${it.message}", LogLevel.ERROR)
+                }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
 
@@ -159,6 +996,7 @@ class AgentDashboardViewModel : ViewModel() {
                     step         = status.step,
                     done         = status.done,
                     error        = status.error,
+                    paused       = status.paused,
                     serverOnline = true,
                 )}
             }
@@ -181,7 +1019,7 @@ class AgentDashboardViewModel : ViewModel() {
 }
 
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
+//===== FILE: jarvis/app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
 package com.jarvismini.agent
 
 import androidx.compose.animation.animateColorAsState
@@ -273,14 +1111,14 @@ fun AgentDashboardScreen(
                     fontFamily    = FontFamily.Monospace
                 )
                 Spacer(Modifier.weight(1f))
-                ServerStatusDot(online = state.serverOnline, running = state.running)
+                ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = { vm.checkServer() }) {
                     Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
                 }
             }
 
-            if (state.running || state.done) {
+            if (state.running || state.done || state.paused) {
                 StatusBar(state)
                 Spacer(Modifier.height(8.dp))
             }
@@ -291,6 +1129,8 @@ fun AgentDashboardScreen(
                 onDevice = vm::onDeviceInput,
                 onStart  = vm::startAgent,
                 onStop   = vm::stopAgent,
+                onPause  = vm::pauseAgent,
+                onResume = vm::resumeAgent,
             )
 
             Spacer(Modifier.height(8.dp))
@@ -391,18 +1231,21 @@ fun AgentDashboardScreen(
 private fun StatusBar(state: AgentDashboardState) {
     val bg = when {
         state.error != null -> Red.copy(alpha = 0.15f)
+        state.paused        -> Yellow.copy(alpha = 0.12f)
         state.done          -> Green.copy(alpha = 0.12f)
         state.running       -> Cyan.copy(alpha = 0.08f)
         else                -> BgCard
     }
     val text = when {
         state.error != null -> "✗ Error: ${state.error}"
+        state.paused        -> "⏸ Paused at step ${state.step}  —  ${state.task.take(50)}"
         state.done          -> "✓ Done in ${state.step} steps"
         state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
         else                -> ""
     }
     val textColor = when {
         state.error != null -> Red
+        state.paused        -> Yellow
         state.done          -> Green
         else                -> Cyan
     }
@@ -415,7 +1258,7 @@ private fun StatusBar(state: AgentDashboardState) {
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (state.running) {
+        if (state.running && !state.paused) {
             CircularProgressIndicator(
                 modifier    = Modifier.size(12.dp),
                 color       = Cyan,
@@ -440,6 +1283,8 @@ private fun TaskInputSection(
     onDevice: (String) -> Unit,
     onStart:  () -> Unit,
     onStop:   () -> Unit,
+    onPause:  () -> Unit,
+    onResume: () -> Unit,
 ) {
     Column(
         Modifier
@@ -484,11 +1329,38 @@ private fun TaskInputSection(
 
         Spacer(Modifier.height(10.dp))
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
             if (state.running) {
+                // ── Pause / Resume button ──────────────────────────────────
+                if (state.paused) {
+                    OutlinedButton(
+                        onClick  = onResume,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Green),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Resume", fontSize = 13.sp)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick  = onPause,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Pause", fontSize = 13.sp)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                // ── Stop button ────────────────────────────────────────────
                 OutlinedButton(
                     onClick  = onStop,
-                    border   = ButtonDefaults.outlinedButtonBorder.copy(),
                     colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
                     modifier = Modifier.height(38.dp)
                 ) {
@@ -547,8 +1419,9 @@ private fun LogLineRow(log: LogLine) {
     )
 }
 
+// Session 17: paused param added — dot turns yellow when paused
 @Composable
-private fun ServerStatusDot(online: Boolean, running: Boolean) {
+private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
     val pulse = rememberInfiniteTransition(label = "pulse")
     val alpha by pulse.animateFloat(
         initialValue = 0.4f, targetValue = 1f,
@@ -560,6 +1433,7 @@ private fun ServerStatusDot(online: Boolean, running: Boolean) {
     )
     val color = when {
         !online -> Red
+        paused  -> Yellow.copy(alpha = alpha)
         running -> Green.copy(alpha = alpha)
         else    -> Green
     }
