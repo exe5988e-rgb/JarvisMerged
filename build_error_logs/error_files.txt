@@ -1,97 +1,1246 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/MainActivity.kt =====
 
-// ❌ ERRORS IN THIS FILE (1 error(s)):
-// Line 85: Cannot find a parameter with this name: initialTask
+// ❌ ERRORS IN THIS FILE (353 error(s)):
+// Line 15: Unresolved reference: ModeStore
+// Line 17: Unresolved reference: ExtractionMode
+// Line 18: Unresolved reference: databinding
+// Line 22: Unresolved reference: ActivityMainBinding
+// Line 27: Unresolved reference: ActivityMainBinding
+// Line 52: Variable expected
+// Line 53: Unresolved reference: ModeStore
+// Line 54: Variable expected
+// Line 56: Unresolved reference: ExtractionMode
+// Line 57: Unresolved reference: ModeStore
+// Line 69: Variable expected
+// Line 82: Variable expected
+// Line 83: Variable expected
+// Line 84: Variable expected
+// Line 87: Variable expected
+// Line 88: Variable expected
+// Line 89: Variable expected
+// Line 91: Unresolved reference: R
+// Line 91: Variable expected
+// Line 96: Variable expected
+// Line 97: Variable expected
+// Line 102: Variable expected
+// Line 109: Variable expected
+// Line 153: Expecting a top level declaration
+// Line 154: Expecting a top level declaration
+// Line 155: Expecting a top level declaration
+// Line 156: Expecting a top level declaration
+// Line 157: Expecting a top level declaration
+// Line 158: Expecting a top level declaration
+// Line 159: Expecting a top level declaration
+// Line 160: Expecting a top level declaration
+// Line 161: Expecting a top level declaration
+// Line 162: Expecting a top level declaration
+// Line 163: Expecting a top level declaration
+// Line 164: Expecting a top level declaration
+// Line 165: Expecting a top level declaration
+// Line 166: Expecting a top level declaration
+// Line 167: Expecting a top level declaration
+// Line 168: Expecting a top level declaration
+// Line 169: Expecting a top level declaration
+// Line 170: Expecting a top level declaration
+// Line 171: Expecting a top level declaration
+// Line 172: Expecting a top level declaration
+// Line 173: Expecting a top level declaration
+// Line 174: Expecting a top level declaration
+// Line 175: Expecting a top level declaration
+// Line 176: Expecting a top level declaration
+// Line 177: Expecting a top level declaration
+// Line 178: Expecting a top level declaration
+// Line 179: Expecting a top level declaration
+// Line 179: imports are only allowed in the beginning of file
+// Line 181: Unresolved reference: os
+// Line 182: Unresolved reference: re
+// Line 183: Unresolved reference: json
+// Line 184: Unresolved reference: shutil
+// Line 185: Unresolved reference: requests
+// Line 186: Unresolved reference: subprocess
+// Line 187: Unresolved reference: time
+// Line 188: Expecting a top level declaration
+// Line 188: Unresolved reference: Path
+// Line 188: imports are only allowed in the beginning of file
+// Line 189: Expecting a top level declaration
+// Line 189: Unresolved reference: datetime
+// Line 189: imports are only allowed in the beginning of file
+// Line 191: Expecting a top level declaration
+// Line 192: Expecting a top level declaration
+// Line 193: Expecting a top level declaration
+// Line 194: Expecting a top level declaration
+// Line 195: Expecting a top level declaration
+// Line 196: Expecting a top level declaration
+// Line 197: Expecting a top level declaration
+// Line 199: Expecting a top level declaration
+// Line 200: Expecting a top level declaration
+// Line 201: Expecting a top level declaration
+// Line 202: Expecting a top level declaration
+// Line 204: Expecting a top level declaration
+// Line 205: Expecting a top level declaration
+// Line 206: Expecting a top level declaration
+// Line 208: Expecting a top level declaration
+// Line 209: Expecting a top level declaration
+// Line 210: Expecting a top level declaration
+// Line 212: Expecting a top level declaration
+// Line 214: Expecting a top level declaration
+// Line 215: Expecting a top level declaration
+// Line 216: Expecting a top level declaration
+// Line 217: Expecting a top level declaration
+// Line 218: Expecting a top level declaration
+// Line 219: Expecting a top level declaration
+// Line 220: Expecting a top level declaration
+// Line 221: Expecting a top level declaration
+// Line 222: Expecting a top level declaration
+// Line 223: Expecting a top level declaration
+// Line 224: Expecting a top level declaration
+// Line 225: Expecting a top level declaration
+// Line 225: Unexpected tokens (use ';' to separate expressions on the same line)
+// Line 226: Expecting a top level declaration
+// Line 227: Expecting a top level declaration
+// Line 228: Expecting a top level declaration
+// Line 229: Expecting a top level declaration
+// Line 230: Expecting a top level declaration
+// Line 231: Expecting a top level declaration
+// Line 232: Expecting a top level declaration
+// Line 233: Expecting a top level declaration
+// Line 234: Expecting a top level declaration
+// Line 235: Expecting a top level declaration
+// Line 236: Expecting a top level declaration
+// Line 237: Expecting a top level declaration
+// Line 238: Expecting a top level declaration
+// Line 239: Expecting a top level declaration
+// Line 240: Expecting a top level declaration
+// Line 241: Expecting a top level declaration
+// Line 242: Expecting a top level declaration
+// Line 243: Expecting a top level declaration
+// Line 244: Expecting a top level declaration
+// Line 246: Expecting a top level declaration
+// Line 248: Expecting a top level declaration
+// Line 249: Expecting a top level declaration
+// Line 250: Expecting a top level declaration
+// Line 251: Expecting a top level declaration
+// Line 252: Expecting a top level declaration
+// Line 253: Expecting a top level declaration
+// Line 254: Expecting a top level declaration
+// Line 255: Expecting a top level declaration
+// Line 256: Expecting a top level declaration
+// Line 257: Expecting a top level declaration
+// Line 258: Expecting a top level declaration
+// Line 259: Expecting a top level declaration
+// Line 260: Expecting a top level declaration
+// Line 261: Expecting a top level declaration
+// Line 262: Expecting a top level declaration
+// Line 263: Expecting a top level declaration
+// Line 265: Expecting a top level declaration
+// Line 267: Expecting a top level declaration
+// Line 268: Expecting a top level declaration
+// Line 269: Expecting a top level declaration
+// Line 270: Expecting a top level declaration
+// Line 271: Expecting a top level declaration
+// Line 272: Expecting a top level declaration
+// Line 273: Expecting a top level declaration
+// Line 274: Expecting a top level declaration
+// Line 275: Expecting a top level declaration
+// Line 276: Expecting a top level declaration
+// Line 277: Expecting a top level declaration
+// Line 278: Expecting a top level declaration
+// Line 279: Expecting a top level declaration
+// Line 280: Expecting a top level declaration
+// Line 281: Expecting a top level declaration
+// Line 282: Expecting a top level declaration
+// Line 284: Expecting a top level declaration
+// Line 286: Expecting a top level declaration
+// Line 287: Expecting a top level declaration
+// Line 288: Expecting a top level declaration
+// Line 289: Expecting a top level declaration
+// Line 290: Expecting a top level declaration
+// Line 291: Expecting a top level declaration
+// Line 292: Expecting a top level declaration
+// Line 293: Expecting a top level declaration
+// Line 294: Expecting a top level declaration
+// Line 295: Expecting a top level declaration
+// Line 296: Expecting a top level declaration
+// Line 297: Expecting a top level declaration
+// Line 297: Unexpected tokens (use ';' to separate expressions on the same line)
+// Line 298: Expecting a top level declaration
+// Line 299: Expecting a top level declaration
+// Line 300: Expecting a top level declaration
+// Line 301: Expecting a top level declaration
+// Line 302: Expecting a top level declaration
+// Line 303: Expecting a top level declaration
+// Line 304: Expecting a top level declaration
+// Line 305: Expecting a top level declaration
+// Line 306: Expecting a top level declaration
+// Line 307: Expecting a top level declaration
+// Line 308: Expecting a top level declaration
+// Line 310: Expecting a top level declaration
+// Line 312: Expecting a top level declaration
+// Line 313: Expecting a top level declaration
+// Line 314: Expecting a top level declaration
+// Line 315: Expecting a top level declaration
+// Line 316: Expecting a top level declaration
+// Line 317: Expecting a top level declaration
+// Line 317: Unexpected tokens (use ';' to separate expressions on the same line)
+// Line 318: Expecting a top level declaration
+// Line 319: Expecting a top level declaration
+// Line 320: Expecting a top level declaration
+// Line 321: Expecting a top level declaration
+// Line 322: Expecting a top level declaration
+// Line 323: Expecting a top level declaration
+// Line 324: Expecting a top level declaration
+// Line 325: Expecting a top level declaration
+// Line 326: Expecting a top level declaration
+// Line 327: Expecting a top level declaration
+// Line 328: Expecting a top level declaration
+// Line 329: Expecting a top level declaration
+// Line 330: Expecting a top level declaration
+// Line 331: Expecting a top level declaration
+// Line 332: Expecting a top level declaration
+// Line 334: Expecting a top level declaration
+// Line 336: Expecting a top level declaration
+// Line 337: Expecting a top level declaration
+// Line 338: Expecting a top level declaration
+// Line 339: Expecting a top level declaration
+// Line 340: Expecting a top level declaration
+// Line 341: Expecting a top level declaration
+// Line 342: Expecting a top level declaration
+// Line 343: Expecting a top level declaration
+// Line 344: Expecting a top level declaration
+// Line 345: Expecting a top level declaration
+// Line 346: Expecting a top level declaration
+// Line 347: Expecting a top level declaration
+// Line 348: Expecting a top level declaration
+// Line 349: Expecting a top level declaration
+// Line 350: Expecting a top level declaration
+// Line 351: Expecting a top level declaration
+// Line 352: Expecting a top level declaration
+// Line 352: Unexpected tokens (use ';' to separate expressions on the same line)
+// Line 353: Expecting a top level declaration
+// Line 354: Expecting a top level declaration
+// Line 355: Expecting a top level declaration
+// Line 356: Expecting a top level declaration
+// Line 357: Expecting a top level declaration
+// Line 358: Expecting a top level declaration
+// Line 359: Expecting a top level declaration
+// Line 360: Expecting a top level declaration
+// Line 361: Expecting a top level declaration
+// Line 362: Expecting a top level declaration
+// Line 363: Expecting a top level declaration
+// Line 364: Expecting a top level declaration
+// Line 365: Expecting a top level declaration
+// Line 366: Expecting a top level declaration
+// Line 367: Expecting a top level declaration
+// Line 368: Expecting a top level declaration
+// Line 369: Expecting a top level declaration
+// Line 370: Expecting a top level declaration
+// Line 371: Expecting a top level declaration
+// Line 372: Expecting a top level declaration
+// Line 374: Expecting a top level declaration
+// Line 376: Expecting a top level declaration
+// Line 377: Expecting a top level declaration
+// Line 378: Expecting a top level declaration
+// Line 379: Expecting a top level declaration
+// Line 380: Expecting a top level declaration
+// Line 381: Expecting a top level declaration
+// Line 382: Expecting a top level declaration
+// Line 383: Expecting a top level declaration
+// Line 384: Expecting a top level declaration
+// Line 385: Expecting a top level declaration
+// Line 386: Expecting a top level declaration
+// Line 387: Expecting a top level declaration
+// Line 388: Expecting a top level declaration
+// Line 389: Expecting a top level declaration
+// Line 390: Expecting a top level declaration
+// Line 391: Expecting a top level declaration
+// Line 392: Expecting a top level declaration
+// Line 393: Expecting a top level declaration
+// Line 394: Expecting a top level declaration
+// Line 395: Expecting a top level declaration
+// Line 396: Expecting a top level declaration
+// Line 398: Expecting a top level declaration
+// Line 400: Expecting a top level declaration
+// Line 401: Expecting a top level declaration
+// Line 402: Expecting a top level declaration
+// Line 403: Expecting a top level declaration
+// Line 404: Expecting a top level declaration
+// Line 405: Expecting a top level declaration
+// Line 406: Expecting a top level declaration
+// Line 407: Expecting a top level declaration
+// Line 408: Expecting a top level declaration
+// Line 410: Expecting a top level declaration
+// Line 411: Expecting a top level declaration
+// Line 412: Expecting a top level declaration
+// Line 413: Expecting a top level declaration
+// Line 414: Expecting a top level declaration
+// Line 415: Expecting a top level declaration
+// Line 416: Expecting a top level declaration
+// Line 417: Expecting a top level declaration
+// Line 419: Expecting a top level declaration
+// Line 420: Expecting a top level declaration
+// Line 422: Expecting a top level declaration
+// Line 424: Expecting a top level declaration
+// Line 425: Expecting a top level declaration
+// Line 426: Expecting a top level declaration
+// Line 427: Expecting a top level declaration
+// Line 428: Expecting a top level declaration
+// Line 429: Expecting a top level declaration
+// Line 430: Expecting a top level declaration
+// Line 431: Expecting a top level declaration
+// Line 432: Expecting a top level declaration
+// Line 433: Expecting a top level declaration
+// Line 434: Expecting a top level declaration
+// Line 435: Expecting a top level declaration
+// Line 436: Expecting a top level declaration
+// Line 437: Expecting a top level declaration
+// Line 438: Expecting a top level declaration
+// Line 439: Expecting a top level declaration
+// Line 440: Expecting a top level declaration
+// Line 441: Expecting a top level declaration
+// Line 443: Expecting a top level declaration
+// Line 444: Expecting a top level declaration
+// Line 445: Expecting a top level declaration
+// Line 446: Expecting a top level declaration
+// Line 447: Expecting a top level declaration
+// Line 448: Expecting a top level declaration
+// Line 450: Expecting a top level declaration
+// Line 451: Expecting a top level declaration
+// Line 452: Expecting a top level declaration
+// Line 453: Expecting a top level declaration
+// Line 454: Expecting a top level declaration
+// Line 456: Expecting a top level declaration
+// Line 457: Expecting a top level declaration
+// Line 458: Expecting a top level declaration
+// Line 459: Expecting a top level declaration
+// Line 460: Expecting a top level declaration
+// Line 461: Expecting a top level declaration
+// Line 462: Expecting a top level declaration
+// Line 463: Expecting a top level declaration
+// Line 464: Expecting a top level declaration
+// Line 465: Expecting a top level declaration
+// Line 466: Expecting a top level declaration
+// Line 467: Expecting a top level declaration
+// Line 468: Expecting a top level declaration
+// Line 469: Expecting a top level declaration
+// Line 470: Expecting a top level declaration
+// Line 471: Expecting a top level declaration
+// Line 473: Expecting a top level declaration
+// Line 474: Expecting a top level declaration
+// Line 475: Expecting a top level declaration
+// Line 476: Expecting a top level declaration
+// Line 477: Expecting a top level declaration
+// Line 478: Expecting a top level declaration
+// Line 478: Unexpected tokens (use ';' to separate expressions on the same line)
+// Line 479: Expecting a top level declaration
+// Line 480: Expecting a top level declaration
+// Line 481: Expecting a top level declaration
+// Line 482: Expecting a top level declaration
+// Line 483: Expecting a top level declaration
+// Line 484: Expecting a top level declaration
+// Line 485: Expecting a top level declaration
+// Line 486: Expecting a top level declaration
+// Line 487: Expecting a top level declaration
+// Line 489: Expecting a top level declaration
+// Line 490: Expecting a top level declaration
+// Line 491: Expecting a top level declaration
+// Line 492: Expecting a top level declaration
+// Line 493: Expecting a top level declaration
+// Line 494: Expecting a top level declaration
+// Line 495: Expecting a top level declaration
+// Line 496: Expecting a top level declaration
+// Line 497: Expecting a top level declaration
+// Line 498: Expecting a top level declaration
+// Line 499: Expecting a top level declaration
+// Line 500: Expecting a top level declaration
+// Line 502: Expecting a top level declaration
+// Line 503: Expecting a top level declaration
 
-   1    package com.jarvismini.ui.main
+   1    package com.jarvismini.devtools
    2    
-   3    import androidx.compose.runtime.*
-   4    import androidx.compose.ui.platform.LocalContext
-   5    import com.jarvismini.ProgressInitializer
-   6    import com.jarvismini.core.progress.*
-   7    import com.jarvismini.core.routine.RoutineProvider
-   8    import com.jarvismini.ui.boot.BootScreen
-   9    import com.jarvismini.ui.home.EnhancedHomeScreen
-  10    import com.jarvismini.ui.chat.JarvisChatScreen
-  11    import com.jarvismini.ui.calendar.CalendarViewModel
-  12    import com.jarvismini.ui.calendar.DayCalendarScreen
-  13    import com.jarvismini.ui.settings.SettingsScreen
-  14    import com.jarvismini.ui.debug.DebugScreen
-  15    import com.jarvismini.ui.checklist.JarvisChecklistScreen
-  16    import com.jarvismini.ui.llm.TermuxCommandScreen
-  17    import com.jarvismini.agent.AgentDashboardScreen
-  18    
-  19    enum class MainTab {
-  20        Home,
-  21        Chat,
-  22        Calendar,
-  23        Checklist,
-  24        Settings,
-  25        Debug,
-  26        TermuxCommand,
-  27        AgentDashboard,
-  28    }
+   3    import android.content.Intent
+   4    import android.graphics.Color
+   5    import android.os.Bundle
+   6    import android.provider.Settings
+   7    import android.text.Spannable
+   8    import android.text.SpannableStringBuilder
+   9    import android.text.style.ForegroundColorSpan
+  10    import android.view.View
+  11    import android.widget.AdapterView
+  12    import android.widget.ArrayAdapter
+  13    import androidx.appcompat.app.AppCompatActivity
+  14    import com.jarvismini.devtools.autobuild.AutoBuildService
+  15 ❌ import com.jarvismini.devtools.autobuild.ModeStore
+  16    import com.jarvismini.devtools.autobuild.models.AutoBuildState
+  17 ❌ import com.jarvismini.devtools.autobuild.models.ExtractionMode
+  18 ❌ import com.jarvismini.devtools.databinding.ActivityMainBinding
+  19    
+  20    class MainActivity : AppCompatActivity() {
+  21    
+  22 ❌     private lateinit var binding: ActivityMainBinding
+  23        private val logBuilder = SpannableStringBuilder()
+  24    
+  25        override fun onCreate(savedInstanceState: Bundle?) {
+  26            super.onCreate(savedInstanceState)
+  27 ❌         binding = ActivityMainBinding.inflate(layoutInflater)
+  28            setContentView(binding.root)
+  29            setupModeSpinner()
+  30            setupButtons()
+  31            registerCallbacks()
+  32            refreshServiceState()
+  33        }
+  34    
+  35        override fun onResume() { super.onResume(); refreshServiceState() }
+  36    
+  37        override fun onDestroy() {
+  38            super.onDestroy()
+  39            AutoBuildService.onStatusUpdate = null
+  40            AutoBuildService.onLogLine      = null
+  41        }
+  42    
+  43        private fun setupModeSpinner() {
+  44            val labels = listOf(
+  45                "Code block in chat",
+  46                "Downloaded file(s) → /sdcard",
+  47                "Plain text in chat"
+  48            )
+  49            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, labels).also {
+  50                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+  51            }
+  52 ❌         binding.spinnerMode.adapter = adapter
+  53 ❌         binding.spinnerMode.setSelection(ModeStore.load(this).ordinal)
+  54 ❌         binding.spinnerMode.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+  55                override fun onItemSelected(parent: AdapterView<*>, view: View?, pos: Int, id: Long) {
+  56 ❌                 val mode = ExtractionMode.entries[pos]
+  57 ❌                 ModeStore.save(this@MainActivity, mode)
+  58                    appendLog("Mode: ${mode.name}", Color.CYAN)
+  59                }
+  60                override fun onNothingSelected(parent: AdapterView<*>) {}
+  61            }
+  62        }
+  63    
+  64        private fun setupButtons() {
+  65            binding.btnStart.setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+  66            binding.btnStop.setOnClickListener {
+  67                AutoBuildService.requestStop()
+  68                appendLog("Stop requested by user.", Color.YELLOW)
+  69 ❌             binding.btnStop.isEnabled = false
+  70            }
+  71            binding.btnAccessibility.setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+  72        }
+  73    
+  74        private fun registerCallbacks() {
+  75            AutoBuildService.onStatusUpdate = { iteration, state -> runOnUiThread { updateStatus(iteration, state) } }
+  76            AutoBuildService.onLogLine      = { line, isError -> runOnUiThread { appendLog(line, if (isError) Color.RED else Color.WHITE) } }
+  77        }
+  78    
+  79        private fun refreshServiceState() {
+  80            val enabled = isAccessibilityServiceEnabled()
+  81            if (enabled) {
+  82 ❌             binding.tvAccessibilityHint.visibility = View.GONE
+  83 ❌             binding.btnStart.isEnabled  = false
+  84 ❌             binding.btnStop.isEnabled   = true
+  85                if (AutoBuildService.isLoopRunning) updateStatus(AutoBuildService.currentIteration, AutoBuildService.currentState)
+  86            } else {
+  87 ❌             binding.tvAccessibilityHint.visibility = View.VISIBLE
+  88 ❌             binding.btnStart.isEnabled  = true
+  89 ❌             binding.btnStop.isEnabled   = false
+  90                setStatusDot(Color.GRAY)
+  91 ❌             binding.tvStatus.text = getString(R.string.status_idle)
+  92            }
+  93        }
+  94    
+  95        private fun updateStatus(iteration: Int, state: AutoBuildState) {
+  96 ❌         binding.tvIteration.text = "Iter: $iteration"
+  97 ❌         binding.tvStatus.text    = state.displayName()
+  98            setStatusDot(state.dotColor())
+  99        }
+ 100    
+ 101        private fun setStatusDot(color: Int) {
+ 102 ❌         binding.statusDot.backgroundTintList = android.content.res.ColorStateList.valueOf(color)
+ 103        }
+ 104    
+ 105        private fun appendLog(line: String, color: Int) {
+ 106            val start = logBuilder.length
+ 107            logBuilder.append(line).append("\n")
+ 108            logBuilder.setSpan(ForegroundColorSpan(color), start, logBuilder.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+ 109 ❌         binding.tvLog.text = logBuilder
+ 110            binding.scrollLog.post { binding.scrollLog.fullScroll(View.FOCUS_DOWN) }
+ 111        }
+ 112    
+ 113        private fun isAccessibilityServiceEnabled(): Boolean {
+ 114            val enabledServices = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+ 115            val short = "${packageName}/.autobuild.AutoBuildService"
+ 116            val full  = "${packageName}/com.jarvismini.devtools.autobuild.AutoBuildService"
+ 117            return enabledServices.split(":").any { it.trim().equals(short, ignoreCase = true) || it.trim().equals(full, ignoreCase = true) }
+ 118        }
+ 119    
+ 120        private fun AutoBuildState.displayName() = when (this) {
+ 121            AutoBuildState.IDLE                       -> "Idle"
+ 122            AutoBuildState.WAITING_FOR_RESPONSE       -> "Waiting for Claude response…"
+ 123            AutoBuildState.DOWNLOAD_AI_OUTPUT         -> "Downloading ai-output.txt…"
+ 124            AutoBuildState.COPY_TO_AUTOMATION_DIR     -> "Copying to automation dir…"
+ 125            AutoBuildState.TRIGGER_BUILD              -> "Triggering build…"
+ 126            AutoBuildState.WAITING_FOR_BUILD          -> "Waiting for build…"
+ 127            AutoBuildState.BUILD_SUCCEEDED            -> "✅ Build succeeded!"
+ 128            AutoBuildState.ATTACHING_ERROR_REPORT     -> "Attaching error report…"
+ 129            AutoBuildState.TIMEOUT_ERROR              -> "⚠ Timeout — retrying…"
+ 130            AutoBuildState.AGENT_IDLE                 -> "Agent: idle"
+ 131            AutoBuildState.AGENT_SENDING_DUMP         -> "Agent: sending dump…"
+ 132            AutoBuildState.AGENT_WAITING_FOR_RESPONSE -> "Agent: waiting for Claude…"
+ 133            AutoBuildState.AGENT_DOWNLOAD_OUTPUT      -> "Agent: downloading output…"
+ 134            AutoBuildState.AGENT_STAGING_OUTPUT       -> "Agent: staging for Phone A…"
+ 135            AutoBuildState.AGENT_LOOP_DONE            -> "Agent: ✅ done"
+ 136        }
+ 137    
+ 138        private fun AutoBuildState.dotColor() = when (this) {
+ 139            AutoBuildState.BUILD_SUCCEEDED, AutoBuildState.AGENT_LOOP_DONE -> Color.GREEN
+ 140            AutoBuildState.TIMEOUT_ERROR                                    -> Color.RED
+ 141            AutoBuildState.IDLE, AutoBuildState.AGENT_IDLE                 -> Color.GRAY
+ 142            AutoBuildState.WAITING_FOR_BUILD, AutoBuildState.TRIGGER_BUILD -> Color.YELLOW
+ 143            AutoBuildState.AGENT_SENDING_DUMP,
+ 144            AutoBuildState.AGENT_WAITING_FOR_RESPONSE,
+ 145            AutoBuildState.AGENT_DOWNLOAD_OUTPUT,
+ 146            AutoBuildState.AGENT_STAGING_OUTPUT                            -> Color.MAGENTA
+ 147            else                                                            -> Color.CYAN
+ 148        }
+ 149    }
+ 150    
+ 151    
+ 152    //===== TERMUXFILE: test/jarvis-agent/agent/self_repair.py =====
+ 153 ❌ #!/usr/bin/env python3
+ 154 ❌ """
+ 155 ❌ self_repair.py  —  Jarvis Self-Repair Module  (Session 20)
+ 156 ❌ ~/workflows/test/jarvis-agent/agent/self_repair.py
+ 157 ❌ 
+ 158 ❌ Capabilities:
+ 159 ❌   1.  find_file()          — search codebase by filename or content keyword
+ 160 ❌   2.  read_file()          — read any file under JARVIS_ROOT safely
+ 161 ❌   3.  write_file()         — write/patch a file with auto .bak backup
+ 162 ❌   4.  push_to_bridge()     — send a file to Phone B over HTTP (/file_push)
+ 163 ❌   5.  pull_from_bridge()   — pull a file Phone B staged for us (/file_pull)
+ 164 ❌   6.  request_fix()        — ask Claude via bridge to fix a file, deploy answer
+ 165 ❌   7.  dump_codebase()      — regenerate new_dump.txt via slash.sh
+ 166 ❌   8.  pause()              — create pause flag, agent stops after current step
+ 167 ❌   9.  resume()             — remove pause flag, agent continues
+ 168 ❌   10. is_paused()          — check if pause flag exists
+ 169 ❌   11. start_agent_task()   — push dump to Phone B and trigger DevTools agent loop
+ 170 ❌ 
+ 171 ❌ Session 20: added start_agent_task() — triggers the full autonomous OPT loop:
+ 172 ❌   1. dump_codebase() → ~/new_dump.txt
+ 173 ❌   2. push dump to Phone B staged/
+ 174 ❌   3. ADB copy dump → /sdcard/Download/new_dump.txt on Phone B
+ 175 ❌   4. POST /agent_task to bridge → writes agent_task.txt on Phone B sdcard
+ 176 ❌   5. DevTools detects agent_task.txt → attaches dump to Claude → downloads output
+ 177 ❌   6. Phone A polls pull_from_bridge("ai-output.txt") until available
+ 178 ❌   7. Saves ai-output.txt to JARVIS_ROOT for extract_ai_output.sh to apply
+ 179 ❌ """
+ 180    
+ 181 ❌ import os
+ 182 ❌ import re
+ 183 ❌ import json
+ 184 ❌ import shutil
+ 185 ❌ import requests
+ 186 ❌ import subprocess
+ 187 ❌ import time
+ 188 ❌ from pathlib import Path
+ 189 ❌ from datetime import datetime
+ 190    
+ 191 ❌ # ── Paths ──────────────────────────────────────────────────────────────────────
+ 192 ❌ HOME        = Path.home()
+ 193 ❌ JARVIS_ROOT = HOME / "workflows" / "test"
+ 194 ❌ AGENT_ROOT  = JARVIS_ROOT / "jarvis-agent"
+ 195 ❌ SLASH_SH    = HOME / "slash.sh"
+ 196 ❌ DUMP_OUT    = HOME / "new_dump.txt"
+ 197 ❌ PAUSE_FLAG  = HOME / "workflows" / ".jarvis_pause"
+ 198    
+ 199 ❌ # Phone B bridge
+ 200 ❌ BRIDGE_URL  = "http://192.168.29.110:8890"
+ 201 ❌ PHONE_B_ADB = "192.168.29.110:35451"
+ 202 ❌ ADB         = "adb"
+ 203    
+ 204 ❌ # ── ANSI colours ───────────────────────────────────────────────────────────────
+ 205 ❌ G = "\033[1;32m"; Y = "\033[1;33m"; R = "\033[1;31m"
+ 206 ❌ C = "\033[1;36m"; W = "\033[1;37m"; D = "\033[2m";  X = "\033[0m"
+ 207    
+ 208 ❌ def _log(tag: str, msg: str, colour: str = W):
+ 209 ❌     ts = datetime.now().strftime("%H:%M:%S")
+ 210 ❌     print(f"{D}[{ts}]{X} {colour}[{tag}]{X} {msg}")
+ 211    
+ 212 ❌ # ── 1. find_file ───────────────────────────────────────────────────────────────
+ 213    
+ 214 ❌ def find_file(name: str = "", keyword: str = "",
+ 215 ❌               root: Path = JARVIS_ROOT) -> list:
+ 216 ❌     results = []
+ 217 ❌     name_lo = name.lower()
+ 218 ❌     for p in Path(root).rglob("*"):
+ 219 ❌         if not p.is_file():
+ 220 ❌             continue
+ 221 ❌         if p.suffix in (".pyc", ".pyo") or "__pycache__" in p.parts:
+ 222 ❌             continue
+ 223 ❌         if name_lo and name_lo not in p.name.lower():
+ 224 ❌             continue
+ 225 ❌         entry = {"path": str(p), "size": p.stat().st_size, "match_lines": []}
+ 226 ❌         if keyword:
+ 227 ❌             try:
+ 228 ❌                 kw_lo = keyword.lower()
+ 229 ❌                 lines = p.read_text(errors="replace").splitlines()
+ 230 ❌                 entry["match_lines"] = [
+ 231 ❌                     f"L{i+1}: {ln.rstrip()}"
+ 232 ❌                     for i, ln in enumerate(lines)
+ 233 ❌                     if kw_lo in ln.lower()
+ 234 ❌                 ]
+ 235 ❌                 if name_lo == "" and not entry["match_lines"]:
+ 236 ❌                     continue
+ 237 ❌             except Exception:
+ 238 ❌                 pass
+ 239 ❌         results.append(entry)
+ 240 ❌     _log("find_file", f"{len(results)} result(s) for name={name!r} keyword={keyword!r}", G)
+ 241 ❌     for r in results:
+ 242 ❌         ml = f"  ({len(r['match_lines'])} matches)" if r["match_lines"] else ""
+ 243 ❌         _log("find_file", f"  {r['path']}{ml}", D)
+ 244 ❌     return results
+ 245    
+ 246 ❌ # ── 2. read_file ───────────────────────────────────────────────────────────────
+ 247    
+ 248 ❌ def read_file(path: str) -> str:
+ 249 ❌     p = Path(path)
+ 250 ❌     if not p.is_absolute():
+ 251 ❌         p = JARVIS_ROOT / path
+ 252 ❌     if not p.exists():
+ 253 ❌         msg = f"[ERROR] File not found: {p}"
+ 254 ❌         _log("read_file", msg, R)
+ 255 ❌         return msg
+ 256 ❌     try:
+ 257 ❌         content = p.read_text(errors="replace")
+ 258 ❌         _log("read_file", f"Read {len(content)} chars from {p}", G)
+ 259 ❌         return content
+ 260 ❌     except Exception as e:
+ 261 ❌         msg = f"[ERROR] Could not read {p}: {e}"
+ 262 ❌         _log("read_file", msg, R)
+ 263 ❌         return msg
+ 264    
+ 265 ❌ # ── 3. write_file ──────────────────────────────────────────────────────────────
+ 266    
+ 267 ❌ def write_file(path: str, content: str, backup: bool = True) -> bool:
+ 268 ❌     p = Path(path)
+ 269 ❌     if not p.is_absolute():
+ 270 ❌         p = JARVIS_ROOT / path
+ 271 ❌     p.parent.mkdir(parents=True, exist_ok=True)
+ 272 ❌     if backup and p.exists():
+ 273 ❌         bak = p.with_suffix(p.suffix + ".bak")
+ 274 ❌         shutil.copy2(p, bak)
+ 275 ❌         _log("write_file", f"Backup saved: {bak}", Y)
+ 276 ❌     try:
+ 277 ❌         p.write_text(content)
+ 278 ❌         _log("write_file", f"Written {len(content)} chars to {p}", G)
+ 279 ❌         return True
+ 280 ❌     except Exception as e:
+ 281 ❌         _log("write_file", f"[ERROR] Write failed: {e}", R)
+ 282 ❌         return False
+ 283    
+ 284 ❌ # ── 4. push_to_bridge ─────────────────────────────────────────────────────────
+ 285    
+ 286 ❌ def push_to_bridge(local_path: str, remote_name: str = "") -> bool:
+ 287 ❌     p = Path(local_path)
+ 288 ❌     if not p.is_absolute():
+ 289 ❌         p = JARVIS_ROOT / local_path
+ 290 ❌     if not p.exists():
+ 291 ❌         _log("push_to_bridge", f"[ERROR] File not found: {p}", R)
+ 292 ❌         return False
+ 293 ❌     remote_name = remote_name or p.name
+ 294 ❌     try:
+ 295 ❌         resp = requests.post(
+ 296 ❌             f"{BRIDGE_URL}/file_push",
+ 297 ❌             json={"name": remote_name, "content": p.read_text(errors="replace")},
+ 298 ❌             timeout=15
+ 299 ❌         )
+ 300 ❌         if resp.ok:
+ 301 ❌             _log("push_to_bridge", f"Pushed {p.name} → Phone B staged/{remote_name}", G)
+ 302 ❌             return True
+ 303 ❌         else:
+ 304 ❌             _log("push_to_bridge", f"[ERROR] Bridge returned {resp.status_code}: {resp.text[:80]}", R)
+ 305 ❌             return False
+ 306 ❌     except Exception as e:
+ 307 ❌         _log("push_to_bridge", f"[ERROR] {e}", R)
+ 308 ❌         return False
+ 309    
+ 310 ❌ # ── 5. pull_from_bridge ───────────────────────────────────────────────────────
+ 311    
+ 312 ❌ def pull_from_bridge(remote_name: str, save_to: str = "") -> str:
+ 313 ❌     save_path = Path(save_to) if save_to else JARVIS_ROOT / remote_name
+ 314 ❌     try:
+ 315 ❌         resp = requests.get(
+ 316 ❌             f"{BRIDGE_URL}/file_pull",
+ 317 ❌             params={"name": remote_name},
+ 318 ❌             timeout=15
+ 319 ❌         )
+ 320 ❌         if resp.ok:
+ 321 ❌             data    = resp.json()
+ 322 ❌             content = data.get("content", "")
+ 323 ❌             save_path.parent.mkdir(parents=True, exist_ok=True)
+ 324 ❌             save_path.write_text(content)
+ 325 ❌             _log("pull_from_bridge", f"Pulled {remote_name} → {save_path}", G)
+ 326 ❌             return str(save_path)
+ 327 ❌         else:
+ 328 ❌             _log("pull_from_bridge", f"[ERROR] {resp.status_code}: {resp.text[:80]}", R)
+ 329 ❌             return ""
+ 330 ❌     except Exception as e:
+ 331 ❌         _log("pull_from_bridge", f"[ERROR] {e}", R)
+ 332 ❌         return ""
+ 333    
+ 334 ❌ # ── 6. request_fix ────────────────────────────────────────────────────────────
+ 335    
+ 336 ❌ def request_fix(file_path: str, problem: str, deploy: bool = True) -> str:
+ 337 ❌     content = read_file(file_path)
+ 338 ❌     if content.startswith("[ERROR]"):
+ 339 ❌         return content
+ 340 ❌     prompt = (
+ 341 ❌         f"You are fixing a bug in the Jarvis Android agent codebase.\n\n"
+ 342 ❌         f"FILE: {file_path}\n"
+ 343 ❌         f"PROBLEM: {problem}\n\n"
+ 344 ❌         f"CURRENT CODE:\n```python\n{content}\n```\n\n"
+ 345 ❌         f"Return ONLY the complete fixed file content with no explanation. "
+ 346 ❌         f"Use the header format: //===== TERMUXFILE: {file_path} ====="
+ 347 ❌     )
+ 348 ❌     _log("request_fix", f"Sending fix request for {file_path} to bridge...", Y)
+ 349 ❌     try:
+ 350 ❌         resp = requests.post(
+ 351 ❌             f"{BRIDGE_URL}/chat",
+ 352 ❌             json={"prompt": prompt},
+ 353 ❌             timeout=180
+ 354 ❌         )
+ 355 ❌         if not resp.ok:
+ 356 ❌             _log("request_fix", f"[ERROR] Bridge {resp.status_code}", R)
+ 357 ❌             return f"[ERROR] Bridge returned {resp.status_code}"
+ 358 ❌         response_text = resp.json().get("response", "")
+ 359 ❌         _log("request_fix", f"Got {len(response_text)} chars from Claude", G)
+ 360 ❌         if deploy and response_text and not response_text.startswith("[ERROR]"):
+ 361 ❌             pattern = r"//===== TERMUXFILE:[^\n]*=====\n(.*?)(?=//=====|\Z)"
+ 362 ❌             m = re.search(pattern, response_text, re.DOTALL)
+ 363 ❌             code = m.group(1).strip() if m else response_text.strip()
+ 364 ❌             if len(code) > 50:
+ 365 ❌                 write_file(file_path, code)
+ 366 ❌                 _log("request_fix", f"Deployed fix to {file_path}", G)
+ 367 ❌             else:
+ 368 ❌                 _log("request_fix", "Response too short to deploy — check manually", Y)
+ 369 ❌         return response_text
+ 370 ❌     except Exception as e:
+ 371 ❌         _log("request_fix", f"[ERROR] {e}", R)
+ 372 ❌         return f"[ERROR] {e}"
+ 373    
+ 374 ❌ # ── 7. dump_codebase ──────────────────────────────────────────────────────────
+ 375    
+ 376 ❌ def dump_codebase(output: str = str(DUMP_OUT)) -> bool:
+ 377 ❌     if not SLASH_SH.exists():
+ 378 ❌         _log("dump_codebase", f"[ERROR] slash.sh not found at {SLASH_SH}", R)
+ 379 ❌         return False
+ 380 ❌     try:
+ 381 ❌         _log("dump_codebase", f"Running slash.sh → {output} ...", Y)
+ 382 ❌         with open(output, "w") as f:
+ 383 ❌             result = subprocess.run(
+ 384 ❌                 ["bash", str(SLASH_SH), str(JARVIS_ROOT)],
+ 385 ❌                 stdout=f, stderr=subprocess.PIPE, timeout=60
+ 386 ❌             )
+ 387 ❌         if result.returncode == 0:
+ 388 ❌             size = Path(output).stat().st_size
+ 389 ❌             _log("dump_codebase", f"Dump written: {output} ({size} bytes)", G)
+ 390 ❌             return True
+ 391 ❌         else:
+ 392 ❌             _log("dump_codebase", f"[ERROR] slash.sh exited {result.returncode}: {result.stderr.decode()[:200]}", R)
+ 393 ❌             return False
+ 394 ❌     except Exception as e:
+ 395 ❌         _log("dump_codebase", f"[ERROR] {e}", R)
+ 396 ❌         return False
+ 397    
+ 398 ❌ # ── 8/9/10. pause / resume / is_paused ───────────────────────────────────────
+ 399    
+ 400 ❌ def pause() -> bool:
+ 401 ❌     try:
+ 402 ❌         PAUSE_FLAG.parent.mkdir(parents=True, exist_ok=True)
+ 403 ❌         PAUSE_FLAG.touch()
+ 404 ❌         _log("pause", f"Pause flag created: {PAUSE_FLAG}", Y)
+ 405 ❌         return True
+ 406 ❌     except Exception as e:
+ 407 ❌         _log("pause", f"[ERROR] {e}", R)
+ 408 ❌         return False
+ 409    
+ 410 ❌ def resume() -> bool:
+ 411 ❌     try:
+ 412 ❌         PAUSE_FLAG.unlink(missing_ok=True)
+ 413 ❌         _log("resume", f"Pause flag removed — agent will resume", G)
+ 414 ❌         return True
+ 415 ❌     except Exception as e:
+ 416 ❌         _log("resume", f"[ERROR] {e}", R)
+ 417 ❌         return False
+ 418    
+ 419 ❌ def is_paused() -> bool:
+ 420 ❌     return PAUSE_FLAG.exists()
+ 421    
+ 422 ❌ # ── 11. start_agent_task ──────────────────────────────────────────────────────
+ 423    
+ 424 ❌ def start_agent_task(task: str,
+ 425 ❌                      dump_first: bool = True,
+ 426 ❌                      poll_timeout: int = 300,
+ 427 ❌                      poll_interval: int = 5) -> str:
+ 428 ❌     """
+ 429 ❌     Session 20 — Full autonomous OPT loop:
+ 430 ❌       1. Optionally regenerate new_dump.txt via slash.sh
+ 431 ❌       2. Push dump to Phone B bridge staged/
+ 432 ❌       3. ADB copy dump → /sdcard/Download/new_dump.txt on Phone B
+ 433 ❌          (DevTools file picker reads from Downloads)
+ 434 ❌       4. POST /agent_task → writes agent_task.txt on Phone B sdcard
+ 435 ❌          (DevTools accessibility service polls for this file)
+ 436 ❌       5. Poll pull_from_bridge("ai-output.txt") until Phone B stages it
+ 437 ❌       6. Save ai-output.txt to JARVIS_ROOT ready for extract_ai_output.sh
+ 438 ❌ 
+ 439 ❌     Returns path to saved ai-output.txt, or empty string on failure.
+ 440 ❌     """
+ 441 ❌     _log("start_agent_task", f"Task: {task!r}", C)
+ 442    
+ 443 ❌     # Step 1: dump codebase
+ 444 ❌     if dump_first:
+ 445 ❌         _log("start_agent_task", "Generating codebase dump...", Y)
+ 446 ❌         if not dump_codebase():
+ 447 ❌             _log("start_agent_task", "[ERROR] dump_codebase failed", R)
+ 448 ❌             return ""
+ 449    
+ 450 ❌     # Step 2: push dump to Phone B staged/
+ 451 ❌     _log("start_agent_task", "Pushing dump to Phone B staged/...", Y)
+ 452 ❌     if not push_to_bridge(str(DUMP_OUT), "new_dump.txt"):
+ 453 ❌         _log("start_agent_task", "[ERROR] push_to_bridge failed", R)
+ 454 ❌         return ""
+ 455    
+ 456 ❌     # Step 3: ADB copy dump → /sdcard/Download/new_dump.txt on Phone B
+ 457 ❌     # DevTools file picker needs the file in /sdcard/Download/ to find it
+ 458 ❌     _log("start_agent_task", "ADB copying dump to Phone B Downloads...", Y)
+ 459 ❌     try:
+ 460 ❌         adb_result = subprocess.run(
+ 461 ❌             [ADB, "-s", PHONE_B_ADB, "push",
+ 462 ❌              str(DUMP_OUT), "/sdcard/Download/new_dump.txt"],
+ 463 ❌             capture_output=True, text=True, timeout=30
+ 464 ❌         )
+ 465 ❌         if adb_result.returncode != 0:
+ 466 ❌             _log("start_agent_task", f"[ERROR] ADB push failed: {adb_result.stderr[:100]}", R)
+ 467 ❌             return ""
+ 468 ❌         _log("start_agent_task", "ADB push to Downloads done", G)
+ 469 ❌     except Exception as e:
+ 470 ❌         _log("start_agent_task", f"[ERROR] ADB push exception: {e}", R)
+ 471 ❌         return ""
+ 472    
+ 473 ❌     # Step 4: trigger DevTools agent loop via /agent_task
+ 474 ❌     _log("start_agent_task", "Triggering DevTools agent loop...", Y)
+ 475 ❌     try:
+ 476 ❌         resp = requests.post(
+ 477 ❌             f"{BRIDGE_URL}/agent_task",
+ 478 ❌             json={"task": task, "dump_name": "new_dump.txt"},
+ 479 ❌             timeout=15
+ 480 ❌         )
+ 481 ❌         if not resp.ok:
+ 482 ❌             _log("start_agent_task", f"[ERROR] /agent_task returned {resp.status_code}: {resp.text[:80]}", R)
+ 483 ❌             return ""
+ 484 ❌         _log("start_agent_task", f"DevTools triggered: {resp.json()}", G)
+ 485 ❌     except Exception as e:
+ 486 ❌         _log("start_agent_task", f"[ERROR] /agent_task request failed: {e}", R)
+ 487 ❌         return ""
+ 488    
+ 489 ❌     # Step 5: poll for ai-output.txt in Phone B staged/
+ 490 ❌     _log("start_agent_task", f"Polling for ai-output.txt (timeout={poll_timeout}s)...", Y)
+ 491 ❌     save_path = JARVIS_ROOT / "ai-output.txt"
+ 492 ❌     elapsed = 0
+ 493 ❌     while elapsed < poll_timeout:
+ 494 ❌         time.sleep(poll_interval)
+ 495 ❌         elapsed += poll_interval
+ 496 ❌         _log("start_agent_task", f"Polling... {elapsed}/{poll_timeout}s", D)
+ 497 ❌         result = pull_from_bridge("ai-output.txt", save_to=str(save_path))
+ 498 ❌         if result:
+ 499 ❌             _log("start_agent_task", f"✅ ai-output.txt received → {save_path}", G)
+ 500 ❌             return str(save_path)
+ 501    
+ 502 ❌     _log("start_agent_task", f"[ERROR] Timed out after {poll_timeout}s waiting for ai-output.txt", R)
+ 503 ❌     return ""
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/AutoBuildService.kt =====
+
+// ❌ ERRORS IN THIS FILE (2 error(s)):
+// Line 38: Unresolved reference: TermuxBridgeModule
+// Line 51: Unresolved reference: TermuxBridgeModule
+
+   1    package com.jarvismini.devtools.autobuild
+   2    
+   3    import android.accessibilityservice.AccessibilityService
+   4    import android.app.Service
+   5    import android.content.Intent
+   6    import android.util.Log
+   7    import android.view.accessibility.AccessibilityEvent
+   8    import com.jarvismini.devtools.autobuild.models.AutoBuildState
+   9    import kotlinx.coroutines.CoroutineScope
+  10    import kotlinx.coroutines.Dispatchers
+  11    import kotlinx.coroutines.Job
+  12    import kotlinx.coroutines.delay
+  13    import kotlinx.coroutines.launch
+  14    
+  15    class AutoBuildService : AccessibilityService() {
+  16    
+  17        companion object {
+  18            private const val TAG = "DevTools:Service"
+  19    
+  20            var onStatusUpdate: ((Int, AutoBuildState) -> Unit)? = null
+  21            var onLogLine: ((String, Boolean) -> Unit)? = null
+  22    
+  23            private var instance: AutoBuildService? = null
+  24    
+  25            @Volatile var currentState: AutoBuildState = AutoBuildState.IDLE
+  26            @Volatile var currentIteration: Int = 0
+  27    
+  28            val isLoopRunning: Boolean get() = instance?.loopJob?.isActive == true
   29    
-  30    @Composable
-  31    fun MainScreen() {
-  32        val context = LocalContext.current
-  33    
-  34        var showBoot    by remember { mutableStateOf(true) }
-  35        var selectedTab by remember { mutableStateOf(MainTab.Home) }
-  36        var voiceTask   by remember { mutableStateOf<String?>(null) }
-  37    
-  38        var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-  39        var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-  40    
-  41        if (showBoot) {
-  42            BootScreen(onBootComplete = { showBoot = false })
-  43            return
-  44        }
-  45    
-  46        LaunchedEffect(Unit) {
-  47            ProgressInitializer.registerAllBlocks(context)
-  48            blocks   = ProgressRepository.getTodayBlocks()
-  49            routines = RoutineProvider.getAllRoutines(context)
-  50        }
-  51    
-  52        LaunchedEffect(selectedTab) {
-  53            if (selectedTab == MainTab.Checklist) {
-  54                ProgressInitializer.registerAllBlocks(context)
-  55                blocks   = ProgressRepository.getTodayBlocks()
-  56                routines = RoutineProvider.getAllRoutines(context)
-  57            }
-  58        }
+  30            fun requestStop() {
+  31                instance?.orchestrator?.requestStop()
+  32                Log.d(TAG, "Stop requested")
+  33            }
+  34        }
+  35    
+  36        private lateinit var uiWatcher:   UIWatcherModule
+  37        private lateinit var fileManager: FileManagerModule
+  38 ❌     private lateinit var termuxBridge: TermuxBridgeModule
+  39        private lateinit var orchestrator: OrchestrationController
+  40        private lateinit var notifier:    BuildNotifier
+  41    
+  42        private val scope   = CoroutineScope(Dispatchers.Main)
+  43        private var loopJob: Job? = null
+  44    
+  45        override fun onServiceConnected() {
+  46            super.onServiceConnected()
+  47            instance = this
+  48    
+  49            uiWatcher    = UIWatcherModule(this)
+  50            fileManager  = FileManagerModule(this)
+  51 ❌         termuxBridge = TermuxBridgeModule(this)
+  52            notifier     = BuildNotifier(this)
+  53            orchestrator = OrchestrationController(this, uiWatcher, fileManager, termuxBridge, notifier)
+  54    
+  55            currentState     = AutoBuildState.IDLE
+  56            currentIteration = 0
+  57    
+  58            startForeground(BuildNotifier.NOTIFICATION_ID, notifier.buildNotification(0, AutoBuildState.IDLE))
   59    
-  60        when (selectedTab) {
-  61            MainTab.Home -> EnhancedHomeScreen(
-  62                onNavigateToChat          = { selectedTab = MainTab.Chat },
-  63                onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
-  64                onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
-  65                onNavigateToSettings      = { selectedTab = MainTab.Settings },
-  66                onNavigateToDebug         = { selectedTab = MainTab.Debug },
-  67                onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
-  68                onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
-  69                onVoiceTask               = { task ->
-  70                    voiceTask   = task
-  71                    selectedTab = MainTab.AgentDashboard
-  72                },
-  73            )
-  74            MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-  75            MainTab.Calendar     -> {
-  76                val vm = remember { CalendarViewModel(context) }
-  77                DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
-  78            }
-  79            MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
-  80            MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-  81            MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-  82            MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-  83            MainTab.AgentDashboard -> AgentDashboardScreen(
-  84                onBack      = { selectedTab = MainTab.Home },
-  85 ❌             initialTask = voiceTask.also { voiceTask = null },
-  86            )
-  87        }
-  88    }
+  60            loopJob = scope.launch {
+  61                // ── Session 20: poll for agent_task.txt before running autobuild loop ──
+  62                // If agent_task.txt exists when the service starts, run the agent loop.
+  63                // Otherwise run the standard autobuild loop as before.
+  64                try {
+  65                    val agentTask = fileManager.readAgentTask()
+  66                    if (agentTask != null) {
+  67                        val (task, dumpName) = agentTask
+  68                        onLogLine?.invoke("[agent] Task detected: $task", false)
+  69                        fileManager.deleteAgentTask()   // consume so it doesn't re-trigger on restart
+  70                        orchestrator.runAgentLoop(task, dumpName)
+  71                    } else {
+  72                        orchestrator.runLoop()
+  73                    }
+  74                } catch (e: Exception) {
+  75                    Log.e(TAG, "Loop crashed", e)
+  76                    notifier.error("Crashed: ${e.message}")
+  77                    onLogLine?.invoke("CRASH: ${e.message}", true)
+  78                }
+  79            }
+  80    
+  81            Log.i(TAG, "AutoBuildService connected")
+  82        }
+  83    
+  84        override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+  85    
+  86        override fun onInterrupt() {
+  87            Log.w(TAG, "Service interrupted")
+  88            loopJob?.cancel()
+  89        }
+  90    
+  91        override fun onUnbind(intent: Intent?): Boolean {
+  92            instance = null
+  93            loopJob?.cancel()
+  94            currentState     = AutoBuildState.IDLE
+  95            currentIteration = 0
+  96            stopForeground(Service.STOP_FOREGROUND_REMOVE)
+  97            return super.onUnbind(intent)
+  98        }
+  99    }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/BuildNotifier.kt =====
+
+// ❌ ERRORS IN THIS FILE (5 error(s)):
+// Line 7: Unresolved reference: DevToolsApp
+// Line 20: Unresolved reference: DevToolsApp
+// Line 35: Unresolved reference: DevToolsApp
+// Line 47: Unresolved reference: DevToolsApp
+// Line 58: Unresolved reference: DevToolsApp
+
+   1    package com.jarvismini.devtools.autobuild
+   2    
+   3    import android.app.Notification
+   4    import android.app.NotificationManager
+   5    import android.content.Context
+   6    import android.util.Log
+   7 ❌ import com.jarvismini.devtools.DevToolsApp
+   8    import com.jarvismini.devtools.autobuild.models.AutoBuildState
+   9    
+  10    class BuildNotifier(private val context: Context) {
+  11    
+  12        companion object {
+  13            const val NOTIFICATION_ID = 9_001
+  14            private const val TAG = "DevTools:Notifier"
+  15        }
+  16    
+  17        private val nm = context.getSystemService(NotificationManager::class.java)
+  18    
+  19        fun buildNotification(iteration: Int, state: AutoBuildState): Notification =
+  20 ❌         Notification.Builder(context, DevToolsApp.CHANNEL_ID)
+  21                .setSmallIcon(android.R.mipmap.sym_def_app_icon)
+  22                .setContentTitle("AutoBuild — Iter $iteration")
+  23                .setContentText(stateText(state))
+  24                .setOngoing(true)
+  25                .build()
+  26    
+  27        fun update(iteration: Int, state: AutoBuildState) {
+  28            runCatching { nm.notify(NOTIFICATION_ID, buildNotification(iteration, state)) }
+  29                .onFailure { Log.w(TAG, "Notification update failed", it) }
+  30        }
+  31    
+  32        fun success(iteration: Int) {
+  33            runCatching {
+  34                nm.notify(NOTIFICATION_ID,
+  35 ❌                 Notification.Builder(context, DevToolsApp.CHANNEL_ID)
+  36                        .setSmallIcon(android.R.mipmap.sym_def_app_icon)
+  37                        .setContentTitle("✅ Build Succeeded")
+  38                        .setContentText("Done after $iteration iteration(s)")
+  39                        .setAutoCancel(true).build())
+  40            }
+  41        }
+  42    
+  43        // Session 20: agent loop success notification
+  44        fun agentSuccess() {
+  45            runCatching {
+  46                nm.notify(NOTIFICATION_ID,
+  47 ❌                 Notification.Builder(context, DevToolsApp.CHANNEL_ID)
+  48                        .setSmallIcon(android.R.mipmap.sym_def_app_icon)
+  49                        .setContentTitle("✅ Agent Task Done")
+  50                        .setContentText("ai-output.txt staged — Phone A can pull now")
+  51                        .setAutoCancel(true).build())
+  52            }
+  53        }
+  54    
+  55        fun error(msg: String) {
+  56            runCatching {
+  57                nm.notify(NOTIFICATION_ID,
+  58 ❌                 Notification.Builder(context, DevToolsApp.CHANNEL_ID)
+  59                        .setSmallIcon(android.R.mipmap.sym_def_app_icon)
+  60                        .setContentTitle("❌ AutoBuild Stopped")
+  61                        .setContentText(msg)
+  62                        .setAutoCancel(true).build())
+  63            }
+  64        }
+  65    
+  66        private fun stateText(state: AutoBuildState) = when (state) {
+  67            AutoBuildState.IDLE                      -> "Idle"
+  68            AutoBuildState.WAITING_FOR_RESPONSE      -> "Waiting for Claude response…"
+  69            AutoBuildState.DOWNLOAD_AI_OUTPUT        -> "Downloading ai-output.txt…"
+  70            AutoBuildState.COPY_TO_AUTOMATION_DIR    -> "Copying to automation dir…"
+  71            AutoBuildState.TRIGGER_BUILD             -> "Triggering build…"
+  72            AutoBuildState.WAITING_FOR_BUILD         -> "Waiting for build…"
+  73            AutoBuildState.BUILD_SUCCEEDED           -> "Build succeeded!"
+  74            AutoBuildState.ATTACHING_ERROR_REPORT    -> "Attaching error report…"
+  75            AutoBuildState.TIMEOUT_ERROR             -> "Timeout — retrying…"
+  76            // Agent loop states
+  77            AutoBuildState.AGENT_IDLE                -> "Agent: idle"
+  78            AutoBuildState.AGENT_SENDING_DUMP        -> "Agent: sending dump to Claude…"
+  79            AutoBuildState.AGENT_WAITING_FOR_RESPONSE -> "Agent: waiting for Claude…"
+  80            AutoBuildState.AGENT_DOWNLOAD_OUTPUT     -> "Agent: downloading output…"
+  81            AutoBuildState.AGENT_STAGING_OUTPUT      -> "Agent: staging for Phone A…"
+  82            AutoBuildState.AGENT_LOOP_DONE           -> "Agent: ✅ done"
+  83        }
+  84    }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/devtools/autobuild/OrchestrationController.kt =====
+
+// ❌ ERRORS IN THIS FILE (7 error(s)):
+// Line 6: Unresolved reference: BuildResult
+// Line 13: Unresolved reference: TermuxBridgeModule
+// Line 50: 'when' expression must be exhaustive, add necessary 'else' branch
+// Line 51: Unresolved reference: BuildResult
+// Line 52: Unresolved reference: BuildResult
+// Line 53: Unresolved reference: BuildResult
+// Line 54: Unresolved reference: BuildResult
+
+   1    package com.jarvismini.devtools.autobuild
+   2    
+   3    import android.content.Context
+   4    import android.util.Log
+   5    import com.jarvismini.devtools.autobuild.models.AutoBuildState
+   6 ❌ import com.jarvismini.devtools.autobuild.models.BuildResult
+   7    import kotlinx.coroutines.delay
+   8    
+   9    class OrchestrationController(
+  10        private val context: Context,
+  11        private val uiWatcher: UIWatcherModule,
+  12        private val fileManager: FileManagerModule,
+  13 ❌     private val termuxBridge: TermuxBridgeModule,
+  14        private val notifier: BuildNotifier
+  15    ) {
+  16        companion object {
+  17            private const val TAG           = "OrchestrationController"
+  18            private const val MAX_ITERATIONS = 50
+  19        }
+  20    
+  21        @Volatile private var stopRequested = false
+  22    
+  23        fun requestStop() { stopRequested = true }
+  24    
+  25        // ── Existing autobuild loop (unchanged) ───────────────────────────────
+  26    
+  27        suspend fun runLoop() {
+  28            var iteration = 0
+  29            var state = AutoBuildState.WAITING_FOR_RESPONSE
+  30            log("Loop started")
+  31            updateState(iteration, state)
+  32    
+  33            while (iteration < MAX_ITERATIONS && !stopRequested) {
+  34                log("Iteration $iteration - State: $state")
+  35                state = when (state) {
+  36                    AutoBuildState.WAITING_FOR_RESPONSE -> { delay(2000); AutoBuildState.DOWNLOAD_AI_OUTPUT }
+  37                    AutoBuildState.DOWNLOAD_AI_OUTPUT -> {
+  38                        fileManager.deleteOldAiOutput()
+  39                        val success = uiWatcher.handleDownloadAiOutput()
+  40                        if (success) AutoBuildState.COPY_TO_AUTOMATION_DIR
+  41                        else { delay(2000); AutoBuildState.DOWNLOAD_AI_OUTPUT }
+  42                    }
+  43                    AutoBuildState.COPY_TO_AUTOMATION_DIR -> {
+  44                        val success = fileManager.copyAiOutputToAutomationDir()
+  45                        if (success) AutoBuildState.TRIGGER_BUILD
+  46                        else { delay(2000); AutoBuildState.COPY_TO_AUTOMATION_DIR }
+  47                    }
+  48                    AutoBuildState.TRIGGER_BUILD -> AutoBuildState.WAITING_FOR_BUILD
+  49                    AutoBuildState.WAITING_FOR_BUILD -> {
+  50 ❌                     when (termuxBridge.triggerBuildAndWait(fileManager)) {
+  51 ❌                         BuildResult.SUCCESS -> AutoBuildState.BUILD_SUCCEEDED
+  52 ❌                         BuildResult.FAILURE -> AutoBuildState.ATTACHING_ERROR_REPORT
+  53 ❌                         BuildResult.TIMEOUT -> { notifier.error("Build timeout"); return }
+  54 ❌                         BuildResult.ERROR   -> { notifier.error("Build error");   return }
+  55                        }
+  56                    }
+  57                    AutoBuildState.BUILD_SUCCEEDED -> { log("Pipeline completed after $iteration iterations"); notifier.success(iteration); return }
+  58                    AutoBuildState.ATTACHING_ERROR_REPORT -> {
+  59                        val success = uiWatcher.handleBuildFailure()
+  60                        if (success) { iteration++; AutoBuildState.WAITING_FOR_RESPONSE }
+  61                        else { delay(2000); AutoBuildState.ATTACHING_ERROR_REPORT }
+  62                    }
+  63                    else -> { log("Unknown state: $state", isError = true); notifier.error("Unknown state"); return }
+  64                }
+  65                updateState(iteration, state)
+  66                delay(500)
+  67            }
+  68            if (stopRequested) { log("Loop stopped by user"); notifier.error("Stopped by user") }
+  69            else { log("Max iterations reached", isError = true); notifier.error("Max iterations reached") }
+  70        }
+  71    
+  72        // ── Session 20: Agent loop ─────────────────────────────────────────────
+  73        // Triggered when AutoBuildService detects agent_task.txt on Phone B sdcard.
+  74        // Flow: AGENT_SENDING_DUMP → AGENT_WAITING_FOR_RESPONSE →
+  75        //       AGENT_DOWNLOAD_OUTPUT → AGENT_STAGING_OUTPUT → AGENT_LOOP_DONE
+  76        // Single-shot — no iteration loop. Phone A polls pull_from_bridge after.
+  77    
+  78        suspend fun runAgentLoop(task: String, dumpName: String) {
+  79            log("[agent] Starting agent loop: task=${task.take(60)} dump=$dumpName")
+  80            var state = AutoBuildState.AGENT_SENDING_DUMP
+  81            updateState(0, state)
+  82    
+  83            while (!stopRequested) {
+  84                log("[agent] State: $state")
+  85                state = when (state) {
+  86    
+  87                    AutoBuildState.AGENT_SENDING_DUMP -> {
+  88                        if (!fileManager.agentDumpExists(dumpName)) {
+  89                            log("[agent] Dump file not found: $dumpName — waiting...", isError = true)
+  90                            delay(2000)
+  91                            AutoBuildState.AGENT_SENDING_DUMP
+  92                        } else {
+  93                            val success = uiWatcher.handleSendDump(task, dumpName)
+  94                            if (success) {
+  95                                log("[agent] Dump sent to Claude, waiting for response...")
+  96                                AutoBuildState.AGENT_WAITING_FOR_RESPONSE
+  97                            } else {
+  98                                log("[agent] Failed to send dump, retrying...", isError = true)
+  99                                delay(3000)
+ 100                                AutoBuildState.AGENT_SENDING_DUMP
+ 101                            }
+ 102                        }
+ 103                    }
+ 104    
+ 105                    AutoBuildState.AGENT_WAITING_FOR_RESPONSE -> {
+ 106                        // Give Claude time to process and generate the output file
+ 107                        log("[agent] Waiting for Claude to generate output...")
+ 108                        delay(5000)
+ 109                        AutoBuildState.AGENT_DOWNLOAD_OUTPUT
+ 110                    }
+ 111    
+ 112                    AutoBuildState.AGENT_DOWNLOAD_OUTPUT -> {
+ 113                        fileManager.deleteOldAgentOutput()
+ 114                        log("[agent] Downloading ai-output.txt...")
+ 115                        val success = uiWatcher.handleDownloadAiOutput()
+ 116                        if (success) {
+ 117                            AutoBuildState.AGENT_STAGING_OUTPUT
+ 118                        } else {
+ 119                            log("[agent] Download failed, retrying...", isError = true)
+ 120                            delay(3000)
+ 121                            AutoBuildState.AGENT_DOWNLOAD_OUTPUT
+ 122                        }
+ 123                    }
+ 124    
+ 125                    AutoBuildState.AGENT_STAGING_OUTPUT -> {
+ 126                        log("[agent] Staging output for Phone A...")
+ 127                        val success = fileManager.stageOutputForPhoneA()
+ 128                        if (success) {
+ 129                            AutoBuildState.AGENT_LOOP_DONE
+ 130                        } else {
+ 131                            log("[agent] Staging failed, retrying...", isError = true)
+ 132                            delay(2000)
+ 133                            AutoBuildState.AGENT_STAGING_OUTPUT
+ 134                        }
+ 135                    }
+ 136    
+ 137                    AutoBuildState.AGENT_LOOP_DONE -> {
+ 138                        log("[agent] ✅ Done — ai-output.txt staged for Phone A")
+ 139                        notifier.agentSuccess()
+ 140                        return
+ 141                    }
+ 142    
+ 143                    else -> {
+ 144                        log("[agent] Unexpected state: $state", isError = true)
+ 145                        notifier.error("[agent] Unexpected state")
+ 146                        return
+ 147                    }
+ 148                }
+ 149                updateState(0, state)
+ 150                delay(500)
+ 151            }
+ 152            log("[agent] Stopped by user request")
+ 153            notifier.error("[agent] Stopped by user")
+ 154        }
+ 155    
+ 156        private fun updateState(iteration: Int, state: AutoBuildState) {
+ 157            AutoBuildService.currentState     = state
+ 158            AutoBuildService.currentIteration = iteration
+ 159            AutoBuildService.onStatusUpdate?.invoke(iteration, state)
+ 160            notifier.update(iteration, state)
+ 161        }
+ 162    
+ 163        private fun log(msg: String, isError: Boolean = false) {
+ 164            if (isError) Log.e(TAG, msg) else Log.d(TAG, msg)
+ 165            AutoBuildService.onLogLine?.invoke(msg, isError)
+ 166        }
+ 167    }
 
 
