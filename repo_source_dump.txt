@@ -3771,26 +3771,26 @@ fun MainScreen() {
 
 // ... FILE TRUNCATED ...
 
-
-    threading.Thread(target=file_ipc_watcher, daemon=True).start()
-
-    print(f"╔══════════════════════════════════════════════════════╗")
-    print(f"║  JARVIS AGENT HTTP BRIDGE                            ║")
-    print(f"╚══════════════════════════════════════════════════════╝")
-    print(f"  Port    : {PORT}")
-    print(f"  Device  : {ADB_DEVICE}")
-    print(f"  Endpoints:")
-    print(f"    GET  /health")
-    print(f"    POST /agent_task  {{\"task\": \"...\"}}")
-    print(f"    POST /heal        {{\"task\": \"...\"}}")
-    print(f"")
-
-    server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n[bridge] Stopped.")
-        server.shutdown()
+            },
+        )
+        MainTab.Chat          -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Calendar      -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
+        }
+        MainTab.Checklist     -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Settings      -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Debug         -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
+        MainTab.AgentDashboard -> AgentDashboardScreen(
+            onBack      = { selectedTab = MainTab.Home },
+            initialTask = voiceTask.also { voiceTask = null },
+        )
+        MainTab.HealDashboard -> HealDashboardScreen(
+            onBack = { selectedTab = MainTab.Home },
+        )
+    }
+}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/settings/ClientPairingScreen.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
