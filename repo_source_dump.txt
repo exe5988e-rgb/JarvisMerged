@@ -3529,6 +3529,7 @@ fun EnhancedHomeScreen(
     onNavigateToDebug:         () -> Unit,
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
+    onNavigateToHeal:          () -> Unit,
     // Called when voice produces a task string — parent routes it to AgentDashboard
     onVoiceTask: ((String) -> Unit)? = null,
 ) {
@@ -3539,7 +3540,6 @@ fun EnhancedHomeScreen(
     DisposableEffect(Unit) { onDispose { vtm.destroy() } }
 
     var isListening   by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
 
 // ... FILE TRUNCATED ...
 
@@ -3548,7 +3548,7 @@ fun EnhancedHomeScreen(
                     modifier = Modifier
                         .size(8.dp)
                         .background(
-                            color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
+                            color = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466),
                             shape = CircleShape
                         )
                 )
@@ -3556,8 +3556,8 @@ fun EnhancedHomeScreen(
                 Text(
                     text       = status,
                     fontSize   = 12.sp,
-                    color      = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
+                    color      = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466)
                 )
             }
         }
