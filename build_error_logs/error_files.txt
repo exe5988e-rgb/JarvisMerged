@@ -1,9 +1,449 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
+
+// ❌ ERRORS IN THIS FILE (2 error(s)):
+// Line 197: Overload resolution ambiguity:
+// Line 378: Conflicting overloads: public fun LogLineRow(log: LogLine): Unit defined in com.jarvismini.agent in file HealDashboardScreen.kt, private fun LogLineRow(log: LogLine): Unit defined in com.jarvismini.agent in file AgentDashboardScreen.kt
+
+   1    package com.jarvismini.agent
+   2    
+   3    import androidx.compose.animation.animateColorAsState
+   4    import androidx.compose.animation.core.*
+   5    import androidx.compose.foundation.background
+   6    import androidx.compose.foundation.border
+   7    import androidx.compose.foundation.layout.*
+   8    import androidx.compose.foundation.lazy.LazyColumn
+   9    import androidx.compose.foundation.lazy.items
+  10    import androidx.compose.foundation.lazy.rememberLazyListState
+  11    import androidx.compose.foundation.shape.CircleShape
+  12    import androidx.compose.foundation.shape.RoundedCornerShape
+  13    import androidx.compose.foundation.text.KeyboardOptions
+  14    import androidx.compose.material.icons.Icons
+  15    import androidx.compose.material.icons.filled.*
+  16    import androidx.compose.material3.*
+  17    import androidx.compose.runtime.*
+  18    import androidx.compose.ui.Alignment
+  19    import androidx.compose.ui.Modifier
+  20    import androidx.compose.ui.draw.clip
+  21    import androidx.compose.ui.graphics.Brush
+  22    import androidx.compose.ui.graphics.Color
+  23    import androidx.compose.ui.platform.LocalContext
+  24    import androidx.compose.ui.text.font.FontFamily
+  25    import androidx.compose.ui.text.font.FontWeight
+  26    import androidx.compose.ui.text.input.KeyboardCapitalization
+  27    import androidx.compose.ui.unit.dp
+  28    import androidx.compose.ui.unit.sp
+  29    import androidx.lifecycle.viewmodel.compose.viewModel
+  30    import kotlinx.coroutines.launch
+  31    
+  32    private val Cyan    = Color(0xFF00E0FF)
+  33    private val DimCyan = Color(0xFF005566)
+  34    private val BgDark  = Color(0xFF060F14)
+  35    private val BgCard  = Color(0xFF0A1A22)
+  36    private val Green   = Color(0xFF00FF88)
+  37    private val Red     = Color(0xFFFF4466)
+  38    private val Yellow  = Color(0xFFFFCC00)
+  39    private val White70 = Color(0xB3FFFFFF)
+  40    private val White40 = Color(0x66FFFFFF)
+  41    
+  42    @Composable
+  43    fun AgentDashboardScreen(
+  44        onBack:      () -> Unit,
+  45        initialTask: String? = null,
+  46        vm:          AgentDashboardViewModel = viewModel()
+  47    ) {
+  48        val state     by vm.state.collectAsState()
+  49        val context   = LocalContext.current
+  50        val listState = rememberLazyListState()
+  51        val scope     = rememberCoroutineScope()
+  52    
+  53        LaunchedEffect(initialTask) {
+  54            if (!initialTask.isNullOrBlank()) {
+  55                vm.onTaskInput(initialTask)
+  56            }
+  57        }
+  58    
+  59        LaunchedEffect(state.logs.size) {
+  60            if (state.logs.isNotEmpty()) {
+  61                listState.animateScrollToItem(state.logs.lastIndex)
+  62            }
+  63        }
+  64    
+  65        Box(
+  66            modifier = Modifier
+  67                .fillMaxSize()
+  68                .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF010A0F))))
+  69        ) {
+  70            Column(
+  71                modifier = Modifier
+  72                    .fillMaxSize()
+  73                    .padding(horizontal = 16.dp)
+  74            ) {
+  75                Spacer(Modifier.height(12.dp))
+  76                Row(
+  77                    Modifier.fillMaxWidth(),
+  78                    verticalAlignment = Alignment.CenterVertically
+  79                ) {
+  80                    IconButton(onClick = onBack) {
+  81                        Icon(Icons.Default.ArrowBack, "Back", tint = Cyan)
+  82                    }
+  83                    Text(
+  84                        "AGENT DASHBOARD",
+  85                        fontSize      = 18.sp,
+  86                        fontWeight    = FontWeight.Light,
+  87                        letterSpacing = 4.sp,
+  88                        color         = Cyan,
+  89                        fontFamily    = FontFamily.Monospace
+  90                    )
+  91                    Spacer(Modifier.weight(1f))
+  92                    ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
+  93                    Spacer(Modifier.width(8.dp))
+  94                    IconButton(onClick = { vm.checkServer() }) {
+  95                        Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
+  96                    }
+  97                }
+  98    
+  99                if (state.running || state.done || state.paused) {
+ 100                    StatusBar(state)
+ 101                    Spacer(Modifier.height(8.dp))
+ 102                }
+ 103    
+ 104                TaskInputSection(
+ 105                    state    = state,
+ 106                    onTask   = vm::onTaskInput,
+ 107                    onDevice = vm::onDeviceInput,
+ 108                    onStart  = vm::startAgent,
+ 109                    onStop   = vm::stopAgent,
+ 110                    onPause  = vm::pauseAgent,
+ 111                    onResume = vm::resumeAgent,
+ 112                )
+ 113    
+ 114                Spacer(Modifier.height(8.dp))
+ 115    
+ 116                Row(
+ 117                    Modifier.fillMaxWidth(),
+ 118                    verticalAlignment = Alignment.CenterVertically
+ 119                ) {
+ 120                    Text(
+ 121                        "LOGS",
+ 122                        fontSize      = 11.sp,
+ 123                        letterSpacing = 3.sp,
+ 124                        color         = DimCyan,
+ 125                        fontFamily    = FontFamily.Monospace
+ 126                    )
+ 127                    Spacer(Modifier.weight(1f))
+ 128                    Row(verticalAlignment = Alignment.CenterVertically) {
+ 129                        Icon(
+ 130                            Icons.Default.VolumeUp,
+ 131                            null,
+ 132                            tint     = if (state.ttsEnabled) Cyan else White40,
+ 133                            modifier = Modifier.size(14.dp)
+ 134                        )
+ 135                        Spacer(Modifier.width(2.dp))
+ 136                        Switch(
+ 137                            checked         = state.ttsEnabled,
+ 138                            onCheckedChange = vm::onTtsToggle,
+ 139                            modifier        = Modifier.height(20.dp),
+ 140                            colors          = SwitchDefaults.colors(
+ 141                                checkedThumbColor   = Cyan,
+ 142                                checkedTrackColor   = DimCyan,
+ 143                                uncheckedThumbColor = White40,
+ 144                                uncheckedTrackColor = BgCard
+ 145                            )
+ 146                        )
+ 147                    }
+ 148                    if (state.logs.isNotEmpty()) {
+ 149                        Spacer(Modifier.width(8.dp))
+ 150                        Text(
+ 151                            "${state.logs.size} lines",
+ 152                            fontSize   = 10.sp,
+ 153                            color      = White40,
+ 154                            fontFamily = FontFamily.Monospace
+ 155                        )
+ 156                        Spacer(Modifier.width(8.dp))
+ 157                        TextButton(
+ 158                            onClick        = vm::clearLogs,
+ 159                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+ 160                        ) {
+ 161                            Text("Clear", fontSize = 11.sp, color = White40)
+ 162                        }
+ 163                        Spacer(Modifier.width(4.dp))
+ 164                        TextButton(
+ 165                            onClick        = { vm.speakResult(context) },
+ 166                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+ 167                        ) {
+ 168                            Icon(Icons.Default.VolumeUp, null, tint = Cyan, modifier = Modifier.size(14.dp))
+ 169                            Spacer(Modifier.width(4.dp))
+ 170                            Text("Speak", fontSize = 11.sp, color = Cyan)
+ 171                        }
+ 172                    }
+ 173                }
+ 174    
+ 175                Spacer(Modifier.height(4.dp))
+ 176    
+ 177                Box(
+ 178                    modifier = Modifier
+ 179                        .fillMaxWidth()
+ 180                        .weight(1f)
+ 181                        .clip(RoundedCornerShape(8.dp))
+ 182                        .background(BgCard)
+ 183                        .border(0.5.dp, DimCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+ 184                        .padding(8.dp)
+ 185                ) {
+ 186                    if (state.logs.isEmpty()) {
+ 187                        Text(
+ 188                            "No logs yet. Start a task to see agent activity.",
+ 189                            color      = White40,
+ 190                            fontSize   = 12.sp,
+ 191                            fontFamily = FontFamily.Monospace,
+ 192                            modifier   = Modifier.align(Alignment.Center)
+ 193                        )
+ 194                    } else {
+ 195                        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+ 196                            items(state.logs, key = { it.id }) { log ->
+ 197 ❌                             LogLineRow(log)
+ 198                            }
+ 199                        }
+ 200                    }
+ 201                }
+ 202    
+ 203                Spacer(Modifier.height(12.dp))
+ 204            }
+ 205        }
+ 206    }
+ 207    
+ 208    @Composable
+ 209    private fun StatusBar(state: AgentDashboardState) {
+ 210        val bg = when {
+ 211            state.error != null -> Red.copy(alpha = 0.15f)
+ 212            state.paused        -> Yellow.copy(alpha = 0.12f)
+ 213            state.done          -> Green.copy(alpha = 0.12f)
+ 214            state.running       -> Cyan.copy(alpha = 0.08f)
+ 215            else                -> BgCard
+ 216        }
+ 217        val text = when {
+ 218            state.error != null -> "✗ Error: ${state.error}"
+ 219            state.paused        -> "⏸ Paused at step ${state.step}  —  ${state.task.take(50)}"
+ 220            state.done          -> "✓ Done in ${state.step} steps"
+ 221            state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
+ 222            else                -> ""
+ 223        }
+ 224        val textColor = when {
+ 225            state.error != null -> Red
+ 226            state.paused        -> Yellow
+ 227            state.done          -> Green
+ 228            else                -> Cyan
+ 229        }
+ 230        if (text.isBlank()) return
+ 231        Row(
+ 232            Modifier
+ 233                .fillMaxWidth()
+ 234                .clip(RoundedCornerShape(6.dp))
+ 235                .background(bg)
+ 236                .padding(horizontal = 10.dp, vertical = 6.dp),
+ 237            verticalAlignment = Alignment.CenterVertically
+ 238        ) {
+ 239            if (state.running && !state.paused) {
+ 240                CircularProgressIndicator(
+ 241                    modifier    = Modifier.size(12.dp),
+ 242                    color       = Cyan,
+ 243                    strokeWidth = 1.5.dp
+ 244                )
+ 245                Spacer(Modifier.width(8.dp))
+ 246            }
+ 247            Text(
+ 248                text,
+ 249                color      = textColor,
+ 250                fontSize   = 12.sp,
+ 251                fontFamily = FontFamily.Monospace,
+ 252                maxLines   = 1
+ 253            )
+ 254        }
+ 255    }
+ 256    
+ 257    @Composable
+ 258    private fun TaskInputSection(
+ 259        state:    AgentDashboardState,
+ 260        onTask:   (String) -> Unit,
+ 261        onDevice: (String) -> Unit,
+ 262        onStart:  () -> Unit,
+ 263        onStop:   () -> Unit,
+ 264        onPause:  () -> Unit,
+ 265        onResume: () -> Unit,
+ 266    ) {
+ 267        Column(
+ 268            Modifier
+ 269                .fillMaxWidth()
+ 270                .clip(RoundedCornerShape(10.dp))
+ 271                .background(BgCard)
+ 272                .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+ 273                .padding(12.dp)
+ 274        ) {
+ 275            OutlinedTextField(
+ 276                value           = state.taskInput,
+ 277                onValueChange   = onTask,
+ 278                label           = { Text("Task", color = White40, fontSize = 12.sp) },
+ 279                placeholder     = { Text("Open WhatsApp and message Mummy...", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+ 280                modifier        = Modifier.fillMaxWidth(),
+ 281                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+ 282                minLines        = 2,
+ 283                maxLines        = 4,
+ 284                colors          = agentFieldColors(),
+ 285                textStyle       = LocalTextStyle.current.copy(
+ 286                    color      = White70,
+ 287                    fontSize   = 13.sp,
+ 288                    fontFamily = FontFamily.Monospace
+ 289                )
+ 290            )
+ 291    
+ 292            Spacer(Modifier.height(8.dp))
+ 293    
+ 294            OutlinedTextField(
+ 295                value         = state.deviceInput,
+ 296                onValueChange = onDevice,
+ 297                label         = { Text("Device", color = White40, fontSize = 11.sp) },
+ 298                singleLine    = true,
+ 299                modifier      = Modifier.fillMaxWidth(),
+ 300                colors        = agentFieldColors(),
+ 301                textStyle     = LocalTextStyle.current.copy(
+ 302                    color      = Cyan,
+ 303                    fontSize   = 12.sp,
+ 304                    fontFamily = FontFamily.Monospace
+ 305                )
+ 306            )
+ 307    
+ 308            Spacer(Modifier.height(10.dp))
+ 309    
+ 310            Row(
+ 311                Modifier.fillMaxWidth(),
+ 312                horizontalArrangement = Arrangement.End,
+ 313                verticalAlignment     = Alignment.CenterVertically
+ 314            ) {
+ 315                if (state.running) {
+ 316                    // ── Pause / Resume button ──────────────────────────────────
+ 317                    if (state.paused) {
+ 318                        OutlinedButton(
+ 319                            onClick  = onResume,
+ 320                            colors   = ButtonDefaults.outlinedButtonColors(contentColor = Green),
+ 321                            modifier = Modifier.height(38.dp)
+ 322                        ) {
+ 323                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+ 324                            Spacer(Modifier.width(4.dp))
+ 325                            Text("Resume", fontSize = 13.sp)
+ 326                        }
+ 327                    } else {
+ 328                        OutlinedButton(
+ 329                            onClick  = onPause,
+ 330                            colors   = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
+ 331                            modifier = Modifier.height(38.dp)
+ 332                        ) {
+ 333                            Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
+ 334                            Spacer(Modifier.width(4.dp))
+ 335                            Text("Pause", fontSize = 13.sp)
+ 336                        }
+ 337                    }
+ 338                    Spacer(Modifier.width(8.dp))
+ 339                    // ── Stop button ────────────────────────────────────────────
+ 340                    OutlinedButton(
+ 341                        onClick  = onStop,
+ 342                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
+ 343                        modifier = Modifier.height(38.dp)
+ 344                    ) {
+ 345                        Icon(Icons.Default.Stop, null, modifier = Modifier.size(16.dp))
+ 346                        Spacer(Modifier.width(4.dp))
+ 347                        Text("Stop", fontSize = 13.sp)
+ 348                    }
+ 349                } else {
+ 350                    Button(
+ 351                        onClick  = onStart,
+ 352                        enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline,
+ 353                        colors   = ButtonDefaults.buttonColors(
+ 354                            containerColor = Cyan,
+ 355                            contentColor   = BgDark
+ 356                        ),
+ 357                        modifier = Modifier.height(38.dp)
+ 358                    ) {
+ 359                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+ 360                        Spacer(Modifier.width(4.dp))
+ 361                        Text("Run", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+ 362                    }
+ 363                }
+ 364            }
+ 365    
+ 366            if (!state.serverOnline) {
+ 367                Spacer(Modifier.height(6.dp))
+ 368                Text(
+ 369                    "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
+ 370                    color      = Yellow,
+ 371                    fontSize   = 10.sp,
+ 372                    fontFamily = FontFamily.Monospace,
+ 373                )
+ 374            }
+ 375        }
+ 376    }
+ 377    
+ 378 ❌ @Composable
+ 379    private fun LogLineRow(log: LogLine) {
+ 380        val color = when (log.level) {
+ 381            LogLevel.SUCCESS -> Green
+ 382            LogLevel.ERROR   -> Red
+ 383            LogLevel.WARN    -> Yellow
+ 384            LogLevel.STEP    -> Cyan
+ 385            LogLevel.SYSTEM  -> DimCyan
+ 386            LogLevel.INFO    -> White70
+ 387        }
+ 388        Text(
+ 389            text       = log.text,
+ 390            color      = color,
+ 391            fontSize   = 11.sp,
+ 392            fontFamily = FontFamily.Monospace,
+ 393            lineHeight = 14.sp,
+ 394            modifier   = Modifier
+ 395                .fillMaxWidth()
+ 396                .padding(vertical = 1.dp, horizontal = 2.dp)
+ 397        )
+ 398    }
+ 399    
+ 400    // Session 17: paused param added — dot turns yellow when paused
+ 401    @Composable
+ 402    private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
+ 403        val pulse = rememberInfiniteTransition(label = "pulse")
+ 404        val alpha by pulse.animateFloat(
+ 405            initialValue = 0.4f, targetValue = 1f,
+ 406            animationSpec = infiniteRepeatable(
+ 407                animation  = tween(900, easing = FastOutSlowInEasing),
+ 408                repeatMode = RepeatMode.Reverse
+ 409            ),
+ 410            label = "dotAlpha"
+ 411        )
+ 412        val color = when {
+ 413            !online -> Red
+ 414            paused  -> Yellow.copy(alpha = alpha)
+ 415            running -> Green.copy(alpha = alpha)
+ 416            else    -> Green
+ 417        }
+ 418        Box(
+ 419            Modifier
+ 420                .size(10.dp)
+ 421                .clip(CircleShape)
+ 422                .background(color)
+ 423        )
+ 424    }
+ 425    
+ 426    @Composable
+ 427    private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
+ 428        focusedBorderColor   = Cyan,
+ 429        unfocusedBorderColor = DimCyan.copy(alpha = 0.5f),
+ 430        cursorColor          = Cyan,
+ 431        focusedLabelColor    = Cyan,
+ 432    )
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/agent/HealDashboardScreen.kt =====
 
 // ❌ ERRORS IN THIS FILE (1 error(s)):
-// Line 170: Cannot access 'LogLineRow': it is private in file
+// Line 183: Conflicting overloads: public fun LogLineRow(log: LogLine): Unit defined in com.jarvismini.agent in file HealDashboardScreen.kt, private fun LogLineRow(log: LogLine): Unit defined in com.jarvismini.agent in file AgentDashboardScreen.kt
 
    1    package com.jarvismini.agent
    2    
@@ -174,7 +614,7 @@
  167                    } else {
  168                        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
  169                            items(state.logs, key = { it.id }) { log ->
- 170 ❌                             LogLineRow(log)
+ 170                                LogLineRow(log)
  171                            }
  172                        }
  173                    }
@@ -185,638 +625,148 @@
  178        }
  179    }
  180    
- 181    @Composable
- 182    private fun HealStatusBar(state: HealDashboardState) {
- 183        val bg = when {
- 184            state.error != null -> Red.copy(alpha = 0.15f)
- 185            state.done          -> Green.copy(alpha = 0.12f)
- 186            state.healing       -> Magenta.copy(alpha = 0.08f)
- 187            else                -> BgCard
- 188        }
- 189        val text = when {
- 190            state.error != null -> "✗ Error: ${state.error}"
- 191            state.done          -> "✓ Patches applied"
- 192            state.healing       -> "Healing in progress — DevTools is working…"
- 193            else                -> ""
- 194        }
- 195        val textColor = when {
- 196            state.error != null -> Red
- 197            state.done          -> Green
- 198            else                -> Magenta
- 199        }
- 200        if (text.isBlank()) return
- 201        Row(
- 202            Modifier
- 203                .fillMaxWidth()
- 204                .clip(RoundedCornerShape(6.dp))
- 205                .background(bg)
- 206                .padding(horizontal = 10.dp, vertical = 6.dp),
- 207            verticalAlignment = Alignment.CenterVertically
- 208        ) {
- 209            if (state.healing) {
- 210                CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Magenta, strokeWidth = 1.5.dp)
- 211                Spacer(Modifier.width(8.dp))
- 212            }
- 213            Text(text, color = textColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
- 214        }
- 215    }
- 216    
- 217    @Composable
- 218    private fun HealInputSection(
- 219        state:   HealDashboardState,
- 220        onTask:  (String) -> Unit,
- 221        onStart: () -> Unit,
- 222    ) {
- 223        Column(
- 224            Modifier
- 225                .fillMaxWidth()
- 226                .clip(RoundedCornerShape(10.dp))
- 227                .background(BgCard)
- 228                .border(0.5.dp, DimMagenta.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
- 229                .padding(12.dp)
- 230        ) {
- 231            OutlinedTextField(
- 232                value           = state.taskInput,
- 233                onValueChange   = onTask,
- 234                label           = { Text("Describe the fix", color = White40, fontSize = 12.sp) },
- 235                placeholder     = { Text("Fix Gemini Send button missing from screen elements…", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
- 236                modifier        = Modifier.fillMaxWidth(),
- 237                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
- 238                minLines        = 2,
- 239                maxLines        = 5,
- 240                colors          = OutlinedTextFieldDefaults.colors(
- 241                    focusedBorderColor   = Magenta,
- 242                    unfocusedBorderColor = DimMagenta.copy(alpha = 0.5f),
- 243                    cursorColor          = Magenta,
- 244                    focusedLabelColor    = Magenta,
- 245                ),
- 246                textStyle = LocalTextStyle.current.copy(
- 247                    color      = White70,
- 248                    fontSize   = 13.sp,
- 249                    fontFamily = FontFamily.Monospace
- 250                )
- 251            )
- 252    
- 253            Spacer(Modifier.height(10.dp))
- 254    
- 255            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
- 256                Button(
- 257                    onClick  = onStart,
- 258                    enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline && !state.healing,
- 259                    colors   = ButtonDefaults.buttonColors(
- 260                        containerColor         = Magenta,
- 261                        contentColor           = BgDark,
- 262                        disabledContainerColor = DimMagenta.copy(alpha = 0.3f),
- 263                        disabledContentColor   = White40
- 264                    ),
- 265                    modifier = Modifier.height(38.dp)
- 266                ) {
- 267                    Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp))
- 268                    Spacer(Modifier.width(4.dp))
- 269                    Text(if (state.healing) "Healing…" else "Heal", fontWeight = FontWeight.Bold, fontSize = 13.sp)
- 270                }
- 271            }
- 272    
- 273            if (!state.serverOnline) {
- 274                Spacer(Modifier.height(6.dp))
- 275                Text(
- 276                    "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
- 277                    color = Yellow, fontSize = 10.sp, fontFamily = FontFamily.Monospace
- 278                )
- 279            }
- 280        }
- 281    }
- 282    
- 283    @Composable
- 284    private fun HealStatusDot(online: Boolean, healing: Boolean) {
- 285        val pulse = rememberInfiniteTransition(label = "pulse")
- 286        val alpha by pulse.animateFloat(
- 287            initialValue  = 0.4f, targetValue = 1f,
- 288            animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
- 289            label = "dotAlpha"
- 290        )
- 291        val color = when {
- 292            !online -> Red
- 293            healing -> Magenta.copy(alpha = alpha)
- 294            else    -> Green
- 295        }
- 296        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
- 297    }
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
-
-// ❌ ERRORS IN THIS FILE (202 error(s)):
-// Line 97: Expecting a top level declaration
-// Line 98: Expecting a top level declaration
-// Line 99: Expecting a top level declaration
-// Line 100: Expecting a top level declaration
-// Line 101: Expecting a top level declaration
-// Line 102: Expecting a top level declaration
-// Line 103: Expecting a top level declaration
-// Line 104: Expecting a top level declaration
-// Line 105: Expecting a top level declaration
-// Line 105: imports are only allowed in the beginning of file
-// Line 107: Unresolved reference: json
-// Line 108: Unresolved reference: os
-// Line 109: Unresolved reference: sys
-// Line 110: Unresolved reference: time
-// Line 111: Unresolved reference: threading
-// Line 112: Expecting a top level declaration
-// Line 112: Unresolved reference: HTTPServer
-// Line 112: imports are only allowed in the beginning of file
-// Line 113: Expecting a top level declaration
-// Line 113: Unresolved reference: Path
-// Line 113: imports are only allowed in the beginning of file
-// Line 115: Expecting a top level declaration
-// Line 116: Expecting a top level declaration
-// Line 117: Expecting a top level declaration
-// Line 118: Expecting a top level declaration
-// Line 119: Expecting a top level declaration
-// Line 120: Expecting a top level declaration
-// Line 121: Expecting a top level declaration
-// Line 123: Expecting a top level declaration
-// Line 124: Expecting a top level declaration
-// Line 126: Expecting a top level declaration
-// Line 128: Expecting a top level declaration
-// Line 130: Expecting a top level declaration
-// Line 131: Expecting a top level declaration
-// Line 132: Expecting a top level declaration
-// Line 132: Unresolved reference: AgentState
-// Line 132: imports are only allowed in the beginning of file
-// Line 133: Expecting a top level declaration
-// Line 133: Unresolved reference: capture_screen
-// Line 133: imports are only allowed in the beginning of file
-// Line 134: Expecting a top level declaration
-// Line 134: Unresolved reference: parse_ui
-// Line 134: imports are only allowed in the beginning of file
-// Line 135: Expecting a top level declaration
-// Line 135: Unresolved reference: build_prompt
-// Line 135: imports are only allowed in the beginning of file
-// Line 136: Expecting a top level declaration
-// Line 136: Unresolved reference: generate
-// Line 136: imports are only allowed in the beginning of file
-// Line 137: Expecting a top level declaration
-// Line 137: Unresolved reference: parse_action
-// Line 137: imports are only allowed in the beginning of file
-// Line 138: Expecting a top level declaration
-// Line 138: Unresolved reference: execute
-// Line 138: imports are only allowed in the beginning of file
-// Line 140: Expecting a top level declaration
-// Line 141: Expecting a top level declaration
-// Line 142: Expecting a top level declaration
-// Line 144: Expecting a top level declaration
-// Line 145: Expecting a top level declaration
-// Line 146: Expecting a top level declaration
-// Line 147: Expecting a top level declaration
-// Line 148: Expecting a top level declaration
-// Line 149: Expecting a top level declaration
-// Line 150: Expecting a top level declaration
-// Line 151: Expecting a top level declaration
-// Line 152: Expecting a top level declaration
-// Line 154: Expecting a top level declaration
-// Line 155: Expecting a top level declaration
-// Line 156: Expecting a top level declaration
-// Line 158: Expecting a top level declaration
-// Line 159: Expecting a top level declaration
-// Line 160: Expecting a top level declaration
-// Line 161: Expecting a top level declaration
-// Line 162: Expecting a top level declaration
-// Line 163: Expecting a top level declaration
-// Line 164: Expecting a top level declaration
-// Line 165: Expecting a top level declaration
-// Line 166: Expecting a top level declaration
-// Line 168: Expecting a top level declaration
-// Line 170: Expecting a top level declaration
-// Line 171: Expecting a top level declaration
-// Line 172: Expecting a top level declaration
-// Line 173: Expecting a top level declaration
-// Line 174: Expecting a top level declaration
-// Line 176: Expecting a top level declaration
-// Line 177: Expecting a top level declaration
-// Line 178: Expecting a top level declaration
-// Line 179: Expecting a top level declaration
-// Line 180: Expecting a top level declaration
-// Line 181: Expecting a top level declaration
-// Line 183: Expecting a top level declaration
-// Line 184: Expecting a top level declaration
-// Line 186: Expecting a top level declaration
-// Line 187: Expecting a top level declaration
-// Line 188: Expecting a top level declaration
-// Line 191: Expecting a top level declaration
-// Line 193: Expecting a top level declaration
-// Line 194: Expecting a top level declaration
-// Line 195: Expecting a top level declaration
-// Line 196: Expecting a top level declaration
-// Line 197: Expecting a top level declaration
-// Line 197: Unresolved reference: start_agent_task
-// Line 197: imports are only allowed in the beginning of file
-// Line 198: Expecting a top level declaration
-// Line 199: Expecting a top level declaration
-// Line 200: Expecting a top level declaration
-// Line 201: Expecting a top level declaration
-// Line 202: Expecting a top level declaration
-// Line 203: Expecting a top level declaration
-// Line 204: Expecting a top level declaration
-// Line 205: Expecting a top level declaration
-// Line 207: Expecting a top level declaration
-// Line 210: Expecting a top level declaration
-// Line 212: Expecting a top level declaration
-// Line 213: Expecting a top level declaration
-// Line 214: Expecting a top level declaration
-// Line 215: Expecting a top level declaration
-// Line 216: Expecting a top level declaration
-// Line 217: Expecting a top level declaration
-// Line 218: Expecting a top level declaration
-// Line 219: Expecting a top level declaration
-// Line 220: Expecting a top level declaration
-// Line 221: Expecting a top level declaration
-// Line 222: Expecting a top level declaration
-// Line 223: Expecting a top level declaration
-// Line 224: Expecting a top level declaration
-// Line 225: Expecting a top level declaration
-// Line 226: Expecting a top level declaration
-// Line 227: Expecting a top level declaration
-// Line 228: Expecting a top level declaration
-// Line 229: Expecting a top level declaration
-// Line 232: Expecting a top level declaration
-// Line 234: Parameters must have type annotation
-// Line 236: Expecting a top level declaration
-// Line 236: Unresolved reference: def
-// Line 237: Expecting a top level declaration
-// Line 239: Expecting a top level declaration
-// Line 240: Expecting a top level declaration
-// Line 241: Expecting a top level declaration
-// Line 242: Expecting a top level declaration
-// Line 243: Expecting a top level declaration
-// Line 244: Expecting a top level declaration
-// Line 245: Expecting a top level declaration
-// Line 247: Expecting a top level declaration
-// Line 248: Expecting a top level declaration
-// Line 249: Expecting a top level declaration
-// Line 250: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 251: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 252: Expecting a top level declaration
-// Line 253: Expecting a top level declaration
-// Line 254: Expecting a top level declaration
-// Line 254: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 256: Expecting a top level declaration
-// Line 257: Expecting a top level declaration
-// Line 258: Expecting a top level declaration
-// Line 259: Expecting a top level declaration
-// Line 261: Expecting a top level declaration
-// Line 262: Expecting a top level declaration
-// Line 263: Expecting a top level declaration
-// Line 264: Expecting a top level declaration
-// Line 264: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 265: Expecting a top level declaration
-// Line 266: Expecting a top level declaration
-// Line 267: Expecting a top level declaration
-// Line 268: Expecting a top level declaration
-// Line 269: Expecting a top level declaration
-// Line 269: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 271: Expecting a top level declaration
-// Line 272: Expecting a top level declaration
-// Line 273: Expecting a top level declaration
-// Line 274: Expecting a top level declaration
-// Line 274: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 275: Expecting a top level declaration
-// Line 276: Expecting a top level declaration
-// Line 277: Expecting a top level declaration
-// Line 278: Expecting a top level declaration
-// Line 278: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 280: Expecting a top level declaration
-// Line 281: Expecting a top level declaration
-// Line 281: Unexpected tokens (use ';' to separate expressions on the same line)
-// Line 284: Expecting a top level declaration
-// Line 286: Expecting a top level declaration
-// Line 287: Expecting a top level declaration
-// Line 288: Expecting a top level declaration
-// Line 290: Expecting a top level declaration
-// Line 292: Expecting a top level declaration
-// Line 293: Expecting a top level declaration
-// Line 294: Expecting a top level declaration
-// Line 295: Expecting a top level declaration
-// Line 296: Expecting a top level declaration
-// Line 297: Expecting a top level declaration
-// Line 298: Expecting a top level declaration
-// Line 299: Expecting a top level declaration
-// Line 300: Expecting a top level declaration
-// Line 301: Expecting a top level declaration
-// Line 303: Expecting a top level declaration
-// Line 304: Expecting a top level declaration
-// Line 305: Expecting a top level declaration
-// Line 306: Expecting a top level declaration
-// Line 307: Expecting a top level declaration
-// Line 308: Expecting a top level declaration
-
-   1    package com.jarvismini.ui.main
-   2    
-   3    import androidx.compose.runtime.*
-   4    import androidx.compose.ui.platform.LocalContext
-   5    import com.jarvismini.ProgressInitializer
-   6    import com.jarvismini.core.progress.*
-   7    import com.jarvismini.core.routine.RoutineProvider
-   8    import com.jarvismini.ui.boot.BootScreen
-   9    import com.jarvismini.ui.home.EnhancedHomeScreen
-  10    import com.jarvismini.ui.chat.JarvisChatScreen
-  11    import com.jarvismini.ui.calendar.CalendarViewModel
-  12    import com.jarvismini.ui.calendar.DayCalendarScreen
-  13    import com.jarvismini.ui.settings.SettingsScreen
-  14    import com.jarvismini.ui.debug.DebugScreen
-  15    import com.jarvismini.ui.checklist.JarvisChecklistScreen
-  16    import com.jarvismini.ui.llm.TermuxCommandScreen
-  17    import com.jarvismini.agent.AgentDashboardScreen
-  18    import com.jarvismini.agent.HealDashboardScreen
-  19    
-  20    enum class MainTab {
-  21        Home,
-  22        Chat,
-  23        Calendar,
-  24        Checklist,
-  25        Settings,
-  26        Debug,
-  27        TermuxCommand,
-  28        AgentDashboard,
-  29        HealDashboard,
-  30    }
-  31    
-  32    @Composable
-  33    fun MainScreen() {
-  34        val context = LocalContext.current
-  35    
-  36        var showBoot    by remember { mutableStateOf(true) }
-  37        var selectedTab by remember { mutableStateOf(MainTab.Home) }
-  38        var voiceTask   by remember { mutableStateOf<String?>(null) }
-  39    
-  40        var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-  41        var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-  42    
-  43        if (showBoot) {
-  44            BootScreen(onBootComplete = { showBoot = false })
-  45            return
-  46        }
-  47    
-  48        LaunchedEffect(Unit) {
-  49            ProgressInitializer.registerAllBlocks(context)
-  50            blocks   = ProgressRepository.getTodayBlocks()
-  51            routines = RoutineProvider.getAllRoutines(context)
-  52        }
-  53    
-  54        LaunchedEffect(selectedTab) {
-  55            if (selectedTab == MainTab.Checklist) {
-  56                ProgressInitializer.registerAllBlocks(context)
-  57                blocks   = ProgressRepository.getTodayBlocks()
-  58                routines = RoutineProvider.getAllRoutines(context)
-  59            }
-  60        }
-  61    
-  62        when (selectedTab) {
-  63            MainTab.Home -> EnhancedHomeScreen(
-  64                onNavigateToChat          = { selectedTab = MainTab.Chat },
-  65                onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
-  66                onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
-  67                onNavigateToSettings      = { selectedTab = MainTab.Settings },
-  68                onNavigateToDebug         = { selectedTab = MainTab.Debug },
-  69                onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
-  70                onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
-  71                onVoiceTask               = { task ->
-  72                    voiceTask   = task
-  73                    selectedTab = MainTab.AgentDashboard
-  74                },
-  75            )
-  76            MainTab.Chat          -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-  77            MainTab.Calendar      -> {
-  78                val vm = remember { CalendarViewModel(context) }
-  79                DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
-  80            }
-  81            MainTab.Checklist     -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
-  82            MainTab.Settings      -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-  83            MainTab.Debug         -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-  84            MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-  85            MainTab.AgentDashboard -> AgentDashboardScreen(
-  86                onBack      = { selectedTab = MainTab.Home },
-  87                initialTask = voiceTask.also { voiceTask = null },
-  88            )
-  89            MainTab.HealDashboard -> HealDashboardScreen(
-  90                onBack = { selectedTab = MainTab.Home },
-  91            )
-  92        }
-  93    }
-  94    
-  95    
-  96    //===== TERMUXFILE: agent_http_bridge.py =====
-  97 ❌ #!/usr/bin/env python3
-  98 ❌ """
-  99 ❌ agent_http_bridge.py  —  Port 8891
- 100 ❌ 
- 101 ❌ Endpoints:
- 102 ❌   GET  /health
- 103 ❌   POST /agent_task  {"task": "..."}        <- normal agent loop
- 104 ❌   POST /heal        {"task": "..."}        <- self-improving pipeline (fire-and-forget)
- 105 ❌ """
- 106    
- 107 ❌ import json
- 108 ❌ import os
- 109 ❌ import sys
- 110 ❌ import time
- 111 ❌ import threading
- 112 ❌ from http.server import HTTPServer, BaseHTTPRequestHandler
- 113 ❌ from pathlib import Path
- 114    
- 115 ❌ # ── Paths ─────────────────────────────────────────────────────────────────────
- 116 ❌ # __file__ is ~/workflows/agent_http_bridge.py  →  parent is ~/workflows/
- 117 ❌ ROOT       = Path(__file__).parent / "test" / "jarvis-agent"
- 118 ❌ JARVIS_DIR = Path("/sdcard/jarvis")
- 119 ❌ TASK_FILE  = JARVIS_DIR / "agent_task.txt"
- 120 ❌ RESULT_FILE= JARVIS_DIR / "agent_result.txt"
- 121 ❌ STATUS_FILE= JARVIS_DIR / "agent_status.txt"
- 122    
- 123 ❌ PORT       = 8891
- 124 ❌ ADB_DEVICE = "192.168.29.48:37981"
- 125    
- 126 ❌ sys.path.insert(0, str(ROOT))
- 127    
- 128 ❌ # ── Normal agent runner ───────────────────────────────────────────────────────
- 129    
- 130 ❌ def run_agent_task(task: str) -> str:
- 131 ❌     try:
- 132 ❌         from agent.state               import AgentState
- 133 ❌         from perception.screen_capture import capture_screen
- 134 ❌         from perception.ui_mock_parser  import parse_ui
- 135 ❌         from reasoning.prompt_builder   import build_prompt
- 136 ❌         from reasoning.llm_client       import generate
- 137 ❌         from reasoning.action_parser    import parse_action
- 138 ❌         from executor.adb_executor      import execute
- 139    
- 140 ❌         STATUS_FILE.write_text("running")
- 141 ❌         state = AgentState(task=task, max_steps=20)
- 142 ❌         last_action_label = "none"
- 143    
- 144 ❌         while not state.is_finished():
- 145 ❌             try:
- 146 ❌                 img    = capture_screen(adb_device=ADB_DEVICE)
- 147 ❌                 ui     = parse_ui(img)
- 148 ❌                 prompt = build_prompt(task, ui, history=state.history)
- 149 ❌                 out    = generate(prompt)
- 150 ❌                 action = parse_action(out)
- 151 ❌                 execute(action, ui, adb_device=ADB_DEVICE)
- 152 ❌                 state.record(action, ui)
- 153    
- 154 ❌                 if action.get("action") == "done":
- 155 ❌                     state.done = True
- 156 ❌                     break
- 157    
- 158 ❌                 act = action.get("action", "?")
- 159 ❌                 if act == "tap" and action.get("target"):
- 160 ❌                     tid   = action.get("target")
- 161 ❌                     label = next((e["text"] for e in ui if e["id"] == tid), f"item {tid}")
- 162 ❌                     last_action_label = f"tapped {label}"
- 163 ❌                 elif act == "type":
- 164 ❌                     last_action_label = f"typed '{action.get('text','')}'"
- 165 ❌                 else:
- 166 ❌                     last_action_label = act
- 167    
- 168 ❌                 time.sleep(1.5)
- 169    
- 170 ❌             except Exception as e:
- 171 ❌                 print(f"[bridge] step error: {e}")
- 172 ❌                 time.sleep(3)
- 173 ❌                 state.step += 1
- 174 ❌                 continue
- 175    
- 176 ❌         if state.done:
- 177 ❌             result = f"Done. {task} completed in {state.step} steps."
- 178 ❌         elif state.step >= state.max_steps:
- 179 ❌             result = f"Reached maximum steps. Last action: {last_action_label}."
- 180 ❌         else:
- 181 ❌             result = f"Task stopped. Last action: {last_action_label}."
+ 181    // ── Log line row ──────────────────────────────────────────────────────────────
  182    
- 183 ❌         STATUS_FILE.write_text("ready")
- 184 ❌         return result
- 185    
- 186 ❌     except Exception as e:
- 187 ❌         STATUS_FILE.write_text("error")
- 188 ❌         return f"Agent error: {str(e)}"
- 189    
- 190    
- 191 ❌ # ── Self-heal runner ──────────────────────────────────────────────────────────
- 192    
- 193 ❌ def run_heal_task(task: str):
- 194 ❌     """Fire-and-forget — runs start_agent_task() in background thread."""
- 195 ❌     def _run():
- 196 ❌         try:
- 197 ❌             from agent.self_repair import start_agent_task
- 198 ❌             print(f"[heal] Starting self-repair pipeline: {task[:80]}")
- 199 ❌             result = start_agent_task(task, dump_first=True)
- 200 ❌             if result.get("success"):
- 201 ❌                 print(f"[heal] ✅ Pipeline complete — patches applied")
- 202 ❌             else:
- 203 ❌                 print(f"[heal] ✗ Pipeline failed: {result.get('error')}")
- 204 ❌         except Exception as e:
- 205 ❌             print(f"[heal] ✗ Exception: {e}")
+ 183 ❌ @Composable
+ 184    fun LogLineRow(log: LogLine) {
+ 185        val color = when (log.level) {
+ 186            LogLevel.SUCCESS -> Green
+ 187            LogLevel.ERROR   -> Red
+ 188            LogLevel.WARN    -> Yellow
+ 189            LogLevel.SYSTEM  -> Magenta
+ 190            LogLevel.STEP    -> Color(0xFF64B5F6)
+ 191            LogLevel.INFO    -> White70
+ 192        }
+ 193        Text(
+ 194            text       = log.text,
+ 195            color      = color,
+ 196            fontSize   = 11.sp,
+ 197            fontFamily = FontFamily.Monospace,
+ 198            lineHeight = 15.sp,
+ 199            modifier   = Modifier
+ 200                .fillMaxWidth()
+ 201                .padding(vertical = 1.dp)
+ 202        )
+ 203    }
+ 204    
+ 205    // ── Supporting private composables ────────────────────────────────────────────
  206    
- 207 ❌     threading.Thread(target=_run, daemon=True).start()
- 208    
- 209    
- 210 ❌ # ── File IPC watcher ──────────────────────────────────────────────────────────
- 211    
- 212 ❌ def file_ipc_watcher():
- 213 ❌     print("[bridge] File IPC watcher started")
- 214 ❌     last_task = ""
- 215 ❌     JARVIS_DIR.mkdir(exist_ok=True)
- 216 ❌     while True:
- 217 ❌         try:
- 218 ❌             if TASK_FILE.exists() and TASK_FILE.stat().st_size > 0:
- 219 ❌                 task = TASK_FILE.read_text().strip()
- 220 ❌                 if task and task != last_task:
- 221 ❌                     last_task = task
- 222 ❌                     print(f"[bridge] File IPC task: {task}")
- 223 ❌                     TASK_FILE.write_text("")
- 224 ❌                     result = run_agent_task(task)
- 225 ❌                     RESULT_FILE.write_text(result)
- 226 ❌                     print(f"[bridge] File IPC result: {result}")
- 227 ❌         except Exception as e:
- 228 ❌             print(f"[bridge] File IPC error: {e}")
- 229 ❌         time.sleep(0.5)
- 230    
- 231    
- 232 ❌ # ── HTTP server ───────────────────────────────────────────────────────────────
- 233    
- 234 ❌ class BridgeHandler(BaseHTTPRequestHandler):
- 235    
- 236 ❌     def log_message(self, fmt, *args):
- 237 ❌         print(f"[bridge] {fmt % args}")
- 238    
- 239 ❌     def send_json(self, code, data):
- 240 ❌         body = json.dumps(data).encode()
- 241 ❌         self.send_response(code)
- 242 ❌         self.send_header("Content-Type", "application/json")
- 243 ❌         self.send_header("Access-Control-Allow-Origin", "*")
- 244 ❌         self.end_headers()
- 245 ❌         self.wfile.write(body)
- 246    
- 247 ❌     def do_GET(self):
- 248 ❌         if self.path == "/health":
- 249 ❌             self.send_json(200, {
- 250 ❌                 "success": True,
- 251 ❌                 "status":  STATUS_FILE.read_text().strip() if STATUS_FILE.exists() else "ready"
- 252 ❌             })
- 253 ❌         else:
- 254 ❌             self.send_json(404, {"success": False, "error": "not found"})
- 255    
- 256 ❌     def do_POST(self):
- 257 ❌         length = int(self.headers.get("Content-Length", 0))
- 258 ❌         body   = self.rfile.read(length)
- 259 ❌         data   = json.loads(body.decode())
- 260    
- 261 ❌         if self.path == "/agent_task":
- 262 ❌             task = data.get("task", "").strip()
- 263 ❌             if not task:
- 264 ❌                 self.send_json(400, {"success": False, "error": "missing task"})
- 265 ❌                 return
- 266 ❌             print(f"\n[bridge] ══ TASK: {task} ══")
- 267 ❌             result = run_agent_task(task)
- 268 ❌             print(f"[bridge] ══ RESULT: {result} ══\n")
- 269 ❌             self.send_json(200, {"success": True, "result": result})
- 270    
- 271 ❌         elif self.path == "/heal":
- 272 ❌             task = data.get("task", "").strip()
- 273 ❌             if not task:
- 274 ❌                 self.send_json(400, {"success": False, "error": "missing task"})
- 275 ❌                 return
- 276 ❌             print(f"\n[bridge] ══ HEAL: {task} ══")
- 277 ❌             run_heal_task(task)
- 278 ❌             self.send_json(200, {"success": True, "status": "started"})
- 279    
- 280 ❌         else:
- 281 ❌             self.send_json(404, {"success": False, "error": "not found"})
- 282    
- 283    
- 284 ❌ # ── Main ──────────────────────────────────────────────────────────────────────
- 285    
- 286 ❌ if __name__ == "__main__":
- 287 ❌     JARVIS_DIR.mkdir(exist_ok=True)
- 288 ❌     STATUS_FILE.write_text("ready")
- 289    
- 290 ❌     threading.Thread(target=file_ipc_watcher, daemon=True).start()
- 291    
- 292 ❌     print(f"╔══════════════════════════════════════════════════════╗")
- 293 ❌     print(f"║  JARVIS AGENT HTTP BRIDGE                            ║")
- 294 ❌     print(f"╚══════════════════════════════════════════════════════╝")
- 295 ❌     print(f"  Port    : {PORT}")
- 296 ❌     print(f"  Device  : {ADB_DEVICE}")
- 297 ❌     print(f"  Endpoints:")
- 298 ❌     print(f"    GET  /health")
- 299 ❌     print(f"    POST /agent_task  {{\"task\": \"...\"}}")
- 300 ❌     print(f"    POST /heal        {{\"task\": \"...\"}}")
- 301 ❌     print(f"")
- 302    
- 303 ❌     server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
- 304 ❌     try:
- 305 ❌         server.serve_forever()
- 306 ❌     except KeyboardInterrupt:
- 307 ❌         print("\n[bridge] Stopped.")
- 308 ❌         server.shutdown()
+ 207    @Composable
+ 208    private fun HealStatusBar(state: HealDashboardState) {
+ 209        val bg = when {
+ 210            state.error != null -> Red.copy(alpha = 0.15f)
+ 211            state.done          -> Green.copy(alpha = 0.12f)
+ 212            state.healing       -> Magenta.copy(alpha = 0.08f)
+ 213            else                -> BgCard
+ 214        }
+ 215        val text = when {
+ 216            state.error != null -> "✗ Error: ${state.error}"
+ 217            state.done          -> "✓ Patches applied"
+ 218            state.healing       -> "Healing in progress — DevTools is working…"
+ 219            else                -> ""
+ 220        }
+ 221        val textColor = when {
+ 222            state.error != null -> Red
+ 223            state.done          -> Green
+ 224            else                -> Magenta
+ 225        }
+ 226        if (text.isBlank()) return
+ 227        Row(
+ 228            Modifier
+ 229                .fillMaxWidth()
+ 230                .clip(RoundedCornerShape(6.dp))
+ 231                .background(bg)
+ 232                .padding(horizontal = 10.dp, vertical = 6.dp),
+ 233            verticalAlignment = Alignment.CenterVertically
+ 234        ) {
+ 235            if (state.healing) {
+ 236                CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Magenta, strokeWidth = 1.5.dp)
+ 237                Spacer(Modifier.width(8.dp))
+ 238            }
+ 239            Text(text, color = textColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+ 240        }
+ 241    }
+ 242    
+ 243    @Composable
+ 244    private fun HealInputSection(
+ 245        state:   HealDashboardState,
+ 246        onTask:  (String) -> Unit,
+ 247        onStart: () -> Unit,
+ 248    ) {
+ 249        Column(
+ 250            Modifier
+ 251                .fillMaxWidth()
+ 252                .clip(RoundedCornerShape(10.dp))
+ 253                .background(BgCard)
+ 254                .border(0.5.dp, DimMagenta.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+ 255                .padding(12.dp)
+ 256        ) {
+ 257            OutlinedTextField(
+ 258                value           = state.taskInput,
+ 259                onValueChange   = onTask,
+ 260                label           = { Text("Describe the fix", color = White40, fontSize = 12.sp) },
+ 261                placeholder     = { Text("Fix Gemini Send button missing from screen elements…", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+ 262                modifier        = Modifier.fillMaxWidth(),
+ 263                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+ 264                minLines        = 2,
+ 265                maxLines        = 5,
+ 266                colors          = OutlinedTextFieldDefaults.colors(
+ 267                    focusedBorderColor   = Magenta,
+ 268                    unfocusedBorderColor = DimMagenta.copy(alpha = 0.5f),
+ 269                    cursorColor          = Magenta,
+ 270                    focusedLabelColor    = Magenta,
+ 271                ),
+ 272                textStyle = LocalTextStyle.current.copy(
+ 273                    color      = White70,
+ 274                    fontSize   = 13.sp,
+ 275                    fontFamily = FontFamily.Monospace
+ 276                )
+ 277            )
+ 278    
+ 279            Spacer(Modifier.height(10.dp))
+ 280    
+ 281            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+ 282                Button(
+ 283                    onClick  = onStart,
+ 284                    enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline && !state.healing,
+ 285                    colors   = ButtonDefaults.buttonColors(
+ 286                        containerColor         = Magenta,
+ 287                        contentColor           = BgDark,
+ 288                        disabledContainerColor = DimMagenta.copy(alpha = 0.3f),
+ 289                        disabledContentColor   = White40
+ 290                    ),
+ 291                    modifier = Modifier.height(38.dp)
+ 292                ) {
+ 293                    Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp))
+ 294                    Spacer(Modifier.width(4.dp))
+ 295                    Text(if (state.healing) "Healing…" else "Heal", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+ 296                }
+ 297            }
+ 298    
+ 299            if (!state.serverOnline) {
+ 300                Spacer(Modifier.height(6.dp))
+ 301                Text(
+ 302                    "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
+ 303                    color = Yellow, fontSize = 10.sp, fontFamily = FontFamily.Monospace
+ 304                )
+ 305            }
+ 306        }
+ 307    }
+ 308    
+ 309    @Composable
+ 310    private fun HealStatusDot(online: Boolean, healing: Boolean) {
+ 311        val pulse = rememberInfiniteTransition(label = "pulse")
+ 312        val alpha by pulse.animateFloat(
+ 313            initialValue  = 0.4f, targetValue = 1f,
+ 314            animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
+ 315            label = "dotAlpha"
+ 316        )
+ 317        val color = when {
+ 318            !online -> Red
+ 319            healing -> Magenta.copy(alpha = alpha)
+ 320            else    -> Green
+ 321        }
+ 322        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+ 323    }
 
 
