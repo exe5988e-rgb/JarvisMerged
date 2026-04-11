@@ -69,8 +69,8 @@ object AgentRepository {
     }
 
     // ── Self-heal pipeline ────────────────────────────────────────────────────
-    // POST /heal — fire and forget. Bridge runs start_agent_task() in a thread
-    // and returns immediately. Progress visible via existing /logs SSE stream.
+    // POST /heal  — fire-and-forget. Bridge spawns start_agent_task() in a
+    // background thread and returns immediately. Progress arrives via /logs SSE.
 
     suspend fun runHealTask(task: String): Result<String> = withContext(Dispatchers.IO) {
         try {
