@@ -1517,26 +1517,26 @@ fun HealDashboardScreen(
 
 // ... FILE TRUNCATED ...
 
+            )
+        }
+    }
+}
 
-    threading.Thread(target=file_ipc_watcher, daemon=True).start()
-
-    print(f"╔══════════════════════════════════════════════════════╗")
-    print(f"║  JARVIS AGENT HTTP BRIDGE                            ║")
-    print(f"╚══════════════════════════════════════════════════════╝")
-    print(f"  Port    : {PORT}")
-    print(f"  Device  : {ADB_DEVICE}")
-    print(f"  Endpoints:")
-    print(f"    GET  /health")
-    print(f"    POST /agent_task  {{\"task\": \"...\"}}")
-    print(f"    POST /heal        {{\"task\": \"...\"}}")
-    print(f"")
-
-    server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n[bridge] Stopped.")
-        server.shutdown()
+@Composable
+private fun HealStatusDot(online: Boolean, healing: Boolean) {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val alpha by pulse.animateFloat(
+        initialValue  = 0.4f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
+        label = "dotAlpha"
+    )
+    val color = when {
+        !online -> Red
+        healing -> Magenta.copy(alpha = alpha)
+        else    -> Green
+    }
+    Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/agent/HealDashboardViewModel.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
@@ -3735,6 +3735,7 @@ import com.jarvismini.ui.debug.DebugScreen
 import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.agent.AgentDashboardScreen
+import com.jarvismini.agent.HealDashboardScreen
 
 enum class MainTab {
     Home,
@@ -3745,6 +3746,7 @@ enum class MainTab {
     Debug,
     TermuxCommand,
     AgentDashboard,
+    HealDashboard,
 }
 
 @Composable
@@ -3766,31 +3768,29 @@ fun MainScreen() {
     LaunchedEffect(Unit) {
         ProgressInitializer.registerAllBlocks(context)
         blocks   = ProgressRepository.getTodayBlocks()
-        routines = RoutineProvider.getAllRoutines(context)
-    }
 
 // ... FILE TRUNCATED ...
 
-            onVoiceTask               = { task ->
-                voiceTask   = task
-                selectedTab = MainTab.AgentDashboard
-            },
-        )
-        MainTab.Chat         -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.Calendar     -> {
-            val vm = remember { CalendarViewModel(context) }
-            DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
-        }
-        MainTab.Checklist    -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.Settings     -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.Debug        -> DebugScreen(onBack = { selectedTab = MainTab.Home })
-        MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
-        MainTab.AgentDashboard -> AgentDashboardScreen(
-            onBack      = { selectedTab = MainTab.Home },
-            initialTask = voiceTask.also { voiceTask = null },
-        )
-    }
-}
+
+    threading.Thread(target=file_ipc_watcher, daemon=True).start()
+
+    print(f"╔══════════════════════════════════════════════════════╗")
+    print(f"║  JARVIS AGENT HTTP BRIDGE                            ║")
+    print(f"╚══════════════════════════════════════════════════════╝")
+    print(f"  Port    : {PORT}")
+    print(f"  Device  : {ADB_DEVICE}")
+    print(f"  Endpoints:")
+    print(f"    GET  /health")
+    print(f"    POST /agent_task  {{\"task\": \"...\"}}")
+    print(f"    POST /heal        {{\"task\": \"...\"}}")
+    print(f"")
+
+    server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[bridge] Stopped.")
+        server.shutdown()
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/settings/ClientPairingScreen.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
