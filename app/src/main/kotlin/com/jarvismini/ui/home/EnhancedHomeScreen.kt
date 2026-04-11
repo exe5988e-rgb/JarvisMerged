@@ -37,6 +37,7 @@ fun EnhancedHomeScreen(
     onNavigateToDebug:         () -> Unit,
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
+    onNavigateToHeal:          () -> Unit,
     // Called when voice produces a task string — parent routes it to AgentDashboard
     onVoiceTask: ((String) -> Unit)? = null,
 ) {
@@ -215,6 +216,7 @@ fun EnhancedHomeScreen(
                 item { QuickActionCard("Tasks",    Icons.Default.Checklist,     onNavigateToChecklist) }
                 item { QuickActionCard("Terminal", Icons.Default.Terminal,      onNavigateToTermuxCommand) }
                 item { QuickActionCard("Agent",    Icons.Default.SmartToy,      onNavigateToAgent) }
+                item { QuickActionCard("Heal",     Icons.Default.Build,         onNavigateToHeal) }
             }
 
             Spacer(Modifier.height(40.dp))
@@ -311,21 +313,24 @@ private fun StatusCard(
         color = Color.Transparent
     ) {
         Row(
-            modifier              = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment     = Alignment.CenterVertically
         ) {
             Text(
-                text     = label,
-                fontSize = 14.sp,
-                color    = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                text       = label,
+                fontSize   = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .background(
-                            color = if (isOnline) Color(0xFF00FF00) else Color(0xFFFFAA00),
+                            color = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466),
                             shape = CircleShape
                         )
                 )
@@ -333,8 +338,8 @@ private fun StatusCard(
                 Text(
                     text       = status,
                     fontSize   = 12.sp,
-                    color      = Color(0xFF00E0FF).copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
+                    color      = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466)
                 )
             }
         }

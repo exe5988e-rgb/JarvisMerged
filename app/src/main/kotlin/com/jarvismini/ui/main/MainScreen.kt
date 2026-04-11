@@ -68,6 +68,7 @@ fun MainScreen() {
             onNavigateToDebug         = { selectedTab = MainTab.Debug },
             onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
             onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
+            onNavigateToHeal          = { selectedTab = MainTab.HealDashboard },
             onVoiceTask               = { task ->
                 voiceTask   = task
                 selectedTab = MainTab.AgentDashboard
