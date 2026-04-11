@@ -45,6 +45,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   ├── AgentDashboardScreen.kt
 │   │   │   │   │   │   │   ├── AgentDashboardViewModel.kt
 │   │   │   │   │   │   │   ├── AgentRepository.kt
+│   │   │   │   │   │   │   ├── HealDashboardScreen.kt
+│   │   │   │   │   │   │   ├── HealDashboardViewModel.kt
 │   │   │   │   │   │   ├── api
 │   │   │   │   │   │   │   ├── ApiGateway.kt
 │   │   │   │   │   │   │   ├── ApiModels.kt
@@ -1459,6 +1461,158 @@ data class AgentStatus(
     val paused:  Boolean = false,
     val lastLog: String  = "",
 )
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/HealDashboardScreen.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.agent
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+
+private val Magenta    = Color(0xFFE040FB)
+private val DimMagenta = Color(0xFF4A0070)
+private val BgDark     = Color(0xFF080810)
+private val BgCard     = Color(0xFF0F0A1A)
+private val Green      = Color(0xFF00FF88)
+private val Red        = Color(0xFFFF4466)
+private val Yellow     = Color(0xFFFFCC00)
+private val White70    = Color(0xB3FFFFFF)
+private val White40    = Color(0x66FFFFFF)
+
+@Composable
+fun HealDashboardScreen(
+    onBack: () -> Unit,
+    vm:     HealDashboardViewModel = viewModel()
+) {
+    val state     by vm.state.collectAsState()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(state.logs.size) {
+        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
+    }
+
+
+// ... FILE TRUNCATED ...
+
+
+    threading.Thread(target=file_ipc_watcher, daemon=True).start()
+
+    print(f"╔══════════════════════════════════════════════════════╗")
+    print(f"║  JARVIS AGENT HTTP BRIDGE                            ║")
+    print(f"╚══════════════════════════════════════════════════════╝")
+    print(f"  Port    : {PORT}")
+    print(f"  Device  : {ADB_DEVICE}")
+    print(f"  Endpoints:")
+    print(f"    GET  /health")
+    print(f"    POST /agent_task  {{\"task\": \"...\"}}")
+    print(f"    POST /heal        {{\"task\": \"...\"}}")
+    print(f"")
+
+    server = HTTPServer(("0.0.0.0", PORT), BridgeHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[bridge] Stopped.")
+        server.shutdown()
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/HealDashboardViewModel.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.agent
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class HealDashboardState(
+    val serverOnline: Boolean       = false,
+    val healing:      Boolean       = false,
+    val done:         Boolean       = false,
+    val error:        String?       = null,
+    val logs:         List<LogLine> = emptyList(),
+    val taskInput:    String        = "",
+    val ttsEnabled:   Boolean       = true,
+)
+
+class HealDashboardViewModel : ViewModel() {
+
+    private val _state = MutableStateFlow(HealDashboardState())
+    val state: StateFlow<HealDashboardState> = _state.asStateFlow()
+
+    private var logStreamJob: Job? = null
+
+    init { checkServer() }
+
+    fun checkServer() {
+        viewModelScope.launch {
+            val online = AgentRepository.isAgentServerReachable()
+            _state.update { it.copy(serverOnline = online) }
+            if (online) restoreLogs()
+        }
+    }
+
+    fun onTaskInput(v: String)  = _state.update { it.copy(taskInput = v) }
+    fun onTtsToggle(v: Boolean) = _state.update { it.copy(ttsEnabled = v) }
+    fun clearLogs()             = _state.update { it.copy(logs = emptyList()) }
+
+    fun startHeal() {
+        val task = _state.value.taskInput.trim()
+        if (task.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(logs = emptyList(), done = false, error = null, healing = true) }
+            pushLog("[heal] Sending task to self-repair pipeline...", LogLevel.SYSTEM)
+
+            AgentRepository.runHealTask(task)
+                .onSuccess {
+                    pushLog("[heal] Pipeline started — DevTools will open Claude shortly", LogLevel.SYSTEM)
+
+// ... FILE TRUNCATED ...
+
+        line.contains("✅") || line.contains("received") || line.contains("complete") -> LogLevel.SUCCESS
+        line.contains("✗") || line.contains("failed", ignoreCase = true) || line.contains("error:", ignoreCase = true) -> LogLevel.ERROR
+        line.contains("waiting") || line.contains("retrying") -> LogLevel.WARN
+        line.contains("[heal]") || line.contains("[self_repair]") -> LogLevel.SYSTEM
+        line.contains("AGENT_") -> LogLevel.STEP
+        else -> LogLevel.INFO
+    }
+
+    private fun pushLog(text: String, level: LogLevel = LogLevel.INFO) {
+        _state.update { s ->
+            val logs = (s.logs + LogLine(id = System.nanoTime(), text = text, level = level)).takeLast(200)
+            s.copy(logs = logs)
+        }
+    }
+
+    override fun onCleared() {
+        logStreamJob?.cancel()
+        super.onCleared()
+    }
+}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/api/ApiGateway.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
