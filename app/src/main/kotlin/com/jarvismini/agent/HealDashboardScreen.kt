@@ -167,7 +167,7 @@ fun HealDashboardScreen(
                 } else {
                     LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         items(state.logs, key = { it.id }) { log ->
-                            LogLineRow(log)
+                            HealLogLineRow(log)
                         }
                     }
                 }
@@ -178,10 +178,10 @@ fun HealDashboardScreen(
     }
 }
 
-// ── Log line row ──────────────────────────────────────────────────────────────
+// ── Supporting private composables ────────────────────────────────────────────
 
 @Composable
-fun LogLineRow(log: LogLine) {
+private fun HealLogLineRow(log: LogLine) {
     val color = when (log.level) {
         LogLevel.SUCCESS -> Green
         LogLevel.ERROR   -> Red
@@ -201,8 +201,6 @@ fun LogLineRow(log: LogLine) {
             .padding(vertical = 1.dp)
     )
 }
-
-// ── Supporting private composables ────────────────────────────────────────────
 
 @Composable
 private fun HealStatusBar(state: HealDashboardState) {
