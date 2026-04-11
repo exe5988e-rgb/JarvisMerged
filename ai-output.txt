@@ -1,0 +1,325 @@
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/debug/DebugViewModel.kt =====
+package com.jarvismini.ui.debug
+
+import android.app.ActivityManager
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.jarvismini.agent.AgentRepository
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class DebugState(
+    val logs:      List<DebugLogEntry> = emptyList(),
+    val cpuPct:    String              = "–",
+    val ramMb:     String              = "–",
+    val connected: Boolean             = false,
+)
+
+data class DebugLogEntry(
+    val id:      Long,
+    val level:   String,
+    val message: String,
+)
+
+class DebugViewModel(private val context: Context) : ViewModel() {
+
+    private val _state = MutableStateFlow(DebugState())
+    val state: StateFlow<DebugState> = _state.asStateFlow()
+
+    // ── cpu baseline ──────────────────────────────────────────────────────────
+    private var prevIdle:  Long = 0L
+    private var prevTotal: Long = 0L
+
+    init {
+        loadLogTail()
+        startLogStream()
+        startSystemPolling()
+    }
+
+    // ── log tail on open ──────────────────────────────────────────────────────
+    private fun loadLogTail() {
+        viewModelScope.launch {
+            val lines = AgentRepository.fetchLogTail(50)
+            if (lines.isNotEmpty()) {
+                val entries = lines.map { line ->
+                    DebugLogEntry(
+                        id      = System.nanoTime(),
+                        level   = classifyLevel(line),
+                        message = line,
+                    )
+                }
+                _state.update { it.copy(logs = entries, connected = true) }
+            }
+        }
+    }
+
+    // ── live SSE stream ───────────────────────────────────────────────────────
+    private fun startLogStream() {
+        viewModelScope.launch {
+            AgentRepository.streamLogs().collect { line ->
+                val entry = DebugLogEntry(
+                    id      = System.nanoTime(),
+                    level   = classifyLevel(line),
+                    message = line,
+                )
+                _state.update { s ->
+                    val logs = (s.logs + entry).takeLast(200)
+                    s.copy(logs = logs, connected = true)
+                }
+            }
+        }
+    }
+
+    // ── cpu + ram polling every 2s ────────────────────────────────────────────
+    private fun startSystemPolling() {
+        viewModelScope.launch {
+            while (true) {
+                _state.update { it.copy(cpuPct = readCpu(), ramMb = readRam()) }
+                delay(2_000)
+            }
+        }
+    }
+
+    private fun readCpu(): String {
+        return try {
+            val line  = java.io.File("/proc/stat").readLines().firstOrNull() ?: return "–"
+            val parts = line.trim().split("\\s+".toRegex())
+            val user  = parts[1].toLong()
+            val nice  = parts[2].toLong()
+            val sys   = parts[3].toLong()
+            val idle  = parts[4].toLong()
+            val iowait= parts[5].toLong()
+            val irq   = parts[6].toLong()
+            val sirq  = parts[7].toLong()
+            val total = user + nice + sys + idle + iowait + irq + sirq
+            val dTotal = total - prevTotal
+            val dIdle  = idle  - prevIdle
+            prevTotal = total
+            prevIdle  = idle
+            if (dTotal == 0L) "0%" else "${((dTotal - dIdle) * 100 / dTotal)}%"
+        } catch (e: Exception) {
+            "–"
+        }
+    }
+
+    private fun readRam(): String {
+        return try {
+            val am   = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val info = ActivityManager.MemoryInfo()
+            am.getMemoryInfo(info)
+            val usedMb = (info.totalMem - info.availMem) / (1024 * 1024)
+            "${usedMb}MB"
+        } catch (e: Exception) {
+            "–"
+        }
+    }
+
+    fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
+
+    private fun classifyLevel(line: String): String = when {
+        line.contains("error",   ignoreCase = true) ||
+        line.contains("✗")                          -> "ERROR"
+        line.contains("warn",    ignoreCase = true) -> "WARNING"
+        line.contains("debug",   ignoreCase = true) -> "DEBUG"
+        else                                         -> "INFO"
+    }
+
+    class Factory(private val context: Context) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+            DebugViewModel(context) as T
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/debug/DebugScreen.kt =====
+package com.jarvismini.ui.debug
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+
+@Composable
+fun DebugScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val vm: DebugViewModel = viewModel(factory = DebugViewModel.Factory(context))
+    val state by vm.state.collectAsState()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(state.logs.size) {
+        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+        ) {
+            // ── Top bar ───────────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector        = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint               = Color(0xFF00E0FF)
+                    )
+                }
+                Text(
+                    text          = "DEBUG CONSOLE",
+                    fontSize      = 24.sp,
+                    fontWeight    = FontWeight.Light,
+                    letterSpacing = 4.sp,
+                    color         = Color(0xFF00E0FF)
+                )
+                Spacer(Modifier.weight(1f))
+                if (state.logs.isNotEmpty()) {
+                    IconButton(onClick = vm::clearLogs) {
+                        Icon(Icons.Default.Delete, "Clear", tint = Color(0xFF00E0FF).copy(alpha = 0.6f))
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ── Stats header ──────────────────────────────────────────────────
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    ),
+                shape = RoundedCornerShape(8.dp),
+                color = Color.Black.copy(alpha = 0.5f)
+            ) {
+                Row(
+                    modifier              = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    StatItem("LOGS", state.logs.size.toString())
+                    StatItem("CPU",  state.cpuPct)
+                    StatItem("RAM",  state.ramMb)
+                    StatItem(
+                        label = "SERVER",
+                        value = if (state.connected) "ON" else "OFF",
+                        valueColor = if (state.connected) Color(0xFF00FF88) else Color(0xFFFF4466)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ── Log pane ──────────────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .border(
+                        width = 1.dp,
+                        color = Color(0xFF00E0FF).copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .padding(8.dp)
+            ) {
+                if (state.logs.isEmpty()) {
+                    Text(
+                        text       = "Waiting for logs…",
+                        color      = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                        fontSize   = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier   = Modifier.align(Alignment.Center)
+                    )
+                } else {
+                    LazyColumn(
+                        state               = listState,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(state.logs, key = { it.id }) { entry ->
+                            Row {
+                                Text(
+                                    text       = "[${entry.level}]",
+                                    fontSize   = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color      = when (entry.level) {
+                                        "ERROR"   -> Color(0xFFFF4466)
+                                        "WARNING" -> Color(0xFFFFCC00)
+                                        "DEBUG"   -> Color(0xFFE040FB)
+                                        else      -> Color(0xFF00E0FF)
+                                    }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text       = entry.message,
+                                    fontSize   = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color      = Color.White.copy(alpha = 0.8f),
+                                    lineHeight = 15.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatItem(
+    label:      String,
+    value:      String,
+    valueColor: Color = Color(0xFF00E0FF),
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text       = value,
+            fontSize   = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color      = valueColor
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text     = label,
+            fontSize = 12.sp,
+            color    = Color(0xFF00E0FF).copy(alpha = 0.6f)
+        )
+    }
+}
