@@ -68,6 +68,37 @@ object AgentRepository {
         }
     }
 
+    // ── Self-heal pipeline ────────────────────────────────────────────────────
+    // POST /heal — fire and forget. Bridge runs start_agent_task() in a thread
+    // and returns immediately. Progress visible via existing /logs SSE stream.
+
+    suspend fun runHealTask(task: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("task", task)
+            }.toString().toRequestBody("application/json".toMediaType())
+
+            val req = Request.Builder()
+                .url(agentUrl("/heal"))
+                .post(body)
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                val json = JSONObject(resp.body?.string() ?: "{}")
+                if (resp.isSuccessful) {
+                    Result.success(json.optString("status", "started"))
+                } else {
+                    Result.failure(Exception(json.optString("error", "heal failed")))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "runHealTask failed", e)
+            Result.failure(e)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     suspend fun stopAgent(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
@@ -80,8 +111,6 @@ object AgentRepository {
             Result.failure(e)
         }
     }
-
-    // ── Session 17: pause / resume ────────────────────────────────────────────
 
     suspend fun pauseAgent(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -110,8 +139,6 @@ object AgentRepository {
             Result.failure(e)
         }
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
 
     suspend fun getStatus(): AgentStatus = withContext(Dispatchers.IO) {
         try {
