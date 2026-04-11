@@ -178,6 +178,32 @@ fun HealDashboardScreen(
     }
 }
 
+// ── Log line row ──────────────────────────────────────────────────────────────
+
+@Composable
+fun LogLineRow(log: LogLine) {
+    val color = when (log.level) {
+        LogLevel.SUCCESS -> Green
+        LogLevel.ERROR   -> Red
+        LogLevel.WARN    -> Yellow
+        LogLevel.SYSTEM  -> Magenta
+        LogLevel.STEP    -> Color(0xFF64B5F6)
+        LogLevel.INFO    -> White70
+    }
+    Text(
+        text       = log.text,
+        color      = color,
+        fontSize   = 11.sp,
+        fontFamily = FontFamily.Monospace,
+        lineHeight = 15.sp,
+        modifier   = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp)
+    )
+}
+
+// ── Supporting private composables ────────────────────────────────────────────
+
 @Composable
 private fun HealStatusBar(state: HealDashboardState) {
     val bg = when {
