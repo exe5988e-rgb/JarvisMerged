@@ -1,322 +1,444 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/HealDashboardScreen.kt =====
-package com.jarvismini.agent
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
+package com.jarvismini.ui.main
+
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.jarvismini.ProgressInitializer
+import com.jarvismini.core.progress.*
+import com.jarvismini.core.routine.RoutineProvider
+import com.jarvismini.ui.boot.BootScreen
+import com.jarvismini.ui.home.EnhancedHomeScreen
+import com.jarvismini.ui.chat.JarvisChatScreen
+import com.jarvismini.ui.calendar.CalendarViewModel
+import com.jarvismini.ui.calendar.DayCalendarScreen
+import com.jarvismini.ui.settings.SettingsScreen
+import com.jarvismini.ui.debug.DebugScreen
+import com.jarvismini.ui.checklist.JarvisChecklistScreen
+import com.jarvismini.ui.llm.TermuxCommandScreen
+import com.jarvismini.agent.AgentDashboardScreen
+import com.jarvismini.agent.HealDashboardScreen
+
+enum class MainTab {
+    Home,
+    Chat,
+    Calendar,
+    Checklist,
+    Settings,
+    Debug,
+    TermuxCommand,
+    AgentDashboard,
+    HealDashboard,
+}
+
+@Composable
+fun MainScreen() {
+    val context = LocalContext.current
+
+    var showBoot    by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableStateOf(MainTab.Home) }
+    var voiceTask   by remember { mutableStateOf<String?>(null) }
+
+    var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
+    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
+
+    if (showBoot) {
+        BootScreen(onBootComplete = { showBoot = false })
+        return
+    }
+
+    LaunchedEffect(Unit) {
+        ProgressInitializer.registerAllBlocks(context)
+        blocks   = ProgressRepository.getTodayBlocks()
+        routines = RoutineProvider.getAllRoutines(context)
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == MainTab.Checklist) {
+            ProgressInitializer.registerAllBlocks(context)
+            blocks   = ProgressRepository.getTodayBlocks()
+            routines = RoutineProvider.getAllRoutines(context)
+        }
+    }
+
+    when (selectedTab) {
+        MainTab.Home -> EnhancedHomeScreen(
+            onNavigateToChat          = { selectedTab = MainTab.Chat },
+            onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
+            onNavigateToChecklist     = { selectedTab = MainTab.Checklist },
+            onNavigateToSettings      = { selectedTab = MainTab.Settings },
+            onNavigateToDebug         = { selectedTab = MainTab.Debug },
+            onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
+            onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
+            onNavigateToHeal          = { selectedTab = MainTab.HealDashboard },
+            onVoiceTask               = { task ->
+                voiceTask   = task
+                selectedTab = MainTab.AgentDashboard
+            },
+        )
+        MainTab.Chat          -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Calendar      -> {
+            val vm = remember { CalendarViewModel(context) }
+            DayCalendarScreen(viewModel = vm, onBack = { selectedTab = MainTab.Home })
+        }
+        MainTab.Checklist     -> JarvisChecklistScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Settings      -> SettingsScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.Debug         -> DebugScreen(onBack = { selectedTab = MainTab.Home })
+        MainTab.TermuxCommand -> TermuxCommandScreen(onNavigateBack = { selectedTab = MainTab.Home })
+        MainTab.AgentDashboard -> AgentDashboardScreen(
+            onBack      = { selectedTab = MainTab.Home },
+            initialTask = voiceTask.also { voiceTask = null },
+        )
+        MainTab.HealDashboard -> HealDashboardScreen(
+            onBack = { selectedTab = MainTab.Home },
+        )
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
+package com.jarvismini.ui.home
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-
-private val Magenta    = Color(0xFFE040FB)
-private val DimMagenta = Color(0xFF4A0070)
-private val BgDark     = Color(0xFF080810)
-private val BgCard     = Color(0xFF0F0A1A)
-private val Green      = Color(0xFF00FF88)
-private val Red        = Color(0xFFFF4466)
-private val Yellow     = Color(0xFFFFCC00)
-private val White70    = Color(0xB3FFFFFF)
-private val White40    = Color(0x66FFFFFF)
+import com.jarvismini.ui.components.*
+import com.jarvismini.voice.VoiceTriggerManager
 
 @Composable
-fun HealDashboardScreen(
-    onBack: () -> Unit,
-    vm:     HealDashboardViewModel = viewModel()
+fun EnhancedHomeScreen(
+    onNavigateToChat:          () -> Unit,
+    onNavigateToCalendar:      () -> Unit,
+    onNavigateToChecklist:     () -> Unit,
+    onNavigateToSettings:      () -> Unit,
+    onNavigateToDebug:         () -> Unit,
+    onNavigateToTermuxCommand: () -> Unit,
+    onNavigateToAgent:         () -> Unit,
+    onNavigateToHeal:          () -> Unit,
+    // Called when voice produces a task string — parent routes it to AgentDashboard
+    onVoiceTask: ((String) -> Unit)? = null,
 ) {
-    val state     by vm.state.collectAsState()
-    val listState = rememberLazyListState()
+    val context = LocalContext.current
 
-    LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
-    }
+    // ── Voice trigger ────────────────────────────────────────────────────────
+    val vtm = remember { VoiceTriggerManager(context) }
+    DisposableEffect(Unit) { onDispose { vtm.destroy() } }
+
+    var isListening   by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
+
+    // ── Pulse animation ──────────────────────────────────────────────────────
+    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by pulseAnimation.animateFloat(
+        initialValue = 0.3f,
+        targetValue  = 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF05020F))))
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                )
+            )
     ) {
+        GridBackground()
+        ParticleField()
+        ScanLine()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(12.dp))
 
-            // ── Top bar ───────────────────────────────────────────────────────
+            // ===== HEADER =====
             Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = Magenta)
-                }
                 Text(
-                    "SELF-HEAL",
-                    fontSize      = 18.sp,
+                    text          = "J.A.R.V.I.S.",
+                    fontSize      = 32.sp,
                     fontWeight    = FontWeight.Light,
-                    letterSpacing = 4.sp,
-                    color         = Magenta,
-                    fontFamily    = FontFamily.Monospace
+                    letterSpacing = 6.sp,
+                    color         = Color(0xFF00E0FF)
                 )
-                Spacer(Modifier.weight(1f))
-                HealStatusDot(online = state.serverOnline, healing = state.healing)
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = { vm.checkServer() }) {
-                    Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
-                }
-            }
-
-            // ── Status banner ─────────────────────────────────────────────────
-            if (state.healing || state.done || state.error != null) {
-                HealStatusBar(state)
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // ── Input section ─────────────────────────────────────────────────
-            HealInputSection(
-                state   = state,
-                onTask  = vm::onTaskInput,
-                onStart = vm::startHeal,
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            // ── Log header ────────────────────────────────────────────────────
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "HEAL LOG",
-                    fontSize      = 11.sp,
-                    letterSpacing = 3.sp,
-                    color         = DimMagenta,
-                    fontFamily    = FontFamily.Monospace
-                )
-                Spacer(Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.VolumeUp, null,
-                        tint     = if (state.ttsEnabled) Magenta else White40,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Switch(
-                        checked         = state.ttsEnabled,
-                        onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier.height(20.dp),
-                        colors          = SwitchDefaults.colors(
-                            checkedThumbColor   = Magenta,
-                            checkedTrackColor   = DimMagenta,
-                            uncheckedThumbColor = White40,
-                            uncheckedTrackColor = BgCard
-                        )
-                    )
-                }
-                if (state.logs.isNotEmpty()) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("${state.logs.size} lines", fontSize = 10.sp, color = White40, fontFamily = FontFamily.Monospace)
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(
-                        onClick        = vm::clearLogs,
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
-                        Text("Clear", fontSize = 11.sp, color = White40)
+                Row {
+                    IconButton(onClick = onNavigateToDebug) {
+                        Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF00E0FF))
                     }
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(40.dp))
 
-            // ── Log pane ──────────────────────────────────────────────────────
+            // ===== CORE ORB =====
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(BgCard)
-                    .border(0.5.dp, DimMagenta.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                if (state.logs.isEmpty()) {
-                    Text(
-                        "No logs yet. Describe the fix and tap Heal.",
-                        color      = White40,
-                        fontSize   = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier   = Modifier.align(Alignment.Center)
-                    )
-                } else {
-                    LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        items(state.logs, key = { it.id }) { log ->
-                            HealLogLineRow(log)
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(200.dp)
+                    .clickable {
+                        if (isListening) {
+                            vtm.stop()
+                            isListening   = false
+                            statusMessage = "TAP TO ACTIVATE"
+                        } else {
+                            isListening   = true
+                            statusMessage = "LISTENING..."
+                            vtm.start(
+                                onReady  = {
+                                    isListening   = true
+                                    statusMessage = "LISTENING..."
+                                },
+                                onResult = { result ->
+                                    isListening   = false
+                                    statusMessage = "TAP TO ACTIVATE"
+                                    onVoiceTask?.invoke(result) ?: onNavigateToAgent()
+                                },
+                                onError  = { err ->
+                                    isListening   = false
+                                    statusMessage = err
+                                }
+                            )
                         }
                     }
+            ) {
+                // Outer ring
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .alpha(if (isListening) pulseAlpha else 0.3f)
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
+                        .border(
+                            2.dp,
+                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
+                            CircleShape
+                        )
+                )
+                // Mid ring
+                Box(
+                    modifier = Modifier
+                        .size(150.dp)
+                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
+                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
+                )
+                // Inner orb with mic icon
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .shadow(
+                            elevation  = if (isListening) 30.dp else 10.dp,
+                            shape      = CircleShape,
+                            spotColor  = Color(0xFF00E0FF)
+                        )
+                        .background(
+                            brush = Brush.radialGradient(
+                                listOf(
+                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
+                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                ) {
+                    Icon(
+                        imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                        contentDescription = "Voice",
+                        tint               = Color(0xFF00E0FF),
+                        modifier           = Modifier
+                            .size(40.dp)
+                            .align(Alignment.Center)
+                    )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-        }
-    }
-}
+            Spacer(Modifier.height(20.dp))
 
-// ── Supporting private composables ────────────────────────────────────────────
-
-@Composable
-private fun HealLogLineRow(log: LogLine) {
-    val color = when (log.level) {
-        LogLevel.SUCCESS -> Green
-        LogLevel.ERROR   -> Red
-        LogLevel.WARN    -> Yellow
-        LogLevel.SYSTEM  -> Magenta
-        LogLevel.STEP    -> Color(0xFF64B5F6)
-        LogLevel.INFO    -> White70
-    }
-    Text(
-        text       = log.text,
-        color      = color,
-        fontSize   = 11.sp,
-        fontFamily = FontFamily.Monospace,
-        lineHeight = 15.sp,
-        modifier   = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 1.dp)
-    )
-}
-
-@Composable
-private fun HealStatusBar(state: HealDashboardState) {
-    val bg = when {
-        state.error != null -> Red.copy(alpha = 0.15f)
-        state.done          -> Green.copy(alpha = 0.12f)
-        state.healing       -> Magenta.copy(alpha = 0.08f)
-        else                -> BgCard
-    }
-    val text = when {
-        state.error != null -> "✗ Error: ${state.error}"
-        state.done          -> "✓ Patches applied"
-        state.healing       -> "Healing in progress — DevTools is working…"
-        else                -> ""
-    }
-    val textColor = when {
-        state.error != null -> Red
-        state.done          -> Green
-        else                -> Magenta
-    }
-    if (text.isBlank()) return
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (state.healing) {
-            CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Magenta, strokeWidth = 1.5.dp)
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(text, color = textColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
-    }
-}
-
-@Composable
-private fun HealInputSection(
-    state:   HealDashboardState,
-    onTask:  (String) -> Unit,
-    onStart: () -> Unit,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(BgCard)
-            .border(0.5.dp, DimMagenta.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
-    ) {
-        OutlinedTextField(
-            value           = state.taskInput,
-            onValueChange   = onTask,
-            label           = { Text("Describe the fix", color = White40, fontSize = 12.sp) },
-            placeholder     = { Text("Fix Gemini Send button missing from screen elements…", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
-            modifier        = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            minLines        = 2,
-            maxLines        = 5,
-            colors          = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor   = Magenta,
-                unfocusedBorderColor = DimMagenta.copy(alpha = 0.5f),
-                cursorColor          = Magenta,
-                focusedLabelColor    = Magenta,
-            ),
-            textStyle = LocalTextStyle.current.copy(
-                color      = White70,
-                fontSize   = 13.sp,
-                fontFamily = FontFamily.Monospace
+            Text(
+                text       = statusMessage,
+                fontSize   = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
             )
-        )
 
-        Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(40.dp))
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick  = onStart,
-                enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline && !state.healing,
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor         = Magenta,
-                    contentColor           = BgDark,
-                    disabledContainerColor = DimMagenta.copy(alpha = 0.3f),
-                    disabledContentColor   = White40
-                ),
-                modifier = Modifier.height(38.dp)
-            ) {
-                Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(if (state.healing) "Healing…" else "Heal", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            // ===== QUICK ACCESS =====
+            Text(
+                text          = "QUICK ACCESS",
+                fontSize      = 12.sp,
+                fontFamily    = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { QuickActionCard("Chat",     Icons.Default.Chat,          onNavigateToChat) }
+                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
+                item { QuickActionCard("Tasks",    Icons.Default.Checklist,     onNavigateToChecklist) }
+                item { QuickActionCard("Terminal", Icons.Default.Terminal,      onNavigateToTermuxCommand) }
+                item { QuickActionCard("Agent",    Icons.Default.SmartToy,      onNavigateToAgent) }
+                item { QuickActionCard("Heal",     Icons.Default.Build,         onNavigateToHeal) }
+            }
+
+            Spacer(Modifier.height(40.dp))
+
+            // ===== SYSTEM STATUS =====
+            Text(
+                text          = "SYSTEM STATUS",
+                fontSize      = 12.sp,
+                fontFamily    = FontFamily.Monospace,
+                letterSpacing = 2.sp,
+                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { StatusCard("Neural Networks",   "Online",  true) }
+                item { StatusCard("Voice Recognition", "Active",  true) }
+                item { StatusCard("Automation Engine", "Standby", false) }
+                item { StatusCard("Local LLM",         "Ready",   true) }
+                item { StatusCard("Agent Server",       "Standby", false) }
             }
         }
+    }
+}
 
-        if (!state.serverOnline) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
-                color = Yellow, fontSize = 10.sp, fontFamily = FontFamily.Monospace
-            )
+// ─── Local components ─────────────────────────────────────────────────────────
+
+@Composable
+private fun QuickActionCard(
+    title:   String,
+    icon:    ImageVector,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .size(100.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = Color.Transparent
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector        = icon,
+                    contentDescription = title,
+                    tint               = Color(0xFF00E0FF),
+                    modifier           = Modifier.size(32.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text       = title,
+                    fontSize   = 12.sp,
+                    color      = Color(0xFF00E0FF).copy(alpha = 0.8f),
+                    fontFamily = FontFamily.Monospace
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun HealStatusDot(online: Boolean, healing: Boolean) {
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val alpha by pulse.animateFloat(
-        initialValue  = 0.4f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
-        label = "dotAlpha"
-    )
-    val color = when {
-        !online -> Red
-        healing -> Magenta.copy(alpha = alpha)
-        else    -> Green
+private fun StatusCard(
+    label:    String,
+    status:   String,
+    isOnline: Boolean,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = Color.Black.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(16.dp),
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            Text(
+                text       = label,
+                fontSize   = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            color = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466),
+                            shape = CircleShape
+                        )
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text       = status,
+                    fontSize   = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color      = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466)
+                )
+            }
+        }
     }
-    Box(Modifier.size(10.dp).clip(CircleShape).background(color))
 }
