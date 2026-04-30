@@ -1,325 +1,220 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/debug/DebugViewModel.kt =====
-package com.jarvismini.ui.debug
+#!/usr/bin/env python3
+"""
+set_ports.py — JarvisMinI Port Configuration Tool
+Run on either Phone A or Phone B — patches all relevant files.
 
-import android.app.ActivityManager
-import android.content.Context
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
-import com.jarvismini.agent.AgentRepository
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
+Usage:
+  python3 ~/set_ports.py
 
-data class DebugState(
-    val logs:      List<DebugLogEntry> = emptyList(),
-    val cpuPct:    String              = "–",
-    val ramMb:     String              = "–",
-    val connected: Boolean             = false,
-)
+Ports explained:
+  Phone A ADB port  — changes on reboot (e.g. 39427)
+  Phone B ADB port  — changes on reboot (e.g. 36429) → goes into claude_bridge.py SERIAL
+  Phone B HTTP port — FIXED at 8890, never changes    → goes into llm_client.py PHONE_B_URL
 
-data class DebugLogEntry(
-    val id:      Long,
-    val level:   String,
-    val message: String,
-)
+Session 10 fix:
+  - Separated Phone B ADB port (SERIAL in bridge) from Phone B HTTP port (URL in llm_client).
+    Old script conflated them — setting bridge port to 8890 instead of ADB serial.
+  - Added workflows/claude_bridge.py to PATCHES.
+  - Fixed no-match issues by checking actual file content for variable names.
 
-class DebugViewModel(private val context: Context) : ViewModel() {
+Session 20 fix:
+  - Added self_repair.py PHONE_B_ADB patch so start_agent_task() ADB push
+    uses the correct port after every reboot.
+"""
 
-    private val _state = MutableStateFlow(DebugState())
-    val state: StateFlow<DebugState> = _state.asStateFlow()
+import os
+import re
+import sys
 
-    // ── cpu baseline ──────────────────────────────────────────────────────────
-    private var prevIdle:  Long = 0L
-    private var prevTotal: Long = 0L
+HOME = os.path.expanduser("~")
 
-    init {
-        loadLogTail()
-        startLogStream()
-        startSystemPolling()
-    }
+R   = "\033[1;31m"
+G   = "\033[1;32m"
+Y   = "\033[1;33m"
+B   = "\033[1;34m"
+C   = "\033[1;36m"
+W   = "\033[1;37m"
+DIM = "\033[2m"
+RST = "\033[0m"
+LINE = f"{DIM}{'─'*54}{RST}"
 
-    // ── log tail on open ──────────────────────────────────────────────────────
-    private fun loadLogTail() {
-        viewModelScope.launch {
-            val lines = AgentRepository.fetchLogTail(50)
-            if (lines.isNotEmpty()) {
-                val entries = lines.map { line ->
-                    DebugLogEntry(
-                        id      = System.nanoTime(),
-                        level   = classifyLevel(line),
-                        message = line,
-                    )
-                }
-                _state.update { it.copy(logs = entries, connected = true) }
-            }
-        }
-    }
+BRIDGE_HTTP_PORT = "8890"  # fixed, never changes
 
-    // ── live SSE stream ───────────────────────────────────────────────────────
-    private fun startLogStream() {
-        viewModelScope.launch {
-            AgentRepository.streamLogs().collect { line ->
-                val entry = DebugLogEntry(
-                    id      = System.nanoTime(),
-                    level   = classifyLevel(line),
-                    message = line,
-                )
-                _state.update { s ->
-                    val logs = (s.logs + entry).takeLast(200)
-                    s.copy(logs = logs, connected = true)
-                }
-            }
-        }
-    }
+def banner():
+    os.system("clear")
+    print(f"""
+{C}╔══════════════════════════════════════════════════════╗
+║     JARVIS MINI — PORT CONFIGURATION TOOL           ║
+║     Updates all config files in one shot            ║
+╚══════════════════════════════════════════════════════╝{RST}
+""")
 
-    // ── cpu + ram polling every 2s ────────────────────────────────────────────
-    private fun startSystemPolling() {
-        viewModelScope.launch {
-            while (true) {
-                _state.update { it.copy(cpuPct = readCpu(), ramMb = readRam()) }
-                delay(2_000)
-            }
-        }
-    }
+def read_current():
+    """Read current ports from existing files."""
+    a_ip, a_port   = "192.168.29.48",  "39427"
+    b_ip, b_adb    = "192.168.29.110", "36429"
 
-    private fun readCpu(): String {
-        return try {
-            val line  = java.io.File("/proc/stat").readLines().firstOrNull() ?: return "–"
-            val parts = line.trim().split("\\s+".toRegex())
-            val user  = parts[1].toLong()
-            val nice  = parts[2].toLong()
-            val sys   = parts[3].toLong()
-            val idle  = parts[4].toLong()
-            val iowait= parts[5].toLong()
-            val irq   = parts[6].toLong()
-            val sirq  = parts[7].toLong()
-            val total = user + nice + sys + idle + iowait + irq + sirq
-            val dTotal = total - prevTotal
-            val dIdle  = idle  - prevIdle
-            prevTotal = total
-            prevIdle  = idle
-            if (dTotal == 0L) "0%" else "${((dTotal - dIdle) * 100 / dTotal)}%"
-        } catch (e: Exception) {
-            "–"
-        }
-    }
+    # Phone B ADB serial from claude_bridge.py
+    for bridge_path in ["claude_bridge.py", "workflows/claude_bridge.py"]:
+        full = os.path.join(HOME, bridge_path)
+        if os.path.exists(full):
+            m = re.search(r'SERIAL\s*=\s*"([^":]+):(\d+)"', open(full).read())
+            if m:
+                b_ip   = m.group(1)
+                b_adb  = m.group(2)
+            break
 
-    private fun readRam(): String {
-        return try {
-            val am   = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            val info = ActivityManager.MemoryInfo()
-            am.getMemoryInfo(info)
-            val usedMb = (info.totalMem - info.availMem) / (1024 * 1024)
-            "${usedMb}MB"
-        } catch (e: Exception) {
-            "–"
-        }
-    }
+    # Phone A serial from llm_client.py
+    for llm_path in [
+        "test/jarvis-agent/reasoning/llm_client.py",
+        "workflows/test/jarvis-agent/reasoning/llm_client.py",
+    ]:
+        full = os.path.join(HOME, llm_path)
+        if os.path.exists(full):
+            m = re.search(r'PHONE_A_SERIAL\s*=\s*"([^":]+):(\d+)"', open(full).read())
+            if m:
+                a_ip  = m.group(1)
+                a_port = m.group(2)
+            break
 
-    fun clearLogs() = _state.update { it.copy(logs = emptyList()) }
+    return a_ip, a_port, b_ip, b_adb
 
-    private fun classifyLevel(line: String): String = when {
-        line.contains("error",   ignoreCase = true) ||
-        line.contains("✗")                          -> "ERROR"
-        line.contains("warn",    ignoreCase = true) -> "WARNING"
-        line.contains("debug",   ignoreCase = true) -> "DEBUG"
-        else                                         -> "INFO"
-    }
+def ask(prompt, default):
+    val = input(f"  {prompt} [{default}]: ").strip()
+    return val if val else default
 
-    class Factory(private val context: Context) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-            DebugViewModel(context) as T
-    }
-}
+def patch_file(path, replacements):
+    """Apply list of (pattern, replacement) to file. replacement uses {A_IP} etc."""
+    full = os.path.join(HOME, path)
+    if not os.path.exists(full):
+        print(f"  {DIM}~  not found — {path}{RST}")
+        return
+    text = open(full).read()
+    original = text
+    for label, pattern, repl in replacements:
+        new = re.sub(pattern, repl, text)
+        if new != text:
+            print(f"  {G}✓{RST}  {label:<26} {DIM}{path}{RST}")
+            text = new
+        else:
+            print(f"  {DIM}~  {label:<26} no match — {path}{RST}")
+    if text != original:
+        open(full, "w").write(text)
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/debug/DebugScreen.kt =====
-package com.jarvismini.ui.debug
+def patch_sh(path, a_ip, a_port, b_ip, b_adb):
+    """Replace all IP:port pairs in shell scripts."""
+    full = os.path.join(HOME, path)
+    if not os.path.exists(full):
+        return
+    text = open(full).read()
+    original = text
+    pairs = list(dict.fromkeys(re.findall(r'(192\.168\.\d+\.\d+):(\d+)', text)))
+    if not pairs:
+        print(f"  {DIM}~  no IP:port found — {path}{RST}")
+        return
+    if len(pairs) >= 2:
+        text = text.replace(f"{pairs[0][0]}:{pairs[0][1]}", f"{a_ip}:{a_port}")
+        text = text.replace(f"{pairs[1][0]}:{pairs[1][1]}", f"{b_ip}:{b_adb}")
+    elif len(pairs) == 1:
+        text = text.replace(f"{pairs[0][0]}:{pairs[0][1]}", f"{a_ip}:{a_port}")
+    if text != original:
+        open(full, "w").write(text)
+        print(f"  {G}✓{RST}  ports updated          {DIM}{path}{RST}")
+    else:
+        print(f"  {DIM}~  no changes               {path}{RST}")
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+def main():
+    banner()
 
-@Composable
-fun DebugScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val vm: DebugViewModel = viewModel(factory = DebugViewModel.Factory(context))
-    val state by vm.state.collectAsState()
-    val listState = rememberLazyListState()
+    a_ip, a_port, b_ip, b_adb = read_current()
 
-    LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
-    }
+    print(f"  {W}Current:{RST}")
+    print(f"  {B}Phone A{RST}  ADB: {a_ip}:{a_port}")
+    print(f"  {C}Phone B{RST}  ADB: {b_ip}:{b_adb}  HTTP: {b_ip}:{BRIDGE_HTTP_PORT} (fixed)")
+    print(f"\n{LINE}\n")
+    print(f"  Press {G}Enter{RST} to keep current value\n")
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-                )
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp)
-        ) {
-            // ── Top bar ───────────────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector        = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint               = Color(0xFF00E0FF)
-                    )
-                }
-                Text(
-                    text          = "DEBUG CONSOLE",
-                    fontSize      = 24.sp,
-                    fontWeight    = FontWeight.Light,
-                    letterSpacing = 4.sp,
-                    color         = Color(0xFF00E0FF)
-                )
-                Spacer(Modifier.weight(1f))
-                if (state.logs.isNotEmpty()) {
-                    IconButton(onClick = vm::clearLogs) {
-                        Icon(Icons.Default.Delete, "Clear", tint = Color(0xFF00E0FF).copy(alpha = 0.6f))
-                    }
-                }
-            }
+    print(f"{B}  PHONE A — OPPO (agent loop){RST}\n")
+    a_ip   = ask("IP  ", a_ip)
+    a_port = ask("ADB Port", a_port)
+    print()
 
-            Spacer(Modifier.height(16.dp))
+    print(LINE)
+    print(f"\n{C}  PHONE B — Samsung Galaxy A10s (bridge){RST}\n")
+    b_ip   = ask("IP  ", b_ip)
+    b_adb  = ask("ADB Port (changes on reboot)", b_adb)
+    print()
 
-            // ── Stats header ──────────────────────────────────────────────────
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(8.dp)
-                    ),
-                shape = RoundedCornerShape(8.dp),
-                color = Color.Black.copy(alpha = 0.5f)
-            ) {
-                Row(
-                    modifier              = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    StatItem("LOGS", state.logs.size.toString())
-                    StatItem("CPU",  state.cpuPct)
-                    StatItem("RAM",  state.ramMb)
-                    StatItem(
-                        label = "SERVER",
-                        value = if (state.connected) "ON" else "OFF",
-                        valueColor = if (state.connected) Color(0xFF00FF88) else Color(0xFFFF4466)
-                    )
-                }
-            }
+    print(LINE)
+    print(f"\n  {W}Summary:{RST}\n")
+    print(f"  {B}Phone A{RST}  {a_ip}:{a_port}")
+    print(f"  {C}Phone B{RST}  ADB={b_ip}:{b_adb}  HTTP={b_ip}:{BRIDGE_HTTP_PORT}")
+    print()
+    ans = input(f"  Apply? [{G}Y{RST}/{R}n{RST}]: ").strip().lower()
+    if ans not in ("", "y", "yes"):
+        print(f"\n  {Y}Cancelled.{RST}\n")
+        sys.exit(0)
 
-            Spacer(Modifier.height(16.dp))
+    print(f"\n{LINE}")
+    print(f"  {W}Applying...{RST}\n")
 
-            // ── Log pane ──────────────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .border(
-                        width = 1.dp,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                if (state.logs.isEmpty()) {
-                    Text(
-                        text       = "Waiting for logs…",
-                        color      = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                        fontSize   = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier   = Modifier.align(Alignment.Center)
-                    )
-                } else {
-                    LazyColumn(
-                        state               = listState,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(state.logs, key = { it.id }) { entry ->
-                            Row {
-                                Text(
-                                    text       = "[${entry.level}]",
-                                    fontSize   = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    color      = when (entry.level) {
-                                        "ERROR"   -> Color(0xFFFF4466)
-                                        "WARNING" -> Color(0xFFFFCC00)
-                                        "DEBUG"   -> Color(0xFFE040FB)
-                                        else      -> Color(0xFF00E0FF)
-                                    }
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text       = entry.message,
-                                    fontSize   = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color      = Color.White.copy(alpha = 0.8f),
-                                    lineHeight = 15.sp,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+    # ── claude_bridge.py: SERIAL = Phone B ADB ──────────────────────────────
+    for path in ["claude_bridge.py", "workflows/claude_bridge.py"]:
+        patch_file(path, [
+            ("SERIAL (Phone B ADB)",
+             r'(SERIAL\s*=\s*")[^"]+(")',
+             f'\\g<1>{b_ip}:{b_adb}\\g<2>'),
+        ])
 
-@Composable
-private fun StatItem(
-    label:      String,
-    value:      String,
-    valueColor: Color = Color(0xFF00E0FF),
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text       = value,
-            fontSize   = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color      = valueColor
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text     = label,
-            fontSize = 12.sp,
-            color    = Color(0xFF00E0FF).copy(alpha = 0.6f)
-        )
-    }
-}
+    # ── controller.py: DEFAULT_DEVICE = Phone A ADB ─────────────────────────
+    for path in [
+        "test/jarvis-agent/agent/controller.py",
+        "workflows/test/jarvis-agent/agent/controller.py",
+    ]:
+        patch_file(path, [
+            ("DEFAULT_DEVICE (Phone A)",
+             r'(DEFAULT_DEVICE\s*=\s*")[^"]+(")',
+             f'\\g<1>{a_ip}:{a_port}\\g<2>'),
+        ])
+
+    # ── llm_client.py: PHONE_A_SERIAL + PHONE_B_URL (HTTP port stays 8890) ──
+    for path in [
+        "test/jarvis-agent/reasoning/llm_client.py",
+        "workflows/test/jarvis-agent/reasoning/llm_client.py",
+    ]:
+        patch_file(path, [
+            ("PHONE_A_SERIAL",
+             r'(PHONE_A_SERIAL\s*=\s*")[^"]+(")',
+             f'\\g<1>{a_ip}:{a_port}\\g<2>'),
+            ("PHONE_B_URL",
+             r'(PHONE_B_URL\s*=\s*"http://)[^"]+(")',
+             f'\\g<1>{b_ip}:{BRIDGE_HTTP_PORT}\\g<2>'),
+        ])
+
+    # ── self_repair.py: PHONE_B_ADB — used by start_agent_task() ADB push ───
+    # Session 20: self_repair.py has its own PHONE_B_ADB constant that must
+    # match the bridge serial. Without this patch, the ADB push step of
+    # start_agent_task() sends new_dump.txt to the wrong port after reboot.
+    for path in [
+        "test/jarvis-agent/agent/self_repair.py",
+        "workflows/test/jarvis-agent/agent/self_repair.py",
+    ]:
+        patch_file(path, [
+            ("PHONE_B_ADB (self_repair)",
+             r'(PHONE_B_ADB\s*=\s*")[^"]+(")',
+             f'\\g<1>{b_ip}:{b_adb}\\g<2>'),
+        ])
+
+    # ── shell scripts ────────────────────────────────────────────────────────
+    for path in ["jarvis_server_init.sh", "workflows/jarvis_server_init.sh",
+                 "workflows/jarvis_start.sh"]:
+        patch_sh(path, a_ip, a_port, b_ip, b_adb)
+
+    print(f"\n{LINE}")
+    print(f"\n  {G}Done.{RST}\n")
+    print(f"  {DIM}Restart bridge on Phone B:{RST}")
+    print(f"  adb -s {b_ip}:{b_adb} shell am startservice ca.zgrs.clipper/.ClipboardService")
+    print(f"  pkill -f claude_bridge.py && python3 ~/claude_bridge.py\n")
+
+if __name__ == "__main__":
+    main()
