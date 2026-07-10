@@ -1,160 +1,329 @@
-JARVIS / AGENT J — SESSION REPORT
-Date: 2026-07-10
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/VoiceIntentRouter.kt =====
+package com.jarvismini.agent
 
-===============================================================================
-GOAL OF THIS SESSION
-===============================================================================
-Start fusing the Jarvis Android app with the Agent J two-phone automation
-system, so voice/chat input can trigger real on-device actions instead of
-only producing chat replies.
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.engine.LlamaLLMEngine
+import org.json.JSONObject
 
-===============================================================================
-STATUS REPORT (v3.1 spec, 63 features / 17 sections) — done at start of session
-===============================================================================
-Built & present:
-  - TTS (AssistantTTS.kt local + remote TTS server, port 8892)
-  - Personality modes (JarvisMode enum: NORMAL, WORK, DRIVING, SLEEP, FOCUS)
-  - Accessibility automation (AccessibilityServiceHelper, AppAutomationService)
-  - WhatsApp automation (WhatsAppNotificationListener, 2 versions)
-  - Call handler (CallAccessibilityService)
-  - Work Mode (WorkModeService — Physics Wallah, Wavelet, YT Music)
-  - Media control (MediaController.kt)
-  - App launching (launchApp() helper)
-  - Multi-LLM model list (GPT-4.1 mini, GPT-4o, DeepSeek R1 Free)
-  - Hologram/Boot UI (BootScreen, HologramCanvas, ParticleField, ScanLine)
-  - Settings panel (SettingsScreen.kt)
-  - Debugger console (DebugScreen, DebugViewModel)
-  - Self-heal, agent side (AgentRepository / HealDashboard -> Phone A server)
+/**
+ * VoiceIntentRouter — the fusion point between Jarvis's voice/chat surface
+ * and Agent J's task-execution pipeline.
+ *
+ * Given a piece of user text (typed or transcribed from voice), decides
+ * whether it's ordinary conversation (routed to the local chat LLM) or a
+ * real action to hand off to Agent J via AgentRepository.runTask().
+ *
+ * Classification is two-tier:
+ *   1. Fast keyword pass (no network/model call, near-instant)
+ *   2. LLM fallback for ambiguous phrasing, using the same on-device
+ *      LlamaLLMEngine already used for chat — no new dependency.
+ */
+sealed class VoiceIntent {
+    data class Chat(val text: String) : VoiceIntent()
+    data class Task(val task: String, val device: String) : VoiceIntent()
+}
 
-Partial:
-  - Offline capability (server online/offline check exists, no local fallback
-    command routing)
-  - 24/7 monitoring (notification listener exists, no dedicated monitoring
-    service or sleep-hour summary)
-  - Device control (app launching only — no wifi/bluetooth/torch/hotspot
-    toggles)
+object VoiceIntentRouter {
 
-Missing entirely:
-  - Hotword / wake-word engine (spec 1.1)
-  - Long-term memory / adaptive learning (spec section 3)
-  - Lockdown Mode + call whitelist (spec 4.3)
-  - AI Camera Assist / AI Screen Assist / AI Vision Engine (spec 9, 10, 12)
-  - Smart Announcement Engine (spec 17)
+    private const val TAG = "VoiceIntentRouter"
 
-===============================================================================
-DECISION
-===============================================================================
-Biggest architectural unlock identified: fuse Jarvis (voice/persona/UI) with
-Agent J (ADB, OCR, accessibility automation, multi-LLM task execution) so
-voice commands can trigger real multi-step actions, not just chat replies.
+    // Anything starting with these is almost certainly a real action, not chat.
+    private val ACTION_VERBS = listOf(
+        "open ", "apply ", "send ", "fill ", "block ", "close ", "install ",
+        "uninstall ", "message ", "reply to ", "navigate ", "click ", "tap ",
+        "scroll ", "search for ", "book ", "order ", "call ", "text ",
+        "go to ", "launch ", "start ", "stop ", "enable ", "disable ",
+        "toggle ", "turn on ", "turn off ", "screenshot ", "automate "
+    )
 
-Build order agreed:
-  Phase 1 — Intent Router (chat vs task classification) + wire into chat  <- TODAY
-  Phase 2 — Wake word engine (openWakeWord / Porcupine, TFLite-based)
-  Phase 3 — Screen Assist (vision-based OCR, sidesteps OEM accessibility
-            blocks — also fills spec section 10)
-  Phase 4 — Self-heal visibility in main UI (not just dashboard)
-  Phase 5 — Checkmate enforcement tie-in (auto-close distracting apps)
-  Phase 6 — Full local mode via existing llama.cpp bridge
+    // Clearly conversational — skip the task path entirely.
+    private val CHAT_MARKERS = listOf(
+        "what is", "what's", "who is", "who's", "why ", "how do", "how does",
+        "explain", "tell me about", "what do you think", "how are you",
+        "thanks", "thank you", "hi ", "hello", "hey jarvis"
+    )
 
-===============================================================================
-WORK DONE THIS SESSION
-===============================================================================
+    /**
+     * Device target for Agent J tasks. Reads from JarvisPrefs so it's
+     * configurable from Settings instead of hardcoded — Phone A's ADB port
+     * has changed before and will again.
+     */
+    private fun defaultDevice(): String =
+        JarvisPrefs.getString("agent_device") ?: "192.168.29.48:40657"
 
-1. NEW FILE: app/src/main/kotlin/com/jarvismini/agent/VoiceIntentRouter.kt
-   -----------------------------------------------------------------------
-   Purpose: single entry point that decides whether user text (typed or
-   future voice/STT input) is ordinary chat or a real action for Agent J.
+    /** Zero-cost keyword classification. Returns null if ambiguous. */
+    fun classifyFast(input: String): VoiceIntent? {
+        val lower = input.trim().lowercase()
+        if (lower.isBlank()) return null
 
-   Classification is two-tier:
-     a) Fast keyword pass — zero cost, no model call.
-        - ACTION_VERBS list ("open ", "apply ", "send ", "fill ", "block ",
-          "close ", "install ", "message ", "call ", "launch ", "toggle ",
-          "turn on/off ", "automate ", etc.) -> instant Task classification.
-        - CHAT_MARKERS list ("what is", "who is", "explain", "thanks",
-          "hello", etc.) -> instant Chat classification.
-     b) LLM fallback — only for ambiguous phrasing that doesn't hit either
-        list. Reuses the EXISTING on-device LlamaLLMEngine.generateReply()
-        — no new model/dependency added. Prompt forces raw-JSON-only output
-        {"intent": "chat"|"task", "task": "..."}; extractJson() strips
-        markdown fences defensively in case the model doesn't comply.
-        Falls back to Chat on any parse/model failure — never throws, never
-        silently drops a message.
+        if (CHAT_MARKERS.any { lower.startsWith(it) || lower.contains(" $it") }) {
+            return VoiceIntent.Chat(input)
+        }
+        if (ACTION_VERBS.any { lower.startsWith(it) }) {
+            return VoiceIntent.Task(task = input.trim(), device = defaultDevice())
+        }
+        return null
+    }
 
-   Device targeting:
-     - defaultDevice() reads JarvisPrefs.getString("agent_device") first,
-       falls back to a hardcoded default only if unset.
-     - Verified against agentJ.txt (agent_server.py) that Phone A's ADB
-       port has already changed at least three times across sessions
-       (40657 in app defaults -> 41367 hardcoded in agent_server.py ->
-       35253 current per memory). Confirms the pref-based approach is the
-       right call instead of hardcoding.
+    /**
+     * Full classification: fast path first, LLM fallback for anything
+     * ambiguous. Never throws — falls back to Chat on any failure so a
+     * broken classification never silently drops a message.
+     */
+    suspend fun classify(input: String): VoiceIntent {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty()) return VoiceIntent.Chat(trimmed)
 
-   Execution:
-     - routeAndExecute(input, onChat, onTaskStarted, onTaskResult,
-       onTaskFailed) is the single call site. On Task classification it
-       calls the REAL AgentRepository.runTask(task, device) — verified
-       this matches agent_server.py's actual POST /run contract
-       ({"task", "device", "max_steps"}) — and AgentRepository.speak() for
-       a spoken acknowledgement. No mocked calls anywhere in this file.
+        classifyFast(trimmed)?.let { return it }
 
-2. MODIFIED FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt
-   -----------------------------------------------------------------------
-   - sendMessage() no longer calls LlamaLLMEngine.generateReply(text)
-     directly. It now calls VoiceIntentRouter.routeAndExecute(text, ...).
-   - Chat path behaves exactly as before (same LlamaLLMEngine call, same
-     bubble behavior) via the onChat callback.
-   - Task path: the "Thinking..." placeholder bubble is swapped to
-     "⚙️ Running task: <task>" via onTaskStarted, then replaced with either
-     a "✅ Task started: ..." or "❌ Task failed: ..." bubble depending on
-     outcome. This makes it visually obvious in the UI when a message went
-     to Agent J instead of the chat model.
-   - Added replaceThinkingWith() helper so the placeholder bubble is
-     updated in place instead of removed/re-added, avoiding index-shift
-     bugs if the RecyclerView changes underneath the coroutine.
-   - Full file rewrite delivered (not a patch stub), per established
-     delivery convention.
+        val prompt = """
+            Classify the following user message as either "chat" (a question or
+            conversation) or "task" (an instruction to perform a real action on
+            the phone, such as opening an app, filling a form, sending a message,
+            or automating a multi-step process).
 
-3. REFERENCE CHECK AGAINST agentJ.txt (Termux/Agent J side dump)
-   -----------------------------------------------------------------------
-   - Confirmed agent_server.py (port 8891) exposes POST /run accepting
-     {"task", "device", "max_steps"} — matches AgentRepository.runTask()
-     and therefore VoiceIntentRouter's call into it. No mismatch found,
-     no changes needed on the Termux side for this phase.
-   - Noted Session 30 fix already in place server-side: TASK_FILE cleared
-     on startup + ui_parser cache invalidated before controller.run(), so
-     a stale task/UI state can't bleed into a task triggered by the new
-     router.
-   - No Termux-side changes required this session — this phase is
-     Android-app-only.
+            Respond with ONLY raw JSON, no markdown, no explanation:
+            {"intent": "chat" or "task", "task": "<cleaned up task instruction, empty string if chat>"}
 
-===============================================================================
-WHAT'S NOT DONE YET / KNOWN GAPS
-===============================================================================
-  - JarvisPrefs key "agent_device" is READ by VoiceIntentRouter but nothing
-    currently WRITES to it — Settings screen needs a field for this, or it
-    will always fall back to the hardcoded default.
-  - Router is untested against a live Phone A agent server — keyword lists
-    and the JSON-fallback prompt are reasonable defaults, not tuned on real
-    usage yet.
-  - No voice input yet — this phase only proves the pipeline via typed
-    chat. Wake word (Phase 2) is next.
-  - ACTION_VERBS/CHAT_MARKERS lists are a first pass; expect false
-    positives/negatives until tested against real phrasing.
+            Message: "$trimmed"
+        """.trimIndent()
 
-===============================================================================
-NEXT SESSION STARTING POINT
-===============================================================================
-  1. Test VoiceIntentRouter by typing action-style commands ("open
-     whatsapp", "apply to scholarship portal", etc.) into the existing
-     chat UI against a live Phone A agent server — confirm task dispatch
-     actually fires and speaks correctly.
-  2. Add "Agent Device" field to SettingsScreen.kt so agent_device is
-     actually configurable instead of falling back to a stale default.
-  3. Once router is verified live, begin Phase 2 (wake word engine).
+        return try {
+            val raw = LlamaLLMEngine.generateReply(prompt)
+            val json = JSONObject(extractJson(raw))
+            val intent = json.optString("intent", "chat")
+            if (intent == "task") {
+                val task = json.optString("task", trimmed).ifBlank { trimmed }
+                VoiceIntent.Task(task = task, device = defaultDevice())
+            } else {
+                VoiceIntent.Chat(trimmed)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "LLM classification failed, defaulting to chat", e)
+            VoiceIntent.Chat(trimmed)
+        }
+    }
 
-===============================================================================
-FILES DELIVERED THIS SESSION (see ai-output.txt)
-===============================================================================
-  FILE: app/src/main/kotlin/com/jarvismini/agent/VoiceIntentRouter.kt  (new)
-  FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt             (modified, full rewrite)
+    /** Strips markdown fences etc. in case the model doesn't obey "raw JSON only". */
+    private fun extractJson(raw: String): String {
+        val start = raw.indexOf('{')
+        val end = raw.lastIndexOf('}')
+        return if (start != -1 && end != -1 && end > start) raw.substring(start, end + 1) else "{}"
+    }
+
+    /**
+     * Full pipeline: classify the input, then either hand it back as chat or
+     * dispatch it to Agent J and speak a spoken acknowledgement/result.
+     *
+     * This is the single entry point callers (ChatActivity, a future wake-word
+     * service, etc.) should call — it owns the chat-vs-task decision so no
+     * caller has to duplicate classification logic.
+     */
+    suspend fun routeAndExecute(
+        input: String,
+        speakOnCompletion: Boolean = true,
+        onChat: suspend (String) -> Unit,
+        onTaskStarted: suspend (String) -> Unit = {},
+        onTaskResult: suspend (String) -> Unit = {},
+        onTaskFailed: suspend (String) -> Unit = {}
+    ) {
+        when (val intent = classify(input)) {
+            is VoiceIntent.Chat -> onChat(intent.text)
+            is VoiceIntent.Task -> {
+                onTaskStarted(intent.task)
+                AgentRepository.runTask(intent.task, intent.device)
+                    .onSuccess { started ->
+                        onTaskResult(started)
+                        if (speakOnCompletion) {
+                            AgentRepository.speak("Got it. Starting: ${intent.task}")
+                        }
+                    }
+                    .onFailure { e ->
+                        onTaskFailed(e.message ?: "Task failed to start")
+                        if (speakOnCompletion) {
+                            AgentRepository.speak("Sorry, I couldn't start that task.")
+                        }
+                    }
+            }
+        }
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
+package com.jarvismini
+
+import android.os.Bundle
+import android.view.View
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.jarvismini.agent.VoiceIntentRouter
+import com.jarvismini.engine.LlamaLLMEngine
+import com.jarvismini.ui.ModelSelectorView
+import kotlinx.coroutines.launch
+
+/**
+ * ✅ UPDATED: Chat activity with model selector integration
+ * ✅ UPDATED (Agent J fusion): messages now pass through VoiceIntentRouter
+ *    first. Ordinary conversation still goes to LlamaLLMEngine exactly as
+ *    before; action-style input ("open whatsapp", "apply to...", etc.) is
+ *    dispatched to Agent J via AgentRepository.runTask() instead, with a
+ *    distinct "running task" bubble instead of "Thinking...".
+ */
+class ChatActivity : AppCompatActivity() {
+
+    private lateinit var rvMessages: RecyclerView
+    private lateinit var etMessage: EditText
+    private lateinit var btnSend: ImageButton
+    private lateinit var modelSelector: ModelSelectorView
+
+    private val messages = mutableListOf<ChatMessage>()
+    private lateinit var adapter: ChatAdapter
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_chat)
+
+        initViews()
+        setupRecyclerView()
+        setupListeners()
+    }
+
+    private fun initViews() {
+        rvMessages = findViewById(R.id.rvMessages)
+        etMessage = findViewById(R.id.etMessage)
+        btnSend = findViewById(R.id.btnSend)
+        modelSelector = findViewById(R.id.modelSelector)
+    }
+
+    private fun setupRecyclerView() {
+        adapter = ChatAdapter(messages)
+        rvMessages.adapter = adapter
+        rvMessages.layoutManager = LinearLayoutManager(this).apply {
+            stackFromEnd = true
+        }
+    }
+
+    private fun setupListeners() {
+        btnSend.setOnClickListener {
+            sendMessage()
+        }
+
+        etMessage.setOnEditorActionListener { _, _, _ ->
+            sendMessage()
+            true
+        }
+    }
+
+    private fun sendMessage() {
+        val text = etMessage.text.toString().trim()
+        if (text.isEmpty()) return
+
+        // ✅ Check if models are still loading
+        if (LlamaLLMEngine.isLoading) {
+            Toast.makeText(
+                this,
+                "⏳ Models are still loading... Please wait a moment.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        // Add user message
+        val userMessage = ChatMessage(text, isUser = true)
+        messages.add(userMessage)
+        adapter.notifyItemInserted(messages.size - 1)
+        rvMessages.scrollToPosition(messages.size - 1)
+
+        // Clear input
+        etMessage.text.clear()
+
+        // Disable input while processing
+        etMessage.isEnabled = false
+        btnSend.isEnabled = false
+        etMessage.hint = "Processing..."
+
+        // Add "thinking" indicator — label gets swapped to "Running task..."
+        // if VoiceIntentRouter decides this is an Agent J task, not chat.
+        val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
+        messages.add(thinkingMessage)
+        val thinkingIndex = messages.size - 1
+        adapter.notifyItemInserted(thinkingIndex)
+        rvMessages.scrollToPosition(thinkingIndex)
+
+        lifecycleScope.launch {
+            try {
+                VoiceIntentRouter.routeAndExecute(
+                    input = text,
+                    onChat = { chatText ->
+                        val reply = LlamaLLMEngine.generateReply(chatText)
+                        replaceThinkingWith(thinkingIndex, ChatMessage(reply, isUser = false))
+                    },
+                    onTaskStarted = { task ->
+                        // Swap "Thinking..." -> "Running task..." so the user can
+                        // tell this went to Agent J instead of the chat model.
+                        messages[thinkingIndex] = ChatMessage(
+                            "⚙️ Running task: $task",
+                            isUser = false,
+                            isThinking = true
+                        )
+                        adapter.notifyItemChanged(thinkingIndex)
+                    },
+                    onTaskResult = { started ->
+                        replaceThinkingWith(
+                            thinkingIndex,
+                            ChatMessage("✅ Task started: $started", isUser = false)
+                        )
+                    },
+                    onTaskFailed = { errorMsg ->
+                        replaceThinkingWith(
+                            thinkingIndex,
+                            ChatMessage("❌ Task failed: $errorMsg", isUser = false)
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                replaceThinkingWith(
+                    thinkingIndex,
+                    ChatMessage("❌ Error: ${e.message}", isUser = false)
+                )
+            } finally {
+                etMessage.isEnabled = true
+                btnSend.isEnabled = true
+                etMessage.hint = "Type a message..."
+            }
+        }
+    }
+
+    /**
+     * Replaces the message at [index] (the thinking/running-task placeholder)
+     * with [replacement] in place, so we don't shift indices for anything
+     * added concurrently.
+     */
+    private fun replaceThinkingWith(index: Int, replacement: ChatMessage) {
+        if (index !in messages.indices) {
+            // Placeholder already gone for some reason — just append.
+            messages.add(replacement)
+            adapter.notifyItemInserted(messages.size - 1)
+            rvMessages.scrollToPosition(messages.size - 1)
+            return
+        }
+        messages[index] = replacement
+        adapter.notifyItemChanged(index)
+        rvMessages.scrollToPosition(index)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Release resources if this is the last activity
+        if (isFinishing) {
+            // Note: Only release if app is actually closing
+            // LlamaLLMEngine.release()
+        }
+    }
+}
