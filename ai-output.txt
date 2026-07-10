@@ -1,0 +1,160 @@
+JARVIS / AGENT J — SESSION REPORT
+Date: 2026-07-10
+
+===============================================================================
+GOAL OF THIS SESSION
+===============================================================================
+Start fusing the Jarvis Android app with the Agent J two-phone automation
+system, so voice/chat input can trigger real on-device actions instead of
+only producing chat replies.
+
+===============================================================================
+STATUS REPORT (v3.1 spec, 63 features / 17 sections) — done at start of session
+===============================================================================
+Built & present:
+  - TTS (AssistantTTS.kt local + remote TTS server, port 8892)
+  - Personality modes (JarvisMode enum: NORMAL, WORK, DRIVING, SLEEP, FOCUS)
+  - Accessibility automation (AccessibilityServiceHelper, AppAutomationService)
+  - WhatsApp automation (WhatsAppNotificationListener, 2 versions)
+  - Call handler (CallAccessibilityService)
+  - Work Mode (WorkModeService — Physics Wallah, Wavelet, YT Music)
+  - Media control (MediaController.kt)
+  - App launching (launchApp() helper)
+  - Multi-LLM model list (GPT-4.1 mini, GPT-4o, DeepSeek R1 Free)
+  - Hologram/Boot UI (BootScreen, HologramCanvas, ParticleField, ScanLine)
+  - Settings panel (SettingsScreen.kt)
+  - Debugger console (DebugScreen, DebugViewModel)
+  - Self-heal, agent side (AgentRepository / HealDashboard -> Phone A server)
+
+Partial:
+  - Offline capability (server online/offline check exists, no local fallback
+    command routing)
+  - 24/7 monitoring (notification listener exists, no dedicated monitoring
+    service or sleep-hour summary)
+  - Device control (app launching only — no wifi/bluetooth/torch/hotspot
+    toggles)
+
+Missing entirely:
+  - Hotword / wake-word engine (spec 1.1)
+  - Long-term memory / adaptive learning (spec section 3)
+  - Lockdown Mode + call whitelist (spec 4.3)
+  - AI Camera Assist / AI Screen Assist / AI Vision Engine (spec 9, 10, 12)
+  - Smart Announcement Engine (spec 17)
+
+===============================================================================
+DECISION
+===============================================================================
+Biggest architectural unlock identified: fuse Jarvis (voice/persona/UI) with
+Agent J (ADB, OCR, accessibility automation, multi-LLM task execution) so
+voice commands can trigger real multi-step actions, not just chat replies.
+
+Build order agreed:
+  Phase 1 — Intent Router (chat vs task classification) + wire into chat  <- TODAY
+  Phase 2 — Wake word engine (openWakeWord / Porcupine, TFLite-based)
+  Phase 3 — Screen Assist (vision-based OCR, sidesteps OEM accessibility
+            blocks — also fills spec section 10)
+  Phase 4 — Self-heal visibility in main UI (not just dashboard)
+  Phase 5 — Checkmate enforcement tie-in (auto-close distracting apps)
+  Phase 6 — Full local mode via existing llama.cpp bridge
+
+===============================================================================
+WORK DONE THIS SESSION
+===============================================================================
+
+1. NEW FILE: app/src/main/kotlin/com/jarvismini/agent/VoiceIntentRouter.kt
+   -----------------------------------------------------------------------
+   Purpose: single entry point that decides whether user text (typed or
+   future voice/STT input) is ordinary chat or a real action for Agent J.
+
+   Classification is two-tier:
+     a) Fast keyword pass — zero cost, no model call.
+        - ACTION_VERBS list ("open ", "apply ", "send ", "fill ", "block ",
+          "close ", "install ", "message ", "call ", "launch ", "toggle ",
+          "turn on/off ", "automate ", etc.) -> instant Task classification.
+        - CHAT_MARKERS list ("what is", "who is", "explain", "thanks",
+          "hello", etc.) -> instant Chat classification.
+     b) LLM fallback — only for ambiguous phrasing that doesn't hit either
+        list. Reuses the EXISTING on-device LlamaLLMEngine.generateReply()
+        — no new model/dependency added. Prompt forces raw-JSON-only output
+        {"intent": "chat"|"task", "task": "..."}; extractJson() strips
+        markdown fences defensively in case the model doesn't comply.
+        Falls back to Chat on any parse/model failure — never throws, never
+        silently drops a message.
+
+   Device targeting:
+     - defaultDevice() reads JarvisPrefs.getString("agent_device") first,
+       falls back to a hardcoded default only if unset.
+     - Verified against agentJ.txt (agent_server.py) that Phone A's ADB
+       port has already changed at least three times across sessions
+       (40657 in app defaults -> 41367 hardcoded in agent_server.py ->
+       35253 current per memory). Confirms the pref-based approach is the
+       right call instead of hardcoding.
+
+   Execution:
+     - routeAndExecute(input, onChat, onTaskStarted, onTaskResult,
+       onTaskFailed) is the single call site. On Task classification it
+       calls the REAL AgentRepository.runTask(task, device) — verified
+       this matches agent_server.py's actual POST /run contract
+       ({"task", "device", "max_steps"}) — and AgentRepository.speak() for
+       a spoken acknowledgement. No mocked calls anywhere in this file.
+
+2. MODIFIED FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt
+   -----------------------------------------------------------------------
+   - sendMessage() no longer calls LlamaLLMEngine.generateReply(text)
+     directly. It now calls VoiceIntentRouter.routeAndExecute(text, ...).
+   - Chat path behaves exactly as before (same LlamaLLMEngine call, same
+     bubble behavior) via the onChat callback.
+   - Task path: the "Thinking..." placeholder bubble is swapped to
+     "⚙️ Running task: <task>" via onTaskStarted, then replaced with either
+     a "✅ Task started: ..." or "❌ Task failed: ..." bubble depending on
+     outcome. This makes it visually obvious in the UI when a message went
+     to Agent J instead of the chat model.
+   - Added replaceThinkingWith() helper so the placeholder bubble is
+     updated in place instead of removed/re-added, avoiding index-shift
+     bugs if the RecyclerView changes underneath the coroutine.
+   - Full file rewrite delivered (not a patch stub), per established
+     delivery convention.
+
+3. REFERENCE CHECK AGAINST agentJ.txt (Termux/Agent J side dump)
+   -----------------------------------------------------------------------
+   - Confirmed agent_server.py (port 8891) exposes POST /run accepting
+     {"task", "device", "max_steps"} — matches AgentRepository.runTask()
+     and therefore VoiceIntentRouter's call into it. No mismatch found,
+     no changes needed on the Termux side for this phase.
+   - Noted Session 30 fix already in place server-side: TASK_FILE cleared
+     on startup + ui_parser cache invalidated before controller.run(), so
+     a stale task/UI state can't bleed into a task triggered by the new
+     router.
+   - No Termux-side changes required this session — this phase is
+     Android-app-only.
+
+===============================================================================
+WHAT'S NOT DONE YET / KNOWN GAPS
+===============================================================================
+  - JarvisPrefs key "agent_device" is READ by VoiceIntentRouter but nothing
+    currently WRITES to it — Settings screen needs a field for this, or it
+    will always fall back to the hardcoded default.
+  - Router is untested against a live Phone A agent server — keyword lists
+    and the JSON-fallback prompt are reasonable defaults, not tuned on real
+    usage yet.
+  - No voice input yet — this phase only proves the pipeline via typed
+    chat. Wake word (Phase 2) is next.
+  - ACTION_VERBS/CHAT_MARKERS lists are a first pass; expect false
+    positives/negatives until tested against real phrasing.
+
+===============================================================================
+NEXT SESSION STARTING POINT
+===============================================================================
+  1. Test VoiceIntentRouter by typing action-style commands ("open
+     whatsapp", "apply to scholarship portal", etc.) into the existing
+     chat UI against a live Phone A agent server — confirm task dispatch
+     actually fires and speaks correctly.
+  2. Add "Agent Device" field to SettingsScreen.kt so agent_device is
+     actually configurable instead of falling back to a stale default.
+  3. Once router is verified live, begin Phase 2 (wake word engine).
+
+===============================================================================
+FILES DELIVERED THIS SESSION (see ai-output.txt)
+===============================================================================
+  FILE: app/src/main/kotlin/com/jarvismini/agent/VoiceIntentRouter.kt  (new)
+  FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt             (modified, full rewrite)
