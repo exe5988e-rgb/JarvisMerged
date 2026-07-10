@@ -9,12 +9,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.jarvismini.agent.VoiceIntentRouter
 import com.jarvismini.engine.LlamaLLMEngine
 import com.jarvismini.ui.ModelSelectorView
 import kotlinx.coroutines.launch
 
 /**
  * ✅ UPDATED: Chat activity with model selector integration
+ * ✅ UPDATED (Agent J fusion): messages now pass through VoiceIntentRouter
+ *    first. Ordinary conversation still goes to LlamaLLMEngine exactly as
+ *    before; action-style input ("open whatsapp", "apply to...", etc.) is
+ *    dispatched to Agent J via AgentRepository.runTask() instead, with a
+ *    distinct "running task" bubble instead of "Thinking...".
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -65,7 +71,7 @@ class ChatActivity : AppCompatActivity() {
         val text = etMessage.text.toString().trim()
         if (text.isEmpty()) return
 
-        // ✅ NEW: Check if models are still loading
+        // ✅ Check if models are still loading
         if (LlamaLLMEngine.isLoading) {
             Toast.makeText(
                 this,
@@ -89,49 +95,74 @@ class ChatActivity : AppCompatActivity() {
         btnSend.isEnabled = false
         etMessage.hint = "Processing..."
 
-        // Add "thinking" indicator
+        // Add "thinking" indicator — label gets swapped to "Running task..."
+        // if VoiceIntentRouter decides this is an Agent J task, not chat.
         val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
         messages.add(thinkingMessage)
         val thinkingIndex = messages.size - 1
         adapter.notifyItemInserted(thinkingIndex)
         rvMessages.scrollToPosition(thinkingIndex)
 
-        // Generate reply
         lifecycleScope.launch {
             try {
-                val reply = LlamaLLMEngine.generateReply(text)
-
-                // Remove thinking indicator
-                messages.removeAt(thinkingIndex)
-                adapter.notifyItemRemoved(thinkingIndex)
-
-                // Add actual reply
-                val replyMessage = ChatMessage(reply, isUser = false)
-                messages.add(replyMessage)
-                adapter.notifyItemInserted(messages.size - 1)
-                rvMessages.scrollToPosition(messages.size - 1)
-
-            } catch (e: Exception) {
-                // Remove thinking indicator
-                messages.removeAt(thinkingIndex)
-                adapter.notifyItemRemoved(thinkingIndex)
-
-                // Show error
-                val errorMessage = ChatMessage(
-                    "❌ Error: ${e.message}",
-                    isUser = false
+                VoiceIntentRouter.routeAndExecute(
+                    input = text,
+                    onChat = { chatText ->
+                        val reply = LlamaLLMEngine.generateReply(chatText)
+                        replaceThinkingWith(thinkingIndex, ChatMessage(reply, isUser = false))
+                    },
+                    onTaskStarted = { task ->
+                        // Swap "Thinking..." -> "Running task..." so the user can
+                        // tell this went to Agent J instead of the chat model.
+                        messages[thinkingIndex] = ChatMessage(
+                            "⚙️ Running task: $task",
+                            isUser = false,
+                            isThinking = true
+                        )
+                        adapter.notifyItemChanged(thinkingIndex)
+                    },
+                    onTaskResult = { started ->
+                        replaceThinkingWith(
+                            thinkingIndex,
+                            ChatMessage("✅ Task started: $started", isUser = false)
+                        )
+                    },
+                    onTaskFailed = { errorMsg ->
+                        replaceThinkingWith(
+                            thinkingIndex,
+                            ChatMessage("❌ Task failed: $errorMsg", isUser = false)
+                        )
+                    }
                 )
-                messages.add(errorMessage)
-                adapter.notifyItemInserted(messages.size - 1)
-                rvMessages.scrollToPosition(messages.size - 1)
-
+            } catch (e: Exception) {
+                replaceThinkingWith(
+                    thinkingIndex,
+                    ChatMessage("❌ Error: ${e.message}", isUser = false)
+                )
             } finally {
-                // Re-enable input
                 etMessage.isEnabled = true
                 btnSend.isEnabled = true
                 etMessage.hint = "Type a message..."
             }
         }
+    }
+
+    /**
+     * Replaces the message at [index] (the thinking/running-task placeholder)
+     * with [replacement] in place, so we don't shift indices for anything
+     * added concurrently.
+     */
+    private fun replaceThinkingWith(index: Int, replacement: ChatMessage) {
+        if (index !in messages.indices) {
+            // Placeholder already gone for some reason — just append.
+            messages.add(replacement)
+            adapter.notifyItemInserted(messages.size - 1)
+            rvMessages.scrollToPosition(messages.size - 1)
+            return
+        }
+        messages[index] = replacement
+        adapter.notifyItemChanged(index)
+        rvMessages.scrollToPosition(index)
     }
 
     override fun onDestroy() {
@@ -143,9 +174,3 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 }
-
-data class ChatMessage(
-    val text: String,
-    val isUser: Boolean,
-    val isThinking: Boolean = false
-)
