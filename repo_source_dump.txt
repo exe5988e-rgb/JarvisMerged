@@ -837,6 +837,12 @@ import kotlinx.coroutines.launch
  *    before; action-style input ("open whatsapp", "apply to...", etc.) is
  *    dispatched to Agent J via AgentRepository.runTask() instead, with a
  *    distinct "running task" bubble instead of "Thinking...".
+ *
+ * BUGFIX (this session): previous version of this file dropped the trailing
+ * `data class ChatMessage(...)` that used to live at the bottom of this same
+ * file — it broke the build with "Unresolved reference: ChatMessage" in both
+ * this file and ChatAdapter.kt, which depends on it. Restored below, in its
+ * original location/package (com.jarvismini, same file, no import needed).
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -858,21 +864,9 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        rvMessages = findViewById(R.id.rvMessages)
-        etMessage = findViewById(R.id.etMessage)
-        btnSend = findViewById(R.id.btnSend)
-        modelSelector = findViewById(R.id.modelSelector)
-    }
-
 
 // ... FILE TRUNCATED ...
 
-            // Placeholder already gone for some reason — just append.
-            messages.add(replacement)
-            adapter.notifyItemInserted(messages.size - 1)
-            rvMessages.scrollToPosition(messages.size - 1)
-            return
-        }
         messages[index] = replacement
         adapter.notifyItemChanged(index)
         rvMessages.scrollToPosition(index)
@@ -887,6 +881,12 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 }
+
+data class ChatMessage(
+    val text: String,
+    val isUser: Boolean,
+    val isThinking: Boolean = false
+)
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ChatAdapter.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
