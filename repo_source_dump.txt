@@ -47,6 +47,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   ├── AgentRepository.kt
 │   │   │   │   │   │   │   ├── HealDashboardScreen.kt
 │   │   │   │   │   │   │   ├── HealDashboardViewModel.kt
+│   │   │   │   │   │   │   ├── VoiceIntentRouter.kt
 │   │   │   │   │   │   ├── api
 │   │   │   │   │   │   │   ├── ApiGateway.kt
 │   │   │   │   │   │   │   ├── ApiModels.kt
@@ -824,12 +825,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.jarvismini.agent.VoiceIntentRouter
 import com.jarvismini.engine.LlamaLLMEngine
 import com.jarvismini.ui.ModelSelectorView
 import kotlinx.coroutines.launch
 
 /**
  * ✅ UPDATED: Chat activity with model selector integration
+ * ✅ UPDATED (Agent J fusion): messages now pass through VoiceIntentRouter
+ *    first. Ordinary conversation still goes to LlamaLLMEngine exactly as
+ *    before; action-style input ("open whatsapp", "apply to...", etc.) is
+ *    dispatched to Agent J via AgentRepository.runTask() instead, with a
+ *    distinct "running task" bubble instead of "Thinking...".
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -857,18 +864,18 @@ class ChatActivity : AppCompatActivity() {
         modelSelector = findViewById(R.id.modelSelector)
     }
 
-    private fun setupRecyclerView() {
-        adapter = ChatAdapter(messages)
-        rvMessages.adapter = adapter
-        rvMessages.layoutManager = LinearLayoutManager(this).apply {
-            stackFromEnd = true
-        }
 
 // ... FILE TRUNCATED ...
 
-                etMessage.hint = "Type a message..."
-            }
+            // Placeholder already gone for some reason — just append.
+            messages.add(replacement)
+            adapter.notifyItemInserted(messages.size - 1)
+            rvMessages.scrollToPosition(messages.size - 1)
+            return
         }
+        messages[index] = replacement
+        adapter.notifyItemChanged(index)
+        rvMessages.scrollToPosition(index)
     }
 
     override fun onDestroy() {
@@ -880,12 +887,6 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 }
-
-data class ChatMessage(
-    val text: String,
-    val isUser: Boolean,
-    val isThinking: Boolean = false
-)
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ChatAdapter.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
@@ -1612,6 +1613,82 @@ class HealDashboardViewModel : ViewModel() {
     override fun onCleared() {
         logStreamJob?.cancel()
         super.onCleared()
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/VoiceIntentRouter.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.agent
+
+import android.util.Log
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.engine.LlamaLLMEngine
+import org.json.JSONObject
+
+/**
+ * VoiceIntentRouter — the fusion point between Jarvis's voice/chat surface
+ * and Agent J's task-execution pipeline.
+ *
+ * Given a piece of user text (typed or transcribed from voice), decides
+ * whether it's ordinary conversation (routed to the local chat LLM) or a
+ * real action to hand off to Agent J via AgentRepository.runTask().
+ *
+ * Classification is two-tier:
+ *   1. Fast keyword pass (no network/model call, near-instant)
+ *   2. LLM fallback for ambiguous phrasing, using the same on-device
+ *      LlamaLLMEngine already used for chat — no new dependency.
+ */
+sealed class VoiceIntent {
+    data class Chat(val text: String) : VoiceIntent()
+    data class Task(val task: String, val device: String) : VoiceIntent()
+}
+
+object VoiceIntentRouter {
+
+    private const val TAG = "VoiceIntentRouter"
+
+    // Anything starting with these is almost certainly a real action, not chat.
+    private val ACTION_VERBS = listOf(
+        "open ", "apply ", "send ", "fill ", "block ", "close ", "install ",
+        "uninstall ", "message ", "reply to ", "navigate ", "click ", "tap ",
+        "scroll ", "search for ", "book ", "order ", "call ", "text ",
+        "go to ", "launch ", "start ", "stop ", "enable ", "disable ",
+        "toggle ", "turn on ", "turn off ", "screenshot ", "automate "
+    )
+
+    // Clearly conversational — skip the task path entirely.
+    private val CHAT_MARKERS = listOf(
+        "what is", "what's", "who is", "who's", "why ", "how do", "how does",
+        "explain", "tell me about", "what do you think", "how are you",
+        "thanks", "thank you", "hi ", "hello", "hey jarvis"
+    )
+
+    /**
+     * Device target for Agent J tasks. Reads from JarvisPrefs so it's
+     * configurable from Settings instead of hardcoded — Phone A's ADB port
+     * has changed before and will again.
+     */
+
+// ... FILE TRUNCATED ...
+
+            is VoiceIntent.Chat -> onChat(intent.text)
+            is VoiceIntent.Task -> {
+                onTaskStarted(intent.task)
+                AgentRepository.runTask(intent.task, intent.device)
+                    .onSuccess { started ->
+                        onTaskResult(started)
+                        if (speakOnCompletion) {
+                            AgentRepository.speak("Got it. Starting: ${intent.task}")
+                        }
+                    }
+                    .onFailure { e ->
+                        onTaskFailed(e.message ?: "Task failed to start")
+                        if (speakOnCompletion) {
+                            AgentRepository.speak("Sorry, I couldn't start that task.")
+                        }
+                    }
+            }
+        }
     }
 }
 
