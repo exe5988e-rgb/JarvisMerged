@@ -1847,7 +1847,7 @@ fun AgentDashboardScreen(
                 } else {
                     LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         items(state.logs, key = { it.id }) { log ->
-                            LogLineRow(log)
+                            AgentLogLineRow(log)
                         }
                     }
                 }
@@ -2028,8 +2028,15 @@ private fun TaskInputSection(
     }
 }
 
+// Renamed from LogLineRow -> AgentLogLineRow (Session fix: Kotlin does not
+// allow two top-level functions with the same signature in one package,
+// private or not. HealDashboardScreen.kt already declares a public
+// LogLineRow(log: LogLine) in this same package, causing
+// "Conflicting overloads" + "Overload resolution ambiguity" build failures.
+// This function is only ever called from within this file, so the rename
+// is a pure, safe, local fix — no other file references it.
 @Composable
-private fun LogLineRow(log: LogLine) {
+private fun AgentLogLineRow(log: LogLine) {
     val color = when (log.level) {
         LogLevel.SUCCESS -> Green
         LogLevel.ERROR   -> Red
