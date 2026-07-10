@@ -1,329 +1,441 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/agent/VoiceIntentRouter.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/agent/AgentDashboardScreen.kt =====
+
 package com.jarvismini.agent
 
-import android.util.Log
-import com.jarvismini.core.JarvisPrefs
-import com.jarvismini.engine.LlamaLLMEngine
-import org.json.JSONObject
-
-/**
- * VoiceIntentRouter — the fusion point between Jarvis's voice/chat surface
- * and Agent J's task-execution pipeline.
- *
- * Given a piece of user text (typed or transcribed from voice), decides
- * whether it's ordinary conversation (routed to the local chat LLM) or a
- * real action to hand off to Agent J via AgentRepository.runTask().
- *
- * Classification is two-tier:
- *   1. Fast keyword pass (no network/model call, near-instant)
- *   2. LLM fallback for ambiguous phrasing, using the same on-device
- *      LlamaLLMEngine already used for chat — no new dependency.
- */
-sealed class VoiceIntent {
-    data class Chat(val text: String) : VoiceIntent()
-    data class Task(val task: String, val device: String) : VoiceIntent()
-}
-
-object VoiceIntentRouter {
-
-    private const val TAG = "VoiceIntentRouter"
-
-    // Anything starting with these is almost certainly a real action, not chat.
-    private val ACTION_VERBS = listOf(
-        "open ", "apply ", "send ", "fill ", "block ", "close ", "install ",
-        "uninstall ", "message ", "reply to ", "navigate ", "click ", "tap ",
-        "scroll ", "search for ", "book ", "order ", "call ", "text ",
-        "go to ", "launch ", "start ", "stop ", "enable ", "disable ",
-        "toggle ", "turn on ", "turn off ", "screenshot ", "automate "
-    )
-
-    // Clearly conversational — skip the task path entirely.
-    private val CHAT_MARKERS = listOf(
-        "what is", "what's", "who is", "who's", "why ", "how do", "how does",
-        "explain", "tell me about", "what do you think", "how are you",
-        "thanks", "thank you", "hi ", "hello", "hey jarvis"
-    )
-
-    /**
-     * Device target for Agent J tasks. Reads from JarvisPrefs so it's
-     * configurable from Settings instead of hardcoded — Phone A's ADB port
-     * has changed before and will again.
-     */
-    private fun defaultDevice(): String =
-        JarvisPrefs.getString("agent_device") ?: "192.168.29.48:40657"
-
-    /** Zero-cost keyword classification. Returns null if ambiguous. */
-    fun classifyFast(input: String): VoiceIntent? {
-        val lower = input.trim().lowercase()
-        if (lower.isBlank()) return null
-
-        if (CHAT_MARKERS.any { lower.startsWith(it) || lower.contains(" $it") }) {
-            return VoiceIntent.Chat(input)
-        }
-        if (ACTION_VERBS.any { lower.startsWith(it) }) {
-            return VoiceIntent.Task(task = input.trim(), device = defaultDevice())
-        }
-        return null
-    }
-
-    /**
-     * Full classification: fast path first, LLM fallback for anything
-     * ambiguous. Never throws — falls back to Chat on any failure so a
-     * broken classification never silently drops a message.
-     */
-    suspend fun classify(input: String): VoiceIntent {
-        val trimmed = input.trim()
-        if (trimmed.isEmpty()) return VoiceIntent.Chat(trimmed)
-
-        classifyFast(trimmed)?.let { return it }
-
-        val prompt = """
-            Classify the following user message as either "chat" (a question or
-            conversation) or "task" (an instruction to perform a real action on
-            the phone, such as opening an app, filling a form, sending a message,
-            or automating a multi-step process).
-
-            Respond with ONLY raw JSON, no markdown, no explanation:
-            {"intent": "chat" or "task", "task": "<cleaned up task instruction, empty string if chat>"}
-
-            Message: "$trimmed"
-        """.trimIndent()
-
-        return try {
-            val raw = LlamaLLMEngine.generateReply(prompt)
-            val json = JSONObject(extractJson(raw))
-            val intent = json.optString("intent", "chat")
-            if (intent == "task") {
-                val task = json.optString("task", trimmed).ifBlank { trimmed }
-                VoiceIntent.Task(task = task, device = defaultDevice())
-            } else {
-                VoiceIntent.Chat(trimmed)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "LLM classification failed, defaulting to chat", e)
-            VoiceIntent.Chat(trimmed)
-        }
-    }
-
-    /** Strips markdown fences etc. in case the model doesn't obey "raw JSON only". */
-    private fun extractJson(raw: String): String {
-        val start = raw.indexOf('{')
-        val end = raw.lastIndexOf('}')
-        return if (start != -1 && end != -1 && end > start) raw.substring(start, end + 1) else "{}"
-    }
-
-    /**
-     * Full pipeline: classify the input, then either hand it back as chat or
-     * dispatch it to Agent J and speak a spoken acknowledgement/result.
-     *
-     * This is the single entry point callers (ChatActivity, a future wake-word
-     * service, etc.) should call — it owns the chat-vs-task decision so no
-     * caller has to duplicate classification logic.
-     */
-    suspend fun routeAndExecute(
-        input: String,
-        speakOnCompletion: Boolean = true,
-        onChat: suspend (String) -> Unit,
-        onTaskStarted: suspend (String) -> Unit = {},
-        onTaskResult: suspend (String) -> Unit = {},
-        onTaskFailed: suspend (String) -> Unit = {}
-    ) {
-        when (val intent = classify(input)) {
-            is VoiceIntent.Chat -> onChat(intent.text)
-            is VoiceIntent.Task -> {
-                onTaskStarted(intent.task)
-                AgentRepository.runTask(intent.task, intent.device)
-                    .onSuccess { started ->
-                        onTaskResult(started)
-                        if (speakOnCompletion) {
-                            AgentRepository.speak("Got it. Starting: ${intent.task}")
-                        }
-                    }
-                    .onFailure { e ->
-                        onTaskFailed(e.message ?: "Task failed to start")
-                        if (speakOnCompletion) {
-                            AgentRepository.speak("Sorry, I couldn't start that task.")
-                        }
-                    }
-            }
-        }
-    }
-}
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
-package com.jarvismini
-
-import android.os.Bundle
-import android.view.View
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.jarvismini.agent.VoiceIntentRouter
-import com.jarvismini.engine.LlamaLLMEngine
-import com.jarvismini.ui.ModelSelectorView
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 
-/**
- * ✅ UPDATED: Chat activity with model selector integration
- * ✅ UPDATED (Agent J fusion): messages now pass through VoiceIntentRouter
- *    first. Ordinary conversation still goes to LlamaLLMEngine exactly as
- *    before; action-style input ("open whatsapp", "apply to...", etc.) is
- *    dispatched to Agent J via AgentRepository.runTask() instead, with a
- *    distinct "running task" bubble instead of "Thinking...".
- */
-class ChatActivity : AppCompatActivity() {
+private val Cyan    = Color(0xFF00E0FF)
+private val DimCyan = Color(0xFF005566)
+private val BgDark  = Color(0xFF060F14)
+private val BgCard  = Color(0xFF0A1A22)
+private val Green   = Color(0xFF00FF88)
+private val Red     = Color(0xFFFF4466)
+private val Yellow  = Color(0xFFFFCC00)
+private val White70 = Color(0xB3FFFFFF)
+private val White40 = Color(0x66FFFFFF)
 
-    private lateinit var rvMessages: RecyclerView
-    private lateinit var etMessage: EditText
-    private lateinit var btnSend: ImageButton
-    private lateinit var modelSelector: ModelSelectorView
+@Composable
+fun AgentDashboardScreen(
+    onBack:      () -> Unit,
+    initialTask: String? = null,
+    vm:          AgentDashboardViewModel = viewModel()
+) {
+    val state     by vm.state.collectAsState()
+    val context   = LocalContext.current
+    val listState = rememberLazyListState()
+    val scope     = rememberCoroutineScope()
 
-    private val messages = mutableListOf<ChatMessage>()
-    private lateinit var adapter: ChatAdapter
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_chat)
-
-        initViews()
-        setupRecyclerView()
-        setupListeners()
-    }
-
-    private fun initViews() {
-        rvMessages = findViewById(R.id.rvMessages)
-        etMessage = findViewById(R.id.etMessage)
-        btnSend = findViewById(R.id.btnSend)
-        modelSelector = findViewById(R.id.modelSelector)
-    }
-
-    private fun setupRecyclerView() {
-        adapter = ChatAdapter(messages)
-        rvMessages.adapter = adapter
-        rvMessages.layoutManager = LinearLayoutManager(this).apply {
-            stackFromEnd = true
+    LaunchedEffect(initialTask) {
+        if (!initialTask.isNullOrBlank()) {
+            vm.onTaskInput(initialTask)
         }
     }
 
-    private fun setupListeners() {
-        btnSend.setOnClickListener {
-            sendMessage()
-        }
-
-        etMessage.setOnEditorActionListener { _, _, _ ->
-            sendMessage()
-            true
+    LaunchedEffect(state.logs.size) {
+        if (state.logs.isNotEmpty()) {
+            listState.animateScrollToItem(state.logs.lastIndex)
         }
     }
 
-    private fun sendMessage() {
-        val text = etMessage.text.toString().trim()
-        if (text.isEmpty()) return
-
-        // ✅ Check if models are still loading
-        if (LlamaLLMEngine.isLoading) {
-            Toast.makeText(
-                this,
-                "⏳ Models are still loading... Please wait a moment.",
-                Toast.LENGTH_SHORT
-            ).show()
-            return
-        }
-
-        // Add user message
-        val userMessage = ChatMessage(text, isUser = true)
-        messages.add(userMessage)
-        adapter.notifyItemInserted(messages.size - 1)
-        rvMessages.scrollToPosition(messages.size - 1)
-
-        // Clear input
-        etMessage.text.clear()
-
-        // Disable input while processing
-        etMessage.isEnabled = false
-        btnSend.isEnabled = false
-        etMessage.hint = "Processing..."
-
-        // Add "thinking" indicator — label gets swapped to "Running task..."
-        // if VoiceIntentRouter decides this is an Agent J task, not chat.
-        val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
-        messages.add(thinkingMessage)
-        val thinkingIndex = messages.size - 1
-        adapter.notifyItemInserted(thinkingIndex)
-        rvMessages.scrollToPosition(thinkingIndex)
-
-        lifecycleScope.launch {
-            try {
-                VoiceIntentRouter.routeAndExecute(
-                    input = text,
-                    onChat = { chatText ->
-                        val reply = LlamaLLMEngine.generateReply(chatText)
-                        replaceThinkingWith(thinkingIndex, ChatMessage(reply, isUser = false))
-                    },
-                    onTaskStarted = { task ->
-                        // Swap "Thinking..." -> "Running task..." so the user can
-                        // tell this went to Agent J instead of the chat model.
-                        messages[thinkingIndex] = ChatMessage(
-                            "⚙️ Running task: $task",
-                            isUser = false,
-                            isThinking = true
-                        )
-                        adapter.notifyItemChanged(thinkingIndex)
-                    },
-                    onTaskResult = { started ->
-                        replaceThinkingWith(
-                            thinkingIndex,
-                            ChatMessage("✅ Task started: $started", isUser = false)
-                        )
-                    },
-                    onTaskFailed = { errorMsg ->
-                        replaceThinkingWith(
-                            thinkingIndex,
-                            ChatMessage("❌ Task failed: $errorMsg", isUser = false)
-                        )
-                    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(BgDark, Color(0xFF010A0F))))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, "Back", tint = Cyan)
+                }
+                Text(
+                    "AGENT DASHBOARD",
+                    fontSize      = 18.sp,
+                    fontWeight    = FontWeight.Light,
+                    letterSpacing = 4.sp,
+                    color         = Cyan,
+                    fontFamily    = FontFamily.Monospace
                 )
-            } catch (e: Exception) {
-                replaceThinkingWith(
-                    thinkingIndex,
-                    ChatMessage("❌ Error: ${e.message}", isUser = false)
-                )
-            } finally {
-                etMessage.isEnabled = true
-                btnSend.isEnabled = true
-                etMessage.hint = "Type a message..."
+                Spacer(Modifier.weight(1f))
+                ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = { vm.checkServer() }) {
+                    Icon(Icons.Default.Refresh, "Refresh", tint = White70, modifier = Modifier.size(18.dp))
+                }
             }
-        }
-    }
 
-    /**
-     * Replaces the message at [index] (the thinking/running-task placeholder)
-     * with [replacement] in place, so we don't shift indices for anything
-     * added concurrently.
-     */
-    private fun replaceThinkingWith(index: Int, replacement: ChatMessage) {
-        if (index !in messages.indices) {
-            // Placeholder already gone for some reason — just append.
-            messages.add(replacement)
-            adapter.notifyItemInserted(messages.size - 1)
-            rvMessages.scrollToPosition(messages.size - 1)
-            return
-        }
-        messages[index] = replacement
-        adapter.notifyItemChanged(index)
-        rvMessages.scrollToPosition(index)
-    }
+            if (state.running || state.done || state.paused) {
+                StatusBar(state)
+                Spacer(Modifier.height(8.dp))
+            }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        // Release resources if this is the last activity
-        if (isFinishing) {
-            // Note: Only release if app is actually closing
-            // LlamaLLMEngine.release()
+            TaskInputSection(
+                state    = state,
+                onTask   = vm::onTaskInput,
+                onDevice = vm::onDeviceInput,
+                onStart  = vm::startAgent,
+                onStop   = vm::stopAgent,
+                onPause  = vm::pauseAgent,
+                onResume = vm::resumeAgent,
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "LOGS",
+                    fontSize      = 11.sp,
+                    letterSpacing = 3.sp,
+                    color         = DimCyan,
+                    fontFamily    = FontFamily.Monospace
+                )
+                Spacer(Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.VolumeUp,
+                        null,
+                        tint     = if (state.ttsEnabled) Cyan else White40,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Switch(
+                        checked         = state.ttsEnabled,
+                        onCheckedChange = vm::onTtsToggle,
+                        modifier        = Modifier.height(20.dp),
+                        colors          = SwitchDefaults.colors(
+                            checkedThumbColor   = Cyan,
+                            checkedTrackColor   = DimCyan,
+                            uncheckedThumbColor = White40,
+                            uncheckedTrackColor = BgCard
+                        )
+                    )
+                }
+                if (state.logs.isNotEmpty()) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "${state.logs.size} lines",
+                        fontSize   = 10.sp,
+                        color      = White40,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick        = vm::clearLogs,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                    ) {
+                        Text("Clear", fontSize = 11.sp, color = White40)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(
+                        onClick        = { vm.speakResult(context) },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.VolumeUp, null, tint = Cyan, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Speak", fontSize = 11.sp, color = Cyan)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(BgCard)
+                    .border(0.5.dp, DimCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                    .padding(8.dp)
+            ) {
+                if (state.logs.isEmpty()) {
+                    Text(
+                        "No logs yet. Start a task to see agent activity.",
+                        color      = White40,
+                        fontSize   = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier   = Modifier.align(Alignment.Center)
+                    )
+                } else {
+                    LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        items(state.logs, key = { it.id }) { log ->
+                            AgentLogLineRow(log)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
+
+@Composable
+private fun StatusBar(state: AgentDashboardState) {
+    val bg = when {
+        state.error != null -> Red.copy(alpha = 0.15f)
+        state.paused        -> Yellow.copy(alpha = 0.12f)
+        state.done          -> Green.copy(alpha = 0.12f)
+        state.running       -> Cyan.copy(alpha = 0.08f)
+        else                -> BgCard
+    }
+    val text = when {
+        state.error != null -> "✗ Error: ${state.error}"
+        state.paused        -> "⏸ Paused at step ${state.step}  —  ${state.task.take(50)}"
+        state.done          -> "✓ Done in ${state.step} steps"
+        state.running       -> "Step ${state.step}  —  ${state.task.take(50)}"
+        else                -> ""
+    }
+    val textColor = when {
+        state.error != null -> Red
+        state.paused        -> Yellow
+        state.done          -> Green
+        else                -> Cyan
+    }
+    if (text.isBlank()) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(bg)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (state.running && !state.paused) {
+            CircularProgressIndicator(
+                modifier    = Modifier.size(12.dp),
+                color       = Cyan,
+                strokeWidth = 1.5.dp
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text,
+            color      = textColor,
+            fontSize   = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            maxLines   = 1
+        )
+    }
+}
+
+@Composable
+private fun TaskInputSection(
+    state:    AgentDashboardState,
+    onTask:   (String) -> Unit,
+    onDevice: (String) -> Unit,
+    onStart:  () -> Unit,
+    onStop:   () -> Unit,
+    onPause:  () -> Unit,
+    onResume: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(BgCard)
+            .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            .padding(12.dp)
+    ) {
+        OutlinedTextField(
+            value           = state.taskInput,
+            onValueChange   = onTask,
+            label           = { Text("Task", color = White40, fontSize = 12.sp) },
+            placeholder     = { Text("Open WhatsApp and message Mummy...", color = White40, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            modifier        = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            minLines        = 2,
+            maxLines        = 4,
+            colors          = agentFieldColors(),
+            textStyle       = LocalTextStyle.current.copy(
+                color      = White70,
+                fontSize   = 13.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value         = state.deviceInput,
+            onValueChange = onDevice,
+            label         = { Text("Device", color = White40, fontSize = 11.sp) },
+            singleLine    = true,
+            modifier      = Modifier.fillMaxWidth(),
+            colors        = agentFieldColors(),
+            textStyle     = LocalTextStyle.current.copy(
+                color      = Cyan,
+                fontSize   = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            if (state.running) {
+                // ── Pause / Resume button ──────────────────────────────────
+                if (state.paused) {
+                    OutlinedButton(
+                        onClick  = onResume,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Green),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Resume", fontSize = 13.sp)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick  = onPause,
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Pause", fontSize = 13.sp)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                // ── Stop button ────────────────────────────────────────────
+                OutlinedButton(
+                    onClick  = onStop,
+                    colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Icon(Icons.Default.Stop, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Stop", fontSize = 13.sp)
+                }
+            } else {
+                Button(
+                    onClick  = onStart,
+                    enabled  = state.taskInput.trim().isNotEmpty() && state.serverOnline,
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor = Cyan,
+                        contentColor   = BgDark
+                    ),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Run", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        if (!state.serverOnline) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
+                color      = Yellow,
+                fontSize   = 10.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+    }
+}
+
+// Renamed from LogLineRow -> AgentLogLineRow (Session fix: Kotlin does not
+// allow two top-level functions with the same signature in one package,
+// private or not. HealDashboardScreen.kt already declares a public
+// LogLineRow(log: LogLine) in this same package, causing
+// "Conflicting overloads" + "Overload resolution ambiguity" build failures.
+// This function is only ever called from within this file, so the rename
+// is a pure, safe, local fix — no other file references it.
+@Composable
+private fun AgentLogLineRow(log: LogLine) {
+    val color = when (log.level) {
+        LogLevel.SUCCESS -> Green
+        LogLevel.ERROR   -> Red
+        LogLevel.WARN    -> Yellow
+        LogLevel.STEP    -> Cyan
+        LogLevel.SYSTEM  -> DimCyan
+        LogLevel.INFO    -> White70
+    }
+    Text(
+        text       = log.text,
+        color      = color,
+        fontSize   = 11.sp,
+        fontFamily = FontFamily.Monospace,
+        lineHeight = 14.sp,
+        modifier   = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp, horizontal = 2.dp)
+    )
+}
+
+// Session 17: paused param added — dot turns yellow when paused
+@Composable
+private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val alpha by pulse.animateFloat(
+        initialValue = 0.4f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotAlpha"
+    )
+    val color = when {
+        !online -> Red
+        paused  -> Yellow.copy(alpha = alpha)
+        running -> Green.copy(alpha = alpha)
+        else    -> Green
+    }
+    Box(
+        Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .background(color)
+    )
+}
+
+@Composable
+private fun agentFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor   = Cyan,
+    unfocusedBorderColor = DimCyan.copy(alpha = 0.5f),
+    cursorColor          = Cyan,
+    focusedLabelColor    = Cyan,
+)
