@@ -436,9 +436,6 @@ android {
 
 // ... FILE TRUNCATED ...
 
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // Coroutines (required for suspend + Dispatchers)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
@@ -446,6 +443,9 @@ android {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    // Wake word (Phase 2 — Porcupine)
+    implementation("ai.picovoice:porcupine-android:3.0.3")
    
     
     // Modules
@@ -491,6 +491,7 @@ android {
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
     <!-- Microphone (for voice activation) -->
@@ -521,16 +522,8 @@ android {
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
-
 // ... FILE TRUNCATED ...
 
-            android:name="com.jarvismini.service.CallAutoReplyService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
-
-        <!-- Progress Reminder -->
-        <service
-            android:name="com.jarvismini.ProgressReminderService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
@@ -540,6 +533,13 @@ android {
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Wake Word (Phase 2) -->
+        <service
+            android:name="com.jarvismini.voice.WakeWordService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
     </application>
 
@@ -1057,6 +1057,7 @@ import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.ui.main.MainScreen
 import com.jarvismini.ui.timer.FloatingTimerService
+import com.jarvismini.voice.WakeWordService
 
 class MainActivity : ComponentActivity() {
 
@@ -1077,14 +1078,13 @@ class MainActivity : ComponentActivity() {
 
         requestOverlayPermissionIfNeeded()
         requestMicPermissionIfNeeded()
+        startWakeWordServiceIfPermitted()
 
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
         } else {
             initializeEngine()
         }
-
-        setContent {
 
 // ... FILE TRUNCATED ...
 
