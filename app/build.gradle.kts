@@ -94,6 +94,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    // Wake word (Phase 2 — Porcupine)
+    implementation("ai.picovoice:porcupine-android:3.0.3")
    
     
     // Modules

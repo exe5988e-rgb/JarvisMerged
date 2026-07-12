@@ -20,6 +20,7 @@ import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.engine.EngineProvider
 import com.jarvismini.ui.main.MainScreen
 import com.jarvismini.ui.timer.FloatingTimerService
+import com.jarvismini.voice.WakeWordService
 
 class MainActivity : ComponentActivity() {
 
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
 
         requestOverlayPermissionIfNeeded()
         requestMicPermissionIfNeeded()
+        startWakeWordServiceIfPermitted()
 
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
@@ -64,6 +66,28 @@ class MainActivity : ComponentActivity() {
                 this,
                 arrayOf(Manifest.permission.RECORD_AUDIO),
                 REQUEST_CODE_MIC
+            )
+        }
+    }
+
+    /**
+     * Wake word (Phase 2): starts WakeWordService automatically on every
+     * launch, no toggle or manual step needed — but only if RECORD_AUDIO is
+     * already granted. On a completely fresh install, the OS permission
+     * dialog above must be answered by you at least once (this is an
+     * Android OS requirement for any app, not something that can be
+     * scripted around) — after that, every subsequent launch starts the
+     * service automatically with zero action from you. onRequestPermissionsResult
+     * below also calls this immediately if the mic permission is granted
+     * mid-session, so you don't even need to relaunch after granting it.
+     */
+    private fun startWakeWordServiceIfPermitted() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            ContextCompat.startForegroundService(
+                this,
+                Intent(this, WakeWordService::class.java)
             )
         }
     }
@@ -109,6 +133,9 @@ class MainActivity : ComponentActivity() {
             REQUEST_CODE_MIC -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     Toast.makeText(this, "Microphone permission granted!", Toast.LENGTH_SHORT).show()
+                    // Wake word (Phase 2): start immediately now that mic
+                    // permission exists, instead of waiting for next launch.
+                    startWakeWordServiceIfPermitted()
                 } else {
                     Toast.makeText(this, "Microphone permission denied. Voice activation unavailable.", Toast.LENGTH_LONG).show()
                 }
