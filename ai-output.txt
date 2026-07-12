@@ -1,189 +1,44 @@
-//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
 package com.jarvismini
 
-import android.os.Bundle
-import android.view.View
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.jarvismini.agent.VoiceIntentRouter
-import com.jarvismini.engine.LlamaLLMEngine
-import com.jarvismini.ui.ModelSelectorView
-import kotlinx.coroutines.launch
+import android.app.Application
+import android.content.Context
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.routine.TaskTimerManager
+import com.jarvismini.ui.timer.FloatingTimerService
 
-/**
- * ✅ UPDATED: Chat activity with model selector integration
- * ✅ UPDATED (Agent J fusion): messages now pass through VoiceIntentRouter
- *    first. Ordinary conversation still goes to LlamaLLMEngine exactly as
- *    before; action-style input ("open whatsapp", "apply to...", etc.) is
- *    dispatched to Agent J via AgentRepository.runTask() instead, with a
- *    distinct "running task" bubble instead of "Thinking...".
- *
- * BUGFIX (this session): previous version of this file dropped the trailing
- * `data class ChatMessage(...)` that used to live at the bottom of this same
- * file — it broke the build with "Unresolved reference: ChatMessage" in both
- * this file and ChatAdapter.kt, which depends on it. Restored below, in its
- * original location/package (com.jarvismini, same file, no import needed).
- */
-class ChatActivity : AppCompatActivity() {
+class CoreApp : Application() {
 
-    private lateinit var rvMessages: RecyclerView
-    private lateinit var etMessage: EditText
-    private lateinit var btnSend: ImageButton
-    private lateinit var modelSelector: ModelSelectorView
+    override fun onCreate() {
+        super.onCreate()
+        JarvisPrefs.init(this)
+        JarvisState.init(this)
 
-    private val messages = mutableListOf<ChatMessage>()
-    private lateinit var adapter: ChatAdapter
+        // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
+        // process start, so no manual "run once and remove" step is needed.
+        // Setting the same value repeatedly is harmless — this just keeps
+        // JarvisPrefs("picovoice_access_key") always in sync with this value.
+        JarvisPrefs.putString(
+            "picovoice_access_key",
+            "Z/ixK/Y8Uz8eky9TtaVDPHtJuyWQZCwnsq4kkv1VKEY6gvYpPi+SWA=="
+        )
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_chat)
+        // Register the floating timer delegate so TaskTimerManager (in :core)
+        // can launch FloatingTimerService (in :app) without a Compose dependency.
+        TaskTimerManager.floatingTimerDelegate = object : TaskTimerManager.FloatingTimerDelegate {
+            override fun startFloating(
+                context: Context,
+                taskId: String,
+                taskName: String,
+                totalSeconds: Long
+            ) {
+                FloatingTimerService.start(context, taskId, taskName, totalSeconds)
+            }
 
-        initViews()
-        setupRecyclerView()
-        setupListeners()
-    }
-
-    private fun initViews() {
-        rvMessages = findViewById(R.id.rvMessages)
-        etMessage = findViewById(R.id.etMessage)
-        btnSend = findViewById(R.id.btnSend)
-        modelSelector = findViewById(R.id.modelSelector)
-    }
-
-    private fun setupRecyclerView() {
-        adapter = ChatAdapter(messages)
-        rvMessages.adapter = adapter
-        rvMessages.layoutManager = LinearLayoutManager(this).apply {
-            stackFromEnd = true
-        }
-    }
-
-    private fun setupListeners() {
-        btnSend.setOnClickListener {
-            sendMessage()
-        }
-
-        etMessage.setOnEditorActionListener { _, _, _ ->
-            sendMessage()
-            true
-        }
-    }
-
-    private fun sendMessage() {
-        val text = etMessage.text.toString().trim()
-        if (text.isEmpty()) return
-
-        // ✅ Check if models are still loading
-        if (LlamaLLMEngine.isLoading) {
-            Toast.makeText(
-                this,
-                "⏳ Models are still loading... Please wait a moment.",
-                Toast.LENGTH_SHORT
-            ).show()
-            return
-        }
-
-        // Add user message
-        val userMessage = ChatMessage(text, isUser = true)
-        messages.add(userMessage)
-        adapter.notifyItemInserted(messages.size - 1)
-        rvMessages.scrollToPosition(messages.size - 1)
-
-        // Clear input
-        etMessage.text.clear()
-
-        // Disable input while processing
-        etMessage.isEnabled = false
-        btnSend.isEnabled = false
-        etMessage.hint = "Processing..."
-
-        // Add "thinking" indicator — label gets swapped to "Running task..."
-        // if VoiceIntentRouter decides this is an Agent J task, not chat.
-        val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
-        messages.add(thinkingMessage)
-        val thinkingIndex = messages.size - 1
-        adapter.notifyItemInserted(thinkingIndex)
-        rvMessages.scrollToPosition(thinkingIndex)
-
-        lifecycleScope.launch {
-            try {
-                VoiceIntentRouter.routeAndExecute(
-                    input = text,
-                    onChat = { chatText ->
-                        val reply = LlamaLLMEngine.generateReply(chatText)
-                        replaceThinkingWith(thinkingIndex, ChatMessage(reply, isUser = false))
-                    },
-                    onTaskStarted = { task ->
-                        // Swap "Thinking..." -> "Running task..." so the user can
-                        // tell this went to Agent J instead of the chat model.
-                        messages[thinkingIndex] = ChatMessage(
-                            "⚙️ Running task: $task",
-                            isUser = false,
-                            isThinking = true
-                        )
-                        adapter.notifyItemChanged(thinkingIndex)
-                    },
-                    onTaskResult = { started ->
-                        replaceThinkingWith(
-                            thinkingIndex,
-                            ChatMessage("✅ Task started: $started", isUser = false)
-                        )
-                    },
-                    onTaskFailed = { errorMsg ->
-                        replaceThinkingWith(
-                            thinkingIndex,
-                            ChatMessage("❌ Task failed: $errorMsg", isUser = false)
-                        )
-                    }
-                )
-            } catch (e: Exception) {
-                replaceThinkingWith(
-                    thinkingIndex,
-                    ChatMessage("❌ Error: ${e.message}", isUser = false)
-                )
-            } finally {
-                etMessage.isEnabled = true
-                btnSend.isEnabled = true
-                etMessage.hint = "Type a message..."
+            override fun stopFloating(context: Context) {
+                FloatingTimerService.stop(context)
             }
         }
     }
-
-    /**
-     * Replaces the message at [index] (the thinking/running-task placeholder)
-     * with [replacement] in place, so we don't shift indices for anything
-     * added concurrently.
-     */
-    private fun replaceThinkingWith(index: Int, replacement: ChatMessage) {
-        if (index !in messages.indices) {
-            // Placeholder already gone for some reason — just append.
-            messages.add(replacement)
-            adapter.notifyItemInserted(messages.size - 1)
-            rvMessages.scrollToPosition(messages.size - 1)
-            return
-        }
-        messages[index] = replacement
-        adapter.notifyItemChanged(index)
-        rvMessages.scrollToPosition(index)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // Release resources if this is the last activity
-        if (isFinishing) {
-            // Note: Only release if app is actually closing
-            // LlamaLLMEngine.release()
-        }
-    }
 }
-
-data class ChatMessage(
-    val text: String,
-    val isUser: Boolean,
-    val isThinking: Boolean = false
-)
