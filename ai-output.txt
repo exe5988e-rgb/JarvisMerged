@@ -1,3 +1,326 @@
+//===== FILE: app/build.gradle.kts =====
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+android {
+    namespace = "com.jarvismini"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.jarvismini"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 2
+        versionName = "1.1"
+        
+        // ✅ NDK Configuration
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    buildFeatures {
+        viewBinding = true
+        compose = true
+        buildConfig = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    
+    // ✅ CMake Configuration
+    externalNativeBuild {
+        cmake {
+            path = file("../CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+}
+
+dependencies {
+    // Core
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+
+    // Compose BOM
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+
+    // Compose UI
+    implementation("androidx.activity:activity-compose")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    
+    // Material 3
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    
+    // Navigation Compose
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    
+    // Foundation
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.runtime:runtime")
+    implementation("androidx.compose.animation:animation")
+
+    // Debug tools
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // Material
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+
+    // Networking
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Coroutines (required for suspend + Dispatchers)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+
+    // ViewModel + Compose integration
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    // Wake word (Phase 2 — Porcupine)
+    implementation("ai.picovoice:porcupine-android:3.0.3")
+   
+    
+    // Modules
+    implementation(project(":modules:core"))
+    implementation(project(":modules:automation"))
+    implementation(project(":modules:engine"))
+    implementation(project(":modules:smart"))
+    implementation(project(":modules:callhandler"))
+
+}
+
+
+//===== FILE: app/src/main/AndroidManifest.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.jarvismini">
+
+    <!-- ================= PERMISSIONS ================= -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+
+    <!-- Microphone (for voice activation) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Overlay / floating window -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- Camera (for AI Vision features) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Storage -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
+    <uses-feature android:name="android.hardware.telephony"  android:required="false" />
+    <uses-feature android:name="android.hardware.camera"     android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- ================= PACKAGE VISIBILITY ================= -->
+
+    <queries>
+        <package android:name="xyz.penpencil.physicswala" />
+        <package android:name="com.pittvandewitt.wavelet" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.oneplus.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.apple.android.music" />
+        <package android:name="com.termux" />
+        <package android:name="com.termux.api" />
+        <package android:name="com.termux.tasker" />
+    </queries>
+
+    <!-- ================= APPLICATION ================= -->
+
+    <application
+        android:name="com.jarvismini.CoreApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JarvisMerged"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
+        android:preserveLegacyExternalStorage="true">
+
+        <!-- Main Activity -->
+        <activity
+            android:name="com.jarvismini.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- LAN Server -->
+        <service
+            android:name="com.jarvismini.server.LanServerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Notification Listener -->
+        <service
+            android:name="com.jarvismini.automation.WhatsAppNotificationListener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- SMS Receiver -->
+        <receiver
+            android:name="com.jarvismini.callhandler.SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Call Receiver -->
+        <receiver
+            android:name="com.jarvismini.callhandler.receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Call Screening -->
+        <service
+            android:name="com.jarvismini.callhandler.JarvisCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <!-- Call Accessibility -->
+        <service
+            android:name="com.jarvismini.callhandler.accessibility.CallAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/call_accessibility_config" />
+        </service>
+
+        <!-- App Automation Accessibility -->
+        <service
+            android:name="com.jarvismini.automation.AppAutomationService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service" />
+        </service>
+
+        <!-- Work Mode -->
+        <service
+            android:name="com.jarvismini.core.workmode.WorkModeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name="com.jarvismini.service.WorkModeTileService"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Work Mode"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Call Auto Reply -->
+        <service
+            android:name="com.jarvismini.service.CallAutoReplyService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <!-- Progress Reminder -->
+        <service
+            android:name="com.jarvismini.ProgressReminderService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Floating Timer -->
+        <service
+            android:name="com.jarvismini.ui.timer.FloatingTimerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Wake Word (Phase 2) -->
+        <service
+            android:name="com.jarvismini.voice.WakeWordService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+    </application>
+
+</manifest>
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/CoreApp.kt =====
 package com.jarvismini
 
@@ -38,6 +361,184 @@ class CoreApp : Application() {
 
             override fun stopFloating(context: Context) {
                 FloatingTimerService.stop(context)
+            }
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
+package com.jarvismini
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.StoragePermissionHelper
+import com.jarvismini.core.stopwatch.NotificationPermissionHelper
+import com.jarvismini.engine.EngineProvider
+import com.jarvismini.ui.main.MainScreen
+import com.jarvismini.ui.timer.FloatingTimerService
+import com.jarvismini.voice.WakeWordService
+
+class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val REQUEST_CODE_OVERLAY    = 1001
+        private const val REQUEST_CODE_MIC        = 1002
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        JarvisState.init(applicationContext)
+        ProgressInitializer.registerAllBlocks(this)
+
+        if (NotificationPermissionHelper.shouldRequestPermission(this)) {
+            NotificationPermissionHelper.requestPermission(this)
+        }
+
+        requestOverlayPermissionIfNeeded()
+        requestMicPermissionIfNeeded()
+        startWakeWordServiceIfPermitted()
+
+        if (!StoragePermissionHelper.hasStoragePermission(this)) {
+            StoragePermissionHelper.requestStoragePermission(this)
+        } else {
+            initializeEngine()
+        }
+
+        setContent {
+            MaterialTheme {
+                Surface {
+                    MainScreen()
+                }
+            }
+        }
+    }
+
+    private fun requestMicPermissionIfNeeded() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                REQUEST_CODE_MIC
+            )
+        }
+    }
+
+    /**
+     * Wake word (Phase 2): starts WakeWordService automatically on every
+     * launch, no toggle or manual step needed — but only if RECORD_AUDIO is
+     * already granted. On a completely fresh install, the OS permission
+     * dialog above must be answered by you at least once (this is an
+     * Android OS requirement for any app, not something that can be
+     * scripted around) — after that, every subsequent launch starts the
+     * service automatically with zero action from you. onRequestPermissionsResult
+     * below also calls this immediately if the mic permission is granted
+     * mid-session, so you don't even need to relaunch after granting it.
+     */
+    private fun startWakeWordServiceIfPermitted() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            ContextCompat.startForegroundService(
+                this,
+                Intent(this, WakeWordService::class.java)
+            )
+        }
+    }
+
+    private fun requestOverlayPermissionIfNeeded() {
+        if (!FloatingTimerService.canDrawOverlays(this)) {
+            Toast.makeText(
+                this,
+                "Grant 'Display over other apps' for floating timer overlay",
+                Toast.LENGTH_LONG
+            ).show()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                startActivityForResult(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    ),
+                    REQUEST_CODE_OVERLAY
+                )
+            }
+        }
+    }
+
+    private fun initializeEngine() {
+        try {
+            EngineProvider.init(applicationContext)
+            val debug = StoragePermissionHelper.debugModelsDirectory()
+            android.util.Log.i("MainActivity", "Models directory debug:\n$debug")
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error initializing engine", e)
+            Toast.makeText(this, "Error loading AI models: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            REQUEST_CODE_MIC -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Microphone permission granted!", Toast.LENGTH_SHORT).show()
+                    // Wake word (Phase 2): start immediately now that mic
+                    // permission exists, instead of waiting for next launch.
+                    startWakeWordServiceIfPermitted()
+                } else {
+                    Toast.makeText(this, "Microphone permission denied. Voice activation unavailable.", Toast.LENGTH_LONG).show()
+                }
+            }
+            NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS -> {
+                if (NotificationPermissionHelper.isPermissionGranted(this)) {
+                    Toast.makeText(this, "Notification permission granted!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        StoragePermissionHelper.onRequestPermissionsResult(
+            requestCode, permissions, grantResults,
+            onGranted = {
+                Toast.makeText(this, "Storage permission granted! Loading AI models...", Toast.LENGTH_SHORT).show()
+                initializeEngine()
+            },
+            onDenied = {
+                Toast.makeText(this, "Storage permission denied. AI models cannot be loaded.", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == REQUEST_CODE_OVERLAY) {
+            if (FloatingTimerService.canDrawOverlays(this)) {
+                Toast.makeText(this, "Overlay permission granted. Floating timer enabled!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Overlay denied. Timer still works via notification.", Toast.LENGTH_SHORT).show()
             }
         }
     }
