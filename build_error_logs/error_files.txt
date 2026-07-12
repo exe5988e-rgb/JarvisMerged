@@ -1,261 +1,185 @@
 ==== SOURCE CODE (ERROR FILES WITH HIGHLIGHTED LINES) ====
 
-//===== FILE: app/src/main/kotlin/com/jarvismini/ChatActivity.kt =====
-
-// ❌ ERRORS IN THIS FILE (9 error(s)):
-// Line 32: Unresolved reference: ChatMessage
-// Line 85: Unresolved reference: ChatMessage
-// Line 100: Unresolved reference: ChatMessage
-// Line 112: Unresolved reference: ChatMessage
-// Line 117: Unresolved reference: ChatMessage
-// Line 127: Unresolved reference: ChatMessage
-// Line 133: Unresolved reference: ChatMessage
-// Line 140: Unresolved reference: ChatMessage
-// Line 155: Unresolved reference: ChatMessage
-
-   1    package com.jarvismini
-   2    
-   3    import android.os.Bundle
-   4    import android.view.View
-   5    import android.widget.EditText
-   6    import android.widget.ImageButton
-   7    import android.widget.Toast
-   8    import androidx.appcompat.app.AppCompatActivity
-   9    import androidx.lifecycle.lifecycleScope
-  10    import androidx.recyclerview.widget.LinearLayoutManager
-  11    import androidx.recyclerview.widget.RecyclerView
-  12    import com.jarvismini.agent.VoiceIntentRouter
-  13    import com.jarvismini.engine.LlamaLLMEngine
-  14    import com.jarvismini.ui.ModelSelectorView
-  15    import kotlinx.coroutines.launch
-  16    
-  17    /**
-  18     * ✅ UPDATED: Chat activity with model selector integration
-  19     * ✅ UPDATED (Agent J fusion): messages now pass through VoiceIntentRouter
-  20     *    first. Ordinary conversation still goes to LlamaLLMEngine exactly as
-  21     *    before; action-style input ("open whatsapp", "apply to...", etc.) is
-  22     *    dispatched to Agent J via AgentRepository.runTask() instead, with a
-  23     *    distinct "running task" bubble instead of "Thinking...".
-  24     */
-  25    class ChatActivity : AppCompatActivity() {
-  26    
-  27        private lateinit var rvMessages: RecyclerView
-  28        private lateinit var etMessage: EditText
-  29        private lateinit var btnSend: ImageButton
-  30        private lateinit var modelSelector: ModelSelectorView
-  31    
-  32 ❌     private val messages = mutableListOf<ChatMessage>()
-  33        private lateinit var adapter: ChatAdapter
-  34    
-  35        override fun onCreate(savedInstanceState: Bundle?) {
-  36            super.onCreate(savedInstanceState)
-  37            setContentView(R.layout.activity_chat)
-  38    
-  39            initViews()
-  40            setupRecyclerView()
-  41            setupListeners()
-  42        }
-  43    
-  44        private fun initViews() {
-  45            rvMessages = findViewById(R.id.rvMessages)
-  46            etMessage = findViewById(R.id.etMessage)
-  47            btnSend = findViewById(R.id.btnSend)
-  48            modelSelector = findViewById(R.id.modelSelector)
-  49        }
-  50    
-  51        private fun setupRecyclerView() {
-  52            adapter = ChatAdapter(messages)
-  53            rvMessages.adapter = adapter
-  54            rvMessages.layoutManager = LinearLayoutManager(this).apply {
-  55                stackFromEnd = true
-  56            }
-  57        }
-  58    
-  59        private fun setupListeners() {
-  60            btnSend.setOnClickListener {
-  61                sendMessage()
-  62            }
-  63    
-  64            etMessage.setOnEditorActionListener { _, _, _ ->
-  65                sendMessage()
-  66                true
-  67            }
-  68        }
-  69    
-  70        private fun sendMessage() {
-  71            val text = etMessage.text.toString().trim()
-  72            if (text.isEmpty()) return
-  73    
-  74            // ✅ Check if models are still loading
-  75            if (LlamaLLMEngine.isLoading) {
-  76                Toast.makeText(
-  77                    this,
-  78                    "⏳ Models are still loading... Please wait a moment.",
-  79                    Toast.LENGTH_SHORT
-  80                ).show()
-  81                return
-  82            }
-  83    
-  84            // Add user message
-  85 ❌         val userMessage = ChatMessage(text, isUser = true)
-  86            messages.add(userMessage)
-  87            adapter.notifyItemInserted(messages.size - 1)
-  88            rvMessages.scrollToPosition(messages.size - 1)
-  89    
-  90            // Clear input
-  91            etMessage.text.clear()
-  92    
-  93            // Disable input while processing
-  94            etMessage.isEnabled = false
-  95            btnSend.isEnabled = false
-  96            etMessage.hint = "Processing..."
-  97    
-  98            // Add "thinking" indicator — label gets swapped to "Running task..."
-  99            // if VoiceIntentRouter decides this is an Agent J task, not chat.
- 100 ❌         val thinkingMessage = ChatMessage("Thinking...", isUser = false, isThinking = true)
- 101            messages.add(thinkingMessage)
- 102            val thinkingIndex = messages.size - 1
- 103            adapter.notifyItemInserted(thinkingIndex)
- 104            rvMessages.scrollToPosition(thinkingIndex)
- 105    
- 106            lifecycleScope.launch {
- 107                try {
- 108                    VoiceIntentRouter.routeAndExecute(
- 109                        input = text,
- 110                        onChat = { chatText ->
- 111                            val reply = LlamaLLMEngine.generateReply(chatText)
- 112 ❌                         replaceThinkingWith(thinkingIndex, ChatMessage(reply, isUser = false))
- 113                        },
- 114                        onTaskStarted = { task ->
- 115                            // Swap "Thinking..." -> "Running task..." so the user can
- 116                            // tell this went to Agent J instead of the chat model.
- 117 ❌                         messages[thinkingIndex] = ChatMessage(
- 118                                "⚙️ Running task: $task",
- 119                                isUser = false,
- 120                                isThinking = true
- 121                            )
- 122                            adapter.notifyItemChanged(thinkingIndex)
- 123                        },
- 124                        onTaskResult = { started ->
- 125                            replaceThinkingWith(
- 126                                thinkingIndex,
- 127 ❌                             ChatMessage("✅ Task started: $started", isUser = false)
- 128                            )
- 129                        },
- 130                        onTaskFailed = { errorMsg ->
- 131                            replaceThinkingWith(
- 132                                thinkingIndex,
- 133 ❌                             ChatMessage("❌ Task failed: $errorMsg", isUser = false)
- 134                            )
- 135                        }
- 136                    )
- 137                } catch (e: Exception) {
- 138                    replaceThinkingWith(
- 139                        thinkingIndex,
- 140 ❌                     ChatMessage("❌ Error: ${e.message}", isUser = false)
- 141                    )
- 142                } finally {
- 143                    etMessage.isEnabled = true
- 144                    btnSend.isEnabled = true
- 145                    etMessage.hint = "Type a message..."
- 146                }
- 147            }
- 148        }
- 149    
- 150        /**
- 151         * Replaces the message at [index] (the thinking/running-task placeholder)
- 152         * with [replacement] in place, so we don't shift indices for anything
- 153         * added concurrently.
- 154         */
- 155 ❌     private fun replaceThinkingWith(index: Int, replacement: ChatMessage) {
- 156            if (index !in messages.indices) {
- 157                // Placeholder already gone for some reason — just append.
- 158                messages.add(replacement)
- 159                adapter.notifyItemInserted(messages.size - 1)
- 160                rvMessages.scrollToPosition(messages.size - 1)
- 161                return
- 162            }
- 163            messages[index] = replacement
- 164            adapter.notifyItemChanged(index)
- 165            rvMessages.scrollToPosition(index)
- 166        }
- 167    
- 168        override fun onDestroy() {
- 169            super.onDestroy()
- 170            // Release resources if this is the last activity
- 171            if (isFinishing) {
- 172                // Note: Only release if app is actually closing
- 173                // LlamaLLMEngine.release()
- 174            }
- 175        }
- 176    }
-
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ChatAdapter.kt =====
+//===== FILE: app/src/main/kotlin/com/jarvismini/MainActivity.kt =====
 
 // ❌ ERRORS IN THIS FILE (2 error(s)):
-// Line 13: Unresolved reference: ChatMessage
-// Line 45: Unresolved reference: ChatMessage
+// Line 23: Unresolved reference: WakeWordService
+// Line 90: Unresolved reference: WakeWordService
 
    1    package com.jarvismini
    2    
-   3    import android.view.LayoutInflater
-   4    import android.view.View
-   5    import android.view.ViewGroup
-   6    import android.widget.TextView
-   7    import androidx.recyclerview.widget.RecyclerView
-   8    
-   9    /**
-  10     * Adapter for displaying chat messages in RecyclerView
-  11     */
-  12    class ChatAdapter(
-  13 ❌     private val messages: List<ChatMessage>
-  14    ) : RecyclerView.Adapter<ChatAdapter.MessageViewHolder>() {
-  15    
-  16        companion object {
-  17            private const val VIEW_TYPE_USER = 1
-  18            private const val VIEW_TYPE_ASSISTANT = 2
-  19        }
-  20    
-  21        override fun getItemViewType(position: Int): Int {
-  22            return if (messages[position].isUser) VIEW_TYPE_USER else VIEW_TYPE_ASSISTANT
-  23        }
+   3    import android.Manifest
+   4    import android.content.Intent
+   5    import android.content.pm.PackageManager
+   6    import android.net.Uri
+   7    import android.os.Build
+   8    import android.os.Bundle
+   9    import android.provider.Settings
+  10    import android.widget.Toast
+  11    import androidx.activity.ComponentActivity
+  12    import androidx.activity.compose.setContent
+  13    import androidx.compose.material3.MaterialTheme
+  14    import androidx.compose.material3.Surface
+  15    import androidx.core.app.ActivityCompat
+  16    import androidx.core.content.ContextCompat
+  17    import com.jarvismini.core.JarvisState
+  18    import com.jarvismini.core.StoragePermissionHelper
+  19    import com.jarvismini.core.stopwatch.NotificationPermissionHelper
+  20    import com.jarvismini.engine.EngineProvider
+  21    import com.jarvismini.ui.main.MainScreen
+  22    import com.jarvismini.ui.timer.FloatingTimerService
+  23 ❌ import com.jarvismini.voice.WakeWordService
   24    
-  25        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
-  26            val layoutId = if (viewType == VIEW_TYPE_USER) {
-  27                android.R.layout.simple_list_item_1
-  28            } else {
-  29                android.R.layout.simple_list_item_2
-  30            }
-  31            
-  32            val view = LayoutInflater.from(parent.context).inflate(layoutId, parent, false)
-  33            return MessageViewHolder(view)
-  34        }
-  35    
-  36        override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
-  37            holder.bind(messages[position])
-  38        }
-  39    
-  40        override fun getItemCount(): Int = messages.size
+  25    class MainActivity : ComponentActivity() {
+  26    
+  27        companion object {
+  28            private const val REQUEST_CODE_OVERLAY    = 1001
+  29            private const val REQUEST_CODE_MIC        = 1002
+  30        }
+  31    
+  32        override fun onCreate(savedInstanceState: Bundle?) {
+  33            super.onCreate(savedInstanceState)
+  34    
+  35            JarvisState.init(applicationContext)
+  36            ProgressInitializer.registerAllBlocks(this)
+  37    
+  38            if (NotificationPermissionHelper.shouldRequestPermission(this)) {
+  39                NotificationPermissionHelper.requestPermission(this)
+  40            }
   41    
-  42        class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-  43            private val textView: TextView = itemView.findViewById(android.R.id.text1)
-  44    
-  45 ❌         fun bind(message: ChatMessage) {
-  46                textView.text = message.text
-  47                
-  48                // Style differently for user vs assistant
-  49                if (message.isUser) {
-  50                    textView.setPadding(48, 16, 16, 16)
-  51                    textView.setBackgroundColor(0xFF1E3A8A.toInt()) // Blue background for user
-  52                    textView.setTextColor(0xFFFFFFFF.toInt()) // White text
-  53                } else {
-  54                    textView.setPadding(16, 16, 48, 16)
-  55                    textView.setBackgroundColor(0xFF1F2937.toInt()) // Dark gray for assistant
-  56                    textView.setTextColor(0xFF06B6D4.toInt()) // Cyan text (matches your theme)
+  42            requestOverlayPermissionIfNeeded()
+  43            requestMicPermissionIfNeeded()
+  44            startWakeWordServiceIfPermitted()
+  45    
+  46            if (!StoragePermissionHelper.hasStoragePermission(this)) {
+  47                StoragePermissionHelper.requestStoragePermission(this)
+  48            } else {
+  49                initializeEngine()
+  50            }
+  51    
+  52            setContent {
+  53                MaterialTheme {
+  54                    Surface {
+  55                        MainScreen()
+  56                    }
   57                }
   58            }
   59        }
-  60    }
+  60    
+  61        private fun requestMicPermissionIfNeeded() {
+  62            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+  63                != PackageManager.PERMISSION_GRANTED
+  64            ) {
+  65                ActivityCompat.requestPermissions(
+  66                    this,
+  67                    arrayOf(Manifest.permission.RECORD_AUDIO),
+  68                    REQUEST_CODE_MIC
+  69                )
+  70            }
+  71        }
+  72    
+  73        /**
+  74         * Wake word (Phase 2): starts WakeWordService automatically on every
+  75         * launch, no toggle or manual step needed — but only if RECORD_AUDIO is
+  76         * already granted. On a completely fresh install, the OS permission
+  77         * dialog above must be answered by you at least once (this is an
+  78         * Android OS requirement for any app, not something that can be
+  79         * scripted around) — after that, every subsequent launch starts the
+  80         * service automatically with zero action from you. onRequestPermissionsResult
+  81         * below also calls this immediately if the mic permission is granted
+  82         * mid-session, so you don't even need to relaunch after granting it.
+  83         */
+  84        private fun startWakeWordServiceIfPermitted() {
+  85            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+  86                == PackageManager.PERMISSION_GRANTED
+  87            ) {
+  88                ContextCompat.startForegroundService(
+  89                    this,
+  90 ❌                 Intent(this, WakeWordService::class.java)
+  91                )
+  92            }
+  93        }
+  94    
+  95        private fun requestOverlayPermissionIfNeeded() {
+  96            if (!FloatingTimerService.canDrawOverlays(this)) {
+  97                Toast.makeText(
+  98                    this,
+  99                    "Grant 'Display over other apps' for floating timer overlay",
+ 100                    Toast.LENGTH_LONG
+ 101                ).show()
+ 102                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+ 103                    startActivityForResult(
+ 104                        Intent(
+ 105                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+ 106                            Uri.parse("package:$packageName")
+ 107                        ),
+ 108                        REQUEST_CODE_OVERLAY
+ 109                    )
+ 110                }
+ 111            }
+ 112        }
+ 113    
+ 114        private fun initializeEngine() {
+ 115            try {
+ 116                EngineProvider.init(applicationContext)
+ 117                val debug = StoragePermissionHelper.debugModelsDirectory()
+ 118                android.util.Log.i("MainActivity", "Models directory debug:\n$debug")
+ 119            } catch (e: Exception) {
+ 120                android.util.Log.e("MainActivity", "Error initializing engine", e)
+ 121                Toast.makeText(this, "Error loading AI models: ${e.message}", Toast.LENGTH_LONG).show()
+ 122            }
+ 123        }
+ 124    
+ 125        override fun onRequestPermissionsResult(
+ 126            requestCode: Int,
+ 127            permissions: Array<String>,
+ 128            grantResults: IntArray
+ 129        ) {
+ 130            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+ 131    
+ 132            when (requestCode) {
+ 133                REQUEST_CODE_MIC -> {
+ 134                    if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+ 135                        Toast.makeText(this, "Microphone permission granted!", Toast.LENGTH_SHORT).show()
+ 136                        // Wake word (Phase 2): start immediately now that mic
+ 137                        // permission exists, instead of waiting for next launch.
+ 138                        startWakeWordServiceIfPermitted()
+ 139                    } else {
+ 140                        Toast.makeText(this, "Microphone permission denied. Voice activation unavailable.", Toast.LENGTH_LONG).show()
+ 141                    }
+ 142                }
+ 143                NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS -> {
+ 144                    if (NotificationPermissionHelper.isPermissionGranted(this)) {
+ 145                        Toast.makeText(this, "Notification permission granted!", Toast.LENGTH_SHORT).show()
+ 146                    } else {
+ 147                        Toast.makeText(this, "Notification permission denied.", Toast.LENGTH_LONG).show()
+ 148                    }
+ 149                }
+ 150            }
+ 151    
+ 152            StoragePermissionHelper.onRequestPermissionsResult(
+ 153                requestCode, permissions, grantResults,
+ 154                onGranted = {
+ 155                    Toast.makeText(this, "Storage permission granted! Loading AI models...", Toast.LENGTH_SHORT).show()
+ 156                    initializeEngine()
+ 157                },
+ 158                onDenied = {
+ 159                    Toast.makeText(this, "Storage permission denied. AI models cannot be loaded.", Toast.LENGTH_LONG).show()
+ 160                }
+ 161            )
+ 162        }
+ 163    
+ 164        override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+ 165            super.onActivityResult(requestCode, resultCode, data)
+ 166    
+ 167            if (requestCode == REQUEST_CODE_OVERLAY) {
+ 168                if (FloatingTimerService.canDrawOverlays(this)) {
+ 169                    Toast.makeText(this, "Overlay permission granted. Floating timer enabled!", Toast.LENGTH_SHORT).show()
+ 170                } else {
+ 171                    Toast.makeText(this, "Overlay denied. Timer still works via notification.", Toast.LENGTH_SHORT).show()
+ 172                }
+ 173            }
+ 174        }
+ 175    }
 
 

@@ -12,17 +12,8 @@ No ninja errors
 No missing deps
 
 -- KOTLIN/JAVA ERRORS --
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:32:42 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:85:27 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:100:31 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:112:60 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:117:51 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:127:29 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:133:29 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:140:21 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatActivity.kt:155:62 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatAdapter.kt:13:32 Unresolved reference: ChatMessage
-e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/ChatAdapter.kt:45:27 Unresolved reference: ChatMessage
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:23:29 Unresolved reference: WakeWordService
+e: file:///home/runner/work/JarvisMerged/JarvisMerged/app/src/main/kotlin/com/jarvismini/MainActivity.kt:90:30 Unresolved reference: WakeWordService
 
 -- XML RESOURCE ERRORS --
 7-->/home/runner/work/JarvisMerged/JarvisMerged/modules/core/src/main/AndroidManifest.xml:4:5-77
@@ -175,6 +166,10 @@ Merging manifest with lower [androidx.vectordrawable:vectordrawable-animated:1.1
 Merging uses-sdk with lower [androidx.vectordrawable:vectordrawable-animated:1.1.0] AndroidManifest.xml:20:5-22:41
 Merging manifest with lower [androidx.vectordrawable:vectordrawable:1.1.0] AndroidManifest.xml:17:1-24:12
 Merging uses-sdk with lower [androidx.vectordrawable:vectordrawable:1.1.0] AndroidManifest.xml:20:5-22:41
+Merging manifest with lower [ai.picovoice:porcupine-android:3.0.3] AndroidManifest.xml:2:1-11:12
+Merging uses-sdk with lower [ai.picovoice:porcupine-android:3.0.3] AndroidManifest.xml:7:5-9:41
+Merging manifest with lower [ai.picovoice:android-voice-processor:1.0.2] AndroidManifest.xml:2:1-11:12
+Merging uses-sdk with lower [ai.picovoice:android-voice-processor:1.0.2] AndroidManifest.xml:7:5-9:41
 Merging manifest with lower [androidx.viewpager:viewpager:1.0.0] AndroidManifest.xml:17:1-22:12
 Merging uses-sdk with lower [androidx.viewpager:viewpager:1.0.0] AndroidManifest.xml:20:5-44
 Merging manifest with lower [androidx.recyclerview:recyclerview:1.1.0] AndroidManifest.xml:17:1-24:12
@@ -249,215 +244,222 @@ Merging uses-sdk with lower [androidx.print:print:1.0.0] AndroidManifest.xml:20:
 23-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:19:22-85
 24-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:20:5-87
 24-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:20:22-84
-25-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:21:5-75
-25-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:21:22-72
-28-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:24:5-71
-28-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:24:22-68
-31-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:27:5-78
-31-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:27:22-75
-34-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:30:5-65
-34-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:30:22-62
-37-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:33:5-76
-37-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:33:22-73
-38-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:34:5-75
-38-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:34:22-72
+25-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:21:5-88
+25-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:21:22-85
+26-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:22:5-75
+26-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:22:22-72
+29-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:25:5-71
+29-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:25:22-68
+32-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:28:5-78
+32-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:28:22-75
+35-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:31:5-65
+35-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:31:22-62
+38-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:34:5-76
+38-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:34:22-73
 39-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:35:5-75
 39-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:35:22-72
-40-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:36:5-38:38
-41-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:37:9-64
-42-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:38:9-35
-43-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:39:5-41:38
-44-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:40:9-65
-45-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:41:9-35
-46-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:42:5-44:40
-46-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:43:9-66
-48-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:46:5-89
-49-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:46:19-60
-50-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:46:62-86
-51-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:47:5-89
-52-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:47:19-57
-53-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:47:62-86
-54-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:48:5-89
-55-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:48:19-61
-56-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:48:62-86
-57-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:49:5-89
-58-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:49:19-61
-59-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:49:62-86
-63-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:53:5-63:15
-64-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:54:9-61
-64-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:54:18-58
+40-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:36:5-75
+40-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:36:22-72
+41-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:37:5-39:38
+42-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:38:9-64
+43-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:39:9-35
+44-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:40:5-42:38
+45-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:41:9-65
+46-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:42:9-35
+47-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:43:5-45:40
+47-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:44:9-66
+49-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:47:5-89
+50-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:47:19-60
+51-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:47:62-86
+52-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:48:5-89
+53-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:48:19-57
+54-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:48:62-86
+55-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:49:5-89
+56-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:49:19-61
+57-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:49:62-86
+58-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:50:5-89
+59-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:50:19-61
+60-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:50:62-86
+64-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:54:5-64:15
 65-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:55:9-61
 65-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:55:18-58
-66-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:56:9-73
-66-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:56:18-70
-67-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:57:9-57
-67-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:57:18-54
-68-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:58:9-68
-68-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:58:18-65
-69-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:59:9-59
-69-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:59:18-56
-70-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:60:9-46
-70-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:60:18-43
-71-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:61:9-50
-71-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:61:18-47
-72-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:62:9-53
-72-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:62:18-50
-75-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
-76-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
-77-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
-79-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
-79-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
-80-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:67:5-198:19
-81-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:68:9-46
-82-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:69:9-35
-83-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
-86-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:71:9-43
-87-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:70:9-41
-88-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:76:9-69
-89-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:78:9-53
-90-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:77:9-52
-91-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:72:9-54
-92-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:73:9-35
-93-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:74:9-50
-94-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:75:9-44
-97-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:81:9-88:20
-98-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:82:13-55
-99-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:83:13-36
-100-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:84:13-87:29
-101-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:85:17-69
-101-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:85:25-66
-103-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:86:17-77
-103-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:86:27-74
-108-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:91:9-95:56
-109-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:92:13-66
-110-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:93:13-35
-111-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:94:13-37
-112-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:95:13-53
-115-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:98:9-105:19
-116-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:99:13-82
-117-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:101:13-37
-118-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:100:13-87
-119-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:102:13-104:29
-120-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:103:17-99
-120-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:103:25-96
-125-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:108:9-115:20
-126-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:109:13-66
-127-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:111:13-36
-128-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:110:13-66
-129-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:112:13-114:29
-130-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:113:17-82
-130-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:113:25-79
-135-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:118:9-124:20
-136-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:119:13-76
-137-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:120:13-36
-138-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:121:13-123:29
-139-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:122:17-76
-139-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:122:25-73
-144-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:127:9-134:19
-145-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:128:13-81
-146-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:130:13-36
-147-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:129:13-75
-148-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:131:13-133:29
-149-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:132:17-79
-149-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:132:25-76
-154-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:137:9-147:19
-155-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:138:13-93
-156-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:140:13-36
-157-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:139:13-79
-158-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:141:13-143:29
-159-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:142:17-92
-159-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:142:25-89
-162-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:144:13-146:69
-163-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:145:17-60
-164-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:146:17-66
-168-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:150:9-160:19
-169-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:151:13-74
-170-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:153:13-36
-171-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:152:13-79
-172-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:141:13-143:29
-173-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:142:17-92
-173-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:142:25-89
-176-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:144:13-146:69
-177-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:145:17-60
-178-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:146:17-66
-182-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:163:9-166:56
-183-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:164:13-72
-184-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:165:13-37
-185-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:166:13-53
-186-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:168:9-177:19
-187-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:169:13-70
-188-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:173:13-36
-189-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:170:13-47
-190-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:171:13-38
-191-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:172:13-77
-192-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:174:13-176:29
-193-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:175:17-87
-193-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:175:25-84
-198-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:180:9-183:57
-199-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:181:13-71
-200-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:182:13-37
-201-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:183:13-54
-204-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:186:9-189:56
-205-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:187:13-66
-206-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:188:13-37
-207-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:189:13-53
-210-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:192:9-196:56
-211-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:193:13-72
-212-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:194:13-35
-213-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:195:13-37
-214-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:196:13-53
-215-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:12:9-16:56
-216-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:13:13-74
-217-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:14:13-35
-218-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:15:13-37
-219-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:16:13-53
-220-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:17:9-21:56
-221-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:18:13-72
-222-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:19:13-35
-223-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:20:13-37
-224-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:21:13-53
-226-->[androidx.compose.ui:ui-tooling-android:1.6.1] /home/runner/.gradle/caches/transforms-3/b05e01595c7e44b7d88075f1c09e0c5e/transformed/jetified-ui-tooling-release/AndroidManifest.xml:23:9-25:39
-227-->[androidx.compose.ui:ui-tooling-android:1.6.1] /home/runner/.gradle/caches/transforms-3/b05e01595c7e44b7d88075f1c09e0c5e/transformed/jetified-ui-tooling-release/AndroidManifest.xml:24:13-71
-228-->[androidx.compose.ui:ui-tooling-android:1.6.1] /home/runner/.gradle/caches/transforms-3/b05e01595c7e44b7d88075f1c09e0c5e/transformed/jetified-ui-tooling-release/AndroidManifest.xml:25:13-36
-230-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
-231-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:25:13-67
-232-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:26:13-68
-233-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:27:13-37
-234-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
-235-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:30:17-75
-236-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:31:17-49
-237-->[androidx.lifecycle:lifecycle-process:2.8.4] /home/runner/.gradle/caches/transforms-3/98481830ef37cec8500adc1974746044/transformed/jetified-lifecycle-process-2.8.4/AndroidManifest.xml:29:13-31:52
-238-->[androidx.lifecycle:lifecycle-process:2.8.4] /home/runner/.gradle/caches/transforms-3/98481830ef37cec8500adc1974746044/transformed/jetified-lifecycle-process-2.8.4/AndroidManifest.xml:30:17-78
-239-->[androidx.lifecycle:lifecycle-process:2.8.4] /home/runner/.gradle/caches/transforms-3/98481830ef37cec8500adc1974746044/transformed/jetified-lifecycle-process-2.8.4/AndroidManifest.xml:31:17-49
-240-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
-241-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
-242-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
-245-->[androidx.compose.ui:ui-test-manifest:1.6.1] /home/runner/.gradle/caches/transforms-3/ccea6162ec663db40c099dbe5b9de39b/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:23:9-25:39
-246-->[androidx.compose.ui:ui-test-manifest:1.6.1] /home/runner/.gradle/caches/transforms-3/ccea6162ec663db40c099dbe5b9de39b/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:24:13-63
-247-->[androidx.compose.ui:ui-test-manifest:1.6.1] /home/runner/.gradle/caches/transforms-3/ccea6162ec663db40c099dbe5b9de39b/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:25:13-36
-249-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
-250-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
-251-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
-252-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
-253-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
-254-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
-255-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
-256-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
-256-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
-258-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
-259-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
-259-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
-261-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
-262-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
-262-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
-264-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
-265-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
-265-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+66-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:56:9-61
+66-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:56:18-58
+67-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:57:9-73
+67-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:57:18-70
+68-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:58:9-57
+68-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:58:18-54
+69-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:59:9-68
+69-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:59:18-65
+70-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:60:9-59
+70-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:60:18-56
+71-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:61:9-46
+71-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:61:18-43
+72-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:62:9-50
+72-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:62:18-47
+73-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:63:9-53
+73-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:63:18-50
+76-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+77-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+78-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+80-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+80-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+81-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:68:5-206:19
+82-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:69:9-46
+83-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:70:9-35
+84-->[androidx.core:core:1.12.0] /home/runner/.gradle/caches/transforms-3/7c26347ce8735a425d1ceeab7f4aef8d/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+87-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:72:9-43
+88-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:71:9-41
+89-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:77:9-69
+90-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:79:9-53
+91-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:78:9-52
+92-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:73:9-54
+93-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:74:9-35
+94-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:75:9-50
+95-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:76:9-44
+98-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:82:9-89:20
+99-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:83:13-55
+100-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:84:13-36
+101-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:85:13-88:29
+102-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:86:17-69
+102-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:86:25-66
+104-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:87:17-77
+104-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:87:27-74
+109-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:92:9-96:56
+110-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:93:13-66
+111-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:94:13-35
+112-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:95:13-37
+113-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:96:13-53
+116-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:99:9-106:19
+117-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:100:13-82
+118-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:102:13-37
+119-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:101:13-87
+120-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:103:13-105:29
+121-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:104:17-99
+121-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:104:25-96
+126-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:109:9-116:20
+127-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:110:13-66
+128-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:112:13-36
+129-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:111:13-66
+130-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:113:13-115:29
+131-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:114:17-82
+131-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:114:25-79
+136-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:119:9-125:20
+137-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:120:13-76
+138-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:121:13-36
+139-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:122:13-124:29
+140-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:123:17-76
+140-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:123:25-73
+145-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:128:9-135:19
+146-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:129:13-81
+147-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:131:13-36
+148-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:130:13-75
+149-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:132:13-134:29
+150-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:133:17-79
+150-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:133:25-76
+155-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:138:9-148:19
+156-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:139:13-93
+157-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:141:13-36
+158-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:140:13-79
+159-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:142:13-144:29
+160-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:143:17-92
+160-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:143:25-89
+163-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:145:13-147:69
+164-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:146:17-60
+165-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:147:17-66
+169-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:151:9-161:19
+170-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:152:13-74
+171-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:154:13-36
+172-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:153:13-79
+173-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:142:13-144:29
+174-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:143:17-92
+174-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:143:25-89
+177-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:145:13-147:69
+178-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:146:17-60
+179-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:147:17-66
+183-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:164:9-167:56
+184-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:165:13-72
+185-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:166:13-37
+186-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:167:13-53
+187-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:169:9-178:19
+188-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:170:13-70
+189-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:174:13-36
+190-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:171:13-47
+191-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:172:13-38
+192-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:173:13-77
+193-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:175:13-177:29
+194-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:176:17-87
+194-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:176:25-84
+199-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:181:9-184:57
+200-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:182:13-71
+201-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:183:13-37
+202-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:184:13-54
+205-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:187:9-190:56
+206-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:188:13-66
+207-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:189:13-37
+208-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:190:13-53
+211-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:193:9-197:56
+212-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:194:13-72
+213-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:195:13-35
+214-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:196:13-37
+215-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:197:13-53
+218-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:200:9-204:58
+219-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:201:13-64
+220-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:202:13-35
+221-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:203:13-37
+222-->/home/runner/work/JarvisMerged/JarvisMerged/app/src/main/AndroidManifest.xml:204:13-55
+223-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:12:9-16:56
+224-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:13:13-74
+225-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:14:13-35
+226-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:15:13-37
+227-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:16:13-53
+228-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:17:9-21:56
+229-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:18:13-72
+230-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:19:13-35
+231-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:20:13-37
+232-->[:modules:core] /home/runner/work/JarvisMerged/JarvisMerged/modules/core/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml:21:13-53
+234-->[androidx.compose.ui:ui-tooling-android:1.6.1] /home/runner/.gradle/caches/transforms-3/b05e01595c7e44b7d88075f1c09e0c5e/transformed/jetified-ui-tooling-release/AndroidManifest.xml:23:9-25:39
+235-->[androidx.compose.ui:ui-tooling-android:1.6.1] /home/runner/.gradle/caches/transforms-3/b05e01595c7e44b7d88075f1c09e0c5e/transformed/jetified-ui-tooling-release/AndroidManifest.xml:24:13-71
+236-->[androidx.compose.ui:ui-tooling-android:1.6.1] /home/runner/.gradle/caches/transforms-3/b05e01595c7e44b7d88075f1c09e0c5e/transformed/jetified-ui-tooling-release/AndroidManifest.xml:25:13-36
+238-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+239-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:25:13-67
+240-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:26:13-68
+241-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:27:13-37
+242-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+243-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:30:17-75
+244-->[androidx.emoji2:emoji2:1.3.0] /home/runner/.gradle/caches/transforms-3/8d81b3c9dd7cc0b9b39cfd9818b04140/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:31:17-49
+245-->[androidx.lifecycle:lifecycle-process:2.8.4] /home/runner/.gradle/caches/transforms-3/98481830ef37cec8500adc1974746044/transformed/jetified-lifecycle-process-2.8.4/AndroidManifest.xml:29:13-31:52
+246-->[androidx.lifecycle:lifecycle-process:2.8.4] /home/runner/.gradle/caches/transforms-3/98481830ef37cec8500adc1974746044/transformed/jetified-lifecycle-process-2.8.4/AndroidManifest.xml:30:17-78
+247-->[androidx.lifecycle:lifecycle-process:2.8.4] /home/runner/.gradle/caches/transforms-3/98481830ef37cec8500adc1974746044/transformed/jetified-lifecycle-process-2.8.4/AndroidManifest.xml:31:17-49
+248-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+249-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+250-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+253-->[androidx.compose.ui:ui-test-manifest:1.6.1] /home/runner/.gradle/caches/transforms-3/ccea6162ec663db40c099dbe5b9de39b/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:23:9-25:39
+254-->[androidx.compose.ui:ui-test-manifest:1.6.1] /home/runner/.gradle/caches/transforms-3/ccea6162ec663db40c099dbe5b9de39b/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:24:13-63
+255-->[androidx.compose.ui:ui-test-manifest:1.6.1] /home/runner/.gradle/caches/transforms-3/ccea6162ec663db40c099dbe5b9de39b/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:25:13-36
+257-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+258-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+259-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+260-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+261-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+262-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+263-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+264-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+264-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+266-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+267-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+267-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+269-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+270-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+270-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+272-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+273-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+273-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/runner/.gradle/caches/transforms-3/66b71a951a76d555f907d4c78101a6ac/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
 
 -- BUILD TASK FAILURES --
 > Task :app:compileDebugKotlin FAILED
 FAILURE: Build failed with an exception.
-BUILD FAILED in 6m 26s
+BUILD FAILED in 2m 19s
 
 -- EXCEPTION STACK TRACES --
 * Exception is:
@@ -521,8 +523,8 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 
 -- NATIVE BUILD LOG (last 100 lines) --
 Tasks to be executed: [task ':app:preBuild', task ':app:preDebugBuild', task ':app:mergeDebugNativeDebugMetadata', task ':app:checkKotlinGradlePluginConfigurationErrors', task ':app:dataBindingMergeDependencyArtifactsDebug', task ':app:generateDebugResValues', task ':app:generateDebugResources', task ':modules:automation:preBuild', task ':modules:automation:preDebugBuild', task ':modules:automation:generateDebugResValues', task ':modules:automation:generateDebugResources', task ':modules:automation:packageDebugResources', task ':modules:callhandler:preBuild', task ':modules:callhandler:preDebugBuild', task ':modules:callhandler:generateDebugResValues', task ':modules:callhandler:generateDebugResources', task ':modules:callhandler:packageDebugResources', task ':modules:core:preBuild', task ':modules:core:preDebugBuild', task ':modules:core:generateDebugResValues', task ':modules:core:generateDebugResources', task ':modules:core:packageDebugResources', task ':modules:engine:preBuild', task ':modules:engine:preDebugBuild', task ':modules:engine:generateDebugResValues', task ':modules:engine:generateDebugResources', task ':modules:engine:packageDebugResources', task ':modules:smart:preBuild', task ':modules:smart:preDebugBuild', task ':modules:smart:generateDebugResValues', task ':modules:smart:generateDebugResources', task ':modules:smart:packageDebugResources', task ':app:mergeDebugResources', task ':app:packageDebugResources', task ':app:parseDebugLocalResources', task ':modules:automation:parseDebugLocalResources', task ':modules:automation:generateDebugRFile', task ':modules:callhandler:parseDebugLocalResources', task ':modules:callhandler:generateDebugRFile', task ':modules:core:parseDebugLocalResources', task ':modules:core:generateDebugRFile', task ':modules:engine:parseDebugLocalResources', task ':modules:engine:generateDebugRFile', task ':modules:smart:parseDebugLocalResources', task ':modules:smart:generateDebugRFile', task ':app:dataBindingGenBaseClassesDebug', task ':app:generateDebugBuildConfig', task ':modules:automation:writeDebugAarMetadata', task ':modules:callhandler:writeDebugAarMetadata', task ':modules:core:writeDebugAarMetadata', task ':modules:engine:writeDebugAarMetadata', task ':modules:smart:writeDebugAarMetadata', task ':app:checkDebugAarMetadata', task ':app:mapDebugSourceSetPaths', task ':app:createDebugCompatibleScreenManifests', task ':app:extractDeepLinksDebug', task ':modules:automation:extractDeepLinksDebug', task ':modules:automation:processDebugManifest', task ':modules:callhandler:extractDeepLinksDebug', task ':modules:callhandler:processDebugManifest', task ':modules:core:extractDeepLinksDebug', task ':modules:core:processDebugManifest', task ':modules:engine:extractDeepLinksDebug', task ':modules:engine:processDebugManifest', task ':modules:smart:extractDeepLinksDebug', task ':modules:smart:processDebugManifest', task ':app:processDebugMainManifest', task ':app:processDebugManifest', task ':app:processDebugManifestForPackage', task ':modules:automation:compileDebugLibraryResources', task ':modules:callhandler:compileDebugLibraryResources', task ':modules:core:compileDebugLibraryResources', task ':modules:engine:compileDebugLibraryResources', task ':modules:smart:compileDebugLibraryResources', task ':app:processDebugResources', task ':modules:automation:checkKotlinGradlePluginConfigurationErrors', task ':modules:core:checkKotlinGradlePluginConfigurationErrors', task ':modules:core:compileDebugKotlin', task ':modules:core:javaPreCompileDebug', task ':modules:core:compileDebugJavaWithJavac', task ':modules:core:bundleLibCompileToJarDebug', task ':modules:engine:checkKotlinGradlePluginConfigurationErrors', task ':modules:engine:compileDebugKotlin', task ':modules:engine:javaPreCompileDebug', task ':modules:engine:compileDebugJavaWithJavac', task ':modules:engine:bundleLibCompileToJarDebug', task ':modules:smart:checkKotlinGradlePluginConfigurationErrors', task ':modules:smart:compileDebugKotlin', task ':modules:smart:javaPreCompileDebug', task ':modules:smart:compileDebugJavaWithJavac', task ':modules:smart:bundleLibCompileToJarDebug', task ':modules:automation:compileDebugKotlin', task ':modules:automation:javaPreCompileDebug', task ':modules:automation:compileDebugJavaWithJavac', task ':modules:automation:bundleLibCompileToJarDebug', task ':modules:callhandler:checkKotlinGradlePluginConfigurationErrors', task ':modules:callhandler:compileDebugKotlin', task ':modules:callhandler:javaPreCompileDebug', task ':modules:callhandler:compileDebugJavaWithJavac', task ':modules:callhandler:bundleLibCompileToJarDebug', task ':app:compileDebugKotlin', task ':app:javaPreCompileDebug', task ':app:compileDebugJavaWithJavac', task ':app:mergeDebugShaders', task ':app:compileDebugShaders', task ':app:generateDebugAssets', task ':modules:automation:mergeDebugShaders', task ':modules:automation:compileDebugShaders', task ':modules:automation:generateDebugAssets', task ':modules:automation:packageDebugAssets', task ':modules:callhandler:mergeDebugShaders', task ':modules:callhandler:compileDebugShaders', task ':modules:callhandler:generateDebugAssets', task ':modules:callhandler:packageDebugAssets', task ':modules:core:mergeDebugShaders', task ':modules:core:compileDebugShaders', task ':modules:core:generateDebugAssets', task ':modules:core:packageDebugAssets', task ':modules:engine:mergeDebugShaders', task ':modules:engine:compileDebugShaders', task ':modules:engine:generateDebugAssets', task ':modules:engine:packageDebugAssets', task ':modules:smart:mergeDebugShaders', task ':modules:smart:compileDebugShaders', task ':modules:smart:generateDebugAssets', task ':modules:smart:packageDebugAssets', task ':app:mergeDebugAssets', task ':app:compressDebugAssets', task ':modules:callhandler:bundleLibRuntimeToJarDebug', task ':modules:automation:bundleLibRuntimeToJarDebug', task ':modules:engine:bundleLibRuntimeToJarDebug', task ':modules:core:bundleLibRuntimeToJarDebug', task ':modules:smart:bundleLibRuntimeToJarDebug', task ':app:desugarDebugFileDependencies', task ':app:dexBuilderDebug', task ':app:mergeDebugGlobalSynthetics', task ':app:processDebugJavaRes', task ':modules:automation:processDebugJavaRes', task ':modules:callhandler:processDebugJavaRes', task ':modules:core:processDebugJavaRes', task ':modules:engine:processDebugJavaRes', task ':modules:smart:processDebugJavaRes', task ':app:mergeDebugJavaResource', task ':app:checkDebugDuplicateClasses', task ':app:mergeExtDexDebug', task ':modules:callhandler:bundleLibRuntimeToDirDebug', task ':modules:automation:bundleLibRuntimeToDirDebug', task ':modules:engine:bundleLibRuntimeToDirDebug', task ':modules:core:bundleLibRuntimeToDirDebug', task ':modules:smart:bundleLibRuntimeToDirDebug', task ':app:mergeLibDexDebug', task ':app:mergeProjectDexDebug', task ':app:configureCMakeDebug[arm64-v8a]', task ':app:buildCMakeDebug[arm64-v8a]', task ':app:mergeDebugJniLibFolders', task ':modules:automation:mergeDebugJniLibFolders', task ':modules:automation:mergeDebugNativeLibs', task ':modules:automation:copyDebugJniLibsProjectOnly', task ':modules:callhandler:mergeDebugJniLibFolders', task ':modules:callhandler:mergeDebugNativeLibs', task ':modules:callhandler:copyDebugJniLibsProjectOnly', task ':modules:core:mergeDebugJniLibFolders', task ':modules:core:mergeDebugNativeLibs', task ':modules:core:copyDebugJniLibsProjectOnly', task ':modules:engine:configureCMakeDebug[arm64-v8a]', task ':modules:engine:buildCMakeDebug[arm64-v8a]', task ':modules:engine:mergeDebugJniLibFolders', task ':modules:engine:mergeDebugNativeLibs', task ':modules:engine:copyDebugJniLibsProjectOnly', task ':modules:smart:mergeDebugJniLibFolders', task ':modules:smart:mergeDebugNativeLibs', task ':modules:smart:copyDebugJniLibsProjectOnly', task ':app:mergeDebugNativeLibs', task ':app:stripDebugDebugSymbols', task ':app:validateSigningDebug', task ':app:writeDebugAppMetadata', task ':app:writeDebugSigningConfigVersions', task ':app:packageDebug', task ':app:createDebugApkListingFileRedirect', task ':app:assembleDebug', task ':modules:automation:stripDebugDebugSymbols', task ':modules:automation:copyDebugJniLibsProjectAndLocalJars', task ':modules:automation:extractDebugAnnotations', task ':modules:automation:extractDeepLinksForAarDebug', task ':modules:automation:mergeDebugGeneratedProguardFiles', task ':modules:automation:mergeDebugConsumerProguardFiles', task ':modules:automation:prepareDebugArtProfile', task ':modules:automation:prepareLintJarForPublish', task ':modules:automation:mergeDebugJavaResource', task ':modules:automation:syncDebugLibJars', task ':modules:automation:bundleDebugAar', task ':modules:automation:assembleDebug', task ':modules:callhandler:stripDebugDebugSymbols', task ':modules:callhandler:copyDebugJniLibsProjectAndLocalJars', task ':modules:callhandler:extractDebugAnnotations', task ':modules:callhandler:extractDeepLinksForAarDebug', task ':modules:callhandler:mergeDebugGeneratedProguardFiles', task ':modules:callhandler:mergeDebugConsumerProguardFiles', task ':modules:callhandler:prepareDebugArtProfile', task ':modules:callhandler:prepareLintJarForPublish', task ':modules:callhandler:mergeDebugJavaResource', task ':modules:callhandler:syncDebugLibJars', task ':modules:callhandler:bundleDebugAar', task ':modules:callhandler:assembleDebug', task ':modules:core:stripDebugDebugSymbols', task ':modules:core:copyDebugJniLibsProjectAndLocalJars', task ':modules:core:extractDebugAnnotations', task ':modules:core:extractDeepLinksForAarDebug', task ':modules:core:mergeDebugGeneratedProguardFiles', task ':modules:core:mergeDebugConsumerProguardFiles', task ':modules:core:prepareDebugArtProfile', task ':modules:core:prepareLintJarForPublish', task ':modules:core:mergeDebugJavaResource', task ':modules:core:syncDebugLibJars', task ':modules:core:bundleDebugAar', task ':modules:core:assembleDebug', task ':modules:engine:stripDebugDebugSymbols', task ':modules:engine:copyDebugJniLibsProjectAndLocalJars', task ':modules:engine:extractDebugAnnotations', task ':modules:engine:extractDeepLinksForAarDebug', task ':modules:engine:mergeDebugGeneratedProguardFiles', task ':modules:engine:mergeDebugConsumerProguardFiles', task ':modules:engine:prepareDebugArtProfile', task ':modules:engine:prepareLintJarForPublish', task ':modules:engine:mergeDebugJavaResource', task ':modules:engine:syncDebugLibJars', task ':modules:engine:bundleDebugAar', task ':modules:engine:assembleDebug', task ':modules:smart:stripDebugDebugSymbols', task ':modules:smart:copyDebugJniLibsProjectAndLocalJars', task ':modules:smart:extractDebugAnnotations', task ':modules:smart:extractDeepLinksForAarDebug', task ':modules:smart:mergeDebugGeneratedProguardFiles', task ':modules:smart:mergeDebugConsumerProguardFiles', task ':modules:smart:prepareDebugArtProfile', task ':modules:smart:prepareLintJarForPublish', task ':modules:smart:mergeDebugJavaResource', task ':modules:smart:syncDebugLibJars', task ':modules:smart:bundleDebugAar', task ':modules:smart:assembleDebug']
-Resolve mutations for :app:configureCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
-:app:configureCMakeDebug[arm64-v8a] (Thread[Execution worker,5,main]) started.
+Resolve mutations for :app:configureCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 2,5,main]) started.
+:app:configureCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 2,5,main]) started.
 > Task :app:configureCMakeDebug[arm64-v8a]
 Caching disabled for task ':app:configureCMakeDebug[arm64-v8a]' because:
 Task ':app:configureCMakeDebug[arm64-v8a]' is not up-to-date because:
@@ -542,8 +544,8 @@ C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : hard linked /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a/compile_commands.json to /home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/tools/debug/arm64-v8a/compile_commands.json
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : JSON generation completed without problems
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : Writing build model to /home/runner/work/JarvisMerged/JarvisMerged/app/build/intermediates/cxx/Debug/5l5y6b68/logs/arm64-v8a/build_model.json
-Resolve mutations for :app:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
-:app:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
+Resolve mutations for :app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 2,5,main]) started.
+:app:buildCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 2,5,main]) started.
 > Task :app:buildCMakeDebug[arm64-v8a]
 Caching disabled for task ':app:buildCMakeDebug[arm64-v8a]' because:
 Task ':app:buildCMakeDebug[arm64-v8a]' is not up-to-date because:
@@ -552,8 +554,8 @@ Starting process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja''. 
 Successfully started process 'command '/usr/local/lib/android/sdk/cmake/3.22.1/bin/ninja''
 C/C++: ninja: Entering directory `/home/runner/work/JarvisMerged/JarvisMerged/app/.cxx/Debug/5l5y6b68/arm64-v8a'
 > Task :app:buildCMakeDebug[arm64-v8a]
-Resolve mutations for :modules:engine:configureCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 3,5,main]) started.
-:modules:engine:configureCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :modules:engine:configureCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
+:modules:engine:configureCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
 > Task :modules:engine:configureCMakeDebug[arm64-v8a]
 Caching disabled for task ':modules:engine:configureCMakeDebug[arm64-v8a]' because:
 Task ':modules:engine:configureCMakeDebug[arm64-v8a]' is not up-to-date because:
@@ -573,8 +575,8 @@ C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : hard linked /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/Debug/5y41e576/arm64-v8a/compile_commands.json to /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/.cxx/tools/debug/arm64-v8a/compile_commands.json
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : JSON generation completed without problems
 C/C++: /home/runner/work/JarvisMerged/JarvisMerged/CMakeLists.txt debug|arm64-v8a : Writing build model to /home/runner/work/JarvisMerged/JarvisMerged/modules/engine/build/intermediates/cxx/Debug/5y41e576/logs/arm64-v8a/build_model.json
-Resolve mutations for :modules:engine:buildCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 3,5,main]) started.
-:modules:engine:buildCMakeDebug[arm64-v8a] (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :modules:engine:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
+:modules:engine:buildCMakeDebug[arm64-v8a] (Thread[included builds,5,main]) started.
 > Task :modules:engine:buildCMakeDebug[arm64-v8a]
 Caching disabled for task ':modules:engine:buildCMakeDebug[arm64-v8a]' because:
 Task ':modules:engine:buildCMakeDebug[arm64-v8a]' is not up-to-date because:
