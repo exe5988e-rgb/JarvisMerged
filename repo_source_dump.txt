@@ -61,6 +61,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   ├── UnifiedExecutor.kt
 │   │   │   │   │   │   ├── llm
 │   │   │   │   │   │   │   ├── LlmBackend.kt
+│   │   │   │   │   │   │   ├── OpenRouterClient.kt
 │   │   │   │   │   │   │   ├── TermuxLlamaClient.kt
 │   │   │   │   │   │   ├── security
 │   │   │   │   │   │   │   ├── SecurityManager.kt
@@ -2170,6 +2171,82 @@ object LlmBackendFactory {
     }
 }
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/llm/OpenRouterClient.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.llm
+
+import android.content.Context
+import android.util.Log
+import com.jarvismini.core.JarvisPersona
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+/**
+ * On-device OpenRouter chat. Keys are NOT in the repo: they live in the app's
+ * private SharedPreferences ("jarvis_llm"), provisioned over adb:
+ *   openrouter_keys   = keys separated by newlines (rotated on 401/402/429)
+ *   openrouter_models = models separated by newlines (tried in order), optional
+ */
+class OpenRouterClient(context: Context) {
+
+    private val tag = "OpenRouterClient"
+    private val prefs = context.applicationContext
+        .getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE)
+
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
+
+    private val history = mutableListOf<Pair<String, String>>() // role, content
+
+    private fun keys(): List<String> =
+        (prefs.getString("openrouter_keys", "") ?: "")
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }
+
+    private fun models(): List<String> {
+        val saved = (prefs.getString("openrouter_models", "") ?: "")
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }
+        return saved.ifEmpty { DEFAULT_MODELS }
+    }
+
+    fun isConfigured(): Boolean = keys().isNotEmpty()
+
+    private fun systemPrompt(): String {
+        val style = when (JarvisPersona.current()) {
+            JarvisPersona.SILENT_GUARDIAN -> "Be extremely brief. One short sentence."
+            JarvisPersona.COMBAT -> "Be terse and tactical, like a status report."
+
+// ... FILE TRUNCATED ...
+
+                            lastErr = "$model HTTP ${resp.code}"
+                            Log.w(tag, lastErr)
+                            // 401/402/429: try next key; other errors: next model
+                            if (resp.code !in listOf(401, 402, 429)) return@use
+                        }
+                    }
+                } catch (e: Exception) {
+                    lastErr = "$model ${e.javaClass.simpleName}: ${e.message}"
+                    Log.w(tag, lastErr)
+                    break // network problem: no point rotating keys
+                }
+            }
+        }
+        Result.failure(RuntimeException(lastErr))
+    }
+
+    companion object {
+        private val DEFAULT_MODELS = listOf("deepseek/deepseek-v4.1-flash-1017")
+    }
+}
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/TermuxLlamaClient.kt =====
@@ -3047,8 +3124,8 @@ fun JarvisChatScreen(
 
     // ================= TERMUX CLIENT =================
     val llamaClient = remember { TermuxLlamaClient(context) }
+    val openRouter = remember { com.jarvismini.llm.OpenRouterClient(context) }
 
-    // ================= INIT =================
 
 // ... FILE TRUNCATED ...
 
