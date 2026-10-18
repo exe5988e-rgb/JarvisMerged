@@ -58,28 +58,29 @@ object VoiceModule {
         }
     }
 
-    private suspend fun speakElevenLabs(text: String, voiceId: String?): Boolean =
+    /** Asks the Termux ElevenLabs server (custom Jarvis voice) to speak. True if it accepted the request. */
+    suspend fun speakElevenLabs(text: String, voiceId: String? = null): Boolean =
         withContext(Dispatchers.IO) {
-            try {
-                val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
-                val body = JSONObject().apply {
-                    put("text", text)
-                    if (voiceId != null) put("voice_id", voiceId)
-                }.toString().toRequestBody("application/json".toMediaType())
+            val configured = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+            // The TTS server usually runs on this same phone, so try localhost if the LAN address fails.
+            for (host in listOf(configured, "127.0.0.1").distinct()) {
+                try {
+                    val body = JSONObject().apply {
+                        put("text", text)
+                        if (voiceId != null) put("voice_id", voiceId)
+                    }.toString().toRequestBody("application/json".toMediaType())
 
-                val req = Request.Builder()
-                    .url("http://$host:$TTS_PORT/speak")
-                    .post(body)
-                    .build()
+                    val req = Request.Builder()
+                        .url("http://$host:$TTS_PORT/speak")
+                        .post(body)
+                        .build()
 
-                val resp = http.newCall(req).execute()
-                val ok   = resp.isSuccessful
-                resp.close()
-                ok
-            } catch (e: Exception) {
-                Log.w(TAG, "ElevenLabs failed: ${e.message}")
-                false
+                    http.newCall(req).execute().use { if (it.isSuccessful) return@withContext true }
+                } catch (e: Exception) {
+                    Log.w(TAG, "ElevenLabs via $host failed: ${e.message}")
+                }
             }
+            false
         }
 
     private fun speakSystem(text: String) {

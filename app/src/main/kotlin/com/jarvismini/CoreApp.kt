@@ -15,6 +15,7 @@ class CoreApp : Application() {
         JarvisPrefs.init(this)
         JarvisState.init(this)
         AnnouncementEngine.init(this)
+        com.jarvismini.voice.ElevenSpeaker.install()
 
         // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
         // process start, so no manual "run once and remove" step is needed.

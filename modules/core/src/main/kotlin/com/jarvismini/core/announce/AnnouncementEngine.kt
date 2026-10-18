@@ -137,7 +137,8 @@ object AnnouncementEngine {
         }
     }
 
-    private fun speakSystem(text: String, whisper: Boolean) {
+    /** Built-in phone voice. Used directly, or as the fallback when the app voice (ElevenLabs) is unreachable. */
+    fun speakSystem(text: String, whisper: Boolean) {
         val ctx = appContext ?: return
         if (tts == null) {
             tts = TextToSpeech(ctx) { status ->
