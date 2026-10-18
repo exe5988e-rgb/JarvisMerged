@@ -418,33 +418,33 @@ android {
         }
     }
 
-    buildFeatures {
-        viewBinding = true
-        compose = true
-        buildConfig = true
-    }
+    // Permanent CI signing key (same scheme as Checkmate): the keystore is restored
+    // from GitHub secrets in the workflow. Without these env vars (local builds)
+    // the normal Android debug signing is used.
+    signingConfigs {
+        create("jarvisCi") {
+            val ksPath = System.getenv("JARVIS_KEYSTORE")
+            val ksPass = System.getenv("JARVIS_KEYSTORE_PASSWORD")
+            val alias = System.getenv("JARVIS_KEY_ALIAS")
+            val keyPass = System.getenv("JARVIS_KEY_PASSWORD")
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-    
-    // ✅ CMake Configuration
-    externalNativeBuild {
-        cmake {
-            path = file("../CMakeLists.txt")
-            version = "3.22.1"
+            if (!ksPath.isNullOrBlank()) storeFile = file(ksPath)
+            if (!ksPass.isNullOrBlank()) storePassword = ksPass
+            if (!alias.isNullOrBlank()) keyAlias = alias
+            if (!keyPass.isNullOrBlank()) keyPassword = keyPass
         }
     }
-}
+
+    buildTypes {
+        getByName("debug") {
+            if (!System.getenv("JARVIS_KEYSTORE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("jarvisCi")
+            }
+        }
+    }
+
+    buildFeatures {
+        viewBinding = true
 
 // ... FILE TRUNCATED ...
 
@@ -10983,14 +10983,14 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      # ---------------- BUILD (never hard-fails) ----------------
-      - name: Build Debug APK and capture log
-        id: gradle_build
-        continue-on-error: true
+      # ---------------- PERMANENT SIGNING KEY ----------------
+      - name: Restore Jarvis CI signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.JARVIS_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.JARVIS_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.JARVIS_KEY_ALIAS }}
         run: |
-          chmod +x ./gradlew
-          mkdir -p build_error_logs
-          ./gradlew assembleDebug --no-daemon --stacktrace --info \
+          if [ -z "$KEYSTORE_B64" ]; then
 
 // ... FILE TRUNCATED ...
 
