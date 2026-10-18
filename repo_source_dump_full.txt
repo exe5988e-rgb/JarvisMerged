@@ -115,6 +115,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── TaskTimerDialog.kt
 │   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
 │   │   │   │   │   │   ├── voice
+│   │   │   │   │   │   │   ├── ElevenSpeaker.kt
 │   │   │   │   │   │   │   ├── VoiceModule.kt
 │   │   │   │   │   │   │   ├── VoiceTriggerManager.kt
 │   │   │   │   │   │   │   ├── WakeWordService.kt
@@ -1433,6 +1434,7 @@ class CoreApp : Application() {
         JarvisPrefs.init(this)
         JarvisState.init(this)
         AnnouncementEngine.init(this)
+        com.jarvismini.voice.ElevenSpeaker.install()
 
         // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
         // process start, so no manual "run once and remove" step is needed.
@@ -11240,6 +11242,35 @@ private fun formatTime(seconds: Long): String {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/voice/ElevenSpeaker.kt =====
+package com.jarvismini.voice
+
+import com.jarvismini.core.announce.AnnouncementEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+/**
+ * Routes everything Jarvis says (unprompted announcements and chat replies) through the
+ * ElevenLabs "Jarvis" voice on the Termux TTS server. If that server is unreachable or
+ * out of quota, it falls back to the phone's built-in voice so Jarvis never goes silent.
+ */
+object ElevenSpeaker {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun install() {
+        AnnouncementEngine.speaker = { text, whisper ->
+            scope.launch {
+                if (!VoiceModule.speakElevenLabs(text)) {
+                    AnnouncementEngine.speakSystem(text, whisper)
+                }
+            }
+        }
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceModule.kt =====
 package com.jarvismini.voice
 
@@ -11301,28 +11332,29 @@ object VoiceModule {
         }
     }
 
-    private suspend fun speakElevenLabs(text: String, voiceId: String?): Boolean =
+    /** Asks the Termux ElevenLabs server (custom Jarvis voice) to speak. True if it accepted the request. */
+    suspend fun speakElevenLabs(text: String, voiceId: String? = null): Boolean =
         withContext(Dispatchers.IO) {
-            try {
-                val host = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
-                val body = JSONObject().apply {
-                    put("text", text)
-                    if (voiceId != null) put("voice_id", voiceId)
-                }.toString().toRequestBody("application/json".toMediaType())
+            val configured = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+            // The TTS server usually runs on this same phone, so try localhost if the LAN address fails.
+            for (host in listOf(configured, "127.0.0.1").distinct()) {
+                try {
+                    val body = JSONObject().apply {
+                        put("text", text)
+                        if (voiceId != null) put("voice_id", voiceId)
+                    }.toString().toRequestBody("application/json".toMediaType())
 
-                val req = Request.Builder()
-                    .url("http://$host:$TTS_PORT/speak")
-                    .post(body)
-                    .build()
+                    val req = Request.Builder()
+                        .url("http://$host:$TTS_PORT/speak")
+                        .post(body)
+                        .build()
 
-                val resp = http.newCall(req).execute()
-                val ok   = resp.isSuccessful
-                resp.close()
-                ok
-            } catch (e: Exception) {
-                Log.w(TAG, "ElevenLabs failed: ${e.message}")
-                false
+                    http.newCall(req).execute().use { if (it.isSuccessful) return@withContext true }
+                } catch (e: Exception) {
+                    Log.w(TAG, "ElevenLabs via $host failed: ${e.message}")
+                }
             }
+            false
         }
 
     private fun speakSystem(text: String) {
@@ -14810,7 +14842,8 @@ object AnnouncementEngine {
         }
     }
 
-    private fun speakSystem(text: String, whisper: Boolean) {
+    /** Built-in phone voice. Used directly, or as the fallback when the app voice (ElevenLabs) is unreachable. */
+    fun speakSystem(text: String, whisper: Boolean) {
         val ctx = appContext ?: return
         if (tts == null) {
             tts = TextToSpeech(ctx) { status ->
