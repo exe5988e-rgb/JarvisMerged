@@ -2,6 +2,8 @@ package com.jarvismini.agent
 
 import android.util.Log
 import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.ModeCommands
+import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.engine.LlamaLLMEngine
 import org.json.JSONObject
 
@@ -127,6 +129,13 @@ object VoiceIntentRouter {
         onTaskResult: suspend (String) -> Unit = {},
         onTaskFailed: suspend (String) -> Unit = {}
     ) {
+        // Persona / lockdown / digest commands are handled locally, no LLM or agent needed.
+        ModeCommands.handle(input)?.let { reply ->
+            onTaskResult(reply)
+            if (speakOnCompletion) AnnouncementEngine.respond(reply)
+            return
+        }
+
         when (val intent = classify(input)) {
             is VoiceIntent.Chat -> onChat(intent.text)
             is VoiceIntent.Task -> {

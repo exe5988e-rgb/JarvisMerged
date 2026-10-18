@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.announce.AnnouncementEngine
 
 /**
  * WakeWordService (Phase 2)
@@ -115,6 +116,9 @@ class WakeWordService : Service() {
     private fun listenForCommand() {
         stopListeningForCommand()
 
+        // Keep Jarvis from announcing over the user while they speak a command.
+        AnnouncementEngine.userInteracting = true
+
         val vtm = VoiceTriggerManager(applicationContext)
         voiceTriggerManager = vtm
         vtm.start(
@@ -133,6 +137,7 @@ class WakeWordService : Service() {
     }
 
     private fun stopListeningForCommand() {
+        AnnouncementEngine.userInteracting = false
         voiceTriggerManager?.destroy()
         voiceTriggerManager = null
     }

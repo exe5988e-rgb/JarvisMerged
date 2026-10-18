@@ -31,6 +31,13 @@ object JarvisPrefs {
     fun getString(key: String, def: String? = null): String? =
         if (isReady()) prefs.getString(key, def) else def
 
+    fun putBoolean(key: String, value: Boolean) {
+        if (isReady()) prefs.edit().putBoolean(key, value).apply()
+    }
+
+    fun getBoolean(key: String, def: Boolean = false): Boolean =
+        if (isReady()) prefs.getBoolean(key, def) else def
+
     fun remove(key: String) {
         if (isReady()) prefs.edit().remove(key).apply()
     }

@@ -10,6 +10,8 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.ModeCommands
+import com.jarvismini.core.announce.AnnouncementEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -99,6 +101,14 @@ class VoiceTriggerManager(private val context: Context) {
             return
         }
         Log.d(TAG, "Transcript: $text")
+
+        // Persona / lockdown / digest commands are handled on-device: works offline,
+        // no round trip to the conversation server.
+        ModeCommands.handle(text)?.let { reply ->
+            AnnouncementEngine.respond(reply)
+            handler.post { onResultCb?.invoke(reply) }
+            return
+        }
 
         scope.launch(Dispatchers.IO) {
             try {

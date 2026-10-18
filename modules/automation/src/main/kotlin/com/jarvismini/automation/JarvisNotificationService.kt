@@ -8,6 +8,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.jarvismini.automation.decision.ReplyDecision
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
 
 class JarvisNotificationService : NotificationListenerService() {
 
@@ -25,6 +27,12 @@ class JarvisNotificationService : NotificationListenerService() {
         if (messageText.isNullOrEmpty() || sender.isNullOrEmpty()) return
 
         Log.i(TAG, "Notification from $sender: $messageText")
+
+        // Log for the wake-up summary (sender only, never the message body).
+        // Group summary notifications repeat the same messages, so skip those.
+        if (notification.flags and Notification.FLAG_GROUP_SUMMARY == 0) {
+            EventLog.add(EventType.MESSAGE, "Message from $sender")
+        }
 
         val input = AutoReplyInput(
             messageText = messageText,

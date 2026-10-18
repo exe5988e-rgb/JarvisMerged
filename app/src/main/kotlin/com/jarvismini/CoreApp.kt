@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.core.routine.TaskTimerManager
 import com.jarvismini.ui.timer.FloatingTimerService
 
@@ -13,6 +14,7 @@ class CoreApp : Application() {
         super.onCreate()
         JarvisPrefs.init(this)
         JarvisState.init(this)
+        AnnouncementEngine.init(this)
 
         // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
         // process start, so no manual "run once and remove" step is needed.

@@ -11,11 +11,27 @@ import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.LockdownManager
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
 
 class JarvisCallScreeningService : CallScreeningService() {
 
     override fun onScreenCall(details: Call.Details) {
-        val number = details.handle?.schemeSpecificPart ?: return
+        val number = details.handle?.schemeSpecificPart
+
+        // Lockdown: only whitelisted numbers ring. Unknown / hidden numbers are blocked.
+        if (LockdownManager.isEnabled()) {
+            if (LockdownManager.isAllowed(number)) {
+                allow(details)
+            } else {
+                EventLog.add(EventType.CALL_BLOCKED, "Call blocked in lockdown", number ?: "Hidden number")
+                blockQuietly(details)
+            }
+            return
+        }
+
+        if (number == null) return
 
         Log.d("JarvisCall", "Incoming call from $number")
 
@@ -53,6 +69,18 @@ class JarvisCallScreeningService : CallScreeningService() {
         respondToCall(
             details,
             CallResponse.Builder().build()
+        )
+    }
+
+    // Keeps the call log entry so blocked calls stay visible, only silences the notification.
+    private fun blockQuietly(details: Call.Details) {
+        respondToCall(
+            details,
+            CallResponse.Builder()
+                .setDisallowCall(true)
+                .setRejectCall(true)
+                .setSkipNotification(true)
+                .build()
         )
     }
 

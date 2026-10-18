@@ -1,0 +1,69 @@
+package com.jarvismini.core
+
+import com.jarvismini.core.announce.SleepSummary
+
+/**
+ * Voice / chat commands for personas, lockdown and the digest.
+ * Returns the reply to speak, or null if the text is not one of these commands
+ * (so the caller continues with normal chat / task routing).
+ */
+object ModeCommands {
+
+    private val QUESTION_STARTS = listOf("what ", "what's", "how ", "why ", "who ", "explain", "tell me about")
+    private val OFF_WORDS = setOf("off", "disable", "deactivate", "end", "stop", "cancel")
+    private val NUMBER = Regex("""\+?\d[\d\s-]{6,}""")
+
+    fun handle(input: String): String? {
+        val t = input.trim().lowercase()
+        if (t.isEmpty()) return null
+
+        if (t.contains("what did i miss") || t.contains("what i missed") || t.contains("any updates")) {
+            val s = SleepSummary.build(System.currentTimeMillis() - 12 * 60 * 60_000L)
+            return if (s != null) "In the last 12 hours: $s." else "Nothing new to report."
+        }
+
+        if (QUESTION_STARTS.any { t.startsWith(it) }) return null
+
+        if (t.contains("whitelist")) {
+            val num = NUMBER.find(t)?.value
+            return when {
+                t.contains("show") || t.contains("list") -> {
+                    val l = LockdownManager.whitelist()
+                    if (l.isEmpty()) "The whitelist is empty." else "Whitelisted numbers: ${l.joinToString(", ")}."
+                }
+                num == null -> "Say whitelist followed by a number to add it."
+                t.contains("remove") || t.contains("delete") ->
+                    if (LockdownManager.removeFromWhitelist(num)) "Removed from the whitelist."
+                    else "That number is not on the whitelist."
+                else ->
+                    if (LockdownManager.addToWhitelist(num)) "Added to the whitelist."
+                    else "I could not add that number. The whitelist holds up to ${LockdownManager.MAX_WHITELIST} numbers."
+            }
+        }
+
+        if (t.contains("lockdown")) {
+            val words = t.split(Regex("[^a-z]+")).toSet()
+            return if (words.any { it in OFF_WORDS }) {
+                LockdownManager.disable(announce = false)
+                "Lockdown mode deactivated. Calls are back to normal."
+            } else {
+                LockdownManager.enable(announce = false)
+                if (LockdownManager.whitelist().isEmpty())
+                    "Lockdown mode activated. All calls are blocked. The whitelist is empty."
+                else
+                    "Lockdown mode activated. All calls are blocked except whitelisted contacts."
+            }
+        }
+
+        val persona = JarvisPersona.fromPhrase(t) ?: return null
+        JarvisPersona.set(persona)
+        return when (persona) {
+            JarvisPersona.JARVIS -> "Jarvis mode."
+            JarvisPersona.SILENT_GUARDIAN -> "Silent Guardian engaged. I will only speak for critical events."
+            JarvisPersona.COMBAT -> "Combat mode. High alert."
+            JarvisPersona.HUMOR -> "Humor mode on."
+            JarvisPersona.STUDY -> "Study focus engaged. Only important alerts will interrupt you."
+            JarvisPersona.CALM_WHISPER -> "Calm whisper mode."
+        }
+    }
+}

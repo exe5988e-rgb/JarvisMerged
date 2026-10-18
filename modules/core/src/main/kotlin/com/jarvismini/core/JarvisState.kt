@@ -1,6 +1,7 @@
 package com.jarvismini.core
 
 import android.content.Context
+import com.jarvismini.core.announce.SleepSummary
 
 object JarvisState {
 
@@ -17,10 +18,19 @@ object JarvisState {
     }
 
     fun setMode(context: Context, mode: JarvisMode) {
+        val previous = currentMode
         currentMode = mode
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_MODE, mode.name)
             .apply()
+
+        if (previous != mode) {
+            if (mode == JarvisMode.SLEEP) {
+                SleepSummary.markSleepStart()
+            } else if (previous == JarvisMode.SLEEP) {
+                SleepSummary.deliverOnWake()
+            }
+        }
     }
 }
