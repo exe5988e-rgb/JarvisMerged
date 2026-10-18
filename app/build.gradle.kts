@@ -21,6 +21,31 @@ android {
         }
     }
 
+    // Permanent CI signing key (same scheme as Checkmate): the keystore is restored
+    // from GitHub secrets in the workflow. Without these env vars (local builds)
+    // the normal Android debug signing is used.
+    signingConfigs {
+        create("jarvisCi") {
+            val ksPath = System.getenv("JARVIS_KEYSTORE")
+            val ksPass = System.getenv("JARVIS_KEYSTORE_PASSWORD")
+            val alias = System.getenv("JARVIS_KEY_ALIAS")
+            val keyPass = System.getenv("JARVIS_KEY_PASSWORD")
+
+            if (!ksPath.isNullOrBlank()) storeFile = file(ksPath)
+            if (!ksPass.isNullOrBlank()) storePassword = ksPass
+            if (!alias.isNullOrBlank()) keyAlias = alias
+            if (!keyPass.isNullOrBlank()) keyPassword = keyPass
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            if (!System.getenv("JARVIS_KEYSTORE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("jarvisCi")
+            }
+        }
+    }
+
     buildFeatures {
         viewBinding = true
         compose = true

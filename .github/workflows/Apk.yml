@@ -40,10 +40,36 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
+      # ---------------- PERMANENT SIGNING KEY ----------------
+      - name: Restore Jarvis CI signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.JARVIS_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.JARVIS_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.JARVIS_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::JARVIS_KEYSTORE_B64 is not configured"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/jarvis-signing"
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/jarvis-signing/jarvis-ci-debug.jks"
+          chmod 600 "$RUNNER_TEMP/jarvis-signing/jarvis-ci-debug.jks"
+          test -s "$RUNNER_TEMP/jarvis-signing/jarvis-ci-debug.jks"
+          echo "JARVIS_KEYSTORE=$RUNNER_TEMP/jarvis-signing/jarvis-ci-debug.jks" >> "$GITHUB_ENV"
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/jarvis-signing/jarvis-ci-debug.jks" \
+            -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+            | grep -E "Owner:|SHA256:|Valid from:" || true
+
       # ---------------- BUILD (never hard-fails) ----------------
       - name: Build Debug APK and capture log
         id: gradle_build
         continue-on-error: true
+        env:
+          JARVIS_KEYSTORE: ${{ env.JARVIS_KEYSTORE }}
+          JARVIS_KEYSTORE_PASSWORD: ${{ secrets.JARVIS_KEYSTORE_PASSWORD }}
+          JARVIS_KEY_ALIAS: ${{ secrets.JARVIS_KEY_ALIAS }}
+          JARVIS_KEY_PASSWORD: ${{ secrets.JARVIS_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
           mkdir -p build_error_logs
