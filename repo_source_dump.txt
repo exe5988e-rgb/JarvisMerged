@@ -7082,13 +7082,16 @@ object ModeCommands {
 
         if (t.contains("whitelist")) {
             val num = NUMBER.find(t)?.value
+            // "whitelist" itself contains "list", so strip it before looking for show/list.
+            val rest = t.replace("whitelist", " ")
+            val wantsShow = rest.contains("show") || rest.contains("list") || rest.contains("read")
             return when {
-                t.contains("show") || t.contains("list") -> {
+                num == null && wantsShow -> {
                     val l = LockdownManager.whitelist()
                     if (l.isEmpty()) "The whitelist is empty." else "Whitelisted numbers: ${l.joinToString(", ")}."
                 }
                 num == null -> "Say whitelist followed by a number to add it."
-                t.contains("remove") || t.contains("delete") ->
+                rest.contains("remove") || rest.contains("delete") ->
                     if (LockdownManager.removeFromWhitelist(num)) "Removed from the whitelist."
                     else "That number is not on the whitelist."
                 else ->
@@ -7101,9 +7104,6 @@ object ModeCommands {
             val words = t.split(Regex("[^a-z]+")).toSet()
             return if (words.any { it in OFF_WORDS }) {
                 LockdownManager.disable(announce = false)
-                "Lockdown mode deactivated. Calls are back to normal."
-            } else {
-                LockdownManager.enable(announce = false)
 
 // ... FILE TRUNCATED ...
 
