@@ -11,6 +11,11 @@ import android.util.Log
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.automation.decision.ReplyDecision
+import com.jarvismini.core.AssistantProfile
+import com.jarvismini.core.announce.AnnouncePriority
+import com.jarvismini.core.announce.AnnouncementEngine
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
 import java.util.concurrent.ConcurrentHashMap
 
 class WhatsAppNotificationListener : NotificationListenerService() {
@@ -28,6 +33,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         )
     }
 
+    private val announcedKeys = ConcurrentHashMap<String, Boolean>()
     private val handledKeys = ConcurrentHashMap<String, Boolean>()
     private val lastReplyTime = ConcurrentHashMap<String, Long>()
     private val lastUrgentReplyTime = ConcurrentHashMap<String, Long>()
@@ -47,6 +53,21 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         val isGroup =
             extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false) ||
             (!title.isNullOrEmpty() && !convo.isNullOrEmpty() && title != convo)
+
+        if (!isGroup && !title.isNullOrBlank()) {
+            val body = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+            if (announcedKeys.putIfAbsent(sbn.key + sbn.postTime, true) == null) {
+                if (announcedKeys.size > 200) announcedKeys.clear()
+                EventLog.add(EventType.MESSAGE, "Message from $title")
+                val urgent = URGENT_REGEX.containsMatchIn(body)
+                AnnouncementEngine.announce(
+                    (if (urgent) "Urgent message from $title, " else "New message from $title, ") +
+                        AssistantProfile.addressUser() + ".",
+                    if (urgent) AnnouncePriority.HIGH else AnnouncePriority.NORMAL,
+                    "msg_$title"
+                )
+            }
+        }
 
         if (isGroup) return
 

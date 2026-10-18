@@ -12,6 +12,8 @@ import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
 import com.jarvismini.core.LockdownManager
+import com.jarvismini.core.announce.AnnouncePriority
+import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.core.events.EventLog
 import com.jarvismini.core.events.EventType
 
@@ -26,6 +28,11 @@ class JarvisCallScreeningService : CallScreeningService() {
                 allow(details)
             } else {
                 EventLog.add(EventType.CALL_BLOCKED, "Call blocked in lockdown", number ?: "Hidden number")
+                AnnouncementEngine.announce(
+                    "Blocked a call from " + (number ?: "a hidden number") + ".",
+                    AnnouncePriority.HIGH,
+                    "call_blocked_" + (number ?: "hidden")
+                )
                 blockQuietly(details)
             }
             return
