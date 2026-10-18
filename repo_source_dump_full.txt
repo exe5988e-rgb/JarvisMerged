@@ -250,19 +250,27 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── CoreAppBridge.kt
 │   │   │   │   │   │   │   │   ├── Extensions.kt
 │   │   │   │   │   │   │   │   ├── JarvisMode.kt
+│   │   │   │   │   │   │   │   ├── JarvisPersona.kt
 │   │   │   │   │   │   │   │   ├── JarvisPrefs.kt
 │   │   │   │   │   │   │   │   ├── JarvisState.kt
+│   │   │   │   │   │   │   │   ├── LockdownManager.kt
 │   │   │   │   │   │   │   │   ├── Logger.kt
 │   │   │   │   │   │   │   │   ├── MediaController.kt
+│   │   │   │   │   │   │   │   ├── ModeCommands.kt
 │   │   │   │   │   │   │   │   ├── StoragePermissionHelper.kt
 │   │   │   │   │   │   │   │   ├── TimeAnchorManager.kt
 │   │   │   │   │   │   │   │   ├── TimeUtils.kt
 │   │   │   │   │   │   │   │   ├── WorkModeManager.kt
+│   │   │   │   │   │   │   │   ├── announce
+│   │   │   │   │   │   │   │   │   ├── AnnouncementEngine.kt
+│   │   │   │   │   │   │   │   │   ├── SleepSummary.kt
 │   │   │   │   │   │   │   │   ├── calendar
 │   │   │   │   │   │   │   │   │   ├── AppCalendarStore.kt
 │   │   │   │   │   │   │   │   │   ├── model
 │   │   │   │   │   │   │   │   │   │   ├── CalendarEvent.kt
 │   │   │   │   │   │   │   │   │   │   ├── EventStatus.kt
+│   │   │   │   │   │   │   │   ├── events
+│   │   │   │   │   │   │   │   │   ├── EventLog.kt
 │   │   │   │   │   │   │   │   ├── notifications
 │   │   │   │   │   │   │   │   │   ├── ProgressNotifier.kt
 │   │   │   │   │   │   │   │   │   ├── ProgressReminderReceiver.kt
@@ -1388,6 +1396,7 @@ import android.app.Application
 import android.content.Context
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.core.routine.TaskTimerManager
 import com.jarvismini.ui.timer.FloatingTimerService
 
@@ -1397,6 +1406,7 @@ class CoreApp : Application() {
         super.onCreate()
         JarvisPrefs.init(this)
         JarvisState.init(this)
+        AnnouncementEngine.init(this)
 
         // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
         // process start, so no manual "run once and remove" step is needed.
@@ -3080,6 +3090,8 @@ package com.jarvismini.agent
 
 import android.util.Log
 import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.ModeCommands
+import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.engine.LlamaLLMEngine
 import org.json.JSONObject
 
@@ -3205,6 +3217,13 @@ object VoiceIntentRouter {
         onTaskResult: suspend (String) -> Unit = {},
         onTaskFailed: suspend (String) -> Unit = {}
     ) {
+        // Persona / lockdown / digest commands are handled locally, no LLM or agent needed.
+        ModeCommands.handle(input)?.let { reply ->
+            onTaskResult(reply)
+            if (speakOnCompletion) AnnouncementEngine.respond(reply)
+            return
+        }
+
         when (val intent = classify(input)) {
             is VoiceIntent.Chat -> onChat(intent.text)
             is VoiceIntent.Task -> {
@@ -11161,6 +11180,8 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.ModeCommands
+import com.jarvismini.core.announce.AnnouncementEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11250,6 +11271,14 @@ class VoiceTriggerManager(private val context: Context) {
             return
         }
         Log.d(TAG, "Transcript: $text")
+
+        // Persona / lockdown / digest commands are handled on-device: works offline,
+        // no round trip to the conversation server.
+        ModeCommands.handle(text)?.let { reply ->
+            AnnouncementEngine.respond(reply)
+            handler.post { onResultCb?.invoke(reply) }
+            return
+        }
 
         scope.launch(Dispatchers.IO) {
             try {
@@ -11341,6 +11370,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.announce.AnnouncementEngine
 
 /**
  * WakeWordService (Phase 2)
@@ -11443,6 +11473,9 @@ class WakeWordService : Service() {
     private fun listenForCommand() {
         stopListeningForCommand()
 
+        // Keep Jarvis from announcing over the user while they speak a command.
+        AnnouncementEngine.userInteracting = true
+
         val vtm = VoiceTriggerManager(applicationContext)
         voiceTriggerManager = vtm
         vtm.start(
@@ -11461,6 +11494,7 @@ class WakeWordService : Service() {
     }
 
     private fun stopListeningForCommand() {
+        AnnouncementEngine.userInteracting = false
         voiceTriggerManager?.destroy()
         voiceTriggerManager = null
     }
@@ -12197,6 +12231,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.jarvismini.automation.decision.ReplyDecision
 import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
 
 class JarvisNotificationService : NotificationListenerService() {
 
@@ -12214,6 +12250,12 @@ class JarvisNotificationService : NotificationListenerService() {
         if (messageText.isNullOrEmpty() || sender.isNullOrEmpty()) return
 
         Log.i(TAG, "Notification from $sender: $messageText")
+
+        // Log for the wake-up summary (sender only, never the message body).
+        // Group summary notifications repeat the same messages, so skip those.
+        if (notification.flags and Notification.FLAG_GROUP_SUMMARY == 0) {
+            EventLog.add(EventType.MESSAGE, "Message from $sender")
+        }
 
         val input = AutoReplyInput(
             messageText = messageText,
@@ -12693,11 +12735,27 @@ import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.LockdownManager
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
 
 class JarvisCallScreeningService : CallScreeningService() {
 
     override fun onScreenCall(details: Call.Details) {
-        val number = details.handle?.schemeSpecificPart ?: return
+        val number = details.handle?.schemeSpecificPart
+
+        // Lockdown: only whitelisted numbers ring. Unknown / hidden numbers are blocked.
+        if (LockdownManager.isEnabled()) {
+            if (LockdownManager.isAllowed(number)) {
+                allow(details)
+            } else {
+                EventLog.add(EventType.CALL_BLOCKED, "Call blocked in lockdown", number ?: "Hidden number")
+                blockQuietly(details)
+            }
+            return
+        }
+
+        if (number == null) return
 
         Log.d("JarvisCall", "Incoming call from $number")
 
@@ -12735,6 +12793,18 @@ class JarvisCallScreeningService : CallScreeningService() {
         respondToCall(
             details,
             CallResponse.Builder().build()
+        )
+    }
+
+    // Keeps the call log entry so blocked calls stay visible, only silences the notification.
+    private fun blockQuietly(details: Call.Details) {
+        respondToCall(
+            details,
+            CallResponse.Builder()
+                .setDisallowCall(true)
+                .setRejectCall(true)
+                .setSkipNotification(true)
+                .build()
         )
     }
 
@@ -13679,6 +13749,43 @@ enum class JarvisMode {
 }
 
 
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisPersona.kt =====
+package com.jarvismini.core
+
+/**
+ * Persona = HOW Jarvis behaves (style, how chatty it is).
+ * JarvisMode = WHAT situation the user is in (work, sleep, driving...).
+ * They are kept separate so adding a persona never breaks the exhaustive
+ * `when (JarvisMode)` blocks elsewhere in the repo.
+ */
+enum class JarvisPersona(val label: String, private val aliases: List<String>) {
+    JARVIS("Jarvis Mode", listOf("jarvis mode", "normal persona")),
+    SILENT_GUARDIAN("Silent Guardian", listOf("silent guardian", "guardian mode")),
+    COMBAT("Combat Mode", listOf("combat mode", "high alert")),
+    HUMOR("Humor Mode", listOf("humor mode", "humour mode", "joke mode")),
+    STUDY("Study Focus Mode", listOf("study focus", "study mode")),
+    CALM_WHISPER("Calm Whisper Mode", listOf("calm whisper", "whisper mode"));
+
+    companion object {
+        private const val KEY = "persona"
+
+        fun current(): JarvisPersona {
+            val saved = JarvisPrefs.getString(KEY, JARVIS.name) ?: JARVIS.name
+            return values().firstOrNull { it.name == saved } ?: JARVIS
+        }
+
+        fun set(persona: JarvisPersona) {
+            JarvisPrefs.putString(KEY, persona.name)
+        }
+
+        fun fromPhrase(text: String): JarvisPersona? {
+            val t = text.lowercase()
+            return values().firstOrNull { p -> p.aliases.any { t.contains(it) } }
+        }
+    }
+}
+
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisPrefs.kt =====
 package com.jarvismini.core
 
@@ -13713,6 +13820,13 @@ object JarvisPrefs {
     fun getString(key: String, def: String? = null): String? =
         if (isReady()) prefs.getString(key, def) else def
 
+    fun putBoolean(key: String, value: Boolean) {
+        if (isReady()) prefs.edit().putBoolean(key, value).apply()
+    }
+
+    fun getBoolean(key: String, def: Boolean = false): Boolean =
+        if (isReady()) prefs.getBoolean(key, def) else def
+
     fun remove(key: String) {
         if (isReady()) prefs.edit().remove(key).apply()
     }
@@ -13723,6 +13837,7 @@ object JarvisPrefs {
 package com.jarvismini.core
 
 import android.content.Context
+import com.jarvismini.core.announce.SleepSummary
 
 object JarvisState {
 
@@ -13739,11 +13854,104 @@ object JarvisState {
     }
 
     fun setMode(context: Context, mode: JarvisMode) {
+        val previous = currentMode
         currentMode = mode
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_MODE, mode.name)
             .apply()
+
+        if (previous != mode) {
+            if (mode == JarvisMode.SLEEP) {
+                SleepSummary.markSleepStart()
+            } else if (previous == JarvisMode.SLEEP) {
+                SleepSummary.deliverOnWake()
+            }
+        }
+    }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/LockdownManager.kt =====
+package com.jarvismini.core
+
+import com.jarvismini.core.announce.AnnouncePriority
+import com.jarvismini.core.announce.AnnouncementEngine
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
+
+/**
+ * Lockdown Mode: block every incoming call except a small whitelist.
+ * Enforced in JarvisCallScreeningService. Emergency calls are never routed
+ * through call screening by Android, so they are not affected.
+ */
+object LockdownManager {
+
+    const val MAX_WHITELIST = 4
+    private const val KEY_ENABLED = "lockdown_enabled"
+    private const val KEY_WHITELIST = "lockdown_whitelist"
+
+    fun isEnabled(): Boolean = JarvisPrefs.getBoolean(KEY_ENABLED, false)
+
+    /** [announce] = false when the caller speaks its own reply (voice command path). */
+    fun enable(announce: Boolean = true) {
+        JarvisPrefs.putBoolean(KEY_ENABLED, true)
+        EventLog.add(EventType.MODE, "Lockdown mode activated")
+        if (announce) {
+            AnnouncementEngine.announce(
+                "Lockdown mode activated. All calls are blocked except whitelisted contacts.",
+                AnnouncePriority.CRITICAL,
+                "lockdown_on"
+            )
+        }
+    }
+
+    fun disable(announce: Boolean = true) {
+        JarvisPrefs.putBoolean(KEY_ENABLED, false)
+        EventLog.add(EventType.MODE, "Lockdown mode deactivated")
+        if (announce) {
+            AnnouncementEngine.announce(
+                "Lockdown mode deactivated. Calls are back to normal.",
+                AnnouncePriority.CRITICAL,
+                "lockdown_off"
+            )
+        }
+    }
+
+    fun whitelist(): List<String> =
+        JarvisPrefs.getString(KEY_WHITELIST, "")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+
+    fun addToWhitelist(number: String): Boolean {
+        val n = normalize(number)
+        if (n.length < 7) return false
+        val list = whitelist().toMutableList()
+        if (list.contains(n)) return true
+        if (list.size >= MAX_WHITELIST) return false
+        list.add(n)
+        save(list)
+        return true
+    }
+
+    fun removeFromWhitelist(number: String): Boolean {
+        val n = normalize(number)
+        val list = whitelist().toMutableList()
+        val removed = list.remove(n)
+        if (removed) save(list)
+        return removed
+    }
+
+    /** Unknown / hidden numbers are never allowed while lockdown is on. */
+    fun isAllowed(number: String?): Boolean {
+        if (number.isNullOrBlank()) return false
+        val n = normalize(number)
+        if (n.length < 7) return false
+        return whitelist().contains(n)
+    }
+
+    private fun normalize(raw: String): String = raw.filter { it.isDigit() }.takeLast(10)
+
+    private fun save(list: List<String>) {
+        JarvisPrefs.putString(KEY_WHITELIST, list.joinToString(","))
     }
 }
 
@@ -13805,6 +14013,78 @@ object MediaController {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
         am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+    }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/ModeCommands.kt =====
+package com.jarvismini.core
+
+import com.jarvismini.core.announce.SleepSummary
+
+/**
+ * Voice / chat commands for personas, lockdown and the digest.
+ * Returns the reply to speak, or null if the text is not one of these commands
+ * (so the caller continues with normal chat / task routing).
+ */
+object ModeCommands {
+
+    private val QUESTION_STARTS = listOf("what ", "what's", "how ", "why ", "who ", "explain", "tell me about")
+    private val OFF_WORDS = setOf("off", "disable", "deactivate", "end", "stop", "cancel")
+    private val NUMBER = Regex("""\+?\d[\d\s-]{6,}""")
+
+    fun handle(input: String): String? {
+        val t = input.trim().lowercase()
+        if (t.isEmpty()) return null
+
+        if (t.contains("what did i miss") || t.contains("what i missed") || t.contains("any updates")) {
+            val s = SleepSummary.build(System.currentTimeMillis() - 12 * 60 * 60_000L)
+            return if (s != null) "In the last 12 hours: $s." else "Nothing new to report."
+        }
+
+        if (QUESTION_STARTS.any { t.startsWith(it) }) return null
+
+        if (t.contains("whitelist")) {
+            val num = NUMBER.find(t)?.value
+            return when {
+                t.contains("show") || t.contains("list") -> {
+                    val l = LockdownManager.whitelist()
+                    if (l.isEmpty()) "The whitelist is empty." else "Whitelisted numbers: ${l.joinToString(", ")}."
+                }
+                num == null -> "Say whitelist followed by a number to add it."
+                t.contains("remove") || t.contains("delete") ->
+                    if (LockdownManager.removeFromWhitelist(num)) "Removed from the whitelist."
+                    else "That number is not on the whitelist."
+                else ->
+                    if (LockdownManager.addToWhitelist(num)) "Added to the whitelist."
+                    else "I could not add that number. The whitelist holds up to ${LockdownManager.MAX_WHITELIST} numbers."
+            }
+        }
+
+        if (t.contains("lockdown")) {
+            val words = t.split(Regex("[^a-z]+")).toSet()
+            return if (words.any { it in OFF_WORDS }) {
+                LockdownManager.disable(announce = false)
+                "Lockdown mode deactivated. Calls are back to normal."
+            } else {
+                LockdownManager.enable(announce = false)
+                if (LockdownManager.whitelist().isEmpty())
+                    "Lockdown mode activated. All calls are blocked. The whitelist is empty."
+                else
+                    "Lockdown mode activated. All calls are blocked except whitelisted contacts."
+            }
+        }
+
+        val persona = JarvisPersona.fromPhrase(t) ?: return null
+        JarvisPersona.set(persona)
+        return when (persona) {
+            JarvisPersona.JARVIS -> "Jarvis mode."
+            JarvisPersona.SILENT_GUARDIAN -> "Silent Guardian engaged. I will only speak for critical events."
+            JarvisPersona.COMBAT -> "Combat mode. High alert."
+            JarvisPersona.HUMOR -> "Humor mode on."
+            JarvisPersona.STUDY -> "Study focus engaged. Only important alerts will interrupt you."
+            JarvisPersona.CALM_WHISPER -> "Calm whisper mode."
+        }
     }
 }
 
@@ -14220,6 +14500,264 @@ object WorkModeManager {
 }
 
 
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/announce/AnnouncementEngine.kt =====
+package com.jarvismini.core.announce
+
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
+import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.util.Log
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisPersona
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.JarvisState
+import java.util.Locale
+
+enum class AnnouncePriority { LOW, NORMAL, HIGH, CRITICAL }
+
+/**
+ * Single gate for everything Jarvis says WITHOUT being asked.
+ *
+ * Callers log the underlying event to EventLog first, then call announce().
+ * If the gate holds an announcement back, nothing is lost: the event is still
+ * in the log and shows up in the next digest ("what did I miss", wake-up
+ * summary). Replies to something the user just asked use respond() instead.
+ */
+object AnnouncementEngine {
+
+    private const val TAG = "Announce"
+    private const val KEY_ENABLED = "announce_enabled"
+    private const val DEDUPE_MS = 5 * 60_000L
+    private const val HOUR_MS = 60 * 60_000L
+    private const val MAX_NORMAL_PER_HOUR = 6
+
+    /** Optional app-level voice (e.g. ElevenLabs). Falls back to system TTS when null. */
+    var speaker: ((text: String, whisper: Boolean) -> Unit)? = null
+
+    /** Set true while the user is mid-command (wake word capture) so Jarvis does not talk over them. */
+    @Volatile
+    var userInteracting: Boolean = false
+
+    private var appContext: Context? = null
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private val pending = ArrayList<Pair<String, Boolean>>()
+    private val lastSpoken = HashMap<String, Long>()
+    private val recentNormal = ArrayDeque<Long>()
+    private var focusRequest: AudioFocusRequest? = null
+
+    fun init(context: Context) {
+        appContext = context.applicationContext
+    }
+
+    fun isEnabled(): Boolean = JarvisPrefs.getBoolean(KEY_ENABLED, true)
+
+    fun setEnabled(on: Boolean) = JarvisPrefs.putBoolean(KEY_ENABLED, on)
+
+    /** Unprompted speech. Returns true if it was spoken, false if held back. */
+    @Synchronized
+    fun announce(
+        text: String,
+        priority: AnnouncePriority = AnnouncePriority.NORMAL,
+        key: String = text
+    ): Boolean {
+        if (text.isBlank()) return false
+        val now = System.currentTimeMillis()
+        if (!allowed(priority, key, now)) {
+            Log.d(TAG, "held [$priority] $key")
+            return false
+        }
+        lastSpoken[key] = now
+        if (priority == AnnouncePriority.NORMAL) recentNormal.addLast(now)
+        speak(text)
+        return true
+    }
+
+    /** Reply to something the user just asked for. Skips quiet-mode rules, never talks over a call. */
+    @Synchronized
+    fun respond(text: String) {
+        if (text.isBlank() || inCall()) return
+        speak(text)
+    }
+
+    private fun allowed(p: AnnouncePriority, key: String, now: Long): Boolean {
+        if (inCall()) return false
+        if (!isEnabled() && p != AnnouncePriority.CRITICAL) return false
+        if (userInteracting && p != AnnouncePriority.CRITICAL) return false
+        if (p == AnnouncePriority.LOW) return false // digest only
+        if (p < minPriority()) return false
+
+        val last = lastSpoken[key]
+        if (last != null && now - last < DEDUPE_MS) return false
+
+        if (p == AnnouncePriority.NORMAL) {
+            while (recentNormal.isNotEmpty() && now - recentNormal.first() > HOUR_MS) {
+                recentNormal.removeFirst()
+            }
+            if (recentNormal.size >= MAX_NORMAL_PER_HOUR) return false
+        }
+        return true
+    }
+
+    private fun minPriority(): AnnouncePriority {
+        val byMode = when (JarvisState.currentMode) {
+            JarvisMode.SLEEP -> AnnouncePriority.CRITICAL
+            JarvisMode.FOCUS, JarvisMode.WORK -> AnnouncePriority.HIGH
+            else -> AnnouncePriority.NORMAL
+        }
+        val byPersona = when (JarvisPersona.current()) {
+            JarvisPersona.SILENT_GUARDIAN -> AnnouncePriority.CRITICAL
+            JarvisPersona.STUDY -> AnnouncePriority.HIGH
+            else -> AnnouncePriority.NORMAL
+        }
+        return if (byMode >= byPersona) byMode else byPersona
+    }
+
+    private fun whisper(): Boolean =
+        JarvisPersona.current() == JarvisPersona.CALM_WHISPER ||
+            JarvisState.currentMode == JarvisMode.SLEEP
+
+    private fun inCall(): Boolean {
+        val am = appContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        val m = am.mode
+        return m == AudioManager.MODE_IN_CALL ||
+            m == AudioManager.MODE_IN_COMMUNICATION ||
+            m == AudioManager.MODE_RINGTONE
+    }
+
+    private fun speak(text: String) {
+        val w = whisper()
+        val custom = speaker
+        if (custom != null) {
+            custom(text, w)
+        } else {
+            speakSystem(text, w)
+        }
+    }
+
+    private fun speakSystem(text: String, whisper: Boolean) {
+        val ctx = appContext ?: return
+        if (tts == null) {
+            tts = TextToSpeech(ctx) { status ->
+                synchronized(this) {
+                    ttsReady = status == TextToSpeech.SUCCESS
+                    if (ttsReady) {
+                        tts?.language = Locale.ENGLISH
+                        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                            override fun onStart(utteranceId: String?) {}
+                            override fun onDone(utteranceId: String?) { releaseFocus() }
+                            @Deprecated("Deprecated in Java")
+                            override fun onError(utteranceId: String?) { releaseFocus() }
+                        })
+                        pending.forEach { (t, w) -> play(t, w) }
+                    }
+                    pending.clear()
+                }
+            }
+        }
+        if (ttsReady) play(text, whisper) else pending.add(text to whisper)
+    }
+
+    private fun play(text: String, whisper: Boolean) {
+        val engine = tts ?: return
+        requestFocus()
+        val params = Bundle().apply {
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, if (whisper) 0.35f else 1.0f)
+        }
+        engine.setSpeechRate(if (whisper) 0.9f else 1.0f)
+        engine.setPitch(if (whisper) 0.9f else 1.0f)
+        engine.speak(text, TextToSpeech.QUEUE_ADD, params, "ann_${System.nanoTime()}")
+    }
+
+    private fun requestFocus() {
+        val am = appContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .build()
+            focusRequest = req
+            am.requestAudioFocus(req)
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        }
+    }
+
+    private fun releaseFocus() {
+        val am = appContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            focusRequest?.let { am.abandonAudioFocusRequest(it) }
+            focusRequest = null
+        } else {
+            @Suppress("DEPRECATION")
+            am.abandonAudioFocus(null)
+        }
+    }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/announce/SleepSummary.kt =====
+package com.jarvismini.core.announce
+
+import com.jarvismini.core.AssistantProfile
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
+
+/** Builds the "what happened while you were away" digest from EventLog. */
+object SleepSummary {
+
+    private const val KEY_SLEEP_START = "sleep_started_at"
+
+    private val PHRASES = listOf(
+        Triple(EventType.MESSAGE, "message received", "messages received"),
+        Triple(EventType.CALL_MISSED, "missed call", "missed calls"),
+        Triple(EventType.CALL_BLOCKED, "call blocked", "calls blocked"),
+        Triple(EventType.ALERT, "alert", "alerts"),
+        Triple(EventType.BATTERY, "battery event", "battery events"),
+        Triple(EventType.SERVICE, "background issue", "background issues")
+    )
+
+    fun markSleepStart() {
+        JarvisPrefs.putLong(KEY_SLEEP_START, System.currentTimeMillis())
+    }
+
+    /** Short spoken-style summary of events since [since], or null if nothing to report. */
+    fun build(since: Long): String? {
+        val events = EventLog.since(since)
+        if (events.isEmpty()) return null
+        val parts = ArrayList<String>()
+        for ((type, one, many) in PHRASES) {
+            val n = events.count { it.type == type }
+            if (n > 0) parts.add(if (n == 1) "1 $one" else "$n $many")
+        }
+        return if (parts.isEmpty()) null else parts.joinToString(", ")
+    }
+
+    /** Called when the user leaves SLEEP mode. Speaks the digest through the normal gate. */
+    fun deliverOnWake(): Boolean {
+        val since = JarvisPrefs.getLong(KEY_SLEEP_START, 0L)
+        if (since <= 0L) return false
+        JarvisPrefs.remove(KEY_SLEEP_START)
+        val summary = build(since)
+        val text = "Good morning ${AssistantProfile.addressUser()}. " +
+            if (summary != null) "While you were asleep: $summary."
+            else "Nothing needed your attention overnight."
+        return AnnouncementEngine.announce(text, AnnouncePriority.HIGH, "wake_digest")
+    }
+}
+
+
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/calendar/AppCalendarStore.kt =====
 package com.jarvismini.core.calendar
 
@@ -14283,6 +14821,67 @@ enum class EventStatus {
     COMPLETED,
     INCOMPLETE,
     RETRY_SCHEDULED
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/events/EventLog.kt =====
+package com.jarvismini.core.events
+
+import com.google.gson.Gson
+import com.jarvismini.core.JarvisPrefs
+
+object EventType {
+    const val MESSAGE = "MESSAGE"
+    const val CALL_BLOCKED = "CALL_BLOCKED"
+    const val CALL_MISSED = "CALL_MISSED"
+    const val BATTERY = "BATTERY"
+    const val SERVICE = "SERVICE"
+    const val ALERT = "ALERT"
+    const val MODE = "MODE"
+}
+
+data class JarvisEvent(
+    val ts: Long,
+    val type: String,
+    val title: String,
+    val detail: String
+)
+
+/**
+ * Small persistent ring buffer of things that happened while Jarvis was
+ * running in the background. Feeds the wake-up summary and "what did I miss".
+ * Stores sender names / titles only, never message bodies.
+ */
+object EventLog {
+
+    private const val KEY = "event_log_v1"
+    private const val MAX_EVENTS = 200
+    private val gson = Gson()
+
+    @Synchronized
+    fun add(type: String, title: String, detail: String = "") {
+        val list = load().toMutableList()
+        list.add(JarvisEvent(System.currentTimeMillis(), type, title, detail))
+        val trimmed = if (list.size > MAX_EVENTS) list.takeLast(MAX_EVENTS) else list
+        JarvisPrefs.putString(KEY, gson.toJson(trimmed))
+    }
+
+    @Synchronized
+    fun since(ts: Long): List<JarvisEvent> = load().filter { it.ts >= ts }
+
+    @Synchronized
+    fun clear() {
+        JarvisPrefs.remove(KEY)
+    }
+
+    private fun load(): List<JarvisEvent> {
+        return try {
+            val json = JarvisPrefs.getString(KEY) ?: return emptyList()
+            gson.fromJson(json, Array<JarvisEvent>::class.java)?.toList() ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
 
 
