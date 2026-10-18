@@ -13,6 +13,9 @@ object ModeCommands {
     private val OFF_WORDS = setOf("off", "disable", "deactivate", "end", "stop", "cancel")
     private val NUMBER = Regex("""\+?\d[\d\s-]{6,}""")
 
+    /** Extra command handler installed by the app (media, device control, LLM switch). */
+    @Volatile var extra: ((String) -> String?)? = null
+
     fun handle(input: String): String? {
         val t = input.trim().lowercase()
         if (t.isEmpty()) return null
@@ -57,6 +60,8 @@ object ModeCommands {
                     "Lockdown mode activated. All calls are blocked except whitelisted contacts."
             }
         }
+
+        extra?.invoke(t)?.let { return it }
 
         val persona = JarvisPersona.fromPhrase(t) ?: return null
         JarvisPersona.set(persona)
