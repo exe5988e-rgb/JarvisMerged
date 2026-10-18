@@ -46,6 +46,7 @@ fun JarvisChatScreen(
 
     // ================= TERMUX CLIENT =================
     val llamaClient = remember { TermuxLlamaClient(context) }
+    val openRouter = remember { com.jarvismini.llm.OpenRouterClient(context) }
 
     // ================= INIT =================
     LaunchedEffect(Unit) {
@@ -282,18 +283,25 @@ fun JarvisChatScreen(
                         scope.launch {
                             try {
                                 val reply = withContext(Dispatchers.IO) {
-                                    val result = llamaClient.chat(
-                                        query = userText,
-                                        timeoutSeconds = 150
-                                    )
-                                    if (result.success && result.response != null)
-                                        result.response
-                                    else
-                                        "❌ ${result.error ?: "Unknown error"}"
+                                    val orReply = if (openRouter.isConfigured())
+                                        openRouter.chat(userText).getOrNull() else null
+                                    if (orReply != null) {
+                                        orReply
+                                    } else {
+                                        val result = llamaClient.chat(
+                                            query = userText,
+                                            timeoutSeconds = 150
+                                        )
+                                        if (result.success && result.response != null)
+                                            result.response
+                                        else
+                                            "❌ ${result.error ?: "Unknown error"}"
+                                    }
                                 }
 
                                 messages.removeLastOrNull()
                                 messages.add(ChatMessage(reply, isUser = false))
+                                if (!reply.startsWith("❌")) AnnouncementEngine.respond(reply)
                                 input = ""
 
                             } catch (e: Exception) {
