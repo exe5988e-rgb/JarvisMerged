@@ -3025,6 +3025,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.ModeCommands
+import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.core.WorkModeManager
 import com.jarvismini.llm.TermuxLlamaClient
 import com.jarvismini.ui.components.GridBackground
@@ -3047,8 +3049,6 @@ fun JarvisChatScreen(
     val llamaClient = remember { TermuxLlamaClient(context) }
 
     // ================= INIT =================
-    LaunchedEffect(Unit) {
-        Log.d(TAG, "Initializing JarvisChatScreen")
 
 // ... FILE TRUNCATED ...
 
