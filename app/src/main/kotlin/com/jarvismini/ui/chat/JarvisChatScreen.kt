@@ -24,6 +24,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.ModeCommands
+import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.core.WorkModeManager
 import com.jarvismini.llm.TermuxLlamaClient
 import com.jarvismini.ui.components.GridBackground
@@ -263,6 +265,15 @@ fun JarvisChatScreen(
                     onClick = {
                         val userText = input.trim()
                         if (userText.isEmpty() || isProcessing) return@IconButton
+
+                        // Persona / lockdown / digest commands run on-device, no LLM server needed.
+                        ModeCommands.handle(userText)?.let { local ->
+                            messages.add(ChatMessage(userText, isUser = true))
+                            messages.add(ChatMessage(local, isUser = false))
+                            AnnouncementEngine.respond(local)
+                            input = ""
+                            return@IconButton
+                        }
 
                         isProcessing = true
                         messages.add(ChatMessage(userText, isUser = true))
