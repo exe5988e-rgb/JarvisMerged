@@ -40,6 +40,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── ChatActivity.kt
 │   │   │   │   │   │   ├── ChatAdapter.kt
 │   │   │   │   │   │   ├── CoreApp.kt
+│   │   │   │   │   │   ├── DeviceCommands.kt
 │   │   │   │   │   │   ├── MainActivity.kt
 │   │   │   │   │   │   ├── ProgressInitializer.kt
 │   │   │   │   │   │   ├── ProgressReminderService.kt
@@ -495,6 +496,8 @@ android {
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
 
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
@@ -533,8 +536,6 @@ android {
 
     <uses-feature android:name="android.hardware.telephony"  android:required="false" />
     <uses-feature android:name="android.hardware.camera"     android:required="false" />
-    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
 // ... FILE TRUNCATED ...
 
@@ -999,6 +1000,7 @@ class CoreApp : Application() {
         AnnouncementEngine.init(this)
         com.jarvismini.voice.ElevenSpeaker.install()
         SystemEventAnnouncer.install(this)
+        DeviceCommands.install(this)
 
         // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
         // process start, so no manual "run once and remove" step is needed.
@@ -1048,6 +1050,82 @@ class CoreApp : Application() {
                 FloatingTimerService.stop(context)
             }
         }
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/DeviceCommands.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini
+
+import android.content.Context
+import android.content.Intent
+import android.hardware.camera2.CameraManager
+import android.media.AudioManager
+import android.provider.Settings
+import com.jarvismini.core.JarvisMode
+import com.jarvismini.core.JarvisState
+import com.jarvismini.core.MediaController
+import com.jarvismini.core.ModeCommands
+
+/**
+ * On-device voice/chat commands for spec sections 6 (media), 7 (device control),
+ * 13 (switch LLM by voice) and sleep/wake. Works offline. Returns the reply to speak,
+ * or null when the text is not one of these commands.
+ *
+ * Android does not let a normal app flip Wi-Fi, Bluetooth, hotspot or battery saver
+ * directly, so for those Jarvis opens the right settings screen and says so.
+ */
+object DeviceCommands {
+
+    private lateinit var app: Context
+    private val OFF = setOf("off", "disable", "deactivate", "stop")
+
+    private val MODELS = linkedMapOf(
+        "deepseek" to "deepseek/deepseek-v4.1-flash-1017",
+        "haiku" to "anthropic/claude-haiku-5.5",
+        "claude" to "anthropic/claude-haiku-5.5",
+        "nemotron" to "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia" to "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "gemini" to "google/gemini-4-argon",
+        "gpt" to "openai/gpt-6.1-sol-pro",
+        "openai" to "openai/gpt-6.1-sol-pro"
+    )
+
+    fun install(context: Context) {
+        app = context.applicationContext
+        ModeCommands.extra = { text -> try { handle(text) } catch (e: Exception) { null } }
+    }
+
+    private fun handle(t: String): String? {
+        val words = t.split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
+        val off = words.any { it in OFF }
+
+        // ---- LLM switch ----
+        if (t.startsWith("switch to ") || t.startsWith("use the ") || t.startsWith("change model")) {
+            val key = MODELS.keys.firstOrNull { t.contains(it) } ?: return "I do not know that model. Try deepseek, haiku, nemotron, gemini or gpt."
+            return switchModel(key)
+        }
+
+// ... FILE TRUNCATED ...
+
+        val pm = app.packageManager
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val hits = pm.queryIntentActivities(intent, 0)
+            .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
+        val match = hits.firstOrNull { it.first.lowercase() == name }
+            ?: hits.firstOrNull { it.first.lowercase().startsWith(name) }
+            ?: hits.firstOrNull { it.first.lowercase().contains(name) }
+            ?: return null // not an installed app: let the agent handle it
+        val launch = pm.getLaunchIntentForPackage(match.second) ?: return null
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        app.startActivity(launch)
+        return "Opening ${match.first}."
+    }
+
+    private fun openSettings(action: String, data: String? = null) {
+        val i = Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (data != null) i.data = android.net.Uri.parse(data)
+        app.startActivity(i)
     }
 }
 
@@ -7179,6 +7257,9 @@ object ModeCommands {
     private val OFF_WORDS = setOf("off", "disable", "deactivate", "end", "stop", "cancel")
     private val NUMBER = Regex("""\+?\d[\d\s-]{6,}""")
 
+    /** Extra command handler installed by the app (media, device control, LLM switch). */
+    @Volatile var extra: ((String) -> String?)? = null
+
     fun handle(input: String): String? {
         val t = input.trim().lowercase()
         if (t.isEmpty()) return null
@@ -7211,19 +7292,16 @@ object ModeCommands {
         }
 
         if (t.contains("lockdown")) {
-            val words = t.split(Regex("[^a-z]+")).toSet()
-            return if (words.any { it in OFF_WORDS }) {
-                LockdownManager.disable(announce = false)
 
 // ... FILE TRUNCATED ...
 
-                LockdownManager.enable(announce = false)
-                if (LockdownManager.whitelist().isEmpty())
                     "Lockdown mode activated. All calls are blocked. The whitelist is empty."
                 else
                     "Lockdown mode activated. All calls are blocked except whitelisted contacts."
             }
         }
+
+        extra?.invoke(t)?.let { return it }
 
         val persona = JarvisPersona.fromPhrase(t) ?: return null
         JarvisPersona.set(persona)
