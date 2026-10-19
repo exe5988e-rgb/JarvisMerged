@@ -113,6 +113,46 @@ class OpenRouterClient(context: Context) {
         Result.failure(RuntimeException(lastErr))
     }
 
+    /** One-shot completion with its own system prompt and no chat history (used for proactive lines). */
+    suspend fun complete(system: String, user: String): Result<String> = withContext(Dispatchers.IO) {
+        val ks = keys()
+        if (ks.isEmpty()) return@withContext Result.failure(IllegalStateException("No OpenRouter key configured"))
+        val msgs = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", system))
+            .put(JSONObject().put("role", "user").put("content", user))
+        var lastErr = "unknown error"
+        for (model in models()) {
+            for (key in ks) {
+                try {
+                    val body = JSONObject().put("model", model).put("messages", msgs)
+                        .put("max_tokens", 1200).put("temperature", 0.8)
+                        .toString().toRequestBody("application/json".toMediaType())
+                    val req = Request.Builder()
+                        .url("https://openrouter.ai/api/v1/chat/completions")
+                        .header("Authorization", "Bearer $key").header("X-Title", "Jarvis")
+                        .post(body).build()
+                    http.newCall(req).execute().use { resp ->
+                        val text = resp.body?.string().orEmpty()
+                        if (resp.isSuccessful) {
+                            val content = JSONObject(text).optJSONArray("choices")
+                                ?.optJSONObject(0)?.optJSONObject("message")
+                                ?.optString("content", "")?.trim().orEmpty()
+                            if (content.isNotEmpty() && content != "null") return@withContext Result.success(content)
+                            lastErr = "$model returned an empty reply"
+                        } else {
+                            lastErr = "$model HTTP ${resp.code}"
+                            if (resp.code !in listOf(401, 402, 429)) return@use
+                        }
+                    }
+                } catch (e: Exception) {
+                    lastErr = "$model ${e.javaClass.simpleName}: ${e.message}"
+                    break
+                }
+            }
+        }
+        Result.failure(RuntimeException(lastErr))
+    }
+
     companion object {
         private val DEFAULT_MODELS = listOf("deepseek/deepseek-v4.1-flash-1017")
     }

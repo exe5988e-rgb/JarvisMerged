@@ -43,6 +43,9 @@ object DeviceCommands {
         val words = t.split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
         val off = words.any { it in OFF }
 
+        // ---- answer to something Jarvis just asked ----
+        com.jarvismini.proactive.ProactiveEngine.answer(t)?.let { return it }
+
         // ---- LLM switch ----
         if (t.startsWith("switch to ") || t.startsWith("use the ") || t.startsWith("change model")) {
             val key = MODELS.keys.firstOrNull { t.contains(it) } ?: return "I do not know that model. Try deepseek, haiku, nemotron, gemini or gpt."

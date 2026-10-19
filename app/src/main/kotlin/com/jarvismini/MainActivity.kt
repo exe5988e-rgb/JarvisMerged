@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
         requestOverlayPermissionIfNeeded()
         requestMicPermissionIfNeeded()
         startWakeWordServiceIfPermitted()
+        com.jarvismini.proactive.ProactiveService.start(this)
 
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)

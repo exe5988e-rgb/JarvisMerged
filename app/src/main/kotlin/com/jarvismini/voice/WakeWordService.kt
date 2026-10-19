@@ -39,6 +39,9 @@ class WakeWordService : Service() {
         // and copies asset-relative keyword paths internally.
         private const val KEYWORD_ASSET_PATH = "porcupine_jarvis.ppn"
         private const val SENSITIVITY = 0.6f
+
+        /** Lets the proactive engine open the mic right after Jarvis asks a question. Null when the service is not running. */
+        @Volatile var listenNowHook: (() -> Unit)? = null
     }
 
     private var porcupineManager: PorcupineManager? = null
@@ -47,6 +50,12 @@ class WakeWordService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        listenNowHook = {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try { porcupineManager?.stop() } catch (_: Exception) {}
+                listenForCommand()
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -56,6 +65,7 @@ class WakeWordService : Service() {
     }
 
     override fun onDestroy() {
+        listenNowHook = null
         stopListeningForCommand()
         stopPorcupine()
         super.onDestroy()
