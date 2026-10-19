@@ -27,6 +27,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val REQUEST_CODE_OVERLAY    = 1001
         private const val REQUEST_CODE_MIC        = 1002
+        private const val REQUEST_CODE_LOCATION   = 1003
+        private const val REQUEST_CODE_LOCATION_BG = 1004
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +43,9 @@ class MainActivity : ComponentActivity() {
 
         requestOverlayPermissionIfNeeded()
         requestMicPermissionIfNeeded()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            requestLocationPermissionIfNeeded()
+        }
         startWakeWordServiceIfPermitted()
         com.jarvismini.proactive.ProactiveService.start(this)
 
@@ -55,6 +60,35 @@ class MainActivity : ComponentActivity() {
                 Surface {
                     MainScreen()
                 }
+            }
+        }
+    }
+
+    /**
+     * Location is only used to answer "where are you" from AI-chat contacts. Foreground first,
+     * then "allow all the time" (needed because replies happen while the app is in the background).
+     * The background step is asked once so it does not nag on every launch.
+     */
+    private fun requestLocationPermissionIfNeeded() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                REQUEST_CODE_LOCATION
+            )
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            val prefs = getSharedPreferences("jarvis_perm_prompts", MODE_PRIVATE)
+            if (!prefs.getBoolean("bg_location_asked", false)) {
+                prefs.edit().putBoolean("bg_location_asked", true).apply()
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                    REQUEST_CODE_LOCATION_BG
+                )
             }
         }
     }
@@ -137,10 +171,12 @@ class MainActivity : ComponentActivity() {
                     // Wake word (Phase 2): start immediately now that mic
                     // permission exists, instead of waiting for next launch.
                     startWakeWordServiceIfPermitted()
+                    requestLocationPermissionIfNeeded()
                 } else {
                     Toast.makeText(this, "Microphone permission denied. Voice activation unavailable.", Toast.LENGTH_LONG).show()
                 }
             }
+            REQUEST_CODE_LOCATION -> requestLocationPermissionIfNeeded()
             NotificationPermissionHelper.REQUEST_CODE_POST_NOTIFICATIONS -> {
                 if (NotificationPermissionHelper.isPermissionGranted(this)) {
                     Toast.makeText(this, "Notification permission granted!", Toast.LENGTH_SHORT).show()

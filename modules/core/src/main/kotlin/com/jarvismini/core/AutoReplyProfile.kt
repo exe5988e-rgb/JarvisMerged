@@ -12,6 +12,12 @@ object AutoReplyProfile {
     private const val KEY_AI_CONTACTS = "autoreply_ai_contacts"
     const val MAX_AI_CONTACTS = 8
 
+    private const val KEY_SHARE_LOCATION = "autoreply_share_location"
+
+    /** Whether AI-chat contacts may be sent the owner's location when they ask. On by default. */
+    fun shareLocation(): Boolean = JarvisPrefs.getBoolean(KEY_SHARE_LOCATION, true)
+    fun setShareLocation(on: Boolean) = JarvisPrefs.putBoolean(KEY_SHARE_LOCATION, on)
+
     fun status(): String = JarvisPrefs.getString(KEY_STATUS) ?: ""
 
     fun setStatus(text: String) {

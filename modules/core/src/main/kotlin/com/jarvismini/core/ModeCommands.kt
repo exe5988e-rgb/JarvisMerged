@@ -60,6 +60,15 @@ object ModeCommands {
                 return "Status set. Chat contacts will be told: $v."
             }
         }
+        if (t.startsWith("stop sharing my location") || t.startsWith("stop sharing location") ||
+            (t.contains("location sharing") && t.split(Regex("[^a-z]+")).any { it in OFF_WORDS })) {
+            AutoReplyProfile.setShareLocation(false)
+            return "Location sharing with chat contacts is off."
+        }
+        if (t.contains("location sharing") && t.split(Regex("[^a-z]+")).any { it in setOf("on", "enable", "allow", "start") }) {
+            AutoReplyProfile.setShareLocation(true)
+            return "Chat contacts can now get your location when they ask."
+        }
         if (t == "clear status" || t == "clear my status") {
             AutoReplyProfile.setStatus("")
             return "Status cleared."

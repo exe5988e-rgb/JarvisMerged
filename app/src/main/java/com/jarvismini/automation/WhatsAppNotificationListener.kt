@@ -130,7 +130,15 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         ) {
             // Chat-enabled contact: AI-written reply, canned reply if the AI is unavailable.
             aiScope.launch {
-                val reply = try {
+                val locationReply = if (AutoReplyProfile.shareLocation() && LocationHelper.isLocationRequest(messageText)) {
+                    try {
+                        LocationHelper.shareText(applicationContext)?.let { com.jarvismini.core.AssistantVoice.withTag(it) }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Location share failed: ${e.message}")
+                        null
+                    }
+                } else null
+                val reply = locationReply ?: try {
                     AiChatReplier.reply(applicationContext, chatId, title ?: chatId, messageText)
                 } catch (e: Exception) {
                     Log.w(TAG, "AI reply failed: ${e.message}")
