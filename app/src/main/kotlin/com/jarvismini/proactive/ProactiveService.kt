@@ -38,6 +38,7 @@ class ProactiveService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIF_ID, notification())
         ProactiveEngine.install(this)
+        com.jarvismini.heal.SelfHealWatchdog.install(this)
         return START_STICKY
     }
 

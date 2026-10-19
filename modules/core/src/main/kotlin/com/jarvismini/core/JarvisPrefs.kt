@@ -41,4 +41,20 @@ object JarvisPrefs {
     fun remove(key: String) {
         if (isReady()) prefs.edit().remove(key).apply()
     }
+
+    fun putInt(key: String, value: Int) {
+        if (isReady()) prefs.edit().putInt(key, value).apply()
+    }
+
+    fun incrementInt(key: String): Int {
+        if (!isReady()) return 0
+        val v = prefs.getInt(key, 0) + 1
+        prefs.edit().putInt(key, v).apply()
+        return v
+    }
+
+    fun getInt(key: String, def: Int = 0): Int = if (isReady()) prefs.getInt(key, def) else def
+
+    fun allKeys(prefix: String): List<String> =
+        if (isReady()) prefs.all.keys.filter { it.startsWith(prefix) } else emptyList()
 }

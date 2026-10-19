@@ -59,6 +59,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             if (announcedKeys.putIfAbsent(sbn.key + sbn.postTime, true) == null) {
                 if (announcedKeys.size > 200) announcedKeys.clear()
                 EventLog.add(EventType.MESSAGE, "Message from $title")
+                com.jarvismini.core.learn.HabitMemory.recordMessageActivity()
                 val urgent = URGENT_REGEX.containsMatchIn(body)
                 AnnouncementEngine.announce(
                     (if (urgent) "Urgent message from $title, " else "New message from $title, ") +

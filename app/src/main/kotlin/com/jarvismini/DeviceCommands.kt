@@ -157,6 +157,7 @@ object DeviceCommands {
         val launch = pm.getLaunchIntentForPackage(match.second) ?: return null
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         app.startActivity(launch)
+        com.jarvismini.core.learn.HabitMemory.recordAppOpen(match.first)
         return "Opening ${match.first}."
     }
 

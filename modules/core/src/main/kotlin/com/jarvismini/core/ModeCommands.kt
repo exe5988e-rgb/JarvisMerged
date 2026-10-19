@@ -1,6 +1,7 @@
 package com.jarvismini.core
 
 import com.jarvismini.core.announce.SleepSummary
+import com.jarvismini.core.learn.HabitMemory
 
 /**
  * Voice / chat commands for personas, lockdown and the digest.
@@ -19,6 +20,22 @@ object ModeCommands {
     fun handle(input: String): String? {
         val t = input.trim().lowercase()
         if (t.isEmpty()) return null
+        HabitMemory.recordFirstActivityOfDay()
+        HabitMemory.recordCommand(t)
+
+        if (t.contains("what have you learned") || t.contains("what do you know about me") || t.contains("my habits") || t.contains("my routine")) {
+            val wake = HabitMemory.usualWakeHour()
+            val topCmd = HabitMemory.topCommands(3).filter { it.second >= 2 }
+            val topApp = HabitMemory.topApps(3).filter { it.second >= 2 }
+            val msgHour = HabitMemory.busiestMessageHour()
+            val parts = ArrayList<String>()
+            if (wake != null) parts.add("you are usually first active around ${if (wake == 0) 12 else if (wake > 12) wake - 12 else wake}${if (wake < 12) " a.m." else " p.m."}")
+            if (topApp.isNotEmpty()) parts.add("you open ${topApp.joinToString(" and ") { it.first }} most often")
+            if (topCmd.isNotEmpty()) parts.add("your most used command is \"${topCmd.first().first}\"")
+            if (msgHour != null) parts.add("messages tend to arrive around ${if (msgHour == 0) 12 else if (msgHour > 12) msgHour - 12 else msgHour}${if (msgHour < 12) " a.m." else " p.m."}")
+            return if (parts.isEmpty()) "I am still learning your patterns. Ask me again in a few days."
+                   else "So far: " + parts.joinToString(", ") + "."
+        }
 
         if (t.contains("what did i miss") || t.contains("what i missed") || t.contains("any updates")) {
             val s = SleepSummary.build(System.currentTimeMillis() - 12 * 60 * 60_000L)
