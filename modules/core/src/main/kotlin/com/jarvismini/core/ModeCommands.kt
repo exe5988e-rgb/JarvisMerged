@@ -47,6 +47,40 @@ object ModeCommands {
         return "Voice set to ${voiceLabel(mode)}."
     }
 
+    private val AI_ADD = Regex("""^(?:ai chat add|let) (.+?)(?: chat with (?:ai|me))?$""")
+    private val AI_REMOVE = Regex("""^(?:ai chat remove|stop ai chat with) (.+)$""")
+
+    /** Auto-reply status note and the contacts allowed to chat with the AI while unavailable. */
+    private fun autoReplyCommand(t: String): String? {
+        for (p in listOf("set status to ", "set status ", "my status is ", "status is ")) {
+            if (t.startsWith(p)) {
+                val v = t.removePrefix(p).trim()
+                if (v.isEmpty()) return "Tell me the status after that."
+                AutoReplyProfile.setStatus(v)
+                return "Status set. Chat contacts will be told: $v."
+            }
+        }
+        if (t == "clear status" || t == "clear my status") {
+            AutoReplyProfile.setStatus("")
+            return "Status cleared."
+        }
+        if (t == "ai chat list" || t == "who can chat with ai") {
+            val l = AutoReplyProfile.aiContacts()
+            return if (l.isEmpty()) "No contacts are set to chat with AI." else "AI chat contacts: ${l.joinToString(", ")}."
+        }
+        if (t.startsWith("let ") && !t.endsWith(" chat with ai") && !t.endsWith(" chat with me")) return null
+        AI_REMOVE.find(t)?.let { m ->
+            val n = m.groupValues[1].trim()
+            return if (AutoReplyProfile.removeAiContact(n)) "$n removed from AI chat." else "$n was not on the AI chat list."
+        }
+        AI_ADD.find(t)?.let { m ->
+            val n = m.groupValues[1].trim()
+            return if (AutoReplyProfile.addAiContact(n)) "$n can now chat with AI while you are unavailable."
+            else "I could not add that. The AI chat list holds up to ${AutoReplyProfile.MAX_AI_CONTACTS} contacts."
+        }
+        return null
+    }
+
     fun handle(input: String): String? {
         val t = input.trim().lowercase()
         if (t.isEmpty()) return null
@@ -73,6 +107,7 @@ object ModeCommands {
         }
 
         voiceEngineCommand(t)?.let { return it }
+        autoReplyCommand(t)?.let { return it }
 
         if (QUESTION_STARTS.any { t.startsWith(it) }) return null
 

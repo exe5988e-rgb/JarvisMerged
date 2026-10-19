@@ -16,6 +16,11 @@ import com.jarvismini.core.announce.AnnouncePriority
 import com.jarvismini.core.announce.AnnouncementEngine
 import com.jarvismini.core.events.EventLog
 import com.jarvismini.core.events.EventType
+import com.jarvismini.core.AutoReplyProfile
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 class WhatsAppNotificationListener : NotificationListenerService() {
@@ -26,6 +31,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
 
         private const val NORMAL_COOLDOWN_MS = 30_000L
         private const val URGENT_COOLDOWN_MS = 5 * 60 * 1000L
+        private const val AI_COOLDOWN_MS = 5_000L
 
         private val URGENT_REGEX = Regex(
             "\\b(urgent|emergency|asap|important|immediately|call\\s*me|call\\s*now)\\b",
@@ -37,6 +43,9 @@ class WhatsAppNotificationListener : NotificationListenerService() {
     private val handledKeys = ConcurrentHashMap<String, Boolean>()
     private val lastReplyTime = ConcurrentHashMap<String, Long>()
     private val lastUrgentReplyTime = ConcurrentHashMap<String, Long>()
+    private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val aiSeen = ConcurrentHashMap<String, Boolean>()
+    private val lastSentText = ConcurrentHashMap<String, String>()
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
@@ -76,7 +85,13 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             ?.firstOrNull { it.remoteInputs != null }
             ?: return
 
-        if (handledKeys.putIfAbsent(sbn.key, true) != null) return
+        val aiContact = AutoReplyProfile.isAiContact(title ?: convo)
+        if (aiContact) {
+            if (aiSeen.putIfAbsent(sbn.key + sbn.postTime, true) != null) return
+            if (aiSeen.size > 200) aiSeen.clear()
+        } else {
+            if (handledKeys.putIfAbsent(sbn.key, true) != null) return
+        }
 
         val chatId = convo ?: title ?: return
         val now = System.currentTimeMillis()
@@ -94,7 +109,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             lastUrgentReplyTime[chatId] = now
         } else {
             val last = lastReplyTime[chatId] ?: 0L
-            if (now - last < NORMAL_COOLDOWN_MS) return
+            if (now - last < (if (aiContact) AI_COOLDOWN_MS else NORMAL_COOLDOWN_MS)) return
             lastReplyTime[chatId] = now
         }
 
@@ -107,6 +122,23 @@ class WhatsAppNotificationListener : NotificationListenerService() {
 
         if (decision !is ReplyDecision.AutoReply) {
             Log.d(TAG, "Jarvis mode blocks auto-reply")
+            return
+        }
+
+        if (aiContact && messageText.isNotBlank() &&
+            lastSentText[chatId]?.let { messageText.contains(it.take(30)) } != true
+        ) {
+            // Chat-enabled contact: AI-written reply, canned reply if the AI is unavailable.
+            aiScope.launch {
+                val reply = try {
+                    AiChatReplier.reply(applicationContext, chatId, title ?: chatId, messageText)
+                } catch (e: Exception) {
+                    Log.w(TAG, "AI reply failed: ${e.message}")
+                    null
+                } ?: decision.message
+                lastSentText[chatId] = reply
+                sendReply(replyAction, reply)
+            }
             return
         }
 

@@ -27,12 +27,12 @@ object AutoReplyOrchestrator {
 
             JarvisMode.SLEEP ->
                 ReplyDecision.AutoReply(
-                    message = AssistantVoice.unavailable("sleeping")
+                    message = AssistantVoice.sleeping()
                 )
 
             JarvisMode.FOCUS ->
                 ReplyDecision.AutoReply(
-                    message = AssistantVoice.unavailable("focus mode")
+                    message = AssistantVoice.focus()
                 )
 
             JarvisMode.NORMAL ->
