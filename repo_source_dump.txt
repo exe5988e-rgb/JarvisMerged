@@ -61,6 +61,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── WorkModeService.kt
 │   │   │   │   │   │   ├── executor
 │   │   │   │   │   │   │   ├── UnifiedExecutor.kt
+│   │   │   │   │   │   ├── heal
+│   │   │   │   │   │   │   ├── SelfHealWatchdog.kt
 │   │   │   │   │   │   ├── llm
 │   │   │   │   │   │   │   ├── LlmBackend.kt
 │   │   │   │   │   │   │   ├── OpenRouterClient.kt
@@ -278,6 +280,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   │   │   ├── EventStatus.kt
 │   │   │   │   │   │   │   │   ├── events
 │   │   │   │   │   │   │   │   │   ├── EventLog.kt
+│   │   │   │   │   │   │   │   ├── learn
+│   │   │   │   │   │   │   │   │   ├── HabitMemory.kt
 │   │   │   │   │   │   │   │   ├── notifications
 │   │   │   │   │   │   │   │   │   ├── ProgressNotifier.kt
 │   │   │   │   │   │   │   │   │   ├── ProgressReminderReceiver.kt
@@ -1112,7 +1116,6 @@ object DeviceCommands {
 
 // ... FILE TRUNCATED ...
 
-        val pm = app.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val hits = pm.queryIntentActivities(intent, 0)
             .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
@@ -1123,6 +1126,7 @@ object DeviceCommands {
         val launch = pm.getLaunchIntentForPackage(match.second) ?: return null
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         app.startActivity(launch)
+        com.jarvismini.core.learn.HabitMemory.recordAppOpen(match.first)
         return "Opening ${match.first}."
     }
 
@@ -2257,6 +2261,82 @@ class FileBasedExecutor(private val context: Context) : UnifiedExecutor {
     }
 }
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/heal/SelfHealWatchdog.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.heal
+
+import android.app.ActivityManager
+import android.content.Context
+import android.os.Debug
+import android.os.Process
+import com.jarvismini.core.JarvisPrefs
+import com.jarvismini.core.announce.AnnouncePriority
+import com.jarvismini.core.announce.AnnouncementEngine
+import com.jarvismini.core.events.EventLog
+import com.jarvismini.core.events.EventType
+import com.jarvismini.proactive.ProactiveService
+import com.jarvismini.voice.WakeWordService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/**
+ * Spec section 8: Self-Healing System.
+ * Runs inside ProactiveService (already a foreground service, so this costs no
+ * extra process). Every 2 minutes it:
+ *  - checks the wake word service is actually running and restarts it if not
+ *  - checks the proactive/announcement pipeline can still reach the voice path
+ *  - logs memory (RAM) pressure so a crash-prone period shows up in the digest
+ * Crash recovery itself (catching the actual crash and restarting the process)
+ * is handled by SystemEventAnnouncer's uncaught-exception hook, which already
+ * exists — this watchdog covers the case where a *service* silently dies
+ * without crashing the whole app.
+ */
+object SelfHealWatchdog {
+
+    private const val CHECK_MS = 2 * 60_000L
+    private const val KEY_LAST_RESTART = "heal_last_wakeword_restart"
+    private const val MIN_RESTART_GAP_MS = 5 * 60_000L
+
+    private var installed = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    fun install(context: Context) {
+        if (installed) return
+        installed = true
+        val app = context.applicationContext
+        scope.launch {
+            while (true) {
+                delay(CHECK_MS)
+                try { check(app) } catch (_: Exception) {}
+            }
+        }
+
+// ... FILE TRUNCATED ...
+
+        } catch (e: Exception) {
+            EventLog.add(EventType.SERVICE, "Wake word restart failed", e.message ?: "")
+        }
+    }
+
+    private fun checkMemory(app: Context) {
+        val am = app.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return
+        val info = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(info)
+        if (info.lowMemory) {
+            EventLog.add(EventType.SERVICE, "Low system memory", "avail=${info.availMem / (1024 * 1024)}MB")
+        }
+    }
+
+    private fun isServiceRunning(context: Context, className: String): Boolean {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return false
+        @Suppress("DEPRECATION")
+        return am.getRunningServices(Int.MAX_VALUE).any { it.service.className == className }
+    }
+}
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/llm/LlmBackend.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.llm
@@ -2603,6 +2683,7 @@ class ProactiveService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIF_ID, notification())
         ProactiveEngine.install(this)
+        com.jarvismini.heal.SelfHealWatchdog.install(this)
         return START_STICKY
     }
 
@@ -2612,7 +2693,6 @@ class ProactiveService : Service() {
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Jarvis")
             .setContentText("Standing by")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
 
 // ... FILE TRUNCATED ...
 
@@ -7148,29 +7228,35 @@ object JarvisPrefs {
     fun remove(key: String) {
         if (isReady()) prefs.edit().remove(key).apply()
     }
-}
+
+    fun putInt(key: String, value: Int) {
+        if (isReady()) prefs.edit().putInt(key, value).apply()
+    }
+
+    fun incrementInt(key: String): Int {
+        if (!isReady()) return 0
 
 // ... FILE TRUNCATED ...
-
-        if (isReady()) prefs.getLong(key, def) else def
-
-    fun putString(key: String, value: String) {
-        if (isReady()) prefs.edit().putString(key, value).apply()
-    }
-
-    fun getString(key: String, def: String? = null): String? =
-        if (isReady()) prefs.getString(key, def) else def
-
-    fun putBoolean(key: String, value: Boolean) {
-        if (isReady()) prefs.edit().putBoolean(key, value).apply()
-    }
-
-    fun getBoolean(key: String, def: Boolean = false): Boolean =
-        if (isReady()) prefs.getBoolean(key, def) else def
 
     fun remove(key: String) {
         if (isReady()) prefs.edit().remove(key).apply()
     }
+
+    fun putInt(key: String, value: Int) {
+        if (isReady()) prefs.edit().putInt(key, value).apply()
+    }
+
+    fun incrementInt(key: String): Int {
+        if (!isReady()) return 0
+        val v = prefs.getInt(key, 0) + 1
+        prefs.edit().putInt(key, v).apply()
+        return v
+    }
+
+    fun getInt(key: String, def: Int = 0): Int = if (isReady()) prefs.getInt(key, def) else def
+
+    fun allKeys(prefix: String): List<String> =
+        if (isReady()) prefs.all.keys.filter { it.startsWith(prefix) } else emptyList()
 }
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/JarvisState.kt =====
@@ -7401,6 +7487,7 @@ object MediaController {
 package com.jarvismini.core
 
 import com.jarvismini.core.announce.SleepSummary
+import com.jarvismini.core.learn.HabitMemory
 
 /**
  * Voice / chat commands for personas, lockdown and the digest.
@@ -7419,6 +7506,22 @@ object ModeCommands {
     fun handle(input: String): String? {
         val t = input.trim().lowercase()
         if (t.isEmpty()) return null
+        HabitMemory.recordFirstActivityOfDay()
+        HabitMemory.recordCommand(t)
+
+        if (t.contains("what have you learned") || t.contains("what do you know about me") || t.contains("my habits") || t.contains("my routine")) {
+            val wake = HabitMemory.usualWakeHour()
+            val topCmd = HabitMemory.topCommands(3).filter { it.second >= 2 }
+            val topApp = HabitMemory.topApps(3).filter { it.second >= 2 }
+            val msgHour = HabitMemory.busiestMessageHour()
+            val parts = ArrayList<String>()
+            if (wake != null) parts.add("you are usually first active around ${if (wake == 0) 12 else if (wake > 12) wake - 12 else wake}${if (wake < 12) " a.m." else " p.m."}")
+            if (topApp.isNotEmpty()) parts.add("you open ${topApp.joinToString(" and ") { it.first }} most often")
+            if (topCmd.isNotEmpty()) parts.add("your most used command is \"${topCmd.first().first}\"")
+            if (msgHour != null) parts.add("messages tend to arrive around ${if (msgHour == 0) 12 else if (msgHour > 12) msgHour - 12 else msgHour}${if (msgHour < 12) " a.m." else " p.m."}")
+            return if (parts.isEmpty()) "I am still learning your patterns. Ask me again in a few days."
+                   else "So far: " + parts.joinToString(", ") + "."
+        }
 
         if (t.contains("what did i miss") || t.contains("what i missed") || t.contains("any updates")) {
             val s = SleepSummary.build(System.currentTimeMillis() - 12 * 60 * 60_000L)
@@ -7431,23 +7534,6 @@ object ModeCommands {
             val num = NUMBER.find(t)?.value
             // "whitelist" itself contains "list", so strip it before looking for show/list.
             val rest = t.replace("whitelist", " ")
-            val wantsShow = rest.contains("show") || rest.contains("list") || rest.contains("read")
-            return when {
-                num == null && wantsShow -> {
-                    val l = LockdownManager.whitelist()
-                    if (l.isEmpty()) "The whitelist is empty." else "Whitelisted numbers: ${l.joinToString(", ")}."
-                }
-                num == null -> "Say whitelist followed by a number to add it."
-                rest.contains("remove") || rest.contains("delete") ->
-                    if (LockdownManager.removeFromWhitelist(num)) "Removed from the whitelist."
-                    else "That number is not on the whitelist."
-                else ->
-                    if (LockdownManager.addToWhitelist(num)) "Added to the whitelist."
-                    else "I could not add that number. The whitelist holds up to ${LockdownManager.MAX_WHITELIST} numbers."
-            }
-        }
-
-        if (t.contains("lockdown")) {
 
 // ... FILE TRUNCATED ...
 
@@ -8012,6 +8098,82 @@ object EventLog {
             emptyList()
         }
     }
+}
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/learn/HabitMemory.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.core.learn
+
+import com.jarvismini.core.JarvisPrefs
+import java.util.Calendar
+
+/**
+ * Spec section 3: Learning + Memory.
+ * Lightweight on-device habit tracker — counts, not a model. Every count lives in
+ * JarvisPrefs (SharedPreferences), so it survives restarts and needs no server.
+ *
+ * Tracks:
+ *  - commands used (frequency) -> "frequently used commands"
+ *  - apps opened (frequency) -> "apps opened"
+ *  - what time of day the user is first active -> morning/night pattern
+ *  - messaging activity by hour -> messaging behaviour
+ *
+ * Nothing here is spoken on its own; ProactiveEngine and chat read it back
+ * (e.g. "most active" / "usual wake time") when asked or when deciding timing.
+ */
+object HabitMemory {
+
+    private const val P_CMD = "habit_cmd_"
+    private const val P_APP = "habit_app_"
+    private const val P_WAKE_HOUR_SUM = "habit_wake_hour_sum"
+    private const val P_WAKE_HOUR_N = "habit_wake_hour_n"
+    private const val P_MSG_HOUR = "habit_msg_hour_"
+    private const val P_LAST_ACTIVE_DAY = "habit_last_active_day"
+
+    fun recordCommand(text: String) {
+        val key = normalize(text) ?: return
+        JarvisPrefs.incrementInt(P_CMD + key)
+    }
+
+    fun recordAppOpen(appName: String) {
+        val key = normalize(appName) ?: return
+        JarvisPrefs.incrementInt(P_APP + key)
+    }
+
+    fun recordMessageActivity() {
+        val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        JarvisPrefs.incrementInt(P_MSG_HOUR + h)
+    }
+
+    /** Call once per day on first interaction — builds the morning/night pattern. */
+    fun recordFirstActivityOfDay() {
+        val today = dayKey()
+        if (JarvisPrefs.getString(P_LAST_ACTIVE_DAY) == today) return
+        JarvisPrefs.putString(P_LAST_ACTIVE_DAY, today)
+        val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        JarvisPrefs.putInt(P_WAKE_HOUR_SUM, JarvisPrefs.getInt(P_WAKE_HOUR_SUM) + h)
+
+// ... FILE TRUNCATED ...
+
+        return if (best.second == 0) null else best.first
+    }
+
+    private fun top(prefix: String, limit: Int): List<Pair<String, Int>> =
+        JarvisPrefs.allKeys(prefix)
+            .map { it.removePrefix(prefix) to JarvisPrefs.getInt(it) }
+            .sortedByDescending { it.second }
+            .take(limit)
+
+    private fun normalize(s: String): String? {
+        val t = s.trim().lowercase().take(40)
+        return t.ifBlank { null }
+    }
+
+    private fun dayKey(): String {
+        val c = Calendar.getInstance()
+        return "${c.get(Calendar.YEAR)}-${c.get(Calendar.DAY_OF_YEAR)}"
+    }
+
 }
 
 //===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/notifications/ProgressNotifier.kt =====
