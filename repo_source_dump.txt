@@ -4921,8 +4921,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Routes everything Jarvis says (unprompted announcements and chat replies) through the
- * ElevenLabs "Jarvis" voice on the Termux TTS server. If that server is unreachable or
- * out of quota, it falls back to the phone's built-in voice so Jarvis never goes silent.
+ * the selected engine (ElevenLabs / local clone / auto, switchable by chat command), falling
+ * back to the phone's built-in voice so Jarvis never goes silent.
  */
 object ElevenSpeaker {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -4930,7 +4930,7 @@ object ElevenSpeaker {
     fun install() {
         AnnouncementEngine.speaker = { text, whisper ->
             scope.launch {
-                if (!VoiceModule.speakElevenLabs(text)) {
+                if (!VoiceModule.speakRouted(text)) {
                     AnnouncementEngine.speakSystem(text, whisper)
                 }
             }
@@ -4959,9 +4959,10 @@ import java.util.concurrent.TimeUnit
 
 object VoiceModule {
 
-    private const val TAG          = "VoiceModule"
-    private const val TTS_PORT     = 8892
-    private const val DEFAULT_HOST = "192.168.29.48"
+    private const val TAG            = "VoiceModule"
+    private const val TTS_PORT       = 8892
+    private const val LOCAL_TTS_PORT = 8894
+    private const val DEFAULT_HOST   = "192.168.29.48"
 
     private var systemTts:      TextToSpeech? = null
     private var systemTtsReady: Boolean       = false
@@ -4971,37 +4972,36 @@ object VoiceModule {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    fun init(context: Context) {
-        systemTts = TextToSpeech(context) { status ->
-            systemTtsReady = (status == TextToSpeech.SUCCESS)
-            if (systemTtsReady) systemTts?.language = Locale.ENGLISH
-            Log.d(TAG, "System TTS ready: $systemTtsReady")
-        }
+    /** Engine chosen via chat/voice command ("use local voice" / "use elevenlabs"). Default AUTO. */
+    fun currentMode(): SpeakMode = when (JarvisPrefs.getString("voice_engine")) {
+        "elevenlabs" -> SpeakMode.ELEVENLABS_ONLY
+        "local"      -> SpeakMode.LOCAL_ONLY
+        "system"     -> SpeakMode.SYSTEM_ONLY
+        else         -> SpeakMode.AUTO
     }
 
-    fun destroy() {
-        systemTts?.stop()
-        systemTts?.shutdown()
-        systemTts = null
+    /**
+     * Speaks via the selected engine. Returns false when the caller should fall back to
+     * the system voice (selected engine failed, or system voice was chosen).
+     */
+    suspend fun speakRouted(text: String): Boolean = when (currentMode()) {
+        SpeakMode.ELEVENLABS_ONLY -> speakElevenLabs(text)
+        SpeakMode.LOCAL_ONLY      -> speakLocalClone(text)
+        SpeakMode.SYSTEM_ONLY     -> false
+        SpeakMode.AUTO            -> speakElevenLabs(text) || speakLocalClone(text)
     }
 
-    suspend fun speak(
-        text:    String,
-        voiceId: String?   = null,
-        mode:    SpeakMode = SpeakMode.AUTO
-    ) {
-        if (text.isBlank()) return
 
 // ... FILE TRUNCATED ...
 
                     val req = Request.Builder()
-                        .url("http://$host:$TTS_PORT/speak")
+                        .url("http://$host:$LOCAL_TTS_PORT/speak")
                         .post(body)
                         .build()
 
                     http.newCall(req).execute().use { if (it.isSuccessful) return@withContext true }
                 } catch (e: Exception) {
-                    Log.w(TAG, "ElevenLabs via $host failed: ${e.message}")
+                    Log.w(TAG, "Local voice clone via $host failed: ${e.message}")
                 }
             }
             false
@@ -5013,7 +5013,7 @@ object VoiceModule {
     }
 }
 
-enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
+enum class SpeakMode { AUTO, ELEVENLABS_ONLY, LOCAL_ONLY, SYSTEM_ONLY }
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceTriggerManager.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
@@ -7503,37 +7503,37 @@ object ModeCommands {
     /** Extra command handler installed by the app (media, device control, LLM switch). */
     @Volatile var extra: ((String) -> String?)? = null
 
+    const val VOICE_ENGINE_KEY = "voice_engine"   // auto | elevenlabs | local | system
+
+    private fun voiceLabel(mode: String) = when (mode) {
+        "elevenlabs" -> "ElevenLabs"
+        "local" -> "local clone"
+        "system" -> "system voice"
+        else -> "automatic, ElevenLabs with local clone as backup"
+    }
+
+    /** "use local voice", "switch to elevenlabs", "voice auto", "which voice are you using". */
+    private fun voiceEngineCommand(t: String): String? {
+        if (!t.contains("voice") && !t.contains("eleven")) return null
+        val current = JarvisPrefs.getString(VOICE_ENGINE_KEY) ?: "auto"
+        if (t.contains("which voice") || t.contains("what voice") || t.contains("voice status") || t.contains("current voice"))
+            return "Voice engine is ${voiceLabel(current)}."
+        val words = t.split(Regex("[^a-z]+")).toSet()
+        val swap = t.startsWith("voice ") ||
+            words.any { it in setOf("use", "switch", "change", "set", "swap", "go", "back", "enable") }
+        if (!swap) return null
+        val mode = when {
+            t.contains("eleven") || words.any { it in setOf("cloud", "online") } -> "elevenlabs"
+            words.any { it in setOf("local", "offline", "clone", "cloned") } -> "local"
+            words.any { it in setOf("system", "robot", "robotic", "android") } -> "system"
+            words.any { it in setOf("auto", "automatic") } -> "auto"
+            else -> return null
+        }
+        JarvisPrefs.putString(VOICE_ENGINE_KEY, mode)
+        return "Voice set to ${voiceLabel(mode)}."
+    }
+
     fun handle(input: String): String? {
-        val t = input.trim().lowercase()
-        if (t.isEmpty()) return null
-        HabitMemory.recordFirstActivityOfDay()
-        HabitMemory.recordCommand(t)
-
-        if (t.contains("what have you learned") || t.contains("what do you know about me") || t.contains("my habits") || t.contains("my routine")) {
-            val wake = HabitMemory.usualWakeHour()
-            val topCmd = HabitMemory.topCommands(3).filter { it.second >= 2 }
-            val topApp = HabitMemory.topApps(3).filter { it.second >= 2 }
-            val msgHour = HabitMemory.busiestMessageHour()
-            val parts = ArrayList<String>()
-            if (wake != null) parts.add("you are usually first active around ${if (wake == 0) 12 else if (wake > 12) wake - 12 else wake}${if (wake < 12) " a.m." else " p.m."}")
-            if (topApp.isNotEmpty()) parts.add("you open ${topApp.joinToString(" and ") { it.first }} most often")
-            if (topCmd.isNotEmpty()) parts.add("your most used command is \"${topCmd.first().first}\"")
-            if (msgHour != null) parts.add("messages tend to arrive around ${if (msgHour == 0) 12 else if (msgHour > 12) msgHour - 12 else msgHour}${if (msgHour < 12) " a.m." else " p.m."}")
-            return if (parts.isEmpty()) "I am still learning your patterns. Ask me again in a few days."
-                   else "So far: " + parts.joinToString(", ") + "."
-        }
-
-        if (t.contains("what did i miss") || t.contains("what i missed") || t.contains("any updates")) {
-            val s = SleepSummary.build(System.currentTimeMillis() - 12 * 60 * 60_000L)
-            return if (s != null) "In the last 12 hours: $s." else "Nothing new to report."
-        }
-
-        if (QUESTION_STARTS.any { t.startsWith(it) }) return null
-
-        if (t.contains("whitelist")) {
-            val num = NUMBER.find(t)?.value
-            // "whitelist" itself contains "list", so strip it before looking for show/list.
-            val rest = t.replace("whitelist", " ")
 
 // ... FILE TRUNCATED ...
 

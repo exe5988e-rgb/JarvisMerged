@@ -12055,8 +12055,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Routes everything Jarvis says (unprompted announcements and chat replies) through the
- * ElevenLabs "Jarvis" voice on the Termux TTS server. If that server is unreachable or
- * out of quota, it falls back to the phone's built-in voice so Jarvis never goes silent.
+ * the selected engine (ElevenLabs / local clone / auto, switchable by chat command), falling
+ * back to the phone's built-in voice so Jarvis never goes silent.
  */
 object ElevenSpeaker {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -12064,7 +12064,7 @@ object ElevenSpeaker {
     fun install() {
         AnnouncementEngine.speaker = { text, whisper ->
             scope.launch {
-                if (!VoiceModule.speakElevenLabs(text)) {
+                if (!VoiceModule.speakRouted(text)) {
                     AnnouncementEngine.speakSystem(text, whisper)
                 }
             }
@@ -12092,9 +12092,10 @@ import java.util.concurrent.TimeUnit
 
 object VoiceModule {
 
-    private const val TAG          = "VoiceModule"
-    private const val TTS_PORT     = 8892
-    private const val DEFAULT_HOST = "192.168.29.48"
+    private const val TAG            = "VoiceModule"
+    private const val TTS_PORT       = 8892
+    private const val LOCAL_TTS_PORT = 8894
+    private const val DEFAULT_HOST   = "192.168.29.48"
 
     private var systemTts:      TextToSpeech? = null
     private var systemTtsReady: Boolean       = false
@@ -12103,6 +12104,25 @@ object VoiceModule {
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    /** Engine chosen via chat/voice command ("use local voice" / "use elevenlabs"). Default AUTO. */
+    fun currentMode(): SpeakMode = when (JarvisPrefs.getString("voice_engine")) {
+        "elevenlabs" -> SpeakMode.ELEVENLABS_ONLY
+        "local"      -> SpeakMode.LOCAL_ONLY
+        "system"     -> SpeakMode.SYSTEM_ONLY
+        else         -> SpeakMode.AUTO
+    }
+
+    /**
+     * Speaks via the selected engine. Returns false when the caller should fall back to
+     * the system voice (selected engine failed, or system voice was chosen).
+     */
+    suspend fun speakRouted(text: String): Boolean = when (currentMode()) {
+        SpeakMode.ELEVENLABS_ONLY -> speakElevenLabs(text)
+        SpeakMode.LOCAL_ONLY      -> speakLocalClone(text)
+        SpeakMode.SYSTEM_ONLY     -> false
+        SpeakMode.AUTO            -> speakElevenLabs(text) || speakLocalClone(text)
+    }
 
     fun init(context: Context) {
         systemTts = TextToSpeech(context) { status ->
@@ -12121,15 +12141,20 @@ object VoiceModule {
     suspend fun speak(
         text:    String,
         voiceId: String?   = null,
-        mode:    SpeakMode = SpeakMode.AUTO
+        mode:    SpeakMode = currentMode()
     ) {
         if (text.isBlank()) return
         when (mode) {
             SpeakMode.ELEVENLABS_ONLY -> speakElevenLabs(text, voiceId)
+            SpeakMode.LOCAL_ONLY      -> speakLocalClone(text)
             SpeakMode.SYSTEM_ONLY     -> speakSystem(text)
             SpeakMode.AUTO -> {
+                // Jarvis voice first (cloud), Jarvis voice clone second (offline), robotic system TTS last.
                 val ok = speakElevenLabs(text, voiceId)
-                if (!ok) speakSystem(text)
+                if (!ok) {
+                    val okLocal = speakLocalClone(text)
+                    if (!okLocal) speakSystem(text)
+                }
             }
         }
     }
@@ -12159,13 +12184,40 @@ object VoiceModule {
             false
         }
 
+    /**
+     * Offline fallback: asks the local sherpa-onnx voice-clone server (port 8894, Termux)
+     * to speak in the cloned Jarvis voice. No internet or API key needed.
+     * Used automatically when the ElevenLabs server is unreachable.
+     */
+    suspend fun speakLocalClone(text: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val configured = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+            for (host in listOf(configured, "127.0.0.1").distinct()) {
+                try {
+                    val body = JSONObject().apply {
+                        put("text", text)
+                    }.toString().toRequestBody("application/json".toMediaType())
+
+                    val req = Request.Builder()
+                        .url("http://$host:$LOCAL_TTS_PORT/speak")
+                        .post(body)
+                        .build()
+
+                    http.newCall(req).execute().use { if (it.isSuccessful) return@withContext true }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Local voice clone via $host failed: ${e.message}")
+                }
+            }
+            false
+        }
+
     private fun speakSystem(text: String) {
         if (!systemTtsReady) { Log.w(TAG, "System TTS not ready"); return }
         systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "j_${System.currentTimeMillis()}")
     }
 }
 
-enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
+enum class SpeakMode { AUTO, ELEVENLABS_ONLY, LOCAL_ONLY, SYSTEM_ONLY }
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceTriggerManager.kt =====
@@ -15071,6 +15123,36 @@ object ModeCommands {
     /** Extra command handler installed by the app (media, device control, LLM switch). */
     @Volatile var extra: ((String) -> String?)? = null
 
+    const val VOICE_ENGINE_KEY = "voice_engine"   // auto | elevenlabs | local | system
+
+    private fun voiceLabel(mode: String) = when (mode) {
+        "elevenlabs" -> "ElevenLabs"
+        "local" -> "local clone"
+        "system" -> "system voice"
+        else -> "automatic, ElevenLabs with local clone as backup"
+    }
+
+    /** "use local voice", "switch to elevenlabs", "voice auto", "which voice are you using". */
+    private fun voiceEngineCommand(t: String): String? {
+        if (!t.contains("voice") && !t.contains("eleven")) return null
+        val current = JarvisPrefs.getString(VOICE_ENGINE_KEY) ?: "auto"
+        if (t.contains("which voice") || t.contains("what voice") || t.contains("voice status") || t.contains("current voice"))
+            return "Voice engine is ${voiceLabel(current)}."
+        val words = t.split(Regex("[^a-z]+")).toSet()
+        val swap = t.startsWith("voice ") ||
+            words.any { it in setOf("use", "switch", "change", "set", "swap", "go", "back", "enable") }
+        if (!swap) return null
+        val mode = when {
+            t.contains("eleven") || words.any { it in setOf("cloud", "online") } -> "elevenlabs"
+            words.any { it in setOf("local", "offline", "clone", "cloned") } -> "local"
+            words.any { it in setOf("system", "robot", "robotic", "android") } -> "system"
+            words.any { it in setOf("auto", "automatic") } -> "auto"
+            else -> return null
+        }
+        JarvisPrefs.putString(VOICE_ENGINE_KEY, mode)
+        return "Voice set to ${voiceLabel(mode)}."
+    }
+
     fun handle(input: String): String? {
         val t = input.trim().lowercase()
         if (t.isEmpty()) return null
@@ -15095,6 +15177,8 @@ object ModeCommands {
             val s = SleepSummary.build(System.currentTimeMillis() - 12 * 60 * 60_000L)
             return if (s != null) "In the last 12 hours: $s." else "Nothing new to report."
         }
+
+        voiceEngineCommand(t)?.let { return it }
 
         if (QUESTION_STARTS.any { t.startsWith(it) }) return null
 
