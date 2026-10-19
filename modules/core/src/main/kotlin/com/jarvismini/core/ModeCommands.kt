@@ -17,6 +17,36 @@ object ModeCommands {
     /** Extra command handler installed by the app (media, device control, LLM switch). */
     @Volatile var extra: ((String) -> String?)? = null
 
+    const val VOICE_ENGINE_KEY = "voice_engine"   // auto | elevenlabs | local | system
+
+    private fun voiceLabel(mode: String) = when (mode) {
+        "elevenlabs" -> "ElevenLabs"
+        "local" -> "local clone"
+        "system" -> "system voice"
+        else -> "automatic, ElevenLabs with local clone as backup"
+    }
+
+    /** "use local voice", "switch to elevenlabs", "voice auto", "which voice are you using". */
+    private fun voiceEngineCommand(t: String): String? {
+        if (!t.contains("voice") && !t.contains("eleven")) return null
+        val current = JarvisPrefs.getString(VOICE_ENGINE_KEY) ?: "auto"
+        if (t.contains("which voice") || t.contains("what voice") || t.contains("voice status") || t.contains("current voice"))
+            return "Voice engine is ${voiceLabel(current)}."
+        val words = t.split(Regex("[^a-z]+")).toSet()
+        val swap = t.startsWith("voice ") ||
+            words.any { it in setOf("use", "switch", "change", "set", "swap", "go", "back", "enable") }
+        if (!swap) return null
+        val mode = when {
+            t.contains("eleven") || words.any { it in setOf("cloud", "online") } -> "elevenlabs"
+            words.any { it in setOf("local", "offline", "clone", "cloned") } -> "local"
+            words.any { it in setOf("system", "robot", "robotic", "android") } -> "system"
+            words.any { it in setOf("auto", "automatic") } -> "auto"
+            else -> return null
+        }
+        JarvisPrefs.putString(VOICE_ENGINE_KEY, mode)
+        return "Voice set to ${voiceLabel(mode)}."
+    }
+
     fun handle(input: String): String? {
         val t = input.trim().lowercase()
         if (t.isEmpty()) return null
@@ -41,6 +71,8 @@ object ModeCommands {
             val s = SleepSummary.build(System.currentTimeMillis() - 12 * 60 * 60_000L)
             return if (s != null) "In the last 12 hours: $s." else "Nothing new to report."
         }
+
+        voiceEngineCommand(t)?.let { return it }
 
         if (QUESTION_STARTS.any { t.startsWith(it) }) return null
 

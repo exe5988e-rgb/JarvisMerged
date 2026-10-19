@@ -8,8 +8,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Routes everything Jarvis says (unprompted announcements and chat replies) through the
- * ElevenLabs "Jarvis" voice on the Termux TTS server. If that server is unreachable or
- * out of quota, it falls back to the phone's built-in voice so Jarvis never goes silent.
+ * the selected engine (ElevenLabs / local clone / auto, switchable by chat command), falling
+ * back to the phone's built-in voice so Jarvis never goes silent.
  */
 object ElevenSpeaker {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -17,7 +17,7 @@ object ElevenSpeaker {
     fun install() {
         AnnouncementEngine.speaker = { text, whisper ->
             scope.launch {
-                if (!VoiceModule.speakElevenLabs(text)) {
+                if (!VoiceModule.speakRouted(text)) {
                     AnnouncementEngine.speakSystem(text, whisper)
                 }
             }

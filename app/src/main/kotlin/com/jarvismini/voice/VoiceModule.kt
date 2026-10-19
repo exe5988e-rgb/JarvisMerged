@@ -16,9 +16,10 @@ import java.util.concurrent.TimeUnit
 
 object VoiceModule {
 
-    private const val TAG          = "VoiceModule"
-    private const val TTS_PORT     = 8892
-    private const val DEFAULT_HOST = "192.168.29.48"
+    private const val TAG            = "VoiceModule"
+    private const val TTS_PORT       = 8892
+    private const val LOCAL_TTS_PORT = 8894
+    private const val DEFAULT_HOST   = "192.168.29.48"
 
     private var systemTts:      TextToSpeech? = null
     private var systemTtsReady: Boolean       = false
@@ -27,6 +28,25 @@ object VoiceModule {
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    /** Engine chosen via chat/voice command ("use local voice" / "use elevenlabs"). Default AUTO. */
+    fun currentMode(): SpeakMode = when (JarvisPrefs.getString("voice_engine")) {
+        "elevenlabs" -> SpeakMode.ELEVENLABS_ONLY
+        "local"      -> SpeakMode.LOCAL_ONLY
+        "system"     -> SpeakMode.SYSTEM_ONLY
+        else         -> SpeakMode.AUTO
+    }
+
+    /**
+     * Speaks via the selected engine. Returns false when the caller should fall back to
+     * the system voice (selected engine failed, or system voice was chosen).
+     */
+    suspend fun speakRouted(text: String): Boolean = when (currentMode()) {
+        SpeakMode.ELEVENLABS_ONLY -> speakElevenLabs(text)
+        SpeakMode.LOCAL_ONLY      -> speakLocalClone(text)
+        SpeakMode.SYSTEM_ONLY     -> false
+        SpeakMode.AUTO            -> speakElevenLabs(text) || speakLocalClone(text)
+    }
 
     fun init(context: Context) {
         systemTts = TextToSpeech(context) { status ->
@@ -45,15 +65,20 @@ object VoiceModule {
     suspend fun speak(
         text:    String,
         voiceId: String?   = null,
-        mode:    SpeakMode = SpeakMode.AUTO
+        mode:    SpeakMode = currentMode()
     ) {
         if (text.isBlank()) return
         when (mode) {
             SpeakMode.ELEVENLABS_ONLY -> speakElevenLabs(text, voiceId)
+            SpeakMode.LOCAL_ONLY      -> speakLocalClone(text)
             SpeakMode.SYSTEM_ONLY     -> speakSystem(text)
             SpeakMode.AUTO -> {
+                // Jarvis voice first (cloud), Jarvis voice clone second (offline), robotic system TTS last.
                 val ok = speakElevenLabs(text, voiceId)
-                if (!ok) speakSystem(text)
+                if (!ok) {
+                    val okLocal = speakLocalClone(text)
+                    if (!okLocal) speakSystem(text)
+                }
             }
         }
     }
@@ -83,10 +108,37 @@ object VoiceModule {
             false
         }
 
+    /**
+     * Offline fallback: asks the local sherpa-onnx voice-clone server (port 8894, Termux)
+     * to speak in the cloned Jarvis voice. No internet or API key needed.
+     * Used automatically when the ElevenLabs server is unreachable.
+     */
+    suspend fun speakLocalClone(text: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val configured = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+            for (host in listOf(configured, "127.0.0.1").distinct()) {
+                try {
+                    val body = JSONObject().apply {
+                        put("text", text)
+                    }.toString().toRequestBody("application/json".toMediaType())
+
+                    val req = Request.Builder()
+                        .url("http://$host:$LOCAL_TTS_PORT/speak")
+                        .post(body)
+                        .build()
+
+                    http.newCall(req).execute().use { if (it.isSuccessful) return@withContext true }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Local voice clone via $host failed: ${e.message}")
+                }
+            }
+            false
+        }
+
     private fun speakSystem(text: String) {
         if (!systemTtsReady) { Log.w(TAG, "System TTS not ready"); return }
         systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "j_${System.currentTimeMillis()}")
     }
 }
 
-enum class SpeakMode { AUTO, ELEVENLABS_ONLY, SYSTEM_ONLY }
+enum class SpeakMode { AUTO, ELEVENLABS_ONLY, LOCAL_ONLY, SYSTEM_ONLY }
