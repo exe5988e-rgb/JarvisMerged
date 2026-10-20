@@ -104,10 +104,15 @@ class KwsWakeWord(private val context: Context, private val onDetected: () -> Un
             Log.i(TAG, "Wake word listening")
             val shorts = ShortArray(chunk)
             val floats = FloatArray(chunk)
+            var peak = 0f
+            var ticks = 0
             while (running) {
                 val n = rec.read(shorts, 0, shorts.size)
                 if (n <= 0) continue
-                for (i in 0 until n) floats[i] = shorts[i] / 32768f
+                var sq = 0.0
+                for (i in 0 until n) { floats[i] = shorts[i] / 32768f; sq += floats[i] * floats[i] }
+                peak = maxOf(peak, Math.sqrt(sq / n).toFloat())
+                if (++ticks % 20 == 0) { Log.i(TAG, "mic rms peak(2s)=%.4f".format(peak)); peak = 0f }
                 stream.acceptWaveform(if (n == floats.size) floats else floats.copyOf(n), SAMPLE_RATE)
                 while (sp.isReady(stream)) {
                     sp.decode(stream)
