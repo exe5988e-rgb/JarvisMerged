@@ -135,6 +135,39 @@ object VoiceModule {
             false
         }
 
+    /** Barge-in: cuts whatever Jarvis is saying (voice server queue + playback, and system TTS). */
+    suspend fun stopSpeaking() {
+        systemTts?.stop()
+        withContext(Dispatchers.IO) {
+            val configured = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+            for (host in listOf(configured, "127.0.0.1").distinct()) {
+                try {
+                    val req = Request.Builder().url("http://$host:$TTS_PORT/stop")
+                        .post("{}".toRequestBody("application/json".toMediaType())).build()
+                    http.newCall(req).execute().use { if (it.isSuccessful) return@withContext }
+                } catch (e: Exception) {
+                    Log.w(TAG, "stop via $host failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /** True/false from the voice server's /health "speaking" flag; null when the server is unreachable. */
+    suspend fun isSpeaking(): Boolean? = withContext(Dispatchers.IO) {
+        val configured = JarvisPrefs.getString("agent_host") ?: DEFAULT_HOST
+        for (host in listOf(configured, "127.0.0.1").distinct()) {
+            try {
+                val req = Request.Builder().url("http://$host:$TTS_PORT/health").build()
+                http.newCall(req).execute().use {
+                    if (it.isSuccessful) return@withContext JSONObject(it.body?.string() ?: "{}").optBoolean("speaking", false)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "health via $host failed: ${e.message}")
+            }
+        }
+        null
+    }
+
     private fun speakSystem(text: String) {
         if (!systemTtsReady) { Log.w(TAG, "System TTS not ready"); return }
         systemTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "j_${System.currentTimeMillis()}")

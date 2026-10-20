@@ -14,6 +14,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.announce.AnnouncementEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * WakeWordService (Phase 2)
@@ -40,6 +46,9 @@ class WakeWordService : Service() {
         private const val KEYWORD_ASSET_PATH = "porcupine_jarvis.ppn"
         private const val SENSITIVITY = 0.6f
 
+        /** After a reply, Jarvis reopens the mic by itself (no wake word) up to this many times in a row. */
+        private const val MAX_FOLLOW_UPS = 3
+
         /** Lets the proactive engine open the mic right after Jarvis asks a question. Null when the service is not running. */
         @Volatile var listenNowHook: (() -> Unit)? = null
     }
@@ -47,11 +56,17 @@ class WakeWordService : Service() {
     private var porcupineManager: PorcupineManager? = null
     private var voiceTriggerManager: VoiceTriggerManager? = null
 
+    private val svcScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var followUps = 0
+    /** Bumped on every user-initiated turn so a stale pending follow-up never opens the mic. */
+    private var epoch = 0
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         listenNowHook = {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
+                epoch++; followUps = 0
                 try { porcupineManager?.stop() } catch (_: Exception) {}
                 listenForCommand()
             }
@@ -66,6 +81,7 @@ class WakeWordService : Service() {
 
     override fun onDestroy() {
         listenNowHook = null
+        svcScope.cancel()
         stopListeningForCommand()
         stopPorcupine()
         super.onDestroy()
@@ -111,6 +127,9 @@ class WakeWordService : Service() {
 
     private val wakeWordCallback = PorcupineManagerCallback { keywordIndex ->
         Log.i(TAG, "Wake word detected (index=$keywordIndex)")
+        // Barge-in: saying the wake word while Jarvis is talking cuts him off.
+        epoch++; followUps = 0
+        svcScope.launch { VoiceModule.stopSpeaking() }
         // Pause wake-word listening while capturing the follow-up command so
         // the mic isn't shared between two recognizers at once.
         try {
@@ -136,14 +155,39 @@ class WakeWordService : Service() {
             onResult = { text ->
                 Log.d(TAG, "Command captured: $text")
                 stopListeningForCommand()
+                // Wake word stays live while Jarvis answers (barge-in); then reopen the mic for a follow-up.
                 resumePorcupine()
+                if (followUps < MAX_FOLLOW_UPS) {
+                    followUps++
+                    scheduleFollowUp(text, epoch)
+                } else {
+                    followUps = 0
+                }
             },
             onError = { msg ->
                 Log.w(TAG, "Voice trigger error: $msg")
+                followUps = 0  // silence / no match ends the conversation
                 stopListeningForCommand()
                 resumePorcupine()
             }
         )
+    }
+
+    /** Waits for Jarvis to finish speaking, then reopens the mic without needing the wake word. */
+    private fun scheduleFollowUp(replyText: String, myEpoch: Int) {
+        svcScope.launch {
+            delay(1500)  // let the reply reach the voice server's queue
+            val deadline = System.currentTimeMillis() + 40_000
+            if (VoiceModule.isSpeaking() == null) {
+                delay((replyText.length * 65L).coerceIn(500L, 15_000L))  // server unreachable: estimate
+            } else {
+                while (System.currentTimeMillis() < deadline && VoiceModule.isSpeaking() == true) delay(300)
+            }
+            delay(500)  // tail so the mic doesn't catch the end of his voice
+            if (myEpoch != epoch) return@launch
+            try { porcupineManager?.stop() } catch (_: Exception) {}
+            listenForCommand()
+        }
     }
 
     private fun stopListeningForCommand() {
