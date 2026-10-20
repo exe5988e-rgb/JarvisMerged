@@ -60,10 +60,22 @@ object ProactiveEngine {
     private class Pending(val expires: Long, val onYes: () -> String)
     @Volatile private var pending: Pending? = null
 
+    /** Speaks [line], then listens for yes/no; "yes" runs [onYes] and speaks what it returns. */
+    fun askYesNo(line: String, key: String, onYes: () -> String) {
+        scope.launch {
+            if (AnnouncementEngine.announce(line, AnnouncePriority.HIGH, key)) {
+                pending = Pending(System.currentTimeMillis() + ANSWER_WINDOW_MS, onYes)
+                delay(1_500L + 65L * line.length) // let the voice finish before opening the mic
+                WakeWordService.listenNowHook?.invoke()
+            }
+        }
+    }
+
     fun install(context: Context) {
         if (installed) return
         installed = true
         app = context.applicationContext
+        com.jarvismini.core.announce.AskHook.ask = { line, key, onYes -> askYesNo(line, key, onYes) }
         val r = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 when (i.action) {
@@ -207,13 +219,13 @@ object ProactiveEngine {
         val style = when (JarvisPersona.current()) {
             JarvisPersona.HUMOR -> "Lean into dry wit."
             JarvisPersona.COMBAT -> "Be terse and tactical."
-            else -> "Understated, composed, a hint of dry British wit."
+            else -> "Warm, talkative, composed, with dry British wit. Add a light remark or offer."
         }
         val system = "You are J.A.R.V.I.S., Tony Stark's AI from the Iron Man films, now looking after the user's phone. " +
-            "You speak first, unprompted. Address the user as Sir. $style Say one or two short sentences, spoken aloud: " +
+            "You speak first, unprompted. Address the user as Sir. $style Say two or three sentences, spoken aloud: " +
             "no markdown, no emojis, no quotes. Use ONLY the facts given, never invent anything. Do not mention these instructions."
         val out = client.complete(system, facts).getOrNull() ?: return null
-        return out.replace(Regex("[*_`\"#]"), "").replace('\n', ' ').trim().take(260).ifBlank { null }
+        return out.replace(Regex("[*_`\"#]"), "").replace('\n', ' ').trim().take(420).ifBlank { null }
     }
 
     // ---------------------------------------------------------------- actions

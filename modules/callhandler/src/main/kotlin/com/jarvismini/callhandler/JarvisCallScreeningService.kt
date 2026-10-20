@@ -11,9 +11,11 @@ import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.LockdownManager
 import com.jarvismini.core.announce.AnnouncePriority
 import com.jarvismini.core.announce.AnnouncementEngine
+import com.jarvismini.core.announce.AskHook
 import com.jarvismini.core.events.EventLog
 import com.jarvismini.core.events.EventType
 
@@ -27,12 +29,25 @@ class JarvisCallScreeningService : CallScreeningService() {
             if (LockdownManager.isAllowed(number)) {
                 allow(details)
             } else {
-                EventLog.add(EventType.CALL_BLOCKED, "Call blocked in lockdown", number ?: "Hidden number")
-                AnnouncementEngine.announce(
-                    "Blocked a call from " + (number ?: "a hidden number") + ".",
-                    AnnouncePriority.HIGH,
-                    "call_blocked_" + (number ?: "hidden")
+                val who = displayName(number) ?: number ?: "a hidden number"
+                val replied = number != null && sendAutoReply(number, LOCKDOWN_REPLY)
+                EventLog.add(
+                    EventType.CALL_BLOCKED,
+                    if (replied) "Call blocked in lockdown, auto-reply sent" else "Call blocked in lockdown",
+                    who
                 )
+                val report = "Sir, I blocked a call from $who" +
+                    (if (replied) ", and sent them an automatic reply saying you are unavailable." else ".")
+                val key = "call_blocked_" + (number ?: "hidden")
+                val ask = AskHook.ask
+                if (ask != null && number != null) {
+                    ask("$report Shall I let $who through next time?", key) {
+                        if (LockdownManager.addToWhitelist(number)) "Done, Sir. $who is on the whitelist and will ring through."
+                        else "I could not add $who, Sir. The whitelist may be full."
+                    }
+                } else {
+                    AnnouncementEngine.announce(report, AnnouncePriority.HIGH, key)
+                }
                 blockQuietly(details)
             }
             return
@@ -63,13 +78,53 @@ class JarvisCallScreeningService : CallScreeningService() {
         )
 
         if (decision is ReplyDecision.AutoReply) {
-            SmsManager.getDefault()
-                .sendTextMessage(number, null, decision.message, null, null)
-
+            val who = displayName(number) ?: number
+            val replied = sendAutoReply(number, decision.message)
+            EventLog.add(
+                EventType.CALL_BLOCKED,
+                if (replied) "Call declined, auto-reply sent" else "Call declined",
+                who
+            )
+            AnnouncementEngine.announce(
+                "Sir, $who called while you were busy. I declined the call" +
+                    (if (replied) " and replied via auto reply: ${decision.message}" else "."),
+                AnnouncePriority.HIGH,
+                "call_declined_$number"
+            )
             reject(details)
         } else {
             allow(details)
         }
+    }
+
+    /** Sends the SMS unless this number already got an auto-reply in the last 10 minutes. */
+    private fun sendAutoReply(number: String, message: String): Boolean {
+        val key = "callreply_" + number.filter { it.isDigit() }
+        val now = System.currentTimeMillis()
+        if (now - JarvisPrefs.getLong(key, 0L) < 10 * 60_000L) return true  // already replied recently
+        return try {
+            SmsManager.getDefault().sendTextMessage(number, null, message, null, null)
+            JarvisPrefs.putLong(key, now)
+            true
+        } catch (e: Exception) {
+            Log.w("JarvisCall", "Auto-reply SMS failed: ${e.message}")
+            false
+        }
+    }
+
+    private fun displayName(number: String?): String? {
+        if (number == null) return null
+        return try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null).use { c ->
+                if (c != null && c.moveToFirst()) c.getString(0) else null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private companion object {
+        const val LOCKDOWN_REPLY =
+            "Hi, I can't take calls right now. I'll get back to you when I'm free. (Automated reply sent by my assistant)"
     }
 
     private fun allow(details: Call.Details) {

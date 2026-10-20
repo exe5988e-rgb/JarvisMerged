@@ -96,6 +96,8 @@ object ModeCommands {
         HabitMemory.recordFirstActivityOfDay()
         HabitMemory.recordCommand(t)
 
+        NoteManager.handle(input)?.let { return it }
+
         if (t.contains("what have you learned") || t.contains("what do you know about me") || t.contains("my habits") || t.contains("my routine")) {
             val wake = HabitMemory.usualWakeHour()
             val topCmd = HabitMemory.topCommands(3).filter { it.second >= 2 }
