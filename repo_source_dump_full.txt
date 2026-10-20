@@ -6473,6 +6473,34 @@ object ProactiveEngine {
     private var lastWorkBreak = System.currentTimeMillis()
     private var chargedAnnounced = false
 
+    /** Minimum silence between unprompted remarks, by persona. */
+    private fun minGap(): Long = when (JarvisPersona.current()) {
+        JarvisPersona.JARVIS -> 6 * 60_000L
+        JarvisPersona.HUMOR -> 10 * 60_000L
+        JarvisPersona.STUDY -> 45 * 60_000L
+        JarvisPersona.CALM_WHISPER -> 30 * 60_000L
+        JarvisPersona.SILENT_GUARDIAN -> Long.MAX_VALUE / 4
+        else -> MIN_GAP_MS
+    }
+
+    private var lastCheckIn = System.currentTimeMillis()
+
+    /** Jarvis / Humor modes: an occasional unprompted remark while the user is on the phone. */
+    private fun chattyCheckIn(now: Long, b: Batt) {
+        val persona = JarvisPersona.current()
+        if (persona != JarvisPersona.JARVIS && persona != JarvisPersona.HUMOR) return
+        val every = if (persona == JarvisPersona.JARVIS) 12 * 60_000L else 18 * 60_000L
+        if (now - lastCheckIn < every || now - screenOnSince < 2 * 60_000L) return
+        val ev = EventLog.since(startOfDay())
+        val msgs = ev.count { it.type == EventType.MESSAGE }
+        val blocked = ev.count { it.type == EventType.CALL_BLOCKED }
+        say("Casual check-in. It is ${clock()}. ${b.text} Messages today: $msgs. Calls blocked today: $blocked. " +
+                "Make one light, useful remark about one or two of these facts.",
+            "It is ${clock()}, ${sir()}, and the battery stands at ${b.pct} percent. All quiet on my end.",
+            key = "checkin_" + (now / (10 * 60_000L)),
+            onSpoken = { lastCheckIn = System.currentTimeMillis() })
+    }
+
     private class Pending(val expires: Long, val onYes: () -> String)
     @Volatile private var pending: Pending? = null
 
@@ -6601,7 +6629,9 @@ object ProactiveEngine {
             say("The user has been in work mode for over 90 minutes. Suggest a short break.",
                 "You have been at it for ninety minutes, ${sir()}. A short break would be advisable.",
                 key = "work_break", onSpoken = { lastWorkBreak = System.currentTimeMillis() })
+            return
         }
+        chattyCheckIn(now, b)
     }
 
     // ------------------------------------------------------------------ voice
@@ -6614,7 +6644,7 @@ object ProactiveEngine {
         onSpoken: (() -> Unit)? = null
     ) {
         val now = System.currentTimeMillis()
-        if (!ignoreGap && now - lastProactive < MIN_GAP_MS) return
+        if (!ignoreGap && now - lastProactive < minGap()) return
         scope.launch {
             val ask1 = if (ask != null) " End with a short yes/no question." else ""
             val line = withTimeoutOrNull(15_000L) { phrase(facts + ask1) } ?: fallback
@@ -16411,12 +16441,12 @@ object ModeCommands {
         val persona = JarvisPersona.fromPhrase(t) ?: return null
         JarvisPersona.set(persona)
         return when (persona) {
-            JarvisPersona.JARVIS -> "Jarvis mode."
+            JarvisPersona.JARVIS -> "Jarvis mode engaged, Sir. I shall be a good deal more talkative, and I will keep you posted as things happen."
             JarvisPersona.SILENT_GUARDIAN -> "Silent Guardian engaged. I will only speak for critical events."
-            JarvisPersona.COMBAT -> "Combat mode. High alert."
-            JarvisPersona.HUMOR -> "Humor mode on."
+            JarvisPersona.COMBAT -> "Combat mode. High alert. Status reports only, no chatter."
+            JarvisPersona.HUMOR -> "Humor mode on. Expect commentary, Sir. Frequent and entirely unsolicited."
             JarvisPersona.STUDY -> "Study focus engaged. Only important alerts will interrupt you."
-            JarvisPersona.CALM_WHISPER -> "Calm whisper mode."
+            JarvisPersona.CALM_WHISPER -> "Calm whisper mode. I will speak softly and sparingly."
         }
     }
 }
@@ -17008,9 +17038,17 @@ object AnnouncementEngine {
             while (recentNormal.isNotEmpty() && now - recentNormal.first() > HOUR_MS) {
                 recentNormal.removeFirst()
             }
-            if (recentNormal.size >= MAX_NORMAL_PER_HOUR) return false
+            if (recentNormal.size >= maxNormalPerHour()) return false
         }
         return true
+    }
+
+    /** How chatty each persona is allowed to be (non-critical announcements per hour). */
+    private fun maxNormalPerHour(): Int = when (JarvisPersona.current()) {
+        JarvisPersona.JARVIS -> MAX_NORMAL_PER_HOUR * 3
+        JarvisPersona.HUMOR -> MAX_NORMAL_PER_HOUR * 2
+        JarvisPersona.CALM_WHISPER -> MAX_NORMAL_PER_HOUR / 2
+        else -> MAX_NORMAL_PER_HOUR
     }
 
     private fun minPriority(): AnnouncePriority {

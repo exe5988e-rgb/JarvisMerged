@@ -7988,12 +7988,12 @@ object ModeCommands {
         val persona = JarvisPersona.fromPhrase(t) ?: return null
         JarvisPersona.set(persona)
         return when (persona) {
-            JarvisPersona.JARVIS -> "Jarvis mode."
+            JarvisPersona.JARVIS -> "Jarvis mode engaged, Sir. I shall be a good deal more talkative, and I will keep you posted as things happen."
             JarvisPersona.SILENT_GUARDIAN -> "Silent Guardian engaged. I will only speak for critical events."
-            JarvisPersona.COMBAT -> "Combat mode. High alert."
-            JarvisPersona.HUMOR -> "Humor mode on."
+            JarvisPersona.COMBAT -> "Combat mode. High alert. Status reports only, no chatter."
+            JarvisPersona.HUMOR -> "Humor mode on. Expect commentary, Sir. Frequent and entirely unsolicited."
             JarvisPersona.STUDY -> "Study focus engaged. Only important alerts will interrupt you."
-            JarvisPersona.CALM_WHISPER -> "Calm whisper mode."
+            JarvisPersona.CALM_WHISPER -> "Calm whisper mode. I will speak softly and sparingly."
         }
     }
 }
