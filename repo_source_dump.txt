@@ -5393,16 +5393,16 @@ class VoiceTriggerManager(private val context: Context) {
 
 // ... FILE TRUNCATED ...
 
-        }
-        override fun onError(error: Int) {
-            val msg = when (error) {
-                SpeechRecognizer.ERROR_NO_MATCH        -> "No speech detected"
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT  -> "Listening timed out"
-                SpeechRecognizer.ERROR_NETWORK         -> "Network error"
-                SpeechRecognizer.ERROR_AUDIO           -> "Audio error"
                 else                                   -> "Error $error"
             }
             Log.w(TAG, "Recognition error: $msg")
+            val silent = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+            // Nothing heard yet: keep the window open (up to ~10 s total) instead of giving up after ~2 s
+            if (silent && retries < 3 && System.currentTimeMillis() - listenStart < 10_000L + retries * 4_000L) {
+                retries++
+                handler.postDelayed({ if (recognizer != null) beginListening() }, 150)
+                return
+            }
             handler.post { onErrorCb?.invoke(msg) }
         }
         override fun onBeginningOfSpeech()                {}
