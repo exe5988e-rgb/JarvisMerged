@@ -4389,6 +4389,7 @@ class DebugViewModel(private val context: Context) : ViewModel() {
 package com.jarvismini.ui.home
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -4407,6 +4408,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -4432,10 +4436,6 @@ fun EnhancedHomeScreen(
     val context = LocalContext.current
 
     // ── Voice trigger ────────────────────────────────────────────────────────
-    val vtm = remember { VoiceTriggerManager(context) }
-    DisposableEffect(Unit) { onDispose { vtm.destroy() } }
-
-    var isListening   by remember { mutableStateOf(false) }
 
 // ... FILE TRUNCATED ...
 
