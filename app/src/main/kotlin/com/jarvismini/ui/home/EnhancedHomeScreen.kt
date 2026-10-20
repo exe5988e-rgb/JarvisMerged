@@ -1,6 +1,7 @@
 package com.jarvismini.ui.home
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +20,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -60,6 +64,18 @@ fun EnhancedHomeScreen(
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseAlpha"
+    )
+
+    // ── Slow continuous ring rotation — reads as a live HUD even at rest ──────
+    val rotationAnimation = rememberInfiniteTransition(label = "rotation")
+    val ringRotation by rotationAnimation.animateFloat(
+        initialValue = 0f,
+        targetValue  = 360f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(12000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ringRotation"
     )
 
     Box(
@@ -150,6 +166,23 @@ fun EnhancedHomeScreen(
                             CircleShape
                         )
                 )
+                // Rotating tick ring — four short arcs spinning slowly around the orb,
+                // the kind of detail that sells "live system" even when idle
+                Canvas(modifier = Modifier.size(225.dp)) {
+                    rotate(ringRotation) {
+                        val stroke = 3.dp.toPx()
+                        val sweep  = 18f
+                        listOf(0f, 90f, 180f, 270f).forEach { start ->
+                            drawArc(
+                                color      = Color(0xFF00E0FF).copy(alpha = if (isListening) 0.9f else 0.45f),
+                                startAngle = start,
+                                sweepAngle = sweep,
+                                useCenter  = false,
+                                style      = Stroke(width = stroke, cap = StrokeCap.Round)
+                            )
+                        }
+                    }
+                }
                 // Mid ring
                 Box(
                     modifier = Modifier
