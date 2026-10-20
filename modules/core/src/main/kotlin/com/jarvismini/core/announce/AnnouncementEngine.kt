@@ -96,9 +96,17 @@ object AnnouncementEngine {
             while (recentNormal.isNotEmpty() && now - recentNormal.first() > HOUR_MS) {
                 recentNormal.removeFirst()
             }
-            if (recentNormal.size >= MAX_NORMAL_PER_HOUR) return false
+            if (recentNormal.size >= maxNormalPerHour()) return false
         }
         return true
+    }
+
+    /** How chatty each persona is allowed to be (non-critical announcements per hour). */
+    private fun maxNormalPerHour(): Int = when (JarvisPersona.current()) {
+        JarvisPersona.JARVIS -> MAX_NORMAL_PER_HOUR * 3
+        JarvisPersona.HUMOR -> MAX_NORMAL_PER_HOUR * 2
+        JarvisPersona.CALM_WHISPER -> MAX_NORMAL_PER_HOUR / 2
+        else -> MAX_NORMAL_PER_HOUR
     }
 
     private fun minPriority(): AnnouncePriority {
