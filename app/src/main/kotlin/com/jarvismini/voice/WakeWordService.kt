@@ -1,8 +1,5 @@
 package com.jarvismini.voice
 
-import ai.picovoice.porcupine.PorcupineException
-import ai.picovoice.porcupine.PorcupineManager
-import ai.picovoice.porcupine.PorcupineManagerCallback
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -24,8 +21,8 @@ import kotlinx.coroutines.launch
 /**
  * WakeWordService (Phase 2)
  *
- * Always-on foreground service that listens for the "porcupine_jarvis.ppn"
- * wake word via Porcupine. On detection it pauses wake-word listening,
+ * Always-on foreground service that listens for the "Jarvis" wake word
+ * offline via sherpa-onnx keyword spotting (KwsWakeWord). On detection it pauses wake-word listening,
  * hands off to VoiceTriggerManager for a single command capture (STT ->
  * Intent Router path), then resumes listening once that round-trip
  * completes or errors out.
@@ -41,10 +38,6 @@ class WakeWordService : Service() {
         private const val CHANNEL_ID = "wake_word_channel"
         private const val NOTIF_ID = 8893
 
-        // Relative to app/src/main/assets/ — Porcupine's Android SDK resolves
-        // and copies asset-relative keyword paths internally.
-        private const val KEYWORD_ASSET_PATH = "porcupine_jarvis.ppn"
-        private const val SENSITIVITY = 0.6f
 
         /** After a reply, Jarvis reopens the mic by itself (no wake word) up to this many times in a row. */
         private const val MAX_FOLLOW_UPS = 3
@@ -53,7 +46,7 @@ class WakeWordService : Service() {
         @Volatile var listenNowHook: (() -> Unit)? = null
     }
 
-    private var porcupineManager: PorcupineManager? = null
+    private var porcupineManager: KwsWakeWord? = null
     private var voiceTriggerManager: VoiceTriggerManager? = null
 
     private val svcScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -93,51 +86,30 @@ class WakeWordService : Service() {
 
     private fun startPorcupine() {
         if (porcupineManager != null) return
-
-        val accessKey = JarvisPrefs.getString("picovoice_access_key")
-        if (accessKey.isNullOrBlank()) {
-            Log.e(TAG, "No Picovoice access key in JarvisPrefs — stopping")
+        val kws = KwsWakeWord(applicationContext) { onWakeWord() }
+        if (!kws.start()) {
+            Log.e(TAG, "Wake word engine failed to start — stopping")
             stopSelf()
             return
         }
-
-        try {
-            porcupineManager = PorcupineManager.Builder()
-                .setAccessKey(accessKey)
-                .setKeywordPath(KEYWORD_ASSET_PATH)
-                .setSensitivity(SENSITIVITY)
-                .build(applicationContext, wakeWordCallback)
-            porcupineManager?.start()
-            Log.i(TAG, "Wake word detection started")
-        } catch (e: PorcupineException) {
-            Log.e(TAG, "Failed to start Porcupine: ${e.message}", e)
-            stopSelf()
-        }
+        porcupineManager = kws
+        Log.i(TAG, "Wake word detection started")
     }
 
     private fun stopPorcupine() {
-        try {
-            porcupineManager?.stop()
-            porcupineManager?.delete()
-        } catch (e: PorcupineException) {
-            Log.w(TAG, "Error stopping Porcupine: ${e.message}")
-        }
+        try { porcupineManager?.delete() } catch (e: Exception) { Log.w(TAG, "Error stopping wake word: ${e.message}") }
         porcupineManager = null
     }
 
-    private val wakeWordCallback = PorcupineManagerCallback { keywordIndex ->
-        Log.i(TAG, "Wake word detected (index=$keywordIndex)")
-        // Barge-in: saying the wake word while Jarvis is talking cuts him off.
-        epoch++; followUps = 0
-        svcScope.launch { VoiceModule.stopSpeaking() }
-        // Pause wake-word listening while capturing the follow-up command so
-        // the mic isn't shared between two recognizers at once.
-        try {
-            porcupineManager?.stop()
-        } catch (e: PorcupineException) {
-            Log.w(TAG, "Error pausing Porcupine after detection: ${e.message}")
-        }
-        listenForCommand()
+    private fun onWakeWord() {
+        Log.i(TAG, "Wake word detected")
+        // The detector already released the mic; hop to the main thread for the rest.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            // Barge-in: saying the wake word while Jarvis is talking cuts him off.
+            epoch++; followUps = 0
+            svcScope.launch { VoiceModule.stopSpeaking() }
+            listenForCommand()
+        }, 150)  // brief gap so the detector's mic is fully released first
     }
 
     // ── Command capture handoff ──────────────────────────────────────────
@@ -199,7 +171,7 @@ class WakeWordService : Service() {
     private fun resumePorcupine() {
         try {
             porcupineManager?.start()
-        } catch (e: PorcupineException) {
+        } catch (e: Exception) {
             Log.w(TAG, "Error resuming Porcupine: ${e.message}")
         }
     }

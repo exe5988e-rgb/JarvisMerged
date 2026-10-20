@@ -120,8 +120,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
-    // Wake word (Phase 2 — Porcupine)
-    implementation("ai.picovoice:porcupine-android:3.0.3")
+    // Wake word: offline keyword spotting (sherpa-onnx, arm64 only AAR)
+    implementation(files("libs/sherpa-onnx-arm64.aar"))
    
     
     // Modules
