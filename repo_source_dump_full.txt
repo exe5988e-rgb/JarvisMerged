@@ -7,6 +7,8 @@ FILE TREE (SELECTED FOLDERS)
 │   ├── build.gradle.kts
 │   ├── build.gradle.kts.backup
 │   ├── keystore
+│   ├── libs
+│   │   ├── sherpa-onnx-arm64.aar
 │   ├── proguard-rules.pro
 │   ├── src
 │   │   ├── androidTest
@@ -22,6 +24,12 @@ FILE TREE (SELECTED FOLDERS)
 │   │   ├── main
 │   │   │   ├── AndroidManifest.xml
 │   │   │   ├── assets
+│   │   │   │   ├── kws
+│   │   │   │   │   ├── decoder-epoch-12-avg-2-chunk-16-left-64.onnx
+│   │   │   │   │   ├── encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx
+│   │   │   │   │   ├── joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx
+│   │   │   │   │   ├── keywords.txt
+│   │   │   │   │   ├── tokens.txt
 │   │   │   │   ├── porcupine_jarvis.ppn
 │   │   │   ├── cpp
 │   │   │   │   ├── llama.cpp
@@ -126,6 +134,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── TaskTimerDisplay.kt
 │   │   │   │   │   │   ├── voice
 │   │   │   │   │   │   │   ├── ElevenSpeaker.kt
+│   │   │   │   │   │   │   ├── KwsWakeWord.kt
 │   │   │   │   │   │   │   ├── VoiceModule.kt
 │   │   │   │   │   │   │   ├── VoiceTriggerManager.kt
 │   │   │   │   │   │   │   ├── WakeWordService.kt
@@ -530,8 +539,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
-    // Wake word (Phase 2 — Porcupine)
-    implementation("ai.picovoice:porcupine-android:3.0.3")
+    // Wake word: offline keyword spotting (sherpa-onnx, arm64 only AAR)
+    implementation(files("libs/sherpa-onnx-arm64.aar"))
    
     
     // Modules
@@ -790,6 +799,514 @@ dependencies {
     </application>
 
 </manifest>
+
+
+//===== FILE: app/src/main/assets/kws/keywords.txt =====
+▁JA R VI S :2.0 #0.3 @JARVIS
+▁HE Y ▁JA R VI S :2.0 #0.3 @JARVIS
+
+
+//===== FILE: app/src/main/assets/kws/tokens.txt =====
+<blk> 0
+<sos/eos> 1
+<unk> 2
+S 3
+T 4
+▁THE 5
+▁A 6
+▁TO 7
+▁AND 8
+N 9
+E 10
+D 11
+ING 12
+' 13
+▁OF 14
+▁I 15
+▁IN 16
+Y 17
+ED 18
+M 19
+▁ 20
+▁THAT 21
+O 22
+C 23
+R 24
+A 25
+P 26
+▁YOU 27
+U 28
+RE 29
+▁IT 30
+▁S 31
+G 32
+L 33
+B 34
+▁IS 35
+I 36
+AL 37
+ER 38
+▁RE 39
+▁C 40
+▁WE 41
+▁SO 42
+▁BE 43
+OR 44
+AR 45
+IN 46
+▁FOR 47
+F 48
+▁HE 49
+LE 50
+LY 51
+▁E 52
+▁WAS 53
+K 54
+▁F 55
+W 56
+VE 57
+RI 58
+CH 59
+LL 60
+▁THIS 61
+▁T 62
+EN 63
+▁ON 64
+IT 65
+CE 66
+▁WITH 67
+▁B 68
+▁W 69
+▁ME 70
+▁DO 71
+▁DE 72
+▁HAVE 73
+▁BUT 74
+ENT 75
+▁P 76
+UR 77
+ON 78
+▁AS 79
+IC 80
+TER 81
+TE 82
+▁THEY 83
+ES 84
+RA 85
+▁NOT 86
+TH 87
+▁ARE 88
+RO 89
+IL 90
+ATION 91
+AN 92
+▁ST 93
+▁WHAT 94
+SE 95
+LI 96
+V 97
+▁CAN 98
+▁G 99
+▁OR 100
+▁ALL 101
+NE 102
+▁AT 103
+▁CON 104
+H 105
+▁LIKE 106
+▁MO 107
+▁HIS 108
+▁AN 109
+▁MA 110
+▁THERE 111
+▁SU 112
+▁MY 113
+NG 114
+- 115
+▁ABOUT 116
+▁SE 117
+LA 118
+▁ONE 119
+LO 120
+▁SHE 121
+CK 122
+▁HAD 123
+AD 124
+MENT 125
+VER 126
+▁CA 127
+IR 128
+▁IF 129
+▁NO 130
+EL 131
+▁O 132
+▁FROM 133
+▁PA 134
+▁YOUR 135
+▁KNOW 136
+RY 137
+ION 138
+UN 139
+▁JUST 140
+▁UP 141
+▁US 142
+▁WHO 143
+▁GO 144
+ME 145
+▁EX 146
+▁OUT 147
+ND 148
+CI 149
+▁PO 150
+▁HER 151
+▁FA 152
+▁PRO 153
+▁WHEN 154
+ATE 155
+AT 156
+▁BY 157
+PE 158
+AS 159
+▁LA 160
+GE 161
+▁CO 162
+▁PEOPLE 163
+▁K 164
+▁SOME 165
+IGHT 166
+▁THINK 167
+VI 168
+DE 169
+▁LE 170
+▁WERE 171
+▁LI 172
+OM 173
+▁WOULD 174
+▁SEE 175
+CO 176
+▁BO 177
+▁OUR 178
+▁HOW 179
+ET 180
+Z 181
+UL 182
+▁HO 183
+IG 184
+▁GET 185
+▁DON 186
+IS 187
+URE 188
+▁WHICH 189
+▁MI 190
+IES 191
+US 192
+X 193
+▁MORE 194
+▁NOW 195
+▁TIME 196
+▁UN 197
+▁FI 198
+TY 199
+▁WILL 200
+RU 201
+IVE 202
+▁THEIR 203
+▁SAY 204
+ITY 205
+▁HA 206
+LU 207
+▁RO 208
+HO 209
+OL 210
+IST 211
+AGE 212
+MA 213
+KE 214
+▁RA 215
+ID 216
+ERS 217
+▁LO 218
+▁SP 219
+▁DA 220
+▁SAID 221
+TION 222
+THER 223
+▁EN 224
+▁BECAUSE 225
+▁HAS 226
+EST 227
+TI 228
+ACT 229
+▁BA 230
+▁VERY 231
+▁THEM 232
+▁BEEN 233
+▁WA 234
+ABLE 235
+▁SA 236
+▁DID 237
+▁HIM 238
+▁DIS 239
+▁WANT 240
+▁OTHER 241
+IM 242
+▁PRE 243
+▁LOOK 244
+▁GOING 245
+▁VI 246
+▁WORK 247
+▁DR 248
+ENCE 249
+▁DI 250
+FF 251
+TA 252
+▁REALLY 253
+▁RIGHT 254
+MO 255
+ALLY 256
+▁INTO 257
+OW 258
+▁WAY 259
+▁FE 260
+▁COULD 261
+▁THEN 262
+TED 263
+▁HERE 264
+▁THESE 265
+▁OVER 266
+▁WELL 267
+▁NA 268
+▁ANY 269
+HE 270
+▁COMP 271
+▁COM 272
+▁TH 273
+▁EVEN 274
+▁TWO 275
+▁JO 276
+▁MAKE 277
+▁BACK 278
+▁WHERE 279
+SH 280
+▁QU 281
+MAN 282
+▁YEAR 283
+▁TRA 284
+▁CHA 285
+QU 286
+CA 287
+▁ALSO 288
+CTION 289
+ANCE 290
+UM 291
+PER 292
+DI 293
+▁HU 294
+▁MU 295
+FUL 296
+▁NEW 297
+ARD 298
+J 299
+ICAL 300
+ANT 301
+END 302
+▁MAR 303
+▁NE 304
+IF 305
+DER 306
+ONE 307
+▁THOSE 308
+PP 309
+▁MAN 310
+▁GOOD 311
+▁TAKE 312
+SIDE 313
+PO 314
+HA 315
+▁LITTLE 316
+▁APP 317
+▁BI 318
+UGH 319
+▁COME 320
+ISH 321
+TIC 322
+▁PER 323
+▁THINGS 324
+▁MUCH 325
+▁FIRST 326
+▁THAN 327
+IA 328
+▁AGAIN 329
+▁STA 330
+▁PART 331
+▁GA 332
+▁MEAN 333
+▁LET 334
+▁DOWN 335
+▁NEED 336
+▁GU 337
+LES 338
+▁RU 339
+ATED 340
+▁SHA 341
+VO 342
+▁TALK 343
+▁DAY 344
+▁CHI 345
+▁SOMETHING 346
+▁AFTER 347
+▁THOUGH 348
+▁CALL 349
+▁GRA 350
+▁EVERY 351
+▁KIND 352
+ROW 353
+AIN 354
+▁BU 355
+▁THROUGH 356
+▁SHOULD 357
+▁ONLY 358
+▁TA 359
+▁MIN 360
+▁GOT 361
+IAN 362
+▁GREAT 363
+▁RI 364
+▁DOES 365
+▁THING 366
+DAY 367
+OUS 368
+▁START 369
+▁MOST 370
+▁COL 371
+PH 372
+▁LOT 373
+IZE 374
+BER 375
+IOUS 376
+▁LIFE 377
+▁MANY 378
+▁FEEL 379
+ITION 380
+▁VA 381
+NESS 382
+▁BEFORE 383
+▁THREE 384
+▁WORLD 385
+▁GIVE 386
+▁WHY 387
+▁PI 388
+▁LONG 389
+PORT 390
+▁SHOW 391
+▁ACTUALLY 392
+▁NEVER 393
+IV 394
+FORM 395
+▁THANK 396
+▁HI 397
+▁PUT 398
+▁LOVE 399
+▁QUESTION 400
+▁HELP 401
+▁HAPPEN 402
+▁MR 403
+▁OWN 404
+WARD 405
+▁MADE 406
+▁HAND 407
+▁STATE 408
+IBLE 409
+▁TELL 410
+▁PH 411
+▁CAME 412
+▁TEA 413
+▁STILL 414
+▁DIFFERENT 415
+▁PLACE 416
+▁MIGHT 417
+▁FIND 418
+▁DU 419
+▁IMP 420
+▁OLD 421
+▁PERSON 422
+▁COUNT 423
+▁JA 424
+▁POINT 425
+▁HIGH 426
+SHIP 427
+▁LAST 428
+▁SAME 429
+▁FOUR 430
+▁AROUND 431
+▁OH 432
+▁CHANGE 433
+▁UNDER 434
+▁HOME 435
+▁ANOTHER 436
+▁FOUND 437
+ATIVE 438
+▁TURN 439
+▁YES 440
+LAND 441
+▁ALWAYS 442
+▁YEAH 443
+▁SCHOOL 444
+▁JE 445
+▁NEXT 446
+▁WORD 447
+▁JU 448
+LINE 449
+▁SIX 450
+▁LEARN 451
+▁BOOK 452
+▁PLAY 453
+▁AWAY 454
+▁HOUSE 455
+▁PLAN 456
+▁WHILE 457
+▁COMMUNI 458
+▁FRIEND 459
+▁AMERICA 460
+▁INTEREST 461
+▁KEEP 462
+▁BETTER 463
+▁IDEA 464
+▁HARD 465
+▁TWENTY 466
+▁THOUSAND 467
+▁HUNDRED 468
+▁WEEK 469
+▁NUMBER 470
+▁COURSE 471
+▁OKAY 472
+PRESS 473
+▁SYSTEM 474
+▁NINE 475
+▁UNDERSTAND 476
+▁WITHOUT 477
+▁BELIEVE 478
+▁POWER 479
+▁MAYBE 480
+▁BUILD 481
+▁MONEY 482
+▁BETWEEN 483
+▁GONNA 484
+▁IMPORTANT 485
+▁ANYTHING 486
+▁LEFT 487
+▁HAVING 488
+▁WHITE 489
+▁PROBLEM 490
+▁SECOND 491
+▁SPEAK 492
+▁TOGETHER 493
+▁BLACK 494
+▁PUBLIC 495
+▁HEALTH 496
+▁NOTHING 497
+▁EVERYTHING 498
+Q 499
 
 
 //===== FILE: app/src/main/cpp/llama_context.cpp =====
@@ -12336,6 +12853,141 @@ object ElevenSpeaker {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/voice/KwsWakeWord.kt =====
+package com.jarvismini.voice
+
+import android.content.Context
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.util.Log
+import com.k2fsa.sherpa.onnx.FeatureConfig
+import com.k2fsa.sherpa.onnx.KeywordSpotter
+import com.k2fsa.sherpa.onnx.KeywordSpotterConfig
+import com.k2fsa.sherpa.onnx.OnlineModelConfig
+import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
+
+/**
+ * Offline wake word ("Jarvis" / "Hey Jarvis") using sherpa-onnx keyword spotting.
+ * No access key, no activation limit. Model + keywords live in assets/kws/.
+ *
+ * start() opens the mic (16 kHz mono PCM16) on a background thread and calls onDetected()
+ * when a keyword fires. stop() joins the thread and releases the mic so another recognizer can use it.
+ */
+class KwsWakeWord(private val context: Context, private val onDetected: () -> Unit) {
+
+    private companion object {
+        const val TAG = "KwsWakeWord"
+        const val DIR = "kws"
+        const val SAMPLE_RATE = 16000
+    }
+
+    private var spotter: KeywordSpotter? = null
+    @Volatile private var running = false
+    private var thread: Thread? = null
+
+    /** Loads the model once; returns false if it can't be loaded. */
+    private fun ensureSpotter(): Boolean {
+        if (spotter != null) return true
+        return try {
+            val transducer = OnlineTransducerModelConfig().apply {
+                encoder = "$DIR/encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
+                decoder = "$DIR/decoder-epoch-12-avg-2-chunk-16-left-64.onnx"
+                joiner = "$DIR/joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
+            }
+            val model = OnlineModelConfig().apply {
+                this.transducer = transducer
+                tokens = "$DIR/tokens.txt"
+                numThreads = 2
+                provider = "cpu"
+                modelType = "zipformer2"
+            }
+            val cfg = KeywordSpotterConfig().apply {
+                featConfig = FeatureConfig().apply { sampleRate = SAMPLE_RATE; featureDim = 80 }
+                modelConfig = model
+                keywordsFile = "$DIR/keywords.txt"
+                keywordsScore = 1.5f
+                keywordsThreshold = 0.25f
+            }
+            spotter = KeywordSpotter(context.assets, cfg)
+            true
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to load KWS model: ${e.message}", e)
+            false
+        }
+    }
+
+    @Synchronized
+    fun start(): Boolean {
+        if (running) return true
+        if (!ensureSpotter()) return false
+        running = true
+        thread = Thread({ loop() }, "kws-wakeword").also { it.start() }
+        return true
+    }
+
+    @Synchronized
+    fun stop() {
+        running = false
+        try { thread?.join(800) } catch (_: InterruptedException) {}
+        thread = null
+    }
+
+    /** Stops and frees the model. */
+    fun delete() {
+        stop()
+        try { spotter?.release() } catch (_: Throwable) {}
+        spotter = null
+    }
+
+    private fun loop() {
+        val sp = spotter ?: return
+        val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val chunk = SAMPLE_RATE / 10  // 100 ms
+        var rec: AudioRecord? = null
+        val stream = sp.createStream("")
+        try {
+            rec = AudioRecord(
+                MediaRecorder.AudioSource.MIC, SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                maxOf(minBuf, chunk * 2 * 4)
+            )
+            if (rec.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord not initialised (mic busy or permission missing)")
+                return
+            }
+            rec.startRecording()
+            Log.i(TAG, "Wake word listening")
+            val shorts = ShortArray(chunk)
+            val floats = FloatArray(chunk)
+            while (running) {
+                val n = rec.read(shorts, 0, shorts.size)
+                if (n <= 0) continue
+                for (i in 0 until n) floats[i] = shorts[i] / 32768f
+                stream.acceptWaveform(if (n == floats.size) floats else floats.copyOf(n), SAMPLE_RATE)
+                while (sp.isReady(stream)) {
+                    sp.decode(stream)
+                    val kw = sp.getResult(stream).keyword
+                    if (kw.isNotBlank()) {
+                        Log.i(TAG, "Keyword detected: $kw")
+                        sp.reset(stream)
+                        running = false
+                        onDetected()
+                        return
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Wake word loop failed: ${e.message}", e)
+        } finally {
+            try { rec?.stop() } catch (_: Throwable) {}
+            try { rec?.release() } catch (_: Throwable) {}
+            try { stream.release() } catch (_: Throwable) {}
+        }
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/voice/VoiceModule.kt =====
 package com.jarvismini.voice
 
@@ -12706,9 +13358,6 @@ class VoiceTriggerManager(private val context: Context) {
 //===== FILE: app/src/main/kotlin/com/jarvismini/voice/WakeWordService.kt =====
 package com.jarvismini.voice
 
-import ai.picovoice.porcupine.PorcupineException
-import ai.picovoice.porcupine.PorcupineManager
-import ai.picovoice.porcupine.PorcupineManagerCallback
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12730,8 +13379,8 @@ import kotlinx.coroutines.launch
 /**
  * WakeWordService (Phase 2)
  *
- * Always-on foreground service that listens for the "porcupine_jarvis.ppn"
- * wake word via Porcupine. On detection it pauses wake-word listening,
+ * Always-on foreground service that listens for the "Jarvis" wake word
+ * offline via sherpa-onnx keyword spotting (KwsWakeWord). On detection it pauses wake-word listening,
  * hands off to VoiceTriggerManager for a single command capture (STT ->
  * Intent Router path), then resumes listening once that round-trip
  * completes or errors out.
@@ -12747,10 +13396,6 @@ class WakeWordService : Service() {
         private const val CHANNEL_ID = "wake_word_channel"
         private const val NOTIF_ID = 8893
 
-        // Relative to app/src/main/assets/ — Porcupine's Android SDK resolves
-        // and copies asset-relative keyword paths internally.
-        private const val KEYWORD_ASSET_PATH = "porcupine_jarvis.ppn"
-        private const val SENSITIVITY = 0.6f
 
         /** After a reply, Jarvis reopens the mic by itself (no wake word) up to this many times in a row. */
         private const val MAX_FOLLOW_UPS = 3
@@ -12759,7 +13404,7 @@ class WakeWordService : Service() {
         @Volatile var listenNowHook: (() -> Unit)? = null
     }
 
-    private var porcupineManager: PorcupineManager? = null
+    private var porcupineManager: KwsWakeWord? = null
     private var voiceTriggerManager: VoiceTriggerManager? = null
 
     private val svcScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -12799,51 +13444,30 @@ class WakeWordService : Service() {
 
     private fun startPorcupine() {
         if (porcupineManager != null) return
-
-        val accessKey = JarvisPrefs.getString("picovoice_access_key")
-        if (accessKey.isNullOrBlank()) {
-            Log.e(TAG, "No Picovoice access key in JarvisPrefs — stopping")
+        val kws = KwsWakeWord(applicationContext) { onWakeWord() }
+        if (!kws.start()) {
+            Log.e(TAG, "Wake word engine failed to start — stopping")
             stopSelf()
             return
         }
-
-        try {
-            porcupineManager = PorcupineManager.Builder()
-                .setAccessKey(accessKey)
-                .setKeywordPath(KEYWORD_ASSET_PATH)
-                .setSensitivity(SENSITIVITY)
-                .build(applicationContext, wakeWordCallback)
-            porcupineManager?.start()
-            Log.i(TAG, "Wake word detection started")
-        } catch (e: PorcupineException) {
-            Log.e(TAG, "Failed to start Porcupine: ${e.message}", e)
-            stopSelf()
-        }
+        porcupineManager = kws
+        Log.i(TAG, "Wake word detection started")
     }
 
     private fun stopPorcupine() {
-        try {
-            porcupineManager?.stop()
-            porcupineManager?.delete()
-        } catch (e: PorcupineException) {
-            Log.w(TAG, "Error stopping Porcupine: ${e.message}")
-        }
+        try { porcupineManager?.delete() } catch (e: Exception) { Log.w(TAG, "Error stopping wake word: ${e.message}") }
         porcupineManager = null
     }
 
-    private val wakeWordCallback = PorcupineManagerCallback { keywordIndex ->
-        Log.i(TAG, "Wake word detected (index=$keywordIndex)")
-        // Barge-in: saying the wake word while Jarvis is talking cuts him off.
-        epoch++; followUps = 0
-        svcScope.launch { VoiceModule.stopSpeaking() }
-        // Pause wake-word listening while capturing the follow-up command so
-        // the mic isn't shared between two recognizers at once.
-        try {
-            porcupineManager?.stop()
-        } catch (e: PorcupineException) {
-            Log.w(TAG, "Error pausing Porcupine after detection: ${e.message}")
-        }
-        listenForCommand()
+    private fun onWakeWord() {
+        Log.i(TAG, "Wake word detected")
+        // The detector already released the mic; hop to the main thread for the rest.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            // Barge-in: saying the wake word while Jarvis is talking cuts him off.
+            epoch++; followUps = 0
+            svcScope.launch { VoiceModule.stopSpeaking() }
+            listenForCommand()
+        }, 150)  // brief gap so the detector's mic is fully released first
     }
 
     // ── Command capture handoff ──────────────────────────────────────────
@@ -12905,7 +13529,7 @@ class WakeWordService : Service() {
     private fun resumePorcupine() {
         try {
             porcupineManager?.start()
-        } catch (e: PorcupineException) {
+        } catch (e: Exception) {
             Log.w(TAG, "Error resuming Porcupine: ${e.message}")
         }
     }
