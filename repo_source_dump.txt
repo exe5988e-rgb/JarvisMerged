@@ -5393,14 +5393,14 @@ class VoiceTriggerManager(private val context: Context) {
 
 // ... FILE TRUNCATED ...
 
-                else                                   -> "Error $error"
-            }
-            Log.w(TAG, "Recognition error: $msg")
-            val silent = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-            // Nothing heard yet: keep the window open (up to ~10 s total) instead of giving up after ~2 s
-            if (silent && retries < 3 && System.currentTimeMillis() - listenStart < 10_000L + retries * 4_000L) {
+            val flaky = error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == 11  // 11 = server disconnected
+            // Nothing heard yet: keep the window open (a few attempts, ~10 s) instead of giving up after ~2 s
+            if ((silent || flaky) && retries < 4 && recognizer != null) {
                 retries++
-                handler.postDelayed({ if (recognizer != null) beginListening() }, 150)
+                val delayMs = if (flaky) 700L else 250L
+                handler.postDelayed({
+                    if (recognizer != null) beginListening(recreate = flaky)
+                }, delayMs)
                 return
             }
             handler.post { onErrorCb?.invoke(msg) }
