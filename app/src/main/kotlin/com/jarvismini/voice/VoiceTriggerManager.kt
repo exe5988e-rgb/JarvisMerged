@@ -77,23 +77,24 @@ class VoiceTriggerManager(private val context: Context) {
     private var retries = 0
     private var listenStart = 0L
 
-    private fun beginListening() {
-        recognizer?.destroy()
+    private fun buildIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.ENGLISH)
+        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        // Wait longer for the user to start and finish their command
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L)
+    }
+
+    /** First attempt creates the recognizer; retries reuse the same instance (re-creating it races the service: error 11). */
+    private fun beginListening(recreate: Boolean = true) {
         listenStart = System.currentTimeMillis()
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(listener)
-            startListening(
-                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.ENGLISH)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                    // Wait longer for the user to start and finish their command
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L)
-                }
-            )
+        if (recreate || recognizer == null) {
+            recognizer?.destroy()
+            recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply { setRecognitionListener(listener) }
         }
+        recognizer?.startListening(buildIntent())
     }
 
     fun stop() {
@@ -186,10 +187,14 @@ class VoiceTriggerManager(private val context: Context) {
             }
             Log.w(TAG, "Recognition error: $msg")
             val silent = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-            // Nothing heard yet: keep the window open (up to ~10 s total) instead of giving up after ~2 s
-            if (silent && retries < 3 && System.currentTimeMillis() - listenStart < 10_000L + retries * 4_000L) {
+            val flaky = error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == 11  // 11 = server disconnected
+            // Nothing heard yet: keep the window open (a few attempts, ~10 s) instead of giving up after ~2 s
+            if ((silent || flaky) && retries < 4 && recognizer != null) {
                 retries++
-                handler.postDelayed({ if (recognizer != null) beginListening() }, 150)
+                val delayMs = if (flaky) 700L else 250L
+                handler.postDelayed({
+                    if (recognizer != null) beginListening(recreate = flaky)
+                }, delayMs)
                 return
             }
             handler.post { onErrorCb?.invoke(msg) }
