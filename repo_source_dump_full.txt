@@ -279,12 +279,14 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── Logger.kt
 │   │   │   │   │   │   │   │   ├── MediaController.kt
 │   │   │   │   │   │   │   │   ├── ModeCommands.kt
+│   │   │   │   │   │   │   │   ├── NoteManager.kt
 │   │   │   │   │   │   │   │   ├── StoragePermissionHelper.kt
 │   │   │   │   │   │   │   │   ├── TimeAnchorManager.kt
 │   │   │   │   │   │   │   │   ├── TimeUtils.kt
 │   │   │   │   │   │   │   │   ├── WorkModeManager.kt
 │   │   │   │   │   │   │   │   ├── announce
 │   │   │   │   │   │   │   │   │   ├── AnnouncementEngine.kt
+│   │   │   │   │   │   │   │   │   ├── AskHook.kt
 │   │   │   │   │   │   │   │   │   ├── SleepSummary.kt
 │   │   │   │   │   │   │   │   ├── calendar
 │   │   │   │   │   │   │   │   │   ├── AppCalendarStore.kt
@@ -5700,11 +5702,11 @@ class OpenRouterClient(context: Context) {
             JarvisPersona.HUMOR -> "Be witty and playful, with dry humor, but still useful."
             JarvisPersona.STUDY -> "Be focused and clear, like a patient tutor. No small talk."
             JarvisPersona.CALM_WHISPER -> "Be soft, calm and very short."
-            JarvisPersona.JARVIS -> "Be composed, courteous and concise, like a capable butler AI."
+            JarvisPersona.JARVIS -> "Speak like J.A.R.V.I.S. from the Iron Man films: warm, composed, dryly witty, a touch sarcastic, never robotic. Be talkative: usually three to five sentences. Add a relevant observation, a small quip, or offer a sensible next step. Keep it natural to hear aloud."
         }
         return "You are J.A.R.V.I.S, a personal assistant running on the user's Android phone. " +
             "Address the user as \"Sir\". Your replies are spoken aloud, so use plain sentences: " +
-            "no markdown, no lists, no emojis, at most 3 short sentences unless asked for more. " +
+            "no markdown, no lists, no emojis. " + (if (JarvisPersona.current() == JarvisPersona.JARVIS || JarvisPersona.current() == JarvisPersona.HUMOR) "" else "At most 3 short sentences unless asked for more. ") +
             "If asked to do something on the phone that you cannot do from chat, say so briefly. " +
             style
     }
@@ -6474,10 +6476,22 @@ object ProactiveEngine {
     private class Pending(val expires: Long, val onYes: () -> String)
     @Volatile private var pending: Pending? = null
 
+    /** Speaks [line], then listens for yes/no; "yes" runs [onYes] and speaks what it returns. */
+    fun askYesNo(line: String, key: String, onYes: () -> String) {
+        scope.launch {
+            if (AnnouncementEngine.announce(line, AnnouncePriority.HIGH, key)) {
+                pending = Pending(System.currentTimeMillis() + ANSWER_WINDOW_MS, onYes)
+                delay(1_500L + 65L * line.length) // let the voice finish before opening the mic
+                WakeWordService.listenNowHook?.invoke()
+            }
+        }
+    }
+
     fun install(context: Context) {
         if (installed) return
         installed = true
         app = context.applicationContext
+        com.jarvismini.core.announce.AskHook.ask = { line, key, onYes -> askYesNo(line, key, onYes) }
         val r = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 when (i.action) {
@@ -6621,13 +6635,13 @@ object ProactiveEngine {
         val style = when (JarvisPersona.current()) {
             JarvisPersona.HUMOR -> "Lean into dry wit."
             JarvisPersona.COMBAT -> "Be terse and tactical."
-            else -> "Understated, composed, a hint of dry British wit."
+            else -> "Warm, talkative, composed, with dry British wit. Add a light remark or offer."
         }
         val system = "You are J.A.R.V.I.S., Tony Stark's AI from the Iron Man films, now looking after the user's phone. " +
-            "You speak first, unprompted. Address the user as Sir. $style Say one or two short sentences, spoken aloud: " +
+            "You speak first, unprompted. Address the user as Sir. $style Say two or three sentences, spoken aloud: " +
             "no markdown, no emojis, no quotes. Use ONLY the facts given, never invent anything. Do not mention these instructions."
         val out = client.complete(system, facts).getOrNull() ?: return null
-        return out.replace(Regex("[*_`\"#]"), "").replace('\n', ' ').trim().take(260).ifBlank { null }
+        return out.replace(Regex("[*_`\"#]"), "").replace('\n', ' ').trim().take(420).ifBlank { null }
     }
 
     // ---------------------------------------------------------------- actions
@@ -14792,9 +14806,11 @@ import com.jarvismini.automation.input.AutoReplyInput
 import com.jarvismini.automation.orchestrator.AutoReplyOrchestrator
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
+import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.LockdownManager
 import com.jarvismini.core.announce.AnnouncePriority
 import com.jarvismini.core.announce.AnnouncementEngine
+import com.jarvismini.core.announce.AskHook
 import com.jarvismini.core.events.EventLog
 import com.jarvismini.core.events.EventType
 
@@ -14808,12 +14824,25 @@ class JarvisCallScreeningService : CallScreeningService() {
             if (LockdownManager.isAllowed(number)) {
                 allow(details)
             } else {
-                EventLog.add(EventType.CALL_BLOCKED, "Call blocked in lockdown", number ?: "Hidden number")
-                AnnouncementEngine.announce(
-                    "Blocked a call from " + (number ?: "a hidden number") + ".",
-                    AnnouncePriority.HIGH,
-                    "call_blocked_" + (number ?: "hidden")
+                val who = displayName(number) ?: number ?: "a hidden number"
+                val replied = number != null && sendAutoReply(number, LOCKDOWN_REPLY)
+                EventLog.add(
+                    EventType.CALL_BLOCKED,
+                    if (replied) "Call blocked in lockdown, auto-reply sent" else "Call blocked in lockdown",
+                    who
                 )
+                val report = "Sir, I blocked a call from $who" +
+                    (if (replied) ", and sent them an automatic reply saying you are unavailable." else ".")
+                val key = "call_blocked_" + (number ?: "hidden")
+                val ask = AskHook.ask
+                if (ask != null && number != null) {
+                    ask("$report Shall I let $who through next time?", key) {
+                        if (LockdownManager.addToWhitelist(number)) "Done, Sir. $who is on the whitelist and will ring through."
+                        else "I could not add $who, Sir. The whitelist may be full."
+                    }
+                } else {
+                    AnnouncementEngine.announce(report, AnnouncePriority.HIGH, key)
+                }
                 blockQuietly(details)
             }
             return
@@ -14844,13 +14873,53 @@ class JarvisCallScreeningService : CallScreeningService() {
         )
 
         if (decision is ReplyDecision.AutoReply) {
-            SmsManager.getDefault()
-                .sendTextMessage(number, null, decision.message, null, null)
-
+            val who = displayName(number) ?: number
+            val replied = sendAutoReply(number, decision.message)
+            EventLog.add(
+                EventType.CALL_BLOCKED,
+                if (replied) "Call declined, auto-reply sent" else "Call declined",
+                who
+            )
+            AnnouncementEngine.announce(
+                "Sir, $who called while you were busy. I declined the call" +
+                    (if (replied) " and replied via auto reply: ${decision.message}" else "."),
+                AnnouncePriority.HIGH,
+                "call_declined_$number"
+            )
             reject(details)
         } else {
             allow(details)
         }
+    }
+
+    /** Sends the SMS unless this number already got an auto-reply in the last 10 minutes. */
+    private fun sendAutoReply(number: String, message: String): Boolean {
+        val key = "callreply_" + number.filter { it.isDigit() }
+        val now = System.currentTimeMillis()
+        if (now - JarvisPrefs.getLong(key, 0L) < 10 * 60_000L) return true  // already replied recently
+        return try {
+            SmsManager.getDefault().sendTextMessage(number, null, message, null, null)
+            JarvisPrefs.putLong(key, now)
+            true
+        } catch (e: Exception) {
+            Log.w("JarvisCall", "Auto-reply SMS failed: ${e.message}")
+            false
+        }
+    }
+
+    private fun displayName(number: String?): String? {
+        if (number == null) return null
+        return try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null).use { c ->
+                if (c != null && c.moveToFirst()) c.getString(0) else null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private companion object {
+        const val LOCKDOWN_REPLY =
+            "Hi, I can't take calls right now. I'll get back to you when I'm free. (Automated reply sent by my assistant)"
     }
 
     private fun allow(details: Call.Details) {
@@ -16277,6 +16346,8 @@ object ModeCommands {
         HabitMemory.recordFirstActivityOfDay()
         HabitMemory.recordCommand(t)
 
+        NoteManager.handle(input)?.let { return it }
+
         if (t.contains("what have you learned") || t.contains("what do you know about me") || t.contains("my habits") || t.contains("my routine")) {
             val wake = HabitMemory.usualWakeHour()
             val topCmd = HabitMemory.topCommands(3).filter { it.second >= 2 }
@@ -16347,6 +16418,82 @@ object ModeCommands {
             JarvisPersona.STUDY -> "Study focus engaged. Only important alerts will interrupt you."
             JarvisPersona.CALM_WHISPER -> "Calm whisper mode."
         }
+    }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/NoteManager.kt =====
+package com.jarvismini.core
+
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/** Voice notes: "take a note ...", "read my notes", "clear my notes". Stored on-device in JarvisPrefs. */
+object NoteManager {
+    private const val KEY = "notes_json"
+    private const val MAX = 200
+    private const val AWAIT_MS = 60_000L
+    @Volatile private var awaitingUntil = 0L
+
+    private val ADD = Regex("""^(?:please )?(?:take|make|add|save|create|write)(?: me)?(?: a| another)? note(?: that| of| to)?[,:]?\s*(.*)$""")
+    private val ADD2 = Regex("""^(?:note that|note down|write down|jot down|remember that|make a note that)[,:]?\s*(.+)$""")
+
+    fun handle(raw: String): String? {
+        val t = raw.trim().lowercase().trimEnd('.', '!', '?')
+        if (t.isEmpty()) return null
+
+        if (System.currentTimeMillis() < awaitingUntil) {
+            awaitingUntil = 0L
+            if (t in setOf("cancel", "never mind", "nevermind", "forget it")) return "Very well, Sir. No note taken."
+            return save(raw.trim())
+        }
+        if (t.contains("clear my notes") || t.contains("delete all notes") || t.contains("delete my notes") || t.contains("clear all notes")) {
+            JarvisPrefs.putString(KEY, "[]")
+            return "All notes cleared, Sir."
+        }
+        if (t.contains("read my notes") || t.contains("read notes") || t.contains("my notes") ||
+            t.contains("show notes") || t.contains("list notes") || t.contains("what notes")) {
+            return read()
+        }
+        ADD2.find(t)?.let { return save(raw.trim().substring(raw.trim().length - it.groupValues[1].length)) }
+        ADD.find(t)?.let { m ->
+            val body = m.groupValues[1].trim()
+            if (body.isEmpty()) {
+                awaitingUntil = System.currentTimeMillis() + AWAIT_MS
+                return "Go ahead, Sir. What shall I note down?"
+            }
+            return save(raw.trim().substring(raw.trim().length - body.length))
+        }
+        return null
+    }
+
+    private fun load(): JSONArray = try { JSONArray(JarvisPrefs.getString(KEY) ?: "[]") } catch (_: Exception) { JSONArray() }
+
+    private fun save(text: String): String {
+        val clean = text.trim().trimEnd('.').ifBlank { return "I did not catch the note, Sir." }
+        val arr = load()
+        arr.put(JSONObject().put("t", System.currentTimeMillis()).put("text", clean))
+        val out = JSONArray()
+        for (i in maxOf(0, arr.length() - MAX) until arr.length()) out.put(arr.get(i))
+        JarvisPrefs.putString(KEY, out.toString())
+        return "Noted, Sir: $clean."
+    }
+
+    private fun read(): String {
+        val arr = load()
+        if (arr.length() == 0) return "You have no notes, Sir."
+        val fmt = SimpleDateFormat("EEE h:mm a", Locale.getDefault())
+        val take = minOf(5, arr.length())
+        val parts = ArrayList<String>()
+        for (i in arr.length() - 1 downTo arr.length() - take) {
+            val o = arr.getJSONObject(i)
+            parts.add("${fmt.format(Date(o.getLong("t")))}: ${o.getString("text")}")
+        }
+        val more = if (arr.length() > take) " Plus ${arr.length() - take} older." else ""
+        return "You have ${arr.length()} note${if (arr.length() == 1) "" else "s"}. Latest first. " + parts.joinToString(". ") + "." + more
     }
 }
 
@@ -16966,6 +17113,19 @@ object AnnouncementEngine {
             am.abandonAudioFocus(null)
         }
     }
+}
+
+
+//===== FILE: modules/core/src/main/kotlin/com/jarvismini/core/announce/AskHook.kt =====
+package com.jarvismini.core.announce
+
+/**
+ * Lets library modules (call handler etc.) ask the user a spoken yes/no question.
+ * The app installs the implementation; if it is not installed callers just announce.
+ * args: line to speak, dedupe key, action to run on "yes" (returns the spoken confirmation).
+ */
+object AskHook {
+    @Volatile var ask: ((String, String, () -> String) -> Unit)? = null
 }
 
 
