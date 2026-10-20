@@ -5150,18 +5150,18 @@ object VoiceModule {
 
 // ... FILE TRUNCATED ...
 
-                    val req = Request.Builder()
-                        .url("http://$host:$LOCAL_TTS_PORT/speak")
-                        .post(body)
-                        .build()
-
-                    http.newCall(req).execute().use { if (it.isSuccessful) return@withContext true }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Local voice clone via $host failed: ${e.message}")
+        for (host in listOf(configured, "127.0.0.1").distinct()) {
+            try {
+                val req = Request.Builder().url("http://$host:$TTS_PORT/health").build()
+                http.newCall(req).execute().use {
+                    if (it.isSuccessful) return@withContext JSONObject(it.body?.string() ?: "{}").optBoolean("speaking", false)
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "health via $host failed: ${e.message}")
             }
-            false
         }
+        null
+    }
 
     private fun speakSystem(text: String) {
         if (!systemTtsReady) { Log.w(TAG, "System TTS not ready"); return }
@@ -5265,6 +5265,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.announce.AnnouncementEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * WakeWordService (Phase 2)
@@ -5291,14 +5297,8 @@ class WakeWordService : Service() {
         private const val KEYWORD_ASSET_PATH = "porcupine_jarvis.ppn"
         private const val SENSITIVITY = 0.6f
 
-        /** Lets the proactive engine open the mic right after Jarvis asks a question. Null when the service is not running. */
-        @Volatile var listenNowHook: (() -> Unit)? = null
-    }
-
-    private var porcupineManager: PorcupineManager? = null
-    private var voiceTriggerManager: VoiceTriggerManager? = null
-
-    override fun onCreate() {
+        /** After a reply, Jarvis reopens the mic by itself (no wake word) up to this many times in a row. */
+        private const val MAX_FOLLOW_UPS = 3
 
 // ... FILE TRUNCATED ...
 
