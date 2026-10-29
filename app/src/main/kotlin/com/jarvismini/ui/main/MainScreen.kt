@@ -16,6 +16,7 @@ import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.agent.AgentDashboardScreen
 import com.jarvismini.agent.HealDashboardScreen
+import com.jarvismini.convo.ConvoScreen
 
 enum class MainTab {
     Home,
@@ -27,6 +28,7 @@ enum class MainTab {
     TermuxCommand,
     AgentDashboard,
     HealDashboard,
+    Convo,
 }
 
 @Composable
@@ -69,6 +71,7 @@ fun MainScreen() {
             onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
             onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
             onNavigateToHeal          = { selectedTab = MainTab.HealDashboard },
+            onNavigateToConvo         = { selectedTab = MainTab.Convo },
             onVoiceTask               = { task ->
                 voiceTask   = task
                 selectedTab = MainTab.AgentDashboard
@@ -90,5 +93,6 @@ fun MainScreen() {
         MainTab.HealDashboard -> HealDashboardScreen(
             onBack = { selectedTab = MainTab.Home },
         )
+        MainTab.Convo -> ConvoScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
