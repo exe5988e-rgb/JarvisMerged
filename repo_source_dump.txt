@@ -216,6 +216,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   ├── com
 │   │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   │   ├── automation
+│   │   │   │   │   │   │   │   ├── A11yBridge.kt
 │   │   │   │   │   │   │   │   ├── AccessibilityServiceHelper.kt
 │   │   │   │   │   │   │   │   ├── AppAutomationService.kt
 │   │   │   │   │   │   │   │   ├── AutoCloser.kt
@@ -6523,6 +6524,8 @@ class WakeWordService : Service() {
         | flagIncludeNotImportantViews"
 
     android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
+    android:canTakeScreenshot="true"
     android:notificationTimeout="100"
     android:description="@string/service_desc"/>
 
@@ -6682,6 +6685,82 @@ dependencies {
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
 
 
+//===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/A11yBridge.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.automation
+
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.Path
+import android.graphics.Rect
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.BatteryManager
+import android.os.Build
+import android.os.Bundle
+import android.util.DisplayMetrics
+import android.util.Log
+import android.view.Display
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import org.json.JSONObject
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+
+/**
+ * Loopback-only control bridge for the Termux MCP "jarvis_*" tools.
+ *
+ * Lets the MCP server read the screen and act on this phone without adb, so it keeps
+ * working with Wi-Fi off. Safety model:
+ *  - binds 127.0.0.1 only, and every request needs the X-Jarvis-Token header
+ *    (random token generated on first start, kept in this app's private prefs);
+ *  - refuses to read or act on banking/payment/installer apps (same rule as the MCP side);
+ *  - runs only while the user has the accessibility service enabled.
+ */
+class A11yBridge(private val svc: AccessibilityService) {
+
+    companion object {
+        const val PORT = 38181
+
+// ... FILE TRUNCATED ...
+
+                val b = if (s >= 0 && e >= 0) maxOf(s, e).coerceAtMost(cur.length) else cur.length
+                when {
+                    a != b -> setText(n, cur.substring(0, a) + cur.substring(b), a)
+                    a > 0 -> setText(n, cur.substring(0, a - 1) + cur.substring(a), a - 1)
+                    else -> null
+                }
+            }
+        }
+        "wake" -> "wake is not supported over accessibility"
+        else -> "unknown key"
+    }
+
+    private fun launch(pkg: String): String? {
+        if (!Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$").matches(pkg)) return "invalid package name"
+        if (isSensitive(pkg)) return "$pkg looks like banking/payments or a permission/installer app"
+        val i = svc.packageManager.getLaunchIntentForPackage(pkg) ?: return "no launcher activity for $pkg"
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        return try { svc.startActivity(i); null } catch (e: Exception) { "launch failed: ${e.javaClass.simpleName}" }
+    }
+}
+
 //===== FILE: modules/automation/src/main/kotlin/com/jarvismini/automation/AccessibilityServiceHelper.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.automation
@@ -6775,15 +6854,22 @@ class AppAutomationService : AccessibilityService() {
     private val WHATSAPP = "com.whatsapp"
     private val ONEPLUS_CLOCK = "com.oneplus.deskclock"
 
+    // Loopback control bridge for the Termux MCP jarvis_* tools (works with Wi-Fi off)
+    private var bridge: A11yBridge? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         AccessibilityServiceHelper.init(this)
+        bridge?.stop()
+        bridge = A11yBridge(this).also { it.start() }
         Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
         Log.e(TAG, "SERVICE CONNECTED")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+
+        A11yBridge.noteEvent(event)
 
         // ⏱ OnePlus Clock automation
         if (
@@ -6804,26 +6890,7 @@ class AppAutomationService : AccessibilityService() {
         val data = event.parcelableData
         if (data !is Notification) return
 
-        val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP) ?: return
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(launchIntent)
-
-        Toast.makeText(this, "WhatsApp opened from notification", Toast.LENGTH_SHORT).show()
-        Log.e(TAG, "WHATSAPP LAUNCHED")
-
 // ... FILE TRUNCATED ...
-
-
-        // 💬 WhatsApp notifications (unchanged)
-        if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) return
-        if (event.packageName?.toString() != WHATSAPP) return
-
-        val data = event.parcelableData
-        if (data !is Notification) return
-
-        val launchIntent = packageManager.getLaunchIntentForPackage(WHATSAPP) ?: return
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(launchIntent)
 
         Toast.makeText(this, "WhatsApp opened from notification", Toast.LENGTH_SHORT).show()
         Log.e(TAG, "WHATSAPP LAUNCHED")
@@ -6831,6 +6898,18 @@ class AppAutomationService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.e(TAG, "SERVICE INTERRUPTED")
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        bridge?.stop()
+        bridge = null
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        bridge?.stop()
+        bridge = null
+        super.onDestroy()
     }
 }
 
