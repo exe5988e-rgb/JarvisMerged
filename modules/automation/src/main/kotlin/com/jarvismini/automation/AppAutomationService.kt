@@ -13,15 +13,22 @@ class AppAutomationService : AccessibilityService() {
     private val WHATSAPP = "com.whatsapp"
     private val ONEPLUS_CLOCK = "com.oneplus.deskclock"
 
+    // Loopback control bridge for the Termux MCP jarvis_* tools (works with Wi-Fi off)
+    private var bridge: A11yBridge? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         AccessibilityServiceHelper.init(this)
+        bridge?.stop()
+        bridge = A11yBridge(this).also { it.start() }
         Toast.makeText(this, "Jarvis connected", Toast.LENGTH_SHORT).show()
         Log.e(TAG, "SERVICE CONNECTED")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+
+        A11yBridge.noteEvent(event)
 
         // ⏱ OnePlus Clock automation
         if (
@@ -52,5 +59,17 @@ class AppAutomationService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.e(TAG, "SERVICE INTERRUPTED")
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        bridge?.stop()
+        bridge = null
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        bridge?.stop()
+        bridge = null
+        super.onDestroy()
     }
 }
