@@ -66,6 +66,12 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── automation
 │   │   │   │   │   │   │   ├── AiChatReplier.kt
 │   │   │   │   │   │   │   ├── LocationHelper.kt
+│   │   │   │   │   │   ├── convo
+│   │   │   │   │   │   │   ├── ConvoJson.kt
+│   │   │   │   │   │   │   ├── ConvoModels.kt
+│   │   │   │   │   │   │   ├── ConvoRepository.kt
+│   │   │   │   │   │   │   ├── ConvoSettings.kt
+│   │   │   │   │   │   │   ├── ConvoViewModel.kt
 │   │   │   │   │   │   ├── core
 │   │   │   │   │   │   │   ├── StoragePermissionHelper.kt
 │   │   │   │   │   │   │   ├── workmode
@@ -193,6 +199,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   ├── com
 │   │   │   │   │   ├── jarvismini
 │   │   │   │   │   │   ├── ExampleUnitTest.kt
+│   │   │   │   │   │   ├── convo
+│   │   │   │   │   │   │   ├── ConvoTest.kt
 ├── modules
 │   ├── automation
 │   │   ├── build.gradle.kts
@@ -525,6 +533,10 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
+    // Unit tests (JVM)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
     // Material
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
@@ -540,6 +552,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Wake word: offline keyword spotting (sherpa-onnx, arm64 only AAR)
     implementation(files("libs/sherpa-onnx-arm64.aar"))
@@ -4813,6 +4826,654 @@ object LocationHelper {
             append(": $link")
             if (ageMin >= 10) append("\n(last updated $ageMin min ago)")
         }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoJson.kt =====
+package com.jarvismini.convo
+
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
+
+/** Pure JSON <-> model mapping for the Convo admin API (no Android classes, JVM-testable). */
+object ConvoJson {
+
+    private fun JsonElement?.prim(): JsonPrimitive? =
+        (this as? JsonPrimitive)?.takeIf { it !is JsonNull }
+
+    private fun JsonElement?.str(): String? = prim()?.contentOrNull
+    private fun JsonElement?.lng(): Long? = prim()?.longOrNull
+    private fun JsonElement?.bool(): Boolean? = prim()?.booleanOrNull
+
+    fun parseAgents(body: String): List<ConvoAgent> {
+        val arr = Json.parseToJsonElement(body).jsonObject["agents"]?.jsonArray ?: return emptyList()
+        return arr.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val id = o["agent_id"].str() ?: return@mapNotNull null
+            ConvoAgent(
+                id = id,
+                displayName = o["display_name"].str() ?: id,
+                role = o["role"].str() ?: "agent",
+                lastSeen = o["last_seen"].lng(),
+                online = o["online"].bool() ?: false,
+            )
+        }
+    }
+
+    fun parsePage(body: String): MessagePage {
+        val root = Json.parseToJsonElement(body).jsonObject
+        val arr = root["messages"]?.jsonArray
+        val messages = arr?.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val id = o["id"].lng() ?: return@mapNotNull null
+            val payload = o["payload"] as? JsonObject
+            ConvoMessage(
+                id = id,
+                uuid = o["message_uuid"].str() ?: "",
+                senderId = o["sender_id"].str() ?: "?",
+                recipientId = o["recipient_id"].str() ?: "?",
+                type = o["message_type"].str() ?: "chat",
+                text = payload?.get("text").str() ?: payload?.toString() ?: "",
+                broadcastId = payload?.get("broadcast_id").str(),
+                createdAt = o["created_at"].lng() ?: 0L,
+                readAt = o["read_at"].lng(),
+            )
+        } ?: emptyList()
+        return MessagePage(
+            messages = messages,
+            nextCursor = root["next_cursor"].lng(),
+            firstId = root["first_id"].lng(),
+        )
+    }
+
+    /** recipients == null means "all". */
+    fun broadcastBody(text: String, recipients: List<String>?, conversationId: String = "main"): String =
+        buildJsonObject {
+            put("text", text)
+            put("conversation_id", conversationId)
+            if (recipients == null) {
+                put("recipients", "all")
+            } else {
+                put("recipients", buildJsonArray { recipients.forEach { add(it) } })
+            }
+        }.toString()
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoModels.kt =====
+package com.jarvismini.convo
+
+const val DEFAULT_CONVO_BASE_URL = "http://127.0.0.1:8900"
+const val ADMIN_ID = "sir"
+
+data class ConvoAgent(
+    val id: String,
+    val displayName: String,
+    val role: String,
+    val lastSeen: Long?,
+    val online: Boolean,
+)
+
+data class ConvoMessage(
+    val id: Long,
+    val uuid: String,
+    val senderId: String,
+    val recipientId: String,
+    val type: String,
+    val text: String,
+    val broadcastId: String?,
+    val createdAt: Long,
+    val readAt: Long?,
+)
+
+data class MessagePage(
+    val messages: List<ConvoMessage>,
+    val nextCursor: Long?,
+    val firstId: Long?,
+)
+
+data class Receipt(val agentId: String, val readAt: Long?) {
+    val isRead: Boolean get() = readAt != null
+}
+
+enum class ReceiptState { Delivered, Read }
+
+/** One timeline bubble. A to-all broadcast is a single bubble with one receipt per recipient. */
+data class ConvoBubble(
+    val key: String,
+    val sortId: Long,
+    val senderId: String,
+    val text: String,
+    val createdAt: Long,
+    val receipts: List<Receipt>,
+    val isBroadcast: Boolean,
+) {
+    val readBy: List<String> get() = receipts.filter { it.isRead }.map { it.agentId }
+    val unreadBy: List<String> get() = receipts.filter { !it.isRead }.map { it.agentId }
+    val hasUnread: Boolean get() = receipts.any { !it.isRead }
+
+    /** One check = delivered, two checks = read (by every recipient). */
+    val state: ReceiptState
+        get() = if (receipts.isNotEmpty() && receipts.all { it.isRead }) ReceiptState.Read else ReceiptState.Delivered
+}
+
+enum class ConvoFilter(val label: String) {
+    All("All"),
+    Unread("Unread by anyone"),
+    FromAgents("From agents"),
+    FromMe("From me"),
+}
+
+/** Groups raw per-recipient rows into bubbles (by payload.broadcast_id), oldest first. */
+fun groupMessages(messages: Collection<ConvoMessage>): List<ConvoBubble> {
+    val groups = LinkedHashMap<String, MutableList<ConvoMessage>>()
+    for (m in messages.sortedBy { it.id }) {
+        val bid = m.broadcastId
+        val key = if (!bid.isNullOrBlank()) "b:$bid" else "m:${m.id}"
+        groups.getOrPut(key) { mutableListOf() }.add(m)
+    }
+    return groups.map { (key, group) ->
+        val first = group.first()
+        ConvoBubble(
+            key = key,
+            sortId = first.id,
+            senderId = first.senderId,
+            text = first.text,
+            createdAt = group.minOf { it.createdAt },
+            receipts = group
+                .map { Receipt(it.recipientId, it.readAt) }
+                .distinctBy { it.agentId }
+                .sortedBy { it.agentId },
+            isBroadcast = key.startsWith("b:"),
+        )
+    }.sortedBy { it.sortId }
+}
+
+fun List<ConvoBubble>.filtered(filter: ConvoFilter): List<ConvoBubble> = when (filter) {
+    ConvoFilter.All -> this
+    ConvoFilter.Unread -> filter { it.hasUnread }
+    ConvoFilter.FromAgents -> filter { it.senderId != ADMIN_ID }
+    ConvoFilter.FromMe -> filter { it.senderId == ADMIN_ID }
+}
+
+/** Agents the admin can message (everything except the admin identity itself). */
+fun List<ConvoAgent>.messageable(): List<ConvoAgent> =
+    filter { it.role != "admin" && it.id != ADMIN_ID }
+
+fun formatLastSeen(lastSeen: Long?, now: Long): String {
+    if (lastSeen == null) return "never seen"
+    val secs = ((now - lastSeen) / 1000L).coerceAtLeast(0L)
+    return when {
+        secs < 60L -> "just now"
+        secs < 3600L -> "${secs / 60L}m ago"
+        secs < 86_400L -> "${secs / 3600L}h ago"
+        else -> "${secs / 86_400L}d ago"
+    }
+}
+
+fun recipientLabel(b: ConvoBubble): String = when {
+    b.receipts.isEmpty() -> ""
+    b.receipts.size == 1 -> b.receipts[0].agentId
+    b.receipts.size <= 3 -> b.receipts.joinToString(", ") { it.agentId }
+    else -> "${b.receipts.size} agents"
+}
+
+fun normalizeBaseUrl(raw: String): String {
+    val t = raw.trim().trimEnd('/')
+    return if (t.isEmpty()) DEFAULT_CONVO_BASE_URL else t
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoRepository.kt =====
+package com.jarvismini.convo
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+class ConvoException(message: String) : Exception(message)
+
+interface ConvoRepository {
+    suspend fun agents(): Result<List<ConvoAgent>>
+
+    /** afterId: only newer; beforeId: latest page older than it; both null: oldest page. */
+    suspend fun messages(afterId: Long? = null, beforeId: Long? = null, limit: Int = 100): Result<MessagePage>
+
+    /** recipients == null means all agents. */
+    suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit>
+}
+
+class HttpConvoRepository(
+    private val baseUrl: () -> String,
+    private val token: () -> String,
+    private val client: OkHttpClient = defaultClient,
+) : ConvoRepository {
+
+    override suspend fun agents(): Result<List<ConvoAgent>> =
+        execute("/v1/admin/agents", emptyMap(), null).mapCatching { ConvoJson.parseAgents(it) }
+
+    override suspend fun messages(afterId: Long?, beforeId: Long?, limit: Int): Result<MessagePage> {
+        val q = linkedMapOf("conversation_id" to "main", "limit" to limit.toString())
+        if (afterId != null) q["after_id"] = afterId.toString()
+        if (beforeId != null) q["before_id"] = beforeId.toString()
+        return execute("/v1/admin/messages", q, null).mapCatching { ConvoJson.parsePage(it) }
+    }
+
+    override suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit> =
+        execute("/v1/admin/broadcast", emptyMap(), ConvoJson.broadcastBody(text, recipients)).map { }
+
+    private suspend fun execute(path: String, query: Map<String, String>, body: String?): Result<String> =
+        withContext<Result<String>>(Dispatchers.IO) {
+            val tok = token().trim()
+            if (tok.isEmpty()) {
+                return@withContext Result.failure(ConvoException("Set the admin token in Convo settings"))
+            }
+            try {
+                val base = normalizeBaseUrl(baseUrl())
+                val url = (base + path).toHttpUrlOrNull()
+                    ?: return@withContext Result.failure(ConvoException("Invalid server URL"))
+                val ub = url.newBuilder()
+                query.forEach { (k, v) -> ub.addQueryParameter(k, v) }
+                val rb = Request.Builder().url(ub.build()).header("Authorization", "Bearer $tok")
+                if (body != null) {
+                    rb.post(body.toRequestBody("application/json".toMediaType()))
+                } else {
+                    rb.get()
+                }
+                client.newCall(rb.build()).execute().use { resp ->
+                    val text = resp.body?.string().orEmpty()
+                    when {
+                        resp.isSuccessful -> Result.success(text)
+                        resp.code == 401 -> Result.failure(ConvoException("Token rejected (401)"))
+                        resp.code == 403 -> Result.failure(ConvoException("Admin token required (403)"))
+                        else -> Result.failure(ConvoException("Server error (HTTP ${resp.code})"))
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                Result.failure(ConvoException("Cannot reach Convo server"))
+            } catch (e: Exception) {
+                Result.failure(ConvoException("Request failed: ${e.javaClass.simpleName}"))
+            }
+        }
+
+    companion object {
+        val defaultClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(10, TimeUnit.SECONDS)
+                .build()
+        }
+    }
+}
+
+/** In-memory repository for unit tests and previews; mimics the server's paging and broadcast rules. */
+class FakeConvoRepository(
+    var agentList: List<ConvoAgent> = emptyList(),
+    initial: List<ConvoMessage> = emptyList(),
+) : ConvoRepository {
+
+    val stored = initial.toMutableList()
+    val sent = mutableListOf<Pair<String, List<String>?>>()
+    var failing: Throwable? = null
+    var messageCalls = 0
+    private var nextId = (initial.maxOfOrNull { it.id } ?: 0L) + 1L
+
+    override suspend fun agents(): Result<List<ConvoAgent>> =
+        failing?.let { Result.failure(it) } ?: Result.success(agentList)
+
+    override suspend fun messages(afterId: Long?, beforeId: Long?, limit: Int): Result<MessagePage> {
+        messageCalls++
+        failing?.let { return Result.failure(it) }
+        val sorted = stored.sortedBy { it.id }
+        val page = when {
+            beforeId != null -> sorted.filter { it.id < beforeId }.takeLast(limit)
+            afterId != null -> sorted.filter { it.id > afterId }.take(limit)
+            else -> sorted.take(limit)
+        }
+        return Result.success(MessagePage(page, page.lastOrNull()?.id ?: afterId, page.firstOrNull()?.id))
+    }
+
+    override suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit> {
+        failing?.let { return Result.failure(it) }
+        sent.add(text to recipients)
+        val targets = recipients ?: agentList.messageable().map { it.id }
+        val bid = "bc-${nextId}"
+        for (r in targets) {
+            stored.add(
+                ConvoMessage(
+                    id = nextId++, uuid = "u-$nextId", senderId = ADMIN_ID, recipientId = r,
+                    type = "chat", text = text, broadcastId = bid, createdAt = nextId * 1000L, readAt = null,
+                ),
+            )
+        }
+        return Result.success(Unit)
+    }
+
+    fun markRead(id: Long, at: Long) {
+        val i = stored.indexOfFirst { it.id == id }
+        if (i >= 0) stored[i] = stored[i].copy(readAt = at)
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoSettings.kt =====
+package com.jarvismini.convo
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+
+interface ConvoSettingsStore {
+    var baseUrl: String
+    var token: String
+}
+
+class InMemoryConvoSettings(
+    override var baseUrl: String = DEFAULT_CONVO_BASE_URL,
+    override var token: String = "",
+) : ConvoSettingsStore
+
+/** Base URL + admin token. The token lives only in EncryptedSharedPreferences; it is never logged. */
+class EncryptedConvoSettings(context: Context) : ConvoSettingsStore {
+
+    private val prefs: SharedPreferences? = try {
+        val key = MasterKey.Builder(context.applicationContext)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context.applicationContext,
+            FILE,
+            key,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    } catch (e: Exception) {
+        null
+    }
+
+    // Fallback if the keystore is unusable: keep the token in memory for this process only.
+    private var memToken: String = ""
+    private var memUrl: String = DEFAULT_CONVO_BASE_URL
+
+    override var baseUrl: String
+        get() = prefs?.getString(K_URL, null) ?: memUrl
+        set(value) {
+            memUrl = normalizeBaseUrl(value)
+            prefs?.edit()?.putString(K_URL, memUrl)?.apply()
+        }
+
+    override var token: String
+        get() = prefs?.getString(K_TOKEN, null) ?: memToken
+        set(value) {
+            memToken = value.trim()
+            prefs?.edit()?.putString(K_TOKEN, memToken)?.apply()
+        }
+
+    private companion object {
+        const val FILE = "convo_secure_prefs"
+        const val K_URL = "base_url"
+        const val K_TOKEN = "admin_token"
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoViewModel.kt =====
+package com.jarvismini.convo
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+data class ConvoUiState(
+    val agents: List<ConvoAgent> = emptyList(),
+    val bubbles: List<ConvoBubble> = emptyList(),
+    val filter: ConvoFilter = ConvoFilter.All,
+    /** Empty set = send to all. */
+    val recipients: Set<String> = emptySet(),
+    val draft: String = "",
+    val error: String? = null,
+    val sending: Boolean = false,
+    val hasOlder: Boolean = false,
+    val loadingOlder: Boolean = false,
+    val selectedKey: String? = null,
+    val baseUrl: String = DEFAULT_CONVO_BASE_URL,
+    val hasToken: Boolean = false,
+    val now: Long = 0L,
+) {
+    val visible: List<ConvoBubble> get() = bubbles.filtered(filter)
+    val selected: ConvoBubble? get() = bubbles.firstOrNull { it.key == selectedKey }
+}
+
+class ConvoViewModel(
+    private val repo: ConvoRepository,
+    private val settings: ConvoSettingsStore,
+    private val pollIntervalMs: Long = 10_000L,
+    private val clock: () -> Long = { System.currentTimeMillis() },
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(
+        ConvoUiState(baseUrl = settings.baseUrl, hasToken = settings.token.isNotBlank()),
+    )
+    val state: StateFlow<ConvoUiState> = _state.asStateFlow()
+
+    private val store = HashMap<Long, ConvoMessage>()
+    private var cursor = 0L
+    private var oldestId = Long.MAX_VALUE
+    private var hasOlder = false
+    private var pollJob: Job? = null
+    private val mutex = Mutex()
+
+    // ── polling lifecycle (driven by the screen) ─────────────────────────────
+
+    fun startPolling() {
+        if (pollJob?.isActive == true) return
+        pollJob = viewModelScope.launch {
+            while (isActive) {
+                refresh()
+                delay(pollIntervalMs)
+            }
+        }
+    }
+
+    fun stopPolling() {
+        pollJob?.cancel()
+        pollJob = null
+    }
+
+    // ── data ─────────────────────────────────────────────────────────────────
+
+    suspend fun refresh() {
+        mutex.withLock {
+            val agentsRes = repo.agents()
+            agentsRes.getOrNull()?.let { list -> _state.update { it.copy(agents = list) } }
+            var err: Throwable? = agentsRes.exceptionOrNull()
+            val msgErr = syncMessages()
+            if (err == null) err = msgErr
+            publish(err)
+        }
+    }
+
+    private suspend fun syncMessages(): Throwable? {
+        if (cursor == 0L && store.isEmpty()) {
+            val r = repo.messages(beforeId = LATEST, limit = PAGE)
+            r.getOrNull()?.let { page ->
+                mergePage(page)
+                hasOlder = page.messages.size >= PAGE
+            }
+            return r.exceptionOrNull()
+        }
+        var pages = 0
+        while (pages++ < MAX_CATCHUP_PAGES) {
+            val page = repo.messages(afterId = cursor, limit = CATCHUP_LIMIT).getOrElse { return it }
+            mergePage(page)
+            if (page.messages.size < CATCHUP_LIMIT) break
+        }
+        // Read receipts change on rows we already have: re-read the latest window while anything is unread.
+        if (store.values.any { it.readAt == null }) {
+            val r = repo.messages(beforeId = LATEST, limit = PAGE)
+            r.getOrNull()?.let { mergePage(it) }
+            return r.exceptionOrNull()
+        }
+        return null
+    }
+
+    private fun mergePage(page: MessagePage) {
+        for (m in page.messages) {
+            store[m.id] = m
+            if (m.id > cursor) cursor = m.id
+            if (m.id < oldestId) oldestId = m.id
+        }
+        page.nextCursor?.let { if (it > cursor) cursor = it }
+    }
+
+    private fun publish(err: Throwable?) {
+        _state.update {
+            it.copy(
+                bubbles = groupMessages(store.values),
+                error = err?.let { e -> e.message ?: "Convo error" },
+                hasOlder = hasOlder,
+                loadingOlder = false,
+                now = clock(),
+            )
+        }
+    }
+
+    suspend fun loadOlder() {
+        mutex.withLock {
+            if (oldestId == Long.MAX_VALUE) return@withLock
+            _state.update { it.copy(loadingOlder = true) }
+            val r = repo.messages(beforeId = oldestId, limit = PAGE)
+            r.getOrNull()?.let { page ->
+                mergePage(page)
+                hasOlder = page.messages.size >= PAGE
+            }
+            publish(r.exceptionOrNull())
+        }
+    }
+
+    fun onLoadOlder() {
+        viewModelScope.launch { loadOlder() }
+    }
+
+    // ── compose / send ───────────────────────────────────────────────────────
+
+    fun onDraft(text: String) = _state.update { it.copy(draft = text) }
+
+    fun allRecipients() = _state.update { it.copy(recipients = emptySet()) }
+
+    fun toggleRecipient(id: String) = _state.update {
+        val next = if (id in it.recipients) it.recipients - id else it.recipients + id
+        it.copy(recipients = next)
+    }
+
+    suspend fun send() {
+        val s = _state.value
+        val text = s.draft.trim()
+        if (text.isEmpty() || s.sending) return
+        _state.update { it.copy(sending = true) }
+        val targets = s.recipients.takeIf { it.isNotEmpty() }?.sorted()
+        val r = repo.broadcast(text, targets)
+        if (r.isSuccess) {
+            _state.update { it.copy(draft = "", sending = false, error = null) }
+            refresh()
+        } else {
+            val msg = r.exceptionOrNull()?.message ?: "unknown error"
+            _state.update { it.copy(sending = false, error = "Send failed: $msg") }
+        }
+    }
+
+    fun onSend() {
+        viewModelScope.launch { send() }
+    }
+
+    // ── view state ───────────────────────────────────────────────────────────
+
+    fun setFilter(f: ConvoFilter) = _state.update { it.copy(filter = f) }
+
+    fun select(key: String?) = _state.update { it.copy(selectedKey = key) }
+
+    /** A blank token keeps the saved one. Changing the server resets the loaded timeline. */
+    suspend fun applySettings(baseUrl: String, token: String) {
+        val url = normalizeBaseUrl(baseUrl)
+        val changed = url != settings.baseUrl
+        settings.baseUrl = url
+        if (token.isNotBlank()) settings.token = token.trim()
+        mutex.withLock {
+            if (changed) {
+                store.clear()
+                cursor = 0L
+                oldestId = Long.MAX_VALUE
+                hasOlder = false
+            }
+            _state.update {
+                it.copy(
+                    baseUrl = settings.baseUrl,
+                    hasToken = settings.token.isNotBlank(),
+                    bubbles = groupMessages(store.values),
+                )
+            }
+        }
+        refresh()
+    }
+
+    fun onSaveSettings(baseUrl: String, token: String) {
+        viewModelScope.launch { applySettings(baseUrl, token) }
+    }
+
+    override fun onCleared() {
+        stopPolling()
+        super.onCleared()
+    }
+
+    private companion object {
+        const val PAGE = 100
+        const val CATCHUP_LIMIT = 200
+        const val MAX_CATCHUP_PAGES = 20
+        const val LATEST = 2_000_000_000L
+    }
+}
+
+class ConvoViewModelFactory(private val appContext: Context) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        val store = EncryptedConvoSettings(appContext)
+        val repo = HttpConvoRepository(baseUrl = { store.baseUrl }, token = { store.token })
+        return ConvoViewModel(repo, store) as T
     }
 }
 
@@ -9678,6 +10339,7 @@ fun EnhancedHomeScreen(
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
     onNavigateToHeal:          () -> Unit,
+    onNavigateToConvo:         () -> Unit = {},
     // Called when voice produces a task string — parent routes it to AgentDashboard
     onVoiceTask: ((String) -> Unit)? = null,
 ) {
@@ -9886,6 +10548,7 @@ fun EnhancedHomeScreen(
                 item { QuickActionCard("Terminal", Icons.Default.Terminal,      onNavigateToTermuxCommand) }
                 item { QuickActionCard("Agent",    Icons.Default.SmartToy,      onNavigateToAgent) }
                 item { QuickActionCard("Heal",     Icons.Default.Build,         onNavigateToHeal) }
+                item { QuickActionCard("Multi-agent", Icons.Default.Groups,     onNavigateToConvo) }
             }
 
             Spacer(Modifier.height(40.dp))
@@ -10945,6 +11608,7 @@ import com.jarvismini.ui.checklist.JarvisChecklistScreen
 import com.jarvismini.ui.llm.TermuxCommandScreen
 import com.jarvismini.agent.AgentDashboardScreen
 import com.jarvismini.agent.HealDashboardScreen
+import com.jarvismini.convo.ConvoScreen
 
 enum class MainTab {
     Home,
@@ -10956,6 +11620,7 @@ enum class MainTab {
     TermuxCommand,
     AgentDashboard,
     HealDashboard,
+    Convo,
 }
 
 @Composable
@@ -10998,6 +11663,7 @@ fun MainScreen() {
             onNavigateToTermuxCommand = { selectedTab = MainTab.TermuxCommand },
             onNavigateToAgent         = { selectedTab = MainTab.AgentDashboard },
             onNavigateToHeal          = { selectedTab = MainTab.HealDashboard },
+            onNavigateToConvo         = { selectedTab = MainTab.Convo },
             onVoiceTask               = { task ->
                 voiceTask   = task
                 selectedTab = MainTab.AgentDashboard
@@ -11019,6 +11685,7 @@ fun MainScreen() {
         MainTab.HealDashboard -> HealDashboardScreen(
             onBack = { selectedTab = MainTab.Home },
         )
+        MainTab.Convo -> ConvoScreen(onBack = { selectedTab = MainTab.Home })
     }
 }
 
@@ -14083,6 +14750,159 @@ class WakeWordService : Service() {
 
 
 //===== FILE: app/src/test/java/com/jarvismini/ExampleUnitTest.kt =====
+
+
+//===== FILE: app/src/test/java/com/jarvismini/convo/ConvoTest.kt =====
+package com.jarvismini.convo
+
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+private fun msg(id: Long, to: String, from: String = ADMIN_ID, bid: String? = null, read: Long? = null, text: String = "hi") =
+    ConvoMessage(id, "u$id", from, to, "chat", text, bid, id * 1000L, read)
+
+private val agents = listOf(
+    ConvoAgent("claude1", "claude1", "agent", 1_000L, true),
+    ConvoAgent("claude2", "claude2", "agent", null, false),
+    ConvoAgent("sir", "sir", "admin", null, false),
+)
+
+class GroupingTest {
+    @Test fun broadcastRowsCollapseToOneBubble() {
+        val b = groupMessages(listOf(msg(1, "claude1", bid = "b1"), msg(2, "claude2", bid = "b1"), msg(3, "claude1")))
+        assertEquals(2, b.size)
+        assertTrue(b[0].isBroadcast)
+        assertEquals(listOf("claude1", "claude2"), b[0].receipts.map { it.agentId })
+        assertFalse(b[1].isBroadcast)
+    }
+
+    @Test fun oneCheckDeliveredTwoChecksRead() {
+        val partial = groupMessages(listOf(msg(1, "claude1", bid = "b", read = 5), msg(2, "claude2", bid = "b")))[0]
+        assertEquals(ReceiptState.Delivered, partial.state)
+        assertEquals(listOf("claude1"), partial.readBy)
+        assertEquals(listOf("claude2"), partial.unreadBy)
+        val all = groupMessages(listOf(msg(1, "claude1", bid = "b", read = 5), msg(2, "claude2", bid = "b", read = 6)))[0]
+        assertEquals(ReceiptState.Read, all.state)
+    }
+
+    @Test fun filters() {
+        val bubbles = groupMessages(listOf(msg(1, "claude1", read = 3), msg(2, "claude2"), msg(3, "sir", from = "claude1")))
+        assertEquals(3, bubbles.filtered(ConvoFilter.All).size)
+        assertEquals(listOf(2L, 3L), bubbles.filtered(ConvoFilter.Unread).map { it.sortId })
+        assertEquals(listOf(3L), bubbles.filtered(ConvoFilter.FromAgents).map { it.sortId })
+        assertEquals(listOf(1L, 2L), bubbles.filtered(ConvoFilter.FromMe).map { it.sortId })
+    }
+
+    @Test fun lastSeenFormatting() {
+        assertEquals("never seen", formatLastSeen(null, 0))
+        assertEquals("just now", formatLastSeen(0, 30_000))
+        assertEquals("5m ago", formatLastSeen(0, 300_000))
+        assertEquals("2h ago", formatLastSeen(0, 7_200_000))
+    }
+
+    @Test fun messageableExcludesAdmin() {
+        assertEquals(listOf("claude1", "claude2"), agents.messageable().map { it.id })
+    }
+}
+
+class JsonTest {
+    @Test fun parsesAgentsAndPage() {
+        val a = ConvoJson.parseAgents("""{"agents":[{"agent_id":"claude1","display_name":"c1","role":"agent","last_seen":5,"online":true},{"agent_id":"x","last_seen":null}]}""")
+        assertEquals(2, a.size)
+        assertTrue(a[0].online)
+        assertNull(a[1].lastSeen)
+        val p = ConvoJson.parsePage("""{"messages":[{"id":7,"message_uuid":"u","sender_id":"sir","recipient_id":"claude1","message_type":"chat","payload":{"text":"yo","broadcast_id":"b"},"created_at":9,"read_at":null}],"next_cursor":7,"first_id":7}""")
+        assertEquals("yo", p.messages[0].text)
+        assertEquals("b", p.messages[0].broadcastId)
+        assertNull(p.messages[0].readAt)
+        assertEquals(7L, p.nextCursor)
+    }
+
+    @Test fun broadcastBody() {
+        assertTrue(ConvoJson.broadcastBody("a", null).contains("\"recipients\":\"all\""))
+        assertTrue(ConvoJson.broadcastBody("a", listOf("claude1")).contains("\"recipients\":[\"claude1\"]"))
+    }
+
+    @Test fun trailingSlashAndBlankUrl() {
+        assertEquals("http://h:1", normalizeBaseUrl(" http://h:1/ "))
+        assertEquals(DEFAULT_CONVO_BASE_URL, normalizeBaseUrl(""))
+    }
+}
+
+class ViewModelTest {
+    private fun vm(repo: ConvoRepository, token: String = "t") =
+        ConvoViewModel(repo, InMemoryConvoSettings(token = token), clock = { 123L })
+
+    @Test fun refreshLoadsAgentsAndGroupedTimeline() = runBlocking {
+        val repo = FakeConvoRepository(agents, listOf(msg(1, "claude1", bid = "b"), msg(2, "claude2", bid = "b")))
+        val vm = vm(repo)
+        vm.refresh()
+        assertEquals(3, vm.state.value.agents.size)
+        assertEquals(1, vm.state.value.bubbles.size)
+        assertNull(vm.state.value.error)
+    }
+
+    @Test fun readReceiptUpdatesOnNextRefresh() = runBlocking {
+        val repo = FakeConvoRepository(agents, listOf(msg(1, "claude1")))
+        val vm = vm(repo)
+        vm.refresh()
+        assertEquals(ReceiptState.Delivered, vm.state.value.bubbles[0].state)
+        repo.markRead(1, 50)
+        vm.refresh()
+        assertEquals(ReceiptState.Read, vm.state.value.bubbles[0].state)
+    }
+
+    @Test fun sendToAllAndToSubset() = runBlocking {
+        val repo = FakeConvoRepository(agents)
+        val vm = vm(repo)
+        vm.refresh()
+        vm.onDraft("hello")
+        vm.send()
+        assertNull(repo.sent[0].second)
+        assertEquals("", vm.state.value.draft)
+        assertEquals(1, vm.state.value.bubbles.size)
+        vm.toggleRecipient("claude2")
+        vm.onDraft("only you")
+        vm.send()
+        assertEquals(listOf("claude2"), repo.sent[1].second)
+    }
+
+    @Test fun serverDownShowsErrorWithoutCrash() = runBlocking {
+        val repo = FakeConvoRepository(agents)
+        repo.failing = ConvoException("Cannot reach Convo server")
+        val vm = vm(repo)
+        vm.refresh()
+        assertEquals("Cannot reach Convo server", vm.state.value.error)
+        vm.onDraft("x")
+        vm.send()
+        assertNotNull(vm.state.value.error)
+        assertEquals("x", vm.state.value.draft)
+    }
+
+    @Test fun blankDraftIsNotSent() = runBlocking {
+        val repo = FakeConvoRepository(agents)
+        val vm = vm(repo)
+        vm.onDraft("   ")
+        vm.send()
+        assertTrue(repo.sent.isEmpty())
+    }
+
+    @Test fun blankTokenKeepsSavedAndUrlChangeResets() = runBlocking {
+        val repo = FakeConvoRepository(agents, listOf(msg(1, "claude1")))
+        val settings = InMemoryConvoSettings(token = "keep")
+        val vm = ConvoViewModel(repo, settings, clock = { 1L })
+        vm.refresh()
+        vm.applySettings("http://other:9", "")
+        assertEquals("keep", settings.token)
+        assertEquals("http://other:9", settings.baseUrl)
+        assertTrue(vm.state.value.hasToken)
+    }
+}
 
 
 //===== FILE: modules/automation/build.gradle.kts =====
