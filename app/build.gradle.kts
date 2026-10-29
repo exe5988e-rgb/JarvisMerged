@@ -104,6 +104,10 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
+    // Unit tests (JVM)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
     // Material
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
@@ -119,6 +123,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Wake word: offline keyword spotting (sherpa-onnx, arm64 only AAR)
     implementation(files("libs/sherpa-onnx-arm64.aar"))

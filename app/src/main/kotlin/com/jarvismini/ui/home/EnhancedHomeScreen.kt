@@ -42,6 +42,7 @@ fun EnhancedHomeScreen(
     onNavigateToTermuxCommand: () -> Unit,
     onNavigateToAgent:         () -> Unit,
     onNavigateToHeal:          () -> Unit,
+    onNavigateToConvo:         () -> Unit = {},
     // Called when voice produces a task string — parent routes it to AgentDashboard
     onVoiceTask: ((String) -> Unit)? = null,
 ) {
@@ -250,6 +251,7 @@ fun EnhancedHomeScreen(
                 item { QuickActionCard("Terminal", Icons.Default.Terminal,      onNavigateToTermuxCommand) }
                 item { QuickActionCard("Agent",    Icons.Default.SmartToy,      onNavigateToAgent) }
                 item { QuickActionCard("Heal",     Icons.Default.Build,         onNavigateToHeal) }
+                item { QuickActionCard("Multi-agent", Icons.Default.Groups,     onNavigateToConvo) }
             }
 
             Spacer(Modifier.height(40.dp))
