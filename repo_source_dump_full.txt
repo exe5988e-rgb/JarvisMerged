@@ -69,7 +69,11 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── convo
 │   │   │   │   │   │   │   ├── ConvoJson.kt
 │   │   │   │   │   │   │   ├── ConvoModels.kt
+│   │   │   │   │   │   │   ├── ConvoNotificationService.kt
+│   │   │   │   │   │   │   ├── ConvoNotifier.kt
+│   │   │   │   │   │   │   ├── ConvoReplyReceiver.kt
 │   │   │   │   │   │   │   ├── ConvoRepository.kt
+│   │   │   │   │   │   │   ├── ConvoScreen.kt
 │   │   │   │   │   │   │   ├── ConvoSettings.kt
 │   │   │   │   │   │   │   ├── ConvoViewModel.kt
 │   │   │   │   │   │   ├── core
@@ -810,6 +814,20 @@ dependencies {
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- Convo: WhatsApp-style message notifications (background poller + inline reply) -->
+        <service
+            android:name="com.jarvismini.convo.ConvoNotificationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="agent_message_notifications" />
+        </service>
+        <receiver
+            android:name="com.jarvismini.convo.ConvoReplyReceiver"
+            android:exported="false" />
 
     </application>
 
@@ -2326,6 +2344,8 @@ class MainActivity : ComponentActivity() {
         }
         startWakeWordServiceIfPermitted()
         com.jarvismini.proactive.ProactiveService.start(this)
+        com.jarvismini.convo.ConvoNotificationService.startIfEnabled(this)
+        com.jarvismini.convo.ConvoNotifier.consumeOpenIntent(intent)
 
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
@@ -2340,6 +2360,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** A tap on a Convo notification re-enters the running activity here and opens the Convo tab. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        com.jarvismini.convo.ConvoNotifier.consumeOpenIntent(intent)
     }
 
     /**
@@ -5037,6 +5064,503 @@ fun normalizeBaseUrl(raw: String): String {
 }
 
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoNotificationService.kt =====
+package com.jarvismini.convo
+
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.IBinder
+import android.util.Log
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+/**
+ * Foreground service that polls the Convo server while the app is in the background and raises
+ * WhatsApp-style notifications for new messages addressed to the admin.
+ *
+ * It uses the same repository and encrypted settings as the screen. It stops itself when
+ * notifications are switched off or the admin token is removed. Poll errors back off quietly
+ * and never produce a notification.
+ */
+class ConvoNotificationService : Service() {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var job: Job? = null
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        ConvoNotifier.ensureChannels(this)
+        // Type comes from the manifest (specialUse), same pattern as ProactiveService.
+        startForeground(ConvoNotifier.SERVICE_ID, ConvoNotifier.serviceNotification(this))
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (job?.isActive != true) {
+            job = scope.launch { pollLoop() }
+        }
+        return START_STICKY
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    private suspend fun pollLoop() {
+        val app = applicationContext
+        val settings = EncryptedConvoSettings(app)
+        val repo = HttpConvoRepository(baseUrl = { settings.baseUrl }, token = { settings.token })
+        var wait = POLL_MS
+        while (currentCoroutineContext().isActive) {
+            if (!ConvoNotifier.isEnabled(app) || settings.token.isBlank()) {
+                stopSelf()
+                return
+            }
+            val ok = try {
+                pollOnce(repo)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "poll failed: ${e.javaClass.simpleName}")
+                false
+            }
+            wait = if (ok) POLL_MS else (wait * 2).coerceAtMost(MAX_BACKOFF_MS)
+            delay(wait)
+        }
+    }
+
+    /** Returns false when the server could not be reached, so the loop backs off. */
+    private suspend fun pollOnce(repo: ConvoRepository): Boolean {
+        val app = applicationContext
+        var cursor = ConvoNotifier.lastNotifiedId(app)
+
+        if (cursor < 0L) {
+            // First run: start from "now" so old history never floods the shade.
+            val page = repo.messages(beforeId = LATEST, limit = 1).getOrElse { return false }
+            cursor = page.messages.maxOfOrNull { it.id } ?: 0L
+            page.nextCursor?.let { if (it > cursor) cursor = it }
+            ConvoNotifier.setLastNotifiedId(app, cursor)
+            return true
+        }
+
+        val fresh = ArrayList<ConvoMessage>()
+        var pages = 0
+        while (pages++ < MAX_PAGES) {
+            val page = repo.messages(afterId = cursor, limit = PAGE_LIMIT).getOrElse { return false }
+            fresh.addAll(page.messages)
+            page.messages.maxOfOrNull { it.id }?.let { if (it > cursor) cursor = it }
+            page.nextCursor?.let { if (it > cursor) cursor = it }
+            if (page.messages.size < PAGE_LIMIT) break
+        }
+        if (fresh.isEmpty()) return true
+
+        ConvoNotifier.setLastNotifiedId(app, cursor)
+
+        val incoming = fresh.filter { it.recipientId == ADMIN_ID && it.senderId != ADMIN_ID }
+        if (incoming.isNotEmpty() && !ConvoNotifier.screenVisible) {
+            val agents = repo.agents().getOrNull().orEmpty()
+            ConvoNotifier.showIncoming(app, incoming, agents)
+        }
+        return true
+    }
+
+    companion object {
+        private const val TAG = "ConvoNotificationService"
+        private const val POLL_MS = 10_000L
+        private const val MAX_BACKOFF_MS = 60_000L
+        private const val PAGE_LIMIT = 200
+        private const val MAX_PAGES = 5
+        private const val LATEST = 2_000_000_000L
+
+        fun start(context: Context) {
+            try {
+                ContextCompat.startForegroundService(
+                    context.applicationContext,
+                    Intent(context.applicationContext, ConvoNotificationService::class.java),
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start service", e)
+            }
+        }
+
+        fun stop(context: Context) {
+            try {
+                context.applicationContext.stopService(
+                    Intent(context.applicationContext, ConvoNotificationService::class.java),
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop service", e)
+            }
+        }
+
+        /** Called from MainActivity on launch: cheap prefs check only; the service validates the token itself. */
+        fun startIfEnabled(context: Context) {
+            if (ConvoNotifier.isEnabled(context)) start(context)
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoNotifier.kt =====
+package com.jarvismini.convo
+
+import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
+import androidx.core.app.RemoteInput
+import com.jarvismini.MainActivity
+import kotlinx.coroutines.flow.MutableStateFlow
+
+/**
+ * WhatsApp-style notifications for Convo.
+ *
+ * One conversation notification per agent (MessagingStyle, newest messages stacked), a group
+ * summary, inline Reply and Mark-as-read actions, and tap-to-open straight into the Convo tab.
+ * Only messages addressed to the admin ([ADMIN_ID]) from someone else notify; agent-to-agent
+ * traffic stays in the timeline. Nothing here ever reads or logs the admin token.
+ */
+object ConvoNotifier {
+
+    const val CHANNEL_MESSAGES = "convo_messages"
+    const val CHANNEL_SERVICE = "convo_service"
+    const val GROUP_KEY = "convo_group"
+
+    const val SERVICE_ID = 41_001
+    private const val SUMMARY_ID = 41_000
+
+    const val ACTION_OPEN = "com.jarvismini.convo.OPEN"
+    const val ACTION_REPLY = "com.jarvismini.convo.REPLY"
+    const val ACTION_MARK_READ = "com.jarvismini.convo.MARK_READ"
+    const val EXTRA_AGENT = "convo_agent"
+    const val KEY_REPLY = "convo_reply_text"
+
+    /** True while the Convo screen is in the foreground; incoming messages are then already on screen. */
+    @Volatile
+    var screenVisible: Boolean = false
+
+    /** Set when a notification tap asks MainScreen to jump to the Convo tab. */
+    val openRequested = MutableStateFlow(false)
+
+    private const val PREFS = "convo_notify_prefs"
+    private const val K_ENABLED = "enabled"
+    private const val K_LAST_ID = "last_notified_id"
+    private const val MAX_LINES = 8
+
+    private class Line(val text: String, val at: Long, val mine: Boolean)
+
+    private val lock = Any()
+    private val history = LinkedHashMap<String, ArrayList<Line>>()
+    private val names = HashMap<String, String>()
+
+    // ── settings ─────────────────────────────────────────────────────────────
+
+    private fun prefs(ctx: Context) =
+        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun hasChoice(ctx: Context): Boolean = prefs(ctx).contains(K_ENABLED)
+
+    fun isEnabled(ctx: Context): Boolean = prefs(ctx).getBoolean(K_ENABLED, false)
+
+    fun setEnabled(ctx: Context, on: Boolean) {
+        prefs(ctx).edit().putBoolean(K_ENABLED, on).apply()
+        if (on) {
+            ConvoNotificationService.start(ctx)
+        } else {
+            ConvoNotificationService.stop(ctx)
+            clearAll(ctx)
+        }
+    }
+
+    /** -1 means "never polled": the service then baselines to the newest message instead of notifying history. */
+    fun lastNotifiedId(ctx: Context): Long = prefs(ctx).getLong(K_LAST_ID, -1L)
+
+    fun setLastNotifiedId(ctx: Context, id: Long) {
+        prefs(ctx).edit().putLong(K_LAST_ID, id).apply()
+    }
+
+    // ── deep link ────────────────────────────────────────────────────────────
+
+    fun consumeOpenIntent(intent: Intent?) {
+        if (intent?.action == ACTION_OPEN) openRequested.value = true
+    }
+
+    // ── channels ─────────────────────────────────────────────────────────────
+
+    fun ensureChannels(ctx: Context) {
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_MESSAGES, "Convo messages", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Messages from your agents"
+                enableVibration(true)
+            },
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_SERVICE, "Convo connection", NotificationManager.IMPORTANCE_MIN).apply {
+                description = "Keeps Convo listening for new messages"
+                setShowBadge(false)
+            },
+        )
+    }
+
+    fun serviceNotification(ctx: Context): Notification =
+        NotificationCompat.Builder(ctx, CHANNEL_SERVICE)
+            .setSmallIcon(android.R.drawable.sym_action_chat)
+            .setContentTitle("Convo")
+            .setContentText("Listening for agent messages")
+            .setOngoing(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setContentIntent(openIntent(ctx, null))
+            .build()
+
+    // ── incoming ─────────────────────────────────────────────────────────────
+
+    @SuppressLint("MissingPermission")
+    fun showIncoming(ctx: Context, messages: List<ConvoMessage>, agents: List<ConvoAgent>) {
+        val incoming = messages.filter { it.recipientId == ADMIN_ID && it.senderId != ADMIN_ID }
+        if (incoming.isEmpty()) return
+        val app = ctx.applicationContext
+        if (!NotificationManagerCompat.from(app).areNotificationsEnabled()) return
+        ensureChannels(app)
+
+        val touched = LinkedHashSet<String>()
+        synchronized(lock) {
+            for (a in agents) names[a.id] = a.displayName.ifBlank { a.id }
+            for (m in incoming.sortedBy { it.id }) {
+                val lines = history.getOrPut(m.senderId) { ArrayList() }
+                lines.add(Line(m.text, m.createdAt, mine = false))
+                while (lines.size > MAX_LINES) lines.removeAt(0)
+                touched.add(m.senderId)
+            }
+        }
+        for (id in touched) postConversation(app, id, quiet = false, status = null)
+        postSummary(app)
+    }
+
+    // ── reply / read ─────────────────────────────────────────────────────────
+
+    @SuppressLint("MissingPermission")
+    fun onReplySent(ctx: Context, agentId: String, text: String) {
+        val app = ctx.applicationContext
+        synchronized(lock) {
+            val lines = history.getOrPut(agentId) { ArrayList() }
+            lines.add(Line(text, System.currentTimeMillis(), mine = true))
+            while (lines.size > MAX_LINES) lines.removeAt(0)
+        }
+        postConversation(app, agentId, quiet = true, status = null)
+        postSummary(app)
+    }
+
+    @SuppressLint("MissingPermission")
+    fun onReplyFailed(ctx: Context, agentId: String, reason: String?) {
+        val app = ctx.applicationContext
+        postConversation(app, agentId, quiet = true, status = "Reply failed: ${reason ?: "unknown error"}")
+    }
+
+    fun markRead(ctx: Context, agentId: String) {
+        val app = ctx.applicationContext
+        synchronized(lock) { history.remove(agentId) }
+        NotificationManagerCompat.from(app).cancel(notificationId(agentId))
+        val empty = synchronized(lock) { history.isEmpty() }
+        if (empty) NotificationManagerCompat.from(app).cancel(SUMMARY_ID) else postSummary(app)
+    }
+
+    fun clearAll(ctx: Context) {
+        val app = ctx.applicationContext
+        val ids = synchronized(lock) {
+            val keys = history.keys.toList()
+            history.clear()
+            keys
+        }
+        val nm = NotificationManagerCompat.from(app)
+        for (id in ids) nm.cancel(notificationId(id))
+        nm.cancel(SUMMARY_ID)
+    }
+
+    // ── building ─────────────────────────────────────────────────────────────
+
+    private fun notificationId(agentId: String): Int = 42_000 + (agentId.hashCode() and 0xFFFF)
+
+    private fun displayName(agentId: String): String = synchronized(lock) { names[agentId] } ?: agentId
+
+    private fun openIntent(ctx: Context, agentId: String?): PendingIntent {
+        val intent = Intent(ctx, MainActivity::class.java).apply {
+            action = ACTION_OPEN
+            if (agentId != null) putExtra(EXTRA_AGENT, agentId)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        return PendingIntent.getActivity(
+            ctx,
+            if (agentId == null) 0 else notificationId(agentId),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun postConversation(ctx: Context, agentId: String, quiet: Boolean, status: String?) {
+        val lines = synchronized(lock) { history[agentId]?.toList() } ?: return
+        if (lines.isEmpty()) return
+        val name = displayName(agentId)
+
+        val me = Person.Builder().setName("You").build()
+        val sender = Person.Builder().setName(name).setKey(agentId).build()
+        val style = NotificationCompat.MessagingStyle(me)
+        for (l in lines) style.addMessage(l.text, l.at, if (l.mine) null else sender)
+
+        val mutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+        val replyIntent = Intent(ctx, ConvoReplyReceiver::class.java).apply {
+            action = ACTION_REPLY
+            putExtra(EXTRA_AGENT, agentId)
+        }
+        val replyPi = PendingIntent.getBroadcast(
+            ctx, notificationId(agentId), replyIntent, PendingIntent.FLAG_UPDATE_CURRENT or mutable,
+        )
+        val replyAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_send,
+            "Reply",
+            replyPi,
+        )
+            .addRemoteInput(RemoteInput.Builder(KEY_REPLY).setLabel("Reply to $name").build())
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .setShowsUserInterface(false)
+            .setAllowGeneratedReplies(false)
+            .build()
+
+        val readIntent = Intent(ctx, ConvoReplyReceiver::class.java).apply {
+            action = ACTION_MARK_READ
+            putExtra(EXTRA_AGENT, agentId)
+        }
+        val readPi = PendingIntent.getBroadcast(
+            ctx, notificationId(agentId) + 100_000, readIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val readAction = NotificationCompat.Action.Builder(android.R.drawable.ic_menu_agenda, "Mark as read", readPi)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
+            .setShowsUserInterface(false)
+            .build()
+
+        val last = lines.last()
+        val builder = NotificationCompat.Builder(ctx, CHANNEL_MESSAGES)
+            .setSmallIcon(android.R.drawable.sym_action_chat)
+            .setContentTitle(name)
+            .setContentText(last.text)
+            .setStyle(style)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setGroup(GROUP_KEY)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setWhen(last.at)
+            .setShowWhen(true)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(quiet)
+            .setContentIntent(openIntent(ctx, agentId))
+            .addAction(replyAction)
+            .addAction(readAction)
+        if (status != null) builder.setSubText(status)
+
+        NotificationManagerCompat.from(ctx).notify(notificationId(agentId), builder.build())
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun postSummary(ctx: Context) {
+        val snapshot = synchronized(lock) { history.entries.map { it.key to it.value.toList() } }
+        if (snapshot.isEmpty()) return
+        val total = snapshot.sumOf { (_, lines) -> lines.count { !it.mine } }
+        val inbox = NotificationCompat.InboxStyle()
+        for ((id, lines) in snapshot) inbox.addLine("${displayName(id)}: ${lines.last().text}")
+        inbox.setSummaryText("Convo")
+
+        val summary = NotificationCompat.Builder(ctx, CHANNEL_MESSAGES)
+            .setSmallIcon(android.R.drawable.sym_action_chat)
+            .setContentTitle("Convo")
+            .setContentText("$total new message${if (total == 1) "" else "s"} from ${snapshot.size} agent${if (snapshot.size == 1) "" else "s"}")
+            .setStyle(inbox)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setGroup(GROUP_KEY)
+            .setGroupSummary(true)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setAutoCancel(true)
+            .setContentIntent(openIntent(ctx, null))
+            .build()
+        NotificationManagerCompat.from(ctx).notify(SUMMARY_ID, summary)
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoReplyReceiver.kt =====
+package com.jarvismini.convo
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import androidx.core.app.RemoteInput
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+/** Handles the notification's inline Reply and Mark-as-read actions. Not exported. */
+class ConvoReplyReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        val agent = intent.getStringExtra(ConvoNotifier.EXTRA_AGENT) ?: return
+        when (intent.action) {
+            ConvoNotifier.ACTION_MARK_READ -> ConvoNotifier.markRead(context, agent)
+            ConvoNotifier.ACTION_REPLY -> reply(context, intent, agent)
+        }
+    }
+
+    private fun reply(context: Context, intent: Intent, agent: String) {
+        val text = RemoteInput.getResultsFromIntent(intent)
+            ?.getCharSequence(ConvoNotifier.KEY_REPLY)
+            ?.toString()
+            ?.trim()
+            .orEmpty()
+        val app = context.applicationContext
+        if (text.isEmpty()) {
+            // Nothing typed: just stop the reply spinner by reposting the conversation as-is.
+            ConvoNotifier.onReplyFailed(app, agent, "empty reply")
+            return
+        }
+        val pending = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val settings = EncryptedConvoSettings(app)
+                val repo = HttpConvoRepository(baseUrl = { settings.baseUrl }, token = { settings.token })
+                val result = repo.broadcast(text, listOf(agent))
+                if (result.isSuccess) {
+                    ConvoNotifier.onReplySent(app, agent, text)
+                } else {
+                    ConvoNotifier.onReplyFailed(app, agent, result.exceptionOrNull()?.message)
+                }
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+}
+
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoRepository.kt =====
 package com.jarvismini.convo
 
@@ -5176,6 +5700,540 @@ class FakeConvoRepository(
         val i = stored.indexOfFirst { it.id == id }
         if (i >= 0) stored[i] = stored[i].copy(readAt = at)
     }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/convo/ConvoScreen.kt =====
+@file:OptIn(ExperimentalMaterial3Api::class)
+
+package com.jarvismini.convo
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.viewmodel.compose.viewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private val CvMagenta = Color(0xFFE040FB)
+private val CvDim = Color(0xFF4A0070)
+private val CvBgDark = Color(0xFF080810)
+private val CvCard = Color(0xFF0F0A1A)
+private val CvMine = Color(0xFF1B0B2E)
+private val CvGreen = Color(0xFF00FF88)
+private val CvRed = Color(0xFFFF4466)
+private val CvYellow = Color(0xFFFFCC00)
+private val CvWhite70 = Color(0xB3FFFFFF)
+private val CvWhite40 = Color(0x66FFFFFF)
+
+/**
+ * Multi-agent (Convo) tab: roster with presence, a polled timeline grouped by broadcast with read
+ * receipts, a compose bar with recipient chips, filters, and settings (server URL, admin token,
+ * notifications). The token is only ever passed to the view model; it is never logged or shown.
+ */
+@Composable
+fun ConvoScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val factory = remember { ConvoViewModelFactory(context.applicationContext) }
+    val vm: ConvoViewModel = viewModel<ConvoViewModel>(factory = factory)
+    val state by vm.state.collectAsState()
+    var showSettings by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    BackHandler(onBack = onBack)
+
+    // Poll only while the screen is started; the notification service covers the background.
+    DisposableEffect(lifecycleOwner, vm) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> vm.startPolling()
+                Lifecycle.Event.ON_STOP -> vm.stopPolling()
+                Lifecycle.Event.ON_RESUME -> {
+                    ConvoNotifier.screenVisible = true
+                    ConvoNotifier.clearAll(context)
+                }
+                Lifecycle.Event.ON_PAUSE -> ConvoNotifier.screenVisible = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            ConvoNotifier.screenVisible = false
+            vm.stopPolling()
+        }
+    }
+
+    val timeFormat = remember { SimpleDateFormat("d MMM HH:mm", Locale.getDefault()) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(CvBgDark, Color(0xFF05020F)))),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .imePadding()
+                .padding(horizontal = 12.dp),
+        ) {
+            ConvoTopBar(onBack = onBack, onSettings = { showSettings = true })
+
+            if (!state.hasToken) {
+                ConvoBanner("No admin token yet. Tap the gear to set it up.", CvYellow)
+            } else if (state.error != null) {
+                ConvoBanner(state.error.orEmpty(), CvRed)
+            }
+
+            ConvoRoster(state)
+            Spacer(Modifier.height(6.dp))
+            ConvoFilters(state, vm)
+            Spacer(Modifier.height(6.dp))
+
+            ConvoTimeline(
+                state = state,
+                vm = vm,
+                timeFormat = timeFormat,
+                modifier = Modifier.weight(1f),
+            )
+
+            ConvoComposeBar(state, vm)
+        }
+    }
+
+    state.selected?.let { bubble ->
+        ModalBottomSheet(
+            onDismissRequest = { vm.select(null) },
+            containerColor = CvCard,
+        ) {
+            ConvoReceiptSheet(bubble, timeFormat)
+        }
+    }
+
+    if (showSettings) {
+        ConvoSettingsDialog(
+            state = state,
+            onDismiss = { showSettings = false },
+            onSave = { url, token, notify ->
+                vm.onSaveSettings(url, token)
+                if (state.hasToken || token.isNotBlank()) ConvoNotifier.setEnabled(context, notify)
+                showSettings = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun ConvoTopBar(onBack: () -> Unit, onSettings: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.Default.ArrowBack, "Back", tint = CvMagenta)
+        }
+        Text(
+            "MULTI-AGENT",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Light,
+            letterSpacing = 4.sp,
+            color = CvMagenta,
+            fontFamily = FontFamily.Monospace,
+        )
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onSettings) {
+            Icon(Icons.Default.Settings, "Convo settings", tint = CvWhite70, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun ConvoBanner(text: String, color: Color) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Warning, null, tint = color, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = color, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun ConvoRoster(state: ConvoUiState) {
+    val agents = state.agents.messageable()
+    if (agents.isEmpty()) return
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items(agents, key = { it.id }) { agent ->
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, CvDim, RoundedCornerShape(16.dp))
+                    .background(CvCard)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (agent.online) CvGreen else CvWhite40),
+                )
+                Spacer(Modifier.width(6.dp))
+                Column {
+                    Text(
+                        agent.displayName.ifBlank { agent.id },
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        if (agent.online) "online" else formatLastSeen(agent.lastSeen, state.now),
+                        color = CvWhite40,
+                        fontSize = 10.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConvoChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    Text(
+        label,
+        color = if (selected) CvMagenta else CvWhite70,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .clip(shape)
+            .background(if (selected) CvDim else Color.Transparent)
+            .border(1.dp, if (selected) CvMagenta else CvDim, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun ConvoFilters(state: ConvoUiState, vm: ConvoViewModel) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items(ConvoFilter.values().toList(), key = { it.name }) { f ->
+            ConvoChip(f.label, state.filter == f) { vm.setFilter(f) }
+        }
+    }
+}
+
+@Composable
+private fun ConvoTimeline(
+    state: ConvoUiState,
+    vm: ConvoViewModel,
+    timeFormat: SimpleDateFormat,
+    modifier: Modifier,
+) {
+    val visible = state.visible
+    val listState = rememberLazyListState()
+    val lastKey = visible.lastOrNull()?.key
+    val headerOffset = if (state.hasOlder) 1 else 0
+
+    LaunchedEffect(lastKey) {
+        if (visible.isNotEmpty()) listState.animateScrollToItem(visible.lastIndex + headerOffset)
+    }
+
+    Box(modifier.fillMaxWidth()) {
+        if (visible.isEmpty()) {
+            Text(
+                when {
+                    !state.hasToken -> "Set the admin token to load messages."
+                    state.filter != ConvoFilter.All -> "Nothing matches this filter."
+                    else -> "No messages yet."
+                },
+                color = CvWhite40,
+                fontSize = 13.sp,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (state.hasOlder) {
+                    item(key = "older") {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            TextButton(onClick = vm::onLoadOlder, enabled = !state.loadingOlder) {
+                                Text(
+                                    if (state.loadingOlder) "Loading…" else "Load older messages",
+                                    color = CvMagenta,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+                items(visible, key = { it.key }) { bubble ->
+                    ConvoBubbleRow(bubble, timeFormat) { vm.select(bubble.key) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConvoBubbleRow(bubble: ConvoBubble, timeFormat: SimpleDateFormat, onClick: () -> Unit) {
+    val mine = bubble.senderId == ADMIN_ID
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
+    ) {
+        Column(
+            Modifier
+                .widthIn(max = 300.dp)
+                .clip(shape)
+                .background(if (mine) CvMine else CvCard)
+                .border(1.dp, if (bubble.hasUnread) CvYellow.copy(alpha = 0.35f) else CvDim, shape)
+                .clickable(onClick = onClick)
+                .padding(10.dp),
+        ) {
+            if (!mine) {
+                Text(
+                    bubble.senderId,
+                    color = CvMagenta,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+            Text(bubble.text, color = Color.White, fontSize = 14.sp)
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                val to = recipientLabel(bubble)
+                Text(
+                    (if (to.isEmpty()) "" else "to $to · ") + timeFormat.format(Date(bubble.createdAt)),
+                    color = CvWhite40,
+                    fontSize = 10.sp,
+                )
+                if (bubble.receipts.isNotEmpty()) {
+                    Spacer(Modifier.width(4.dp))
+                    val read = bubble.state == ReceiptState.Read
+                    Icon(
+                        if (read) Icons.Default.DoneAll else Icons.Default.Done,
+                        contentDescription = if (read) "Read" else "Delivered",
+                        tint = if (read) CvGreen else CvWhite40,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConvoComposeBar(state: ConvoUiState, vm: ConvoViewModel) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            item(key = "all") {
+                ConvoChip("All", state.recipients.isEmpty()) { vm.allRecipients() }
+            }
+            items(state.agents.messageable(), key = { it.id }) { agent ->
+                ConvoChip(
+                    agent.displayName.ifBlank { agent.id },
+                    state.recipients.contains(agent.id),
+                ) { vm.toggleRecipient(agent.id) }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = state.draft,
+                onValueChange = vm::onDraft,
+                modifier = Modifier.weight(1f),
+                placeholder = {
+                    Text(
+                        if (state.recipients.isEmpty()) "Message all agents" else "Message ${state.recipients.sorted().joinToString(", ")}",
+                        fontSize = 13.sp,
+                    )
+                },
+                maxLines = 4,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = CvMagenta,
+                    unfocusedBorderColor = CvDim,
+                    cursorColor = CvMagenta,
+                    focusedPlaceholderColor = CvWhite40,
+                    unfocusedPlaceholderColor = CvWhite40,
+                ),
+            )
+            Spacer(Modifier.width(4.dp))
+            IconButton(onClick = vm::onSend, enabled = state.draft.isNotBlank() && !state.sending) {
+                if (state.sending) {
+                    CircularProgressIndicator(Modifier.size(20.dp), color = CvMagenta, strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        Icons.Default.Send,
+                        "Send",
+                        tint = if (state.draft.isNotBlank()) CvMagenta else CvWhite40,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConvoReceiptSheet(bubble: ConvoBubble, timeFormat: SimpleDateFormat) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+        Text(
+            "${bubble.senderId} · ${timeFormat.format(Date(bubble.createdAt))}",
+            color = CvMagenta,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(bubble.text, color = Color.White, fontSize = 15.sp)
+        Spacer(Modifier.height(16.dp))
+
+        Text("Read by", color = CvGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        val read = bubble.receipts.filter { it.isRead }
+        if (read.isEmpty()) {
+            Text("Nobody yet", color = CvWhite40, fontSize = 13.sp)
+        } else {
+            for (r in read) {
+                val at = r.readAt?.let { " · " + timeFormat.format(Date(it)) }.orEmpty()
+                Text(r.agentId + at, color = CvWhite70, fontSize = 13.sp)
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text("Unread", color = CvYellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        val unread = bubble.unreadBy
+        Text(
+            if (unread.isEmpty()) "Everyone has read this" else unread.joinToString(", "),
+            color = if (unread.isEmpty()) CvWhite40 else CvWhite70,
+            fontSize = 13.sp,
+        )
+    }
+}
+
+@Composable
+private fun ConvoSettingsDialog(
+    state: ConvoUiState,
+    onDismiss: () -> Unit,
+    onSave: (url: String, token: String, notify: Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    var url by remember { mutableStateOf(state.baseUrl) }
+    var token by remember { mutableStateOf("") }
+    var notify by remember {
+        mutableStateOf(if (ConvoNotifier.hasChoice(context)) ConvoNotifier.isEnabled(context) else true)
+    }
+    val systemAllows = remember { NotificationManagerCompat.from(context).areNotificationsEnabled() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Convo settings") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("Server URL") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text(if (state.hasToken) "Admin token (saved, blank keeps it)" else "Admin token") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Message notifications", modifier = Modifier.weight(1f))
+                    Switch(checked = notify, onCheckedChange = { notify = it })
+                }
+                if (notify && !systemAllows) {
+                    Text(
+                        "Notifications are blocked for this app in system settings.",
+                        color = CvRed,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(url, token, notify) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 
@@ -11650,6 +12708,15 @@ fun MainScreen() {
             ProgressInitializer.registerAllBlocks(context)
             blocks   = ProgressRepository.getTodayBlocks()
             routines = RoutineProvider.getAllRoutines(context)
+        }
+    }
+
+    // A tapped Convo notification asks for the Convo tab (set in MainActivity, consumed here).
+    val convoOpenRequested by com.jarvismini.convo.ConvoNotifier.openRequested.collectAsState()
+    LaunchedEffect(convoOpenRequested) {
+        if (convoOpenRequested) {
+            selectedTab = MainTab.Convo
+            com.jarvismini.convo.ConvoNotifier.openRequested.value = false
         }
     }
 
