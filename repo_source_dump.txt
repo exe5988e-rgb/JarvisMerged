@@ -2699,6 +2699,9 @@ interface ConvoRepository {
 
     /** recipients == null means all agents. */
     suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit>
+
+    /** Mark a message addressed to the admin as read (server: POST /v1/messages/{id}/ack). */
+    suspend fun ack(id: Long): Result<Unit>
 }
 
 class HttpConvoRepository(
@@ -2720,27 +2723,24 @@ class HttpConvoRepository(
     override suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit> =
         execute("/v1/admin/broadcast", emptyMap(), ConvoJson.broadcastBody(text, recipients)).map { }
 
-    private suspend fun execute(path: String, query: Map<String, String>, body: String?): Result<String> =
-        withContext<Result<String>>(Dispatchers.IO) {
-            val tok = token().trim()
-            if (tok.isEmpty()) {
-                return@withContext Result.failure(ConvoException("Set the admin token in Convo settings"))
-            }
+    override suspend fun ack(id: Long): Result<Unit> =
+        execute("/v1/messages/$id/ack", emptyMap(), "{}").map { }
+
 
 // ... FILE TRUNCATED ...
 
-        failing?.let { return Result.failure(it) }
-        sent.add(text to recipients)
-        val targets = recipients ?: agentList.messageable().map { it.id }
-        val bid = "bc-${nextId}"
-        for (r in targets) {
-            stored.add(
-                ConvoMessage(
-                    id = nextId++, uuid = "u-$nextId", senderId = ADMIN_ID, recipientId = r,
-                    type = "chat", text = text, broadcastId = bid, createdAt = nextId * 1000L, readAt = null,
                 ),
             )
         }
+        return Result.success(Unit)
+    }
+
+    val acked = mutableListOf<Long>()
+
+    override suspend fun ack(id: Long): Result<Unit> {
+        failing?.let { return Result.failure(it) }
+        acked.add(id)
+        markRead(id, 1L)
         return Result.success(Unit)
     }
 
@@ -2957,7 +2957,6 @@ class ConvoViewModel(
 
 // ... FILE TRUNCATED ...
 
-        stopPolling()
         super.onCleared()
     }
 
@@ -2965,6 +2964,7 @@ class ConvoViewModel(
         const val PAGE = 100
         const val CATCHUP_LIMIT = 200
         const val MAX_CATCHUP_PAGES = 20
+        const val MAX_ACKS_PER_REFRESH = 50
         const val LATEST = 2_000_000_000L
     }
 }

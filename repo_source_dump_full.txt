@@ -5585,6 +5585,9 @@ interface ConvoRepository {
 
     /** recipients == null means all agents. */
     suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit>
+
+    /** Mark a message addressed to the admin as read (server: POST /v1/messages/{id}/ack). */
+    suspend fun ack(id: Long): Result<Unit>
 }
 
 class HttpConvoRepository(
@@ -5605,6 +5608,9 @@ class HttpConvoRepository(
 
     override suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit> =
         execute("/v1/admin/broadcast", emptyMap(), ConvoJson.broadcastBody(text, recipients)).map { }
+
+    override suspend fun ack(id: Long): Result<Unit> =
+        execute("/v1/messages/$id/ack", emptyMap(), "{}").map { }
 
     private suspend fun execute(path: String, query: Map<String, String>, body: String?): Result<String> =
         withContext<Result<String>>(Dispatchers.IO) {
@@ -5693,6 +5699,15 @@ class FakeConvoRepository(
                 ),
             )
         }
+        return Result.success(Unit)
+    }
+
+    val acked = mutableListOf<Long>()
+
+    override suspend fun ack(id: Long): Result<Unit> {
+        failing?.let { return Result.failure(it) }
+        acked.add(id)
+        markRead(id, 1L)
         return Result.success(Unit)
     }
 
@@ -6382,6 +6397,7 @@ class ConvoViewModel(
             var err: Throwable? = agentsRes.exceptionOrNull()
             val msgErr = syncMessages()
             if (err == null) err = msgErr
+            ackIncoming()
             publish(err)
         }
     }
@@ -6408,6 +6424,18 @@ class ConvoViewModel(
             return r.exceptionOrNull()
         }
         return null
+    }
+
+    /** Messages addressed to the admin count as read once the Convo screen is open (polling runs only while visible). */
+    private suspend fun ackIncoming() {
+        val unread = store.values
+            .filter { it.recipientId == ADMIN_ID && it.readAt == null }
+            .sortedBy { it.id }
+            .take(MAX_ACKS_PER_REFRESH)
+        for (m in unread) {
+            if (repo.ack(m.id).isFailure) break
+            store[m.id] = m.copy(readAt = clock())
+        }
     }
 
     private fun mergePage(page: MessagePage) {
@@ -6522,6 +6550,7 @@ class ConvoViewModel(
         const val PAGE = 100
         const val CATCHUP_LIMIT = 200
         const val MAX_CATCHUP_PAGES = 20
+        const val MAX_ACKS_PER_REFRESH = 50
         const val LATEST = 2_000_000_000L
     }
 }
@@ -15912,6 +15941,18 @@ class ViewModelTest {
         assertEquals(3, vm.state.value.agents.size)
         assertEquals(1, vm.state.value.bubbles.size)
         assertNull(vm.state.value.error)
+    }
+
+    @Test fun refreshAcksMessagesAddressedToAdmin() = runBlocking {
+        val repo = FakeConvoRepository(
+            agents,
+            listOf(msg(1, ADMIN_ID, from = "claude1"), msg(2, "claude1"), msg(3, ADMIN_ID, from = "claude2", read = 9L)),
+        )
+        val vm = vm(repo)
+        vm.refresh()
+        assertEquals(listOf(1L), repo.acked)
+        vm.refresh()
+        assertEquals(listOf(1L), repo.acked)
     }
 
     @Test fun readReceiptUpdatesOnNextRefresh() = runBlocking {
