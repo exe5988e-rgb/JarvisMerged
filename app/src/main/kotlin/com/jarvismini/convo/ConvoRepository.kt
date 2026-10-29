@@ -21,6 +21,9 @@ interface ConvoRepository {
 
     /** recipients == null means all agents. */
     suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit>
+
+    /** Mark a message addressed to the admin as read (server: POST /v1/messages/{id}/ack). */
+    suspend fun ack(id: Long): Result<Unit>
 }
 
 class HttpConvoRepository(
@@ -41,6 +44,9 @@ class HttpConvoRepository(
 
     override suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit> =
         execute("/v1/admin/broadcast", emptyMap(), ConvoJson.broadcastBody(text, recipients)).map { }
+
+    override suspend fun ack(id: Long): Result<Unit> =
+        execute("/v1/messages/$id/ack", emptyMap(), "{}").map { }
 
     private suspend fun execute(path: String, query: Map<String, String>, body: String?): Result<String> =
         withContext<Result<String>>(Dispatchers.IO) {
@@ -129,6 +135,15 @@ class FakeConvoRepository(
                 ),
             )
         }
+        return Result.success(Unit)
+    }
+
+    val acked = mutableListOf<Long>()
+
+    override suspend fun ack(id: Long): Result<Unit> {
+        failing?.let { return Result.failure(it) }
+        acked.add(id)
+        markRead(id, 1L)
         return Result.success(Unit)
     }
 

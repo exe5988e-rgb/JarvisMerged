@@ -80,6 +80,7 @@ class ConvoViewModel(
             var err: Throwable? = agentsRes.exceptionOrNull()
             val msgErr = syncMessages()
             if (err == null) err = msgErr
+            ackIncoming()
             publish(err)
         }
     }
@@ -106,6 +107,18 @@ class ConvoViewModel(
             return r.exceptionOrNull()
         }
         return null
+    }
+
+    /** Messages addressed to the admin count as read once the Convo screen is open (polling runs only while visible). */
+    private suspend fun ackIncoming() {
+        val unread = store.values
+            .filter { it.recipientId == ADMIN_ID && it.readAt == null }
+            .sortedBy { it.id }
+            .take(MAX_ACKS_PER_REFRESH)
+        for (m in unread) {
+            if (repo.ack(m.id).isFailure) break
+            store[m.id] = m.copy(readAt = clock())
+        }
     }
 
     private fun mergePage(page: MessagePage) {
@@ -220,6 +233,7 @@ class ConvoViewModel(
         const val PAGE = 100
         const val CATCHUP_LIMIT = 200
         const val MAX_CATCHUP_PAGES = 20
+        const val MAX_ACKS_PER_REFRESH = 50
         const val LATEST = 2_000_000_000L
     }
 }

@@ -92,6 +92,18 @@ class ViewModelTest {
         assertNull(vm.state.value.error)
     }
 
+    @Test fun refreshAcksMessagesAddressedToAdmin() = runBlocking {
+        val repo = FakeConvoRepository(
+            agents,
+            listOf(msg(1, ADMIN_ID, from = "claude1"), msg(2, "claude1"), msg(3, ADMIN_ID, from = "claude2", read = 9L)),
+        )
+        val vm = vm(repo)
+        vm.refresh()
+        assertEquals(listOf(1L), repo.acked)
+        vm.refresh()
+        assertEquals(listOf(1L), repo.acked)
+    }
+
     @Test fun readReceiptUpdatesOnNextRefresh() = runBlocking {
         val repo = FakeConvoRepository(agents, listOf(msg(1, "claude1")))
         val vm = vm(repo)
