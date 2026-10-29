@@ -231,6 +231,20 @@
             </intent-filter>
         </receiver>
 
+        <!-- Convo: WhatsApp-style message notifications (background poller + inline reply) -->
+        <service
+            android:name="com.jarvismini.convo.ConvoNotificationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="agent_message_notifications" />
+        </service>
+        <receiver
+            android:name="com.jarvismini.convo.ConvoReplyReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

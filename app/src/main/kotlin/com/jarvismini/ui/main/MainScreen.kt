@@ -61,6 +61,15 @@ fun MainScreen() {
         }
     }
 
+    // A tapped Convo notification asks for the Convo tab (set in MainActivity, consumed here).
+    val convoOpenRequested by com.jarvismini.convo.ConvoNotifier.openRequested.collectAsState()
+    LaunchedEffect(convoOpenRequested) {
+        if (convoOpenRequested) {
+            selectedTab = MainTab.Convo
+            com.jarvismini.convo.ConvoNotifier.openRequested.value = false
+        }
+    }
+
     when (selectedTab) {
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat          = { selectedTab = MainTab.Chat },

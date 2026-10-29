@@ -48,6 +48,8 @@ class MainActivity : ComponentActivity() {
         }
         startWakeWordServiceIfPermitted()
         com.jarvismini.proactive.ProactiveService.start(this)
+        com.jarvismini.convo.ConvoNotificationService.startIfEnabled(this)
+        com.jarvismini.convo.ConvoNotifier.consumeOpenIntent(intent)
 
         if (!StoragePermissionHelper.hasStoragePermission(this)) {
             StoragePermissionHelper.requestStoragePermission(this)
@@ -62,6 +64,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** A tap on a Convo notification re-enters the running activity here and opens the Convo tab. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        com.jarvismini.convo.ConvoNotifier.consumeOpenIntent(intent)
     }
 
     /**
