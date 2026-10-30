@@ -466,7 +466,16 @@ class A11yBridge(private val svc: AccessibilityService) {
 
     private fun currentText(n: AccessibilityNodeInfo): String {
         val hint = Build.VERSION.SDK_INT >= 26 && n.isShowingHintText
-        return if (hint) "" else n.text?.toString() ?: ""
+        if (hint) return ""
+        val raw = n.text?.toString() ?: ""
+        // Some apps (WhatsApp's search bar) report the placeholder as real text, often behind
+        // zero-width characters, without setting isShowingHintText. Treat that as an empty field
+        // so typing replaces the placeholder instead of being spliced into it.
+        val bare = raw.filter { it != '\u200b' && it != '\u200c' && it != '\u200d' && it != '\ufeff' }
+        if (bare.isEmpty()) return ""
+        val h = if (Build.VERSION.SDK_INT >= 26) n.hintText?.toString()?.trim() else null
+        if (!h.isNullOrEmpty() && bare.trim() == h) return ""
+        return raw
     }
 
     private fun setText(n: AccessibilityNodeInfo, value: String, cursor: Int): String? {
