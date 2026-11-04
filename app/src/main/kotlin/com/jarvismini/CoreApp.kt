@@ -20,6 +20,10 @@ class CoreApp : Application() {
         DeviceCommands.install(this)
         com.jarvismini.proactive.ProactiveEngine.install(this)
 
+        // Rebind accessibility: if Android dropped our services (update/force-stop/OEM cleanup), put them back.
+        // No-op unless WRITE_SECURE_SETTINGS was granted via adb once.
+        com.jarvismini.heal.AccessibilityRepair.ensureEnabled(this)
+
         // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
         // process start, so no manual "run once and remove" step is needed.
         // Setting the same value repeatedly is harmless — this just keeps

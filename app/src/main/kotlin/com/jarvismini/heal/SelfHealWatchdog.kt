@@ -52,6 +52,7 @@ object SelfHealWatchdog {
 
     private fun check(app: Context) {
         checkWakeWord(app)
+        checkAccessibility(app)
         checkMemory(app)
     }
 
@@ -77,6 +78,14 @@ object SelfHealWatchdog {
             )
         } catch (e: Exception) {
             EventLog.add(EventType.SERVICE, "Wake word restart failed", e.message ?: "")
+        }
+    }
+
+    /** Every 2 min: if Android dropped a Jarvis accessibility service, re-enable it (needs WRITE_SECURE_SETTINGS). */
+    private fun checkAccessibility(app: Context) {
+        if (AccessibilityRepair.allEnabled(app)) return
+        if (AccessibilityRepair.ensureEnabled(app)) {
+            EventLog.add(EventType.SERVICE, "Accessibility services re-enabled")
         }
     }
 
