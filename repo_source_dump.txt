@@ -83,6 +83,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   ├── executor
 │   │   │   │   │   │   │   ├── UnifiedExecutor.kt
 │   │   │   │   │   │   ├── heal
+│   │   │   │   │   │   │   ├── AccessibilityRepair.kt
 │   │   │   │   │   │   │   ├── SelfHealWatchdog.kt
 │   │   │   │   │   │   ├── llm
 │   │   │   │   │   │   │   ├── LlmBackend.kt
@@ -533,6 +534,9 @@ android {
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <!-- Granted once via adb (pm grant com.jarvismini android.permission.WRITE_SECURE_SETTINGS) so
+         AccessibilityRepair can re-enable Jarvis's accessibility services if Android drops them. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
 
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
@@ -567,9 +571,6 @@ android {
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
 // ... FILE TRUNCATED ...
@@ -1120,6 +1121,10 @@ class CoreApp : Application() {
         DeviceCommands.install(this)
         com.jarvismini.proactive.ProactiveEngine.install(this)
 
+        // Rebind accessibility: if Android dropped our services (update/force-stop/OEM cleanup), put them back.
+        // No-op unless WRITE_SECURE_SETTINGS was granted via adb once.
+        com.jarvismini.heal.AccessibilityRepair.ensureEnabled(this)
+
         // Wake word (Phase 2): auto-seed the Picovoice AccessKey on every
         // process start, so no manual "run once and remove" step is needed.
         // Setting the same value repeatedly is harmless — this just keeps
@@ -1144,9 +1149,6 @@ class CoreApp : Application() {
             override fun stopFloating(context: Context) {
                 FloatingTimerService.stop(context)
             }
-        }
-    }
-}
 
 // ... FILE TRUNCATED ...
 
@@ -3207,6 +3209,82 @@ class FileBasedExecutor(private val context: Context) : UnifiedExecutor {
     }
 }
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/heal/AccessibilityRepair.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.heal
+
+import android.Manifest
+import android.content.ComponentName
+import android.content.Context
+import android.content.pm.PackageManager
+import android.provider.Settings
+import android.util.Log
+
+/**
+ * AccessibilityRepair: puts Jarvis's own accessibility services back into
+ * ENABLED_ACCESSIBILITY_SERVICES when Android drops them (force stop, reinstall/update,
+ * OEM battery cleanup) so the a11y engine rebinds without a trip to Settings.
+ *
+ * Android only lets an app write that setting if it holds WRITE_SECURE_SETTINGS, which can't be
+ * requested at runtime. Grant it once from adb / Termux:
+ *
+ *   adb shell pm grant com.jarvismini android.permission.WRITE_SECURE_SETTINGS
+ *
+ * The grant survives reboots and force stops. Without it [ensureEnabled] is a harmless no-op that
+ * returns false. Only ever adds Jarvis's own entries; other enabled services are left untouched.
+ */
+object AccessibilityRepair {
+
+    private const val TAG = "A11yRepair"
+
+    private val OURS = listOf(
+        "com.jarvismini.automation.AppAutomationService",
+        "com.jarvismini.callhandler.accessibility.CallAccessibilityService",
+    )
+
+    fun canRepair(context: Context): Boolean =
+        context.applicationContext.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /** True if every Jarvis accessibility service is enabled in system settings. Never throws. */
+    fun allEnabled(context: Context): Boolean = try {
+        val app = context.applicationContext
+        val enabled = enabledSet(app)
+        OURS.all { ComponentName(app.packageName, it).flattenToString() in enabled }
+    } catch (_: Exception) {
+        false
+    }
+
+    /** Re-adds any missing Jarvis service. True if all are (now) enabled. Never throws. */
+    fun ensureEnabled(context: Context): Boolean {
+        val app = context.applicationContext
+        try {
+            if (allEnabled(app)) return true
+            if (!canRepair(app)) {
+
+// ... FILE TRUNCATED ...
+
+                OURS.map { ComponentName(app.packageName, it).flattenToString() })
+                .distinct()
+                .joinToString(":")
+            Settings.Secure.putString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, merged)
+            Settings.Secure.putInt(cr, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+            val ok = allEnabled(app)
+            Log.i(TAG, "repair done ok=$ok")
+            return ok
+        } catch (e: Exception) {
+            Log.w(TAG, "repair failed: ${e.javaClass.simpleName}")
+            return false
+        }
+    }
+
+    private fun enabledSet(app: Context): Set<String> {
+        val raw = Settings.Secure.getString(app.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+        // Android may store either the short (pkg/.Cls) or flattened (pkg/pkg.Cls) form; normalise both.
+        return raw.split(':').mapNotNull { ComponentName.unflattenFromString(it.trim())?.flattenToString() }.toSet()
+    }
+}
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/heal/SelfHealWatchdog.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.heal
@@ -3262,8 +3340,8 @@ object SelfHealWatchdog {
 
 // ... FILE TRUNCATED ...
 
-        } catch (e: Exception) {
-            EventLog.add(EventType.SERVICE, "Wake word restart failed", e.message ?: "")
+        if (AccessibilityRepair.ensureEnabled(app)) {
+            EventLog.add(EventType.SERVICE, "Accessibility services re-enabled")
         }
     }
 
