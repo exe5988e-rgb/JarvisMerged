@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit
 class VoiceTriggerManager(private val context: Context) {
 
     private val TAG          = "VoiceTrigger"
+    private val LISTEN_SILENCE_MS = 7000L
     private val CONV_PORT    = 8893
     private val DEFAULT_HOST = "192.168.29.48"
 
@@ -81,9 +82,10 @@ class VoiceTriggerManager(private val context: Context) {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.ENGLISH)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        // Wait longer for the user to start and finish their command
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+        // Wait longer for the user to start and finish their command: a pause of up to 7 s no longer
+        // closes the mic mid-sentence (was 2.5 s / 2 s, which cut Sir off and re-opened the mic while he was still talking).
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, LISTEN_SILENCE_MS)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, LISTEN_SILENCE_MS)
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L)
     }
 
