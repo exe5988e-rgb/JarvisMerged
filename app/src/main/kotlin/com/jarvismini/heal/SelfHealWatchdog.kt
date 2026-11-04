@@ -58,7 +58,8 @@ object SelfHealWatchdog {
     private fun checkWakeWord(app: Context) {
         val running = isServiceRunning(app, WakeWordService::class.java.name)
         val hasKey = !JarvisPrefs.getString("picovoice_access_key").isNullOrBlank()
-        if (running || !hasKey) return
+        // Background voice switched off by the user: the service is meant to be stopped, don't revive it.
+        if (running || !hasKey || !WakeWordService.isBackgroundVoiceEnabled()) return
 
         val now = System.currentTimeMillis()
         val last = JarvisPrefs.getLong(KEY_LAST_RESTART, 0L)

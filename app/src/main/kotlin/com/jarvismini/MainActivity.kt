@@ -126,7 +126,8 @@ class MainActivity : ComponentActivity() {
      * mid-session, so you don't even need to relaunch after granting it.
      */
     private fun startWakeWordServiceIfPermitted() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+        if (WakeWordService.isBackgroundVoiceEnabled() &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             == PackageManager.PERMISSION_GRANTED
         ) {
             ContextCompat.startForegroundService(

@@ -3,12 +3,16 @@ package com.jarvismini.voice
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.Manifest
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.core.announce.AnnouncementEngine
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +48,34 @@ class WakeWordService : Service() {
 
         /** Lets the proactive engine open the mic right after Jarvis asks a question. Null when the service is not running. */
         @Volatile var listenNowHook: (() -> Unit)? = null
+
+        /** JarvisPrefs key for the background-voice toggle. When off, the always-on mic service never runs (saves battery). */
+        const val PREF_BG_VOICE = "bg_voice_enabled"
+
+        /** Background voice defaults to ON so existing installs behave as before until the user flips the toggle. */
+        fun isBackgroundVoiceEnabled(): Boolean = JarvisPrefs.getBoolean(PREF_BG_VOICE, true)
+
+        /**
+         * Flips the background-voice toggle and applies it live: ON starts the always-on mic service
+         * (only if RECORD_AUDIO is granted), OFF stops it so the mic is released immediately.
+         */
+        fun setBackgroundVoiceEnabled(context: Context, enabled: Boolean) {
+            JarvisPrefs.putBoolean(PREF_BG_VOICE, enabled)
+            val app = context.applicationContext
+            try {
+                if (enabled) {
+                    if (ContextCompat.checkSelfPermission(app, Manifest.permission.RECORD_AUDIO)
+                        == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        ContextCompat.startForegroundService(app, Intent(app, WakeWordService::class.java))
+                    }
+                } else {
+                    app.stopService(Intent(app, WakeWordService::class.java))
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "setBackgroundVoiceEnabled($enabled) failed: ${e.message}")
+            }
+        }
     }
 
     private var porcupineManager: KwsWakeWord? = null
@@ -68,6 +100,13 @@ class WakeWordService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIF_ID, buildNotification())
+        if (!isBackgroundVoiceEnabled()) {
+            // Background voice is switched off: never open the mic. startForeground() above is still required
+            // because we were started via startForegroundService(); then shut straight down.
+            Log.i(TAG, "Background voice disabled - stopping without opening the mic")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startPorcupine()
         return START_STICKY
     }

@@ -31,6 +31,7 @@ import androidx.compose.ui.window.Dialog
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.security.SecurityManager
 import com.jarvismini.server.LanServerService
+import com.jarvismini.voice.WakeWordService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.NetworkInterface
@@ -80,6 +81,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var selectedVoice    by remember { mutableStateOf(prefs.getString("elevenlabs_voice", "Jarvis") ?: "Jarvis") }
     var showVoiceDialog  by remember { mutableStateOf(false) }
     var ttsEnabled       by remember { mutableStateOf(prefs.getBoolean("tts_enabled", true)) }
+    var bgVoiceEnabled   by remember { mutableStateOf(WakeWordService.isBackgroundVoiceEnabled()) }
 
     LaunchedEffect(isPairingMode) {
         while (isPairingMode) {
@@ -197,6 +199,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                         onToggle = { v ->
                             ttsEnabled = v
                             prefs.edit().putBoolean("tts_enabled", v).apply()
+                        }
+                    )
+                }
+                item {
+                    SettingsTileToggle(
+                        title    = "Background Voice (always-on mic)",
+                        checked  = bgVoiceEnabled,
+                        icon     = Icons.Default.Mic,
+                        onToggle = { v ->
+                            bgVoiceEnabled = v
+                            WakeWordService.setBackgroundVoiceEnabled(context, v)
                         }
                     )
                 }
