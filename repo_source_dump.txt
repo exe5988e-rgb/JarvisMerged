@@ -6085,10 +6085,10 @@ import java.util.concurrent.TimeUnit
 class VoiceTriggerManager(private val context: Context) {
 
     private val TAG          = "VoiceTrigger"
+    private val LISTEN_SILENCE_MS = 7000L
     private val CONV_PORT    = 8893
     private val DEFAULT_HOST = "192.168.29.48"
 
-    private val scope   = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
 // ... FILE TRUNCATED ...
 
