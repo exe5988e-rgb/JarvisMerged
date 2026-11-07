@@ -29,7 +29,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
@@ -97,7 +99,7 @@ fun ConvoScreen(onBack: () -> Unit) {
     var showSettings by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    BackHandler(onBack = onBack)
+    BackHandler { if (state.searchOpen) vm.closeSearch() else onBack() }
 
     // Poll only while the screen is started; the notification service covers the background.
     DisposableEffect(lifecycleOwner, vm) {
@@ -135,7 +137,12 @@ fun ConvoScreen(onBack: () -> Unit) {
                 .imePadding()
                 .padding(horizontal = 12.dp),
         ) {
-            ConvoTopBar(onBack = onBack, onSettings = { showSettings = true })
+            ConvoTopBar(
+                onBack = { if (state.searchOpen) vm.closeSearch() else onBack() },
+                onSearch = { if (state.searchOpen) vm.closeSearch() else vm.openSearch() },
+                searchOpen = state.searchOpen,
+                onSettings = { showSettings = true },
+            )
 
             if (!state.hasToken) {
                 ConvoBanner("No admin token yet. Tap the gear to set it up.", CvYellow)
@@ -143,19 +150,23 @@ fun ConvoScreen(onBack: () -> Unit) {
                 ConvoBanner(state.error.orEmpty(), CvRed)
             }
 
-            ConvoRoster(state)
-            Spacer(Modifier.height(6.dp))
-            ConvoFilters(state, vm)
-            Spacer(Modifier.height(6.dp))
+            if (state.searchOpen) {
+                ConvoSearchPanel(state, vm, timeFormat, Modifier.weight(1f))
+            } else {
+                ConvoRoster(state)
+                Spacer(Modifier.height(6.dp))
+                ConvoFilters(state, vm)
+                Spacer(Modifier.height(6.dp))
 
-            ConvoTimeline(
-                state = state,
-                vm = vm,
-                timeFormat = timeFormat,
-                modifier = Modifier.weight(1f),
-            )
+                ConvoTimeline(
+                    state = state,
+                    vm = vm,
+                    timeFormat = timeFormat,
+                    modifier = Modifier.weight(1f),
+                )
 
-            ConvoComposeBar(state, vm)
+                ConvoComposeBar(state, vm)
+            }
         }
     }
 
@@ -182,7 +193,7 @@ fun ConvoScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ConvoTopBar(onBack: () -> Unit, onSettings: () -> Unit) {
+private fun ConvoTopBar(onBack: () -> Unit, onSearch: () -> Unit, searchOpen: Boolean, onSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Icon(Icons.Default.ArrowBack, "Back", tint = CvMagenta)
@@ -196,6 +207,14 @@ private fun ConvoTopBar(onBack: () -> Unit, onSettings: () -> Unit) {
             fontFamily = FontFamily.Monospace,
         )
         Spacer(Modifier.weight(1f))
+        IconButton(onClick = onSearch) {
+            Icon(
+                if (searchOpen) Icons.Default.Close else Icons.Default.Search,
+                if (searchOpen) "Close search" else "Search messages",
+                tint = if (searchOpen) CvMagenta else CvWhite70,
+                modifier = Modifier.size(20.dp),
+            )
+        }
         IconButton(onClick = onSettings) {
             Icon(Icons.Default.Settings, "Convo settings", tint = CvWhite70, modifier = Modifier.size(20.dp))
         }
@@ -332,6 +351,101 @@ private fun ConvoTimeline(
                 }
                 items(visible, key = { it.key }) { bubble ->
                     ConvoBubbleRow(bubble, timeFormat) { vm.select(bubble.key) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConvoSearchPanel(
+    state: ConvoUiState,
+    vm: ConvoViewModel,
+    timeFormat: SimpleDateFormat,
+    modifier: Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = state.searchQuery,
+            onValueChange = vm::setSearchQuery,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search all messages", fontSize = 13.sp) },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = CvMagenta,
+                unfocusedBorderColor = CvDim,
+                cursorColor = CvMagenta,
+            ),
+        )
+        Spacer(Modifier.height(6.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            item(key = "any-sender") {
+                ConvoChip("Anyone", state.searchSender == null) { vm.setSearchSender(null) }
+            }
+            item(key = "me-sender") {
+                ConvoChip("Me", state.searchSender == ADMIN_ID) { vm.setSearchSender(ADMIN_ID) }
+            }
+            items(state.agents.messageable(), key = { "s-" + it.id }) { agent ->
+                ConvoChip(
+                    agent.displayName.ifBlank { agent.id },
+                    state.searchSender == agent.id,
+                ) { vm.setSearchSender(agent.id) }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(SearchRange.values().toList(), key = { it.name }) { r ->
+                ConvoChip(r.label, state.searchRange == r) { vm.setSearchRange(r) }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                state.searchError != null -> Text(
+                    state.searchError.orEmpty(), color = CvRed, fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                state.searching && state.searchHits.isEmpty() -> CircularProgressIndicator(
+                    color = CvMagenta, modifier = Modifier.align(Alignment.Center).size(24.dp),
+                )
+                state.searchHits.isEmpty() -> Text(
+                    "No messages match.", color = CvWhite40, fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(state.searchHits, key = { it.id }) { hit ->
+                        val shape = RoundedCornerShape(14.dp)
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(shape)
+                                .background(CvCard)
+                                .border(1.dp, CvDim, shape)
+                                .padding(10.dp),
+                        ) {
+                            Text(
+                                hit.senderId + (if (hit.to.isEmpty()) "" else " -> " + (if (hit.to.size > 3) "${hit.to.size} agents" else hit.to.joinToString(", "))),
+                                color = CvMagenta,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                            Text(
+                                if (hit.text.length > 600) hit.text.take(600) + "…" else hit.text,
+                                color = Color.White, fontSize = 14.sp,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "#${hit.id} · " + timeFormat.format(Date(hit.createdAt)),
+                                color = CvWhite40, fontSize = 10.sp,
+                            )
+                        }
+                    }
                 }
             }
         }

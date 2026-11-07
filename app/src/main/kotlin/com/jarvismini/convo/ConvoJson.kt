@@ -66,6 +66,22 @@ object ConvoJson {
         )
     }
 
+    fun parseSearch(body: String): List<SearchHit> {
+        val arr = Json.parseToJsonElement(body).jsonObject["hits"]?.jsonArray ?: return emptyList()
+        return arr.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val id = o["id"].lng() ?: return@mapNotNull null
+            SearchHit(
+                id = id,
+                senderId = o["from"].str() ?: "?",
+                to = (o["to"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { it.str() } ?: emptyList(),
+                text = o["text"].str() ?: "",
+                createdAt = o["created_at"].lng() ?: 0L,
+            )
+        }
+    }
+
     /** recipients == null means "all". */
     fun broadcastBody(text: String, recipients: List<String>?, conversationId: String = "main"): String =
         buildJsonObject {

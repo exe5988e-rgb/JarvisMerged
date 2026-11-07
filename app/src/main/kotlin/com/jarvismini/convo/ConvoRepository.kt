@@ -24,6 +24,14 @@ interface ConvoRepository {
 
     /** Mark a message addressed to the admin as read (server: POST /v1/messages/{id}/ack). */
     suspend fun ack(id: Long): Result<Unit>
+
+    /** Text search over every message (server: GET /v1/search). Blank filters are ignored. */
+    suspend fun search(
+        query: String,
+        sender: String? = null,
+        sinceMs: Long? = null,
+        limit: Int = 50,
+    ): Result<List<SearchHit>> = Result.failure(ConvoException("Search not supported"))
 }
 
 class HttpConvoRepository(
@@ -47,6 +55,19 @@ class HttpConvoRepository(
 
     override suspend fun ack(id: Long): Result<Unit> =
         execute("/v1/messages/$id/ack", emptyMap(), "{}").map { }
+
+    override suspend fun search(
+        query: String,
+        sender: String?,
+        sinceMs: Long?,
+        limit: Int,
+    ): Result<List<SearchHit>> {
+        val q = linkedMapOf("conversation_id" to "main", "limit" to limit.toString())
+        if (query.isNotBlank()) q["q"] = query.trim()
+        if (!sender.isNullOrBlank()) q["sender"] = sender
+        if (sinceMs != null) q["since"] = sinceMs.toString()
+        return execute("/v1/search", q, null).mapCatching { ConvoJson.parseSearch(it) }
+    }
 
     private suspend fun execute(path: String, query: Map<String, String>, body: String?): Result<String> =
         withContext<Result<String>>(Dispatchers.IO) {
@@ -136,6 +157,25 @@ class FakeConvoRepository(
             )
         }
         return Result.success(Unit)
+    }
+
+    override suspend fun search(
+        query: String,
+        sender: String?,
+        sinceMs: Long?,
+        limit: Int,
+    ): Result<List<SearchHit>> {
+        failing?.let { return Result.failure(it) }
+        val hits = groupMessages(stored)
+            .filter { b ->
+                (query.isBlank() || b.text.contains(query.trim(), ignoreCase = true)) &&
+                    (sender.isNullOrBlank() || b.senderId == sender) &&
+                    (sinceMs == null || b.createdAt >= sinceMs)
+            }
+            .sortedByDescending { it.sortId }
+            .take(limit)
+            .map { SearchHit(it.sortId, it.senderId, it.receipts.map { r -> r.agentId }, it.text, it.createdAt) }
+        return Result.success(hits)
     }
 
     val acked = mutableListOf<Long>()

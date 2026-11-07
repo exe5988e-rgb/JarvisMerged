@@ -30,6 +30,14 @@ data class ConvoUiState(
     val baseUrl: String = DEFAULT_CONVO_BASE_URL,
     val hasToken: Boolean = false,
     val now: Long = 0L,
+    val searchOpen: Boolean = false,
+    val searchQuery: String = "",
+    /** null = any sender. */
+    val searchSender: String? = null,
+    val searchRange: SearchRange = SearchRange.Any,
+    val searchHits: List<SearchHit> = emptyList(),
+    val searching: Boolean = false,
+    val searchError: String? = null,
 ) {
     val visible: List<ConvoBubble> get() = bubbles.filtered(filter)
     val selected: ConvoBubble? get() = bubbles.firstOrNull { it.key == selectedKey }
@@ -195,6 +203,53 @@ class ConvoViewModel(
     fun setFilter(f: ConvoFilter) = _state.update { it.copy(filter = f) }
 
     fun select(key: String?) = _state.update { it.copy(selectedKey = key) }
+
+    // ── search ───────────────────────────────────────────────────────────────
+
+    private var searchJob: Job? = null
+
+    fun openSearch() {
+        _state.update { it.copy(searchOpen = true) }
+        scheduleSearch(immediate = true)
+    }
+
+    fun closeSearch() {
+        searchJob?.cancel()
+        _state.update { it.copy(searchOpen = false, searching = false) }
+    }
+
+    fun setSearchQuery(q: String) {
+        _state.update { it.copy(searchQuery = q) }
+        scheduleSearch()
+    }
+
+    fun setSearchSender(sender: String?) {
+        _state.update { it.copy(searchSender = sender) }
+        scheduleSearch(immediate = true)
+    }
+
+    fun setSearchRange(range: SearchRange) {
+        _state.update { it.copy(searchRange = range) }
+        scheduleSearch(immediate = true)
+    }
+
+    private fun scheduleSearch(immediate: Boolean = false) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            if (!immediate) delay(350L)
+            val s = _state.value
+            _state.update { it.copy(searching = true, searchError = null) }
+            val since = s.searchRange.hours?.let { clock() - it * 3_600_000L }
+            val r = repo.search(s.searchQuery, s.searchSender, since)
+            _state.update {
+                it.copy(
+                    searching = false,
+                    searchHits = r.getOrNull() ?: it.searchHits,
+                    searchError = r.exceptionOrNull()?.let { e -> e.message ?: "Search failed" },
+                )
+            }
+        }
+    }
 
     /** A blank token keeps the saved one. Changing the server resets the loaded timeline. */
     suspend fun applySettings(baseUrl: String, token: String) {

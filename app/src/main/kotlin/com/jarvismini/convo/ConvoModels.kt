@@ -29,6 +29,22 @@ data class MessagePage(
     val firstId: Long?,
 )
 
+/** One /v1/search result; a to-all broadcast is a single hit with every recipient in [to]. */
+data class SearchHit(
+    val id: Long,
+    val senderId: String,
+    val to: List<String>,
+    val text: String,
+    val createdAt: Long,
+)
+
+enum class SearchRange(val label: String, val hours: Long?) {
+    Any("Any time", null),
+    Hour("1h", 1L),
+    Day("24h", 24L),
+    Week("7d", 168L),
+}
+
 data class Receipt(val agentId: String, val readAt: Long?) {
     val isRead: Boolean get() = readAt != null
 }
