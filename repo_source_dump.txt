@@ -2352,12 +2352,12 @@ object ConvoJson {
 
 // ... FILE TRUNCATED ...
 
-        } ?: emptyList()
-        return MessagePage(
-            messages = messages,
-            nextCursor = root["next_cursor"].lng(),
-            firstId = root["first_id"].lng(),
-        )
+                to = (o["to"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { it.str() } ?: emptyList(),
+                text = o["text"].str() ?: "",
+                createdAt = o["created_at"].lng() ?: 0L,
+            )
+        }
     }
 
     /** recipients == null means "all". */
@@ -2406,25 +2406,25 @@ data class MessagePage(
     val firstId: Long?,
 )
 
+/** One /v1/search result; a to-all broadcast is a single hit with every recipient in [to]. */
+data class SearchHit(
+    val id: Long,
+    val senderId: String,
+    val to: List<String>,
+    val text: String,
+    val createdAt: Long,
+)
+
+enum class SearchRange(val label: String, val hours: Long?) {
+    Any("Any time", null),
+    Hour("1h", 1L),
+    Day("24h", 24L),
+    Week("7d", 168L),
+}
+
 data class Receipt(val agentId: String, val readAt: Long?) {
     val isRead: Boolean get() = readAt != null
 }
-
-enum class ReceiptState { Delivered, Read }
-
-/** One timeline bubble. A to-all broadcast is a single bubble with one receipt per recipient. */
-data class ConvoBubble(
-    val key: String,
-    val sortId: Long,
-    val senderId: String,
-    val text: String,
-    val createdAt: Long,
-    val receipts: List<Receipt>,
-    val isBroadcast: Boolean,
-) {
-    val readBy: List<String> get() = receipts.filter { it.isRead }.map { it.agentId }
-    val unreadBy: List<String> get() = receipts.filter { !it.isRead }.map { it.agentId }
-    val hasUnread: Boolean get() = receipts.any { !it.isRead }
 
 // ... FILE TRUNCATED ...
 
@@ -2705,6 +2705,14 @@ interface ConvoRepository {
 
     /** Mark a message addressed to the admin as read (server: POST /v1/messages/{id}/ack). */
     suspend fun ack(id: Long): Result<Unit>
+
+    /** Text search over every message (server: GET /v1/search). Blank filters are ignored. */
+    suspend fun search(
+        query: String,
+        sender: String? = null,
+        sinceMs: Long? = null,
+        limit: Int = 50,
+    ): Result<List<SearchHit>> = Result.failure(ConvoException("Search not supported"))
 }
 
 class HttpConvoRepository(
@@ -2721,21 +2729,13 @@ class HttpConvoRepository(
         if (afterId != null) q["after_id"] = afterId.toString()
         if (beforeId != null) q["before_id"] = beforeId.toString()
         return execute("/v1/admin/messages", q, null).mapCatching { ConvoJson.parsePage(it) }
-    }
-
-    override suspend fun broadcast(text: String, recipients: List<String>?): Result<Unit> =
-        execute("/v1/admin/broadcast", emptyMap(), ConvoJson.broadcastBody(text, recipients)).map { }
-
-    override suspend fun ack(id: Long): Result<Unit> =
-        execute("/v1/messages/$id/ack", emptyMap(), "{}").map { }
-
 
 // ... FILE TRUNCATED ...
 
-                ),
-            )
-        }
-        return Result.success(Unit)
+            .sortedByDescending { it.sortId }
+            .take(limit)
+            .map { SearchHit(it.sortId, it.senderId, it.receipts.map { r -> r.agentId }, it.text, it.createdAt) }
+        return Result.success(hits)
     }
 
     val acked = mutableListOf<Long>()
@@ -2786,7 +2786,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
@@ -2803,8 +2805,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 
 // ... FILE TRUNCATED ...
 
@@ -2939,6 +2939,14 @@ data class ConvoUiState(
     val baseUrl: String = DEFAULT_CONVO_BASE_URL,
     val hasToken: Boolean = false,
     val now: Long = 0L,
+    val searchOpen: Boolean = false,
+    val searchQuery: String = "",
+    /** null = any sender. */
+    val searchSender: String? = null,
+    val searchRange: SearchRange = SearchRange.Any,
+    val searchHits: List<SearchHit> = emptyList(),
+    val searching: Boolean = false,
+    val searchError: String? = null,
 ) {
     val visible: List<ConvoBubble> get() = bubbles.filtered(filter)
     val selected: ConvoBubble? get() = bubbles.firstOrNull { it.key == selectedKey }
@@ -2949,14 +2957,6 @@ class ConvoViewModel(
     private val settings: ConvoSettingsStore,
     private val pollIntervalMs: Long = 10_000L,
     private val clock: () -> Long = { System.currentTimeMillis() },
-) : ViewModel() {
-
-    private val _state = MutableStateFlow(
-        ConvoUiState(baseUrl = settings.baseUrl, hasToken = settings.token.isNotBlank()),
-    )
-    val state: StateFlow<ConvoUiState> = _state.asStateFlow()
-
-    private val store = HashMap<Long, ConvoMessage>()
 
 // ... FILE TRUNCATED ...
 

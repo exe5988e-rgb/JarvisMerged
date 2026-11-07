@@ -4936,6 +4936,22 @@ object ConvoJson {
         )
     }
 
+    fun parseSearch(body: String): List<SearchHit> {
+        val arr = Json.parseToJsonElement(body).jsonObject["hits"]?.jsonArray ?: return emptyList()
+        return arr.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val id = o["id"].lng() ?: return@mapNotNull null
+            SearchHit(
+                id = id,
+                senderId = o["from"].str() ?: "?",
+                to = (o["to"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { it.str() } ?: emptyList(),
+                text = o["text"].str() ?: "",
+                createdAt = o["created_at"].lng() ?: 0L,
+            )
+        }
+    }
+
     /** recipients == null means "all". */
     fun broadcastBody(text: String, recipients: List<String>?, conversationId: String = "main"): String =
         buildJsonObject {
@@ -4981,6 +4997,22 @@ data class MessagePage(
     val nextCursor: Long?,
     val firstId: Long?,
 )
+
+/** One /v1/search result; a to-all broadcast is a single hit with every recipient in [to]. */
+data class SearchHit(
+    val id: Long,
+    val senderId: String,
+    val to: List<String>,
+    val text: String,
+    val createdAt: Long,
+)
+
+enum class SearchRange(val label: String, val hours: Long?) {
+    Any("Any time", null),
+    Hour("1h", 1L),
+    Day("24h", 24L),
+    Week("7d", 168L),
+}
 
 data class Receipt(val agentId: String, val readAt: Long?) {
     val isRead: Boolean get() = readAt != null
@@ -5598,6 +5630,14 @@ interface ConvoRepository {
 
     /** Mark a message addressed to the admin as read (server: POST /v1/messages/{id}/ack). */
     suspend fun ack(id: Long): Result<Unit>
+
+    /** Text search over every message (server: GET /v1/search). Blank filters are ignored. */
+    suspend fun search(
+        query: String,
+        sender: String? = null,
+        sinceMs: Long? = null,
+        limit: Int = 50,
+    ): Result<List<SearchHit>> = Result.failure(ConvoException("Search not supported"))
 }
 
 class HttpConvoRepository(
@@ -5621,6 +5661,19 @@ class HttpConvoRepository(
 
     override suspend fun ack(id: Long): Result<Unit> =
         execute("/v1/messages/$id/ack", emptyMap(), "{}").map { }
+
+    override suspend fun search(
+        query: String,
+        sender: String?,
+        sinceMs: Long?,
+        limit: Int,
+    ): Result<List<SearchHit>> {
+        val q = linkedMapOf("conversation_id" to "main", "limit" to limit.toString())
+        if (query.isNotBlank()) q["q"] = query.trim()
+        if (!sender.isNullOrBlank()) q["sender"] = sender
+        if (sinceMs != null) q["since"] = sinceMs.toString()
+        return execute("/v1/search", q, null).mapCatching { ConvoJson.parseSearch(it) }
+    }
 
     private suspend fun execute(path: String, query: Map<String, String>, body: String?): Result<String> =
         withContext<Result<String>>(Dispatchers.IO) {
@@ -5712,6 +5765,25 @@ class FakeConvoRepository(
         return Result.success(Unit)
     }
 
+    override suspend fun search(
+        query: String,
+        sender: String?,
+        sinceMs: Long?,
+        limit: Int,
+    ): Result<List<SearchHit>> {
+        failing?.let { return Result.failure(it) }
+        val hits = groupMessages(stored)
+            .filter { b ->
+                (query.isBlank() || b.text.contains(query.trim(), ignoreCase = true)) &&
+                    (sender.isNullOrBlank() || b.senderId == sender) &&
+                    (sinceMs == null || b.createdAt >= sinceMs)
+            }
+            .sortedByDescending { it.sortId }
+            .take(limit)
+            .map { SearchHit(it.sortId, it.senderId, it.receipts.map { r -> r.agentId }, it.text, it.createdAt) }
+        return Result.success(hits)
+    }
+
     val acked = mutableListOf<Long>()
 
     override suspend fun ack(id: Long): Result<Unit> {
@@ -5760,7 +5832,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
@@ -5828,7 +5902,7 @@ fun ConvoScreen(onBack: () -> Unit) {
     var showSettings by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    BackHandler(onBack = onBack)
+    BackHandler { if (state.searchOpen) vm.closeSearch() else onBack() }
 
     // Poll only while the screen is started; the notification service covers the background.
     DisposableEffect(lifecycleOwner, vm) {
@@ -5866,7 +5940,12 @@ fun ConvoScreen(onBack: () -> Unit) {
                 .imePadding()
                 .padding(horizontal = 12.dp),
         ) {
-            ConvoTopBar(onBack = onBack, onSettings = { showSettings = true })
+            ConvoTopBar(
+                onBack = { if (state.searchOpen) vm.closeSearch() else onBack() },
+                onSearch = { if (state.searchOpen) vm.closeSearch() else vm.openSearch() },
+                searchOpen = state.searchOpen,
+                onSettings = { showSettings = true },
+            )
 
             if (!state.hasToken) {
                 ConvoBanner("No admin token yet. Tap the gear to set it up.", CvYellow)
@@ -5874,19 +5953,23 @@ fun ConvoScreen(onBack: () -> Unit) {
                 ConvoBanner(state.error.orEmpty(), CvRed)
             }
 
-            ConvoRoster(state)
-            Spacer(Modifier.height(6.dp))
-            ConvoFilters(state, vm)
-            Spacer(Modifier.height(6.dp))
+            if (state.searchOpen) {
+                ConvoSearchPanel(state, vm, timeFormat, Modifier.weight(1f))
+            } else {
+                ConvoRoster(state)
+                Spacer(Modifier.height(6.dp))
+                ConvoFilters(state, vm)
+                Spacer(Modifier.height(6.dp))
 
-            ConvoTimeline(
-                state = state,
-                vm = vm,
-                timeFormat = timeFormat,
-                modifier = Modifier.weight(1f),
-            )
+                ConvoTimeline(
+                    state = state,
+                    vm = vm,
+                    timeFormat = timeFormat,
+                    modifier = Modifier.weight(1f),
+                )
 
-            ConvoComposeBar(state, vm)
+                ConvoComposeBar(state, vm)
+            }
         }
     }
 
@@ -5913,7 +5996,7 @@ fun ConvoScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ConvoTopBar(onBack: () -> Unit, onSettings: () -> Unit) {
+private fun ConvoTopBar(onBack: () -> Unit, onSearch: () -> Unit, searchOpen: Boolean, onSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
             Icon(Icons.Default.ArrowBack, "Back", tint = CvMagenta)
@@ -5927,6 +6010,14 @@ private fun ConvoTopBar(onBack: () -> Unit, onSettings: () -> Unit) {
             fontFamily = FontFamily.Monospace,
         )
         Spacer(Modifier.weight(1f))
+        IconButton(onClick = onSearch) {
+            Icon(
+                if (searchOpen) Icons.Default.Close else Icons.Default.Search,
+                if (searchOpen) "Close search" else "Search messages",
+                tint = if (searchOpen) CvMagenta else CvWhite70,
+                modifier = Modifier.size(20.dp),
+            )
+        }
         IconButton(onClick = onSettings) {
             Icon(Icons.Default.Settings, "Convo settings", tint = CvWhite70, modifier = Modifier.size(20.dp))
         }
@@ -6063,6 +6154,101 @@ private fun ConvoTimeline(
                 }
                 items(visible, key = { it.key }) { bubble ->
                     ConvoBubbleRow(bubble, timeFormat) { vm.select(bubble.key) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConvoSearchPanel(
+    state: ConvoUiState,
+    vm: ConvoViewModel,
+    timeFormat: SimpleDateFormat,
+    modifier: Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = state.searchQuery,
+            onValueChange = vm::setSearchQuery,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search all messages", fontSize = 13.sp) },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = CvMagenta,
+                unfocusedBorderColor = CvDim,
+                cursorColor = CvMagenta,
+            ),
+        )
+        Spacer(Modifier.height(6.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            item(key = "any-sender") {
+                ConvoChip("Anyone", state.searchSender == null) { vm.setSearchSender(null) }
+            }
+            item(key = "me-sender") {
+                ConvoChip("Me", state.searchSender == ADMIN_ID) { vm.setSearchSender(ADMIN_ID) }
+            }
+            items(state.agents.messageable(), key = { "s-" + it.id }) { agent ->
+                ConvoChip(
+                    agent.displayName.ifBlank { agent.id },
+                    state.searchSender == agent.id,
+                ) { vm.setSearchSender(agent.id) }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(SearchRange.values().toList(), key = { it.name }) { r ->
+                ConvoChip(r.label, state.searchRange == r) { vm.setSearchRange(r) }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                state.searchError != null -> Text(
+                    state.searchError.orEmpty(), color = CvRed, fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                state.searching && state.searchHits.isEmpty() -> CircularProgressIndicator(
+                    color = CvMagenta, modifier = Modifier.align(Alignment.Center).size(24.dp),
+                )
+                state.searchHits.isEmpty() -> Text(
+                    "No messages match.", color = CvWhite40, fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(state.searchHits, key = { it.id }) { hit ->
+                        val shape = RoundedCornerShape(14.dp)
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(shape)
+                                .background(CvCard)
+                                .border(1.dp, CvDim, shape)
+                                .padding(10.dp),
+                        ) {
+                            Text(
+                                hit.senderId + (if (hit.to.isEmpty()) "" else " -> " + (if (hit.to.size > 3) "${hit.to.size} agents" else hit.to.joinToString(", "))),
+                                color = CvMagenta,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                            Text(
+                                if (hit.text.length > 600) hit.text.take(600) + "…" else hit.text,
+                                color = Color.White, fontSize = 14.sp,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "#${hit.id} · " + timeFormat.format(Date(hit.createdAt)),
+                                color = CvWhite40, fontSize = 10.sp,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -6357,6 +6543,14 @@ data class ConvoUiState(
     val baseUrl: String = DEFAULT_CONVO_BASE_URL,
     val hasToken: Boolean = false,
     val now: Long = 0L,
+    val searchOpen: Boolean = false,
+    val searchQuery: String = "",
+    /** null = any sender. */
+    val searchSender: String? = null,
+    val searchRange: SearchRange = SearchRange.Any,
+    val searchHits: List<SearchHit> = emptyList(),
+    val searching: Boolean = false,
+    val searchError: String? = null,
 ) {
     val visible: List<ConvoBubble> get() = bubbles.filtered(filter)
     val selected: ConvoBubble? get() = bubbles.firstOrNull { it.key == selectedKey }
@@ -6522,6 +6716,53 @@ class ConvoViewModel(
     fun setFilter(f: ConvoFilter) = _state.update { it.copy(filter = f) }
 
     fun select(key: String?) = _state.update { it.copy(selectedKey = key) }
+
+    // ── search ───────────────────────────────────────────────────────────────
+
+    private var searchJob: Job? = null
+
+    fun openSearch() {
+        _state.update { it.copy(searchOpen = true) }
+        scheduleSearch(immediate = true)
+    }
+
+    fun closeSearch() {
+        searchJob?.cancel()
+        _state.update { it.copy(searchOpen = false, searching = false) }
+    }
+
+    fun setSearchQuery(q: String) {
+        _state.update { it.copy(searchQuery = q) }
+        scheduleSearch()
+    }
+
+    fun setSearchSender(sender: String?) {
+        _state.update { it.copy(searchSender = sender) }
+        scheduleSearch(immediate = true)
+    }
+
+    fun setSearchRange(range: SearchRange) {
+        _state.update { it.copy(searchRange = range) }
+        scheduleSearch(immediate = true)
+    }
+
+    private fun scheduleSearch(immediate: Boolean = false) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            if (!immediate) delay(350L)
+            val s = _state.value
+            _state.update { it.copy(searching = true, searchError = null) }
+            val since = s.searchRange.hours?.let { clock() - it * 3_600_000L }
+            val r = repo.search(s.searchQuery, s.searchSender, since)
+            _state.update {
+                it.copy(
+                    searching = false,
+                    searchHits = r.getOrNull() ?: it.searchHits,
+                    searchError = r.exceptionOrNull()?.let { e -> e.message ?: "Search failed" },
+                )
+            }
+        }
+    }
 
     /** A blank token keeps the saved one. Changing the server resets the loaded timeline. */
     suspend fun applySettings(baseUrl: String, token: String) {
