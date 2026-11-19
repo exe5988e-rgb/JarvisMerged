@@ -29,7 +29,27 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.jarvismini.ui.components.*
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import com.jarvismini.voice.VoiceTriggerManager
 
 @Composable
@@ -56,20 +76,23 @@ fun EnhancedHomeScreen(
     var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
 
     // ── Pulse animation ──────────────────────────────────────────────────────
+    // Decorative loops are gated: animator scale 0 / battery saver => static HUD.
+    val motionEnabled = rememberMotionEnabled()
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by pulseAnimation.animateFloat(
+    val pulseAnimated by pulseAnimation.animateFloat(
         initialValue = 0.3f,
         targetValue  = 1f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(1500, easing = FastOutSlowInEasing),
+            animation  = tween(1500, easing = JarvisMotion.Standard),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseAlpha"
     )
+    val pulseAlpha = if (motionEnabled) pulseAnimated else 0.8f
 
     // ── Slow continuous ring rotation — reads as a live HUD even at rest ──────
     val rotationAnimation = rememberInfiniteTransition(label = "rotation")
-    val ringRotation by rotationAnimation.animateFloat(
+    val ringRotationAnimated by rotationAnimation.animateFloat(
         initialValue = 0f,
         targetValue  = 360f,
         animationSpec = infiniteRepeatable(
@@ -78,6 +101,7 @@ fun EnhancedHomeScreen(
         ),
         label = "ringRotation"
     )
+    val ringRotation = if (motionEnabled) ringRotationAnimated else 0f
 
     Box(
         modifier = Modifier
@@ -89,8 +113,10 @@ fun EnhancedHomeScreen(
             )
     ) {
         GridBackground()
-        ParticleField()
-        ScanLine()
+        if (motionEnabled) {
+            ParticleField()
+            ScanLine()
+        }
 
         Column(
             modifier = Modifier
@@ -110,7 +136,8 @@ fun EnhancedHomeScreen(
                     fontSize      = 32.sp,
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 6.sp,
-                    color         = Color(0xFF00E0FF)
+                    color         = JarvisCyan,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Row {
                     IconButton(onClick = onNavigateToDebug) {
@@ -129,7 +156,14 @@ fun EnhancedHomeScreen(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
                     .size(200.dp)
-                    .clickable {
+                    .semantics {
+                        contentDescription = "Voice assistant"
+                        stateDescription   = if (isListening) "Listening" else "Idle"
+                    }
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = if (isListening) "Stop listening" else "Start listening"
+                    ) {
                         if (isListening) {
                             vtm.stop()
                             isListening   = false
@@ -213,7 +247,7 @@ fun EnhancedHomeScreen(
                 ) {
                     Icon(
                         imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = "Voice",
+                        contentDescription = null, // parent orb carries the semantics
                         tint               = Color(0xFF00E0FF),
                         modifier           = Modifier
                             .size(40.dp)
@@ -228,7 +262,8 @@ fun EnhancedHomeScreen(
                 text       = statusMessage,
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace,
-                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                color      = JarvisTextSecondary,
+                modifier   = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
             )
 
             Spacer(Modifier.height(40.dp))
@@ -239,7 +274,8 @@ fun EnhancedHomeScreen(
                 fontSize      = 12.sp,
                 fontFamily    = FontFamily.Monospace,
                 letterSpacing = 2.sp,
-                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                color         = JarvisTextSecondary,
+                modifier      = Modifier.semantics { heading() }
             )
 
             Spacer(Modifier.height(16.dp))
@@ -262,7 +298,8 @@ fun EnhancedHomeScreen(
                 fontSize      = 12.sp,
                 fontFamily    = FontFamily.Monospace,
                 letterSpacing = 2.sp,
-                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                color         = JarvisTextSecondary,
+                modifier      = Modifier.semantics { heading() }
             )
 
             Spacer(Modifier.height(16.dp))
@@ -286,42 +323,42 @@ private fun QuickActionCard(
     icon:    ImageVector,
     onClick: () -> Unit,
 ) {
-    Surface(
+    val interaction = remember { MutableInteractionSource() }
+    GlassSurface(
         modifier = Modifier
             .size(100.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = Color.Transparent
+            .pressScale(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication        = null,
+                role              = Role.Button,
+                onClick           = onClick
+            ),
+        shape       = RoundedCornerShape(JarvisRadius.Card),
+        cornerTicks = true
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp)
-                ),
-            contentAlignment = Alignment.Center
+                // icon + label read as one button named by its text
+                .clearAndSetSemantics { contentDescription = title },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector        = icon,
-                    contentDescription = title,
-                    tint               = Color(0xFF00E0FF),
-                    modifier           = Modifier.size(32.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text       = title,
-                    fontSize   = 12.sp,
-                    color      = Color(0xFF00E0FF).copy(alpha = 0.8f),
-                    fontFamily = FontFamily.Monospace
-                )
-            }
+            Icon(
+                imageVector        = icon,
+                contentDescription = null,
+                tint               = JarvisCyan,
+                modifier           = Modifier.size(32.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text       = title,
+                fontSize   = 13.sp,
+                color      = JarvisTextPrimary,
+                fontFamily = FontFamily.Monospace,
+                maxLines   = 1
+            )
         }
     }
 }
@@ -332,25 +369,18 @@ private fun StatusCard(
     status:   String,
     isOnline: Boolean,
 ) {
-    Surface(
+    val statusColor = if (isOnline) JarvisOnline else JarvisOffline
+    GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(16.dp),
-        color = Color.Transparent
+            // one announcement: "Neural Networks, Online"; dot is decorative
+            .semantics(mergeDescendants = true) {},
+        shape = RoundedCornerShape(JarvisRadius.Small)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment     = Alignment.CenterVertically
         ) {
@@ -358,23 +388,21 @@ private fun StatusCard(
                 text       = label,
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace,
-                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                color      = JarvisTextPrimary
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .background(
-                            color = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466),
-                            shape = CircleShape
-                        )
+                        .background(color = statusColor, shape = CircleShape)
                 )
                 Spacer(Modifier.width(8.dp))
+                // state is conveyed by the word, not only by colour
                 Text(
                     text       = status,
-                    fontSize   = 12.sp,
+                    fontSize   = 13.sp,
                     fontFamily = FontFamily.Monospace,
-                    color      = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466)
+                    color      = statusColor
                 )
             }
         }

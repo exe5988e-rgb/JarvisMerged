@@ -31,6 +31,12 @@ import com.jarvismini.llm.TermuxLlamaClient
 import com.jarvismini.ui.components.GridBackground
 import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.*
 
 private const val TAG = "JarvisChatScreen"
@@ -116,7 +122,8 @@ fun JarvisChatScreen(
                     Text(
                         "J.A.R.V.I.S CHAT",
                         color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.semantics { heading() }
                     )
                 },
                 navigationIcon = {
@@ -211,27 +218,44 @@ fun JarvisChatScreen(
                 reverseLayout = true
             ) {
                 items(messages.reversed()) { msg ->
-                    Text(
-                        text = if (msg.isUser)
-                            "YOU ▸ ${msg.text}"
-                        else
-                            "JARVIS ▸ ${msg.text}",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(6.dp)
-                    )
+                    // Plain (non-blurred) bubbles: glass is not used inside lists. User right, Jarvis left.
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        contentAlignment = if (msg.isUser) Alignment.CenterEnd else Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = if (msg.isUser)
+                                "YOU ▸ ${msg.text}"
+                            else
+                                "JARVIS ▸ ${msg.text}",
+                            color = JarvisTextPrimary,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier
+                                .fillMaxWidth(0.88f)
+                                .background(
+                                    JarvisBlue.copy(alpha = if (msg.isUser) 0.16f else 0.07f),
+                                    RoundedCornerShape(JarvisRadius.Card)
+                                )
+                                .border(
+                                    1.dp,
+                                    JarvisBlue.copy(alpha = if (msg.isUser) 0.5f else 0.25f),
+                                    RoundedCornerShape(JarvisRadius.Card)
+                                )
+                                .padding(10.dp)
+                        )
+                    }
                 }
             }
 
             // ===== INPUT BAR =====
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(JarvisRadius.Card),
+                cornerTicks = true
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        JarvisBlue.copy(alpha = 0.4f),
-                        RoundedCornerShape(10.dp)
-                    )
                     .padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -328,6 +352,7 @@ fun JarvisChatScreen(
                             JarvisBlue
                     )
                 }
+            }
             }
         }
     }

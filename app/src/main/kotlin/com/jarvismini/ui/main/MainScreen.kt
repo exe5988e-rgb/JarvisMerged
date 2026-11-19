@@ -1,6 +1,15 @@
 package com.jarvismini.ui.main
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.*
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
@@ -70,7 +79,25 @@ fun MainScreen() {
         }
     }
 
-    when (selectedTab) {
+    // System back from any sub-screen returns Home instead of leaving the app.
+    BackHandler(enabled = selectedTab != MainTab.Home) { selectedTab = MainTab.Home }
+
+    val motionEnabled = rememberMotionEnabled()
+
+    AnimatedContent(
+        targetState = selectedTab,
+        transitionSpec = {
+            if (!motionEnabled) {
+                fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+            } else {
+                (fadeIn(tween(JarvisMotion.Duration.Normal, easing = JarvisMotion.Standard)) +
+                    slideInVertically(tween(JarvisMotion.Duration.Normal, easing = JarvisMotion.Standard)) { it / 24 }) togetherWith
+                    fadeOut(tween(JarvisMotion.Duration.Fast, easing = JarvisMotion.Exit))
+            }
+        },
+        label = "mainTab"
+    ) { tab ->
+    when (tab) {
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat          = { selectedTab = MainTab.Chat },
             onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
@@ -103,5 +130,6 @@ fun MainScreen() {
             onBack = { selectedTab = MainTab.Home },
         )
         MainTab.Convo -> ConvoScreen(onBack = { selectedTab = MainTab.Home })
+    }
     }
 }
