@@ -1,0 +1,22 @@
+name: UI Kotlin compile check
+
+on:
+  push:
+    branches: [ ui-upgrade-claude1 ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: chmod +x ./gradlew
+      - name: Compile Kotlin only (skips native CMake)
+        run: ./gradlew :app:compileDebugKotlin --no-daemon
