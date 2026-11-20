@@ -139,6 +139,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── StopwatchWidget.kt
 │   │   │   │   │   │   │   ├── theme
 │   │   │   │   │   │   │   │   ├── JarvisColors.kt
+│   │   │   │   │   │   │   │   ├── JarvisGlass.kt
+│   │   │   │   │   │   │   │   ├── JarvisMotion.kt
 │   │   │   │   │   │   │   ├── timer
 │   │   │   │   │   │   │   │   ├── FloatingTimerService.kt
 │   │   │   │   │   │   │   │   ├── TaskTimerDialog.kt
@@ -427,6 +429,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   ├── Apk.yml
 │   │   ├── main.yml
 │   │   ├── pr-build.yml
+│   │   ├── ui-compile.yml
 
 ================================
 SOURCE CODE
@@ -10369,6 +10372,12 @@ import com.jarvismini.llm.TermuxLlamaClient
 import com.jarvismini.ui.components.GridBackground
 import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.*
 
 private const val TAG = "JarvisChatScreen"
@@ -10454,7 +10463,8 @@ fun JarvisChatScreen(
                     Text(
                         "J.A.R.V.I.S CHAT",
                         color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.semantics { heading() }
                     )
                 },
                 navigationIcon = {
@@ -10549,27 +10559,44 @@ fun JarvisChatScreen(
                 reverseLayout = true
             ) {
                 items(messages.reversed()) { msg ->
-                    Text(
-                        text = if (msg.isUser)
-                            "YOU ▸ ${msg.text}"
-                        else
-                            "JARVIS ▸ ${msg.text}",
-                        color = JarvisBlue,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(6.dp)
-                    )
+                    // Plain (non-blurred) bubbles: glass is not used inside lists. User right, Jarvis left.
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        contentAlignment = if (msg.isUser) Alignment.CenterEnd else Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = if (msg.isUser)
+                                "YOU ▸ ${msg.text}"
+                            else
+                                "JARVIS ▸ ${msg.text}",
+                            color = JarvisTextPrimary,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier
+                                .fillMaxWidth(0.88f)
+                                .background(
+                                    JarvisBlue.copy(alpha = if (msg.isUser) 0.16f else 0.07f),
+                                    RoundedCornerShape(JarvisRadius.Card)
+                                )
+                                .border(
+                                    1.dp,
+                                    JarvisBlue.copy(alpha = if (msg.isUser) 0.5f else 0.25f),
+                                    RoundedCornerShape(JarvisRadius.Card)
+                                )
+                                .padding(10.dp)
+                        )
+                    }
                 }
             }
 
             // ===== INPUT BAR =====
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(JarvisRadius.Card),
+                cornerTicks = true
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        JarvisBlue.copy(alpha = 0.4f),
-                        RoundedCornerShape(10.dp)
-                    )
                     .padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -10666,6 +10693,7 @@ fun JarvisChatScreen(
                             JarvisBlue
                     )
                 }
+            }
             }
         }
     }
@@ -11753,7 +11781,27 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.jarvismini.ui.components.*
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import com.jarvismini.voice.VoiceTriggerManager
 
 @Composable
@@ -11780,20 +11828,23 @@ fun EnhancedHomeScreen(
     var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
 
     // ── Pulse animation ──────────────────────────────────────────────────────
+    // Decorative loops are gated: animator scale 0 / battery saver => static HUD.
+    val motionEnabled = rememberMotionEnabled()
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by pulseAnimation.animateFloat(
+    val pulseAnimated by pulseAnimation.animateFloat(
         initialValue = 0.3f,
         targetValue  = 1f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(1500, easing = FastOutSlowInEasing),
+            animation  = tween(1500, easing = JarvisMotion.Standard),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseAlpha"
     )
+    val pulseAlpha = if (motionEnabled) pulseAnimated else 0.8f
 
     // ── Slow continuous ring rotation — reads as a live HUD even at rest ──────
     val rotationAnimation = rememberInfiniteTransition(label = "rotation")
-    val ringRotation by rotationAnimation.animateFloat(
+    val ringRotationAnimated by rotationAnimation.animateFloat(
         initialValue = 0f,
         targetValue  = 360f,
         animationSpec = infiniteRepeatable(
@@ -11802,6 +11853,7 @@ fun EnhancedHomeScreen(
         ),
         label = "ringRotation"
     )
+    val ringRotation = if (motionEnabled) ringRotationAnimated else 0f
 
     Box(
         modifier = Modifier
@@ -11813,8 +11865,10 @@ fun EnhancedHomeScreen(
             )
     ) {
         GridBackground()
-        ParticleField()
-        ScanLine()
+        if (motionEnabled) {
+            ParticleField()
+            ScanLine()
+        }
 
         Column(
             modifier = Modifier
@@ -11834,7 +11888,8 @@ fun EnhancedHomeScreen(
                     fontSize      = 32.sp,
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 6.sp,
-                    color         = Color(0xFF00E0FF)
+                    color         = JarvisCyan,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Row {
                     IconButton(onClick = onNavigateToDebug) {
@@ -11853,7 +11908,14 @@ fun EnhancedHomeScreen(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
                     .size(200.dp)
-                    .clickable {
+                    .semantics {
+                        contentDescription = "Voice assistant"
+                        stateDescription   = if (isListening) "Listening" else "Idle"
+                    }
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = if (isListening) "Stop listening" else "Start listening"
+                    ) {
                         if (isListening) {
                             vtm.stop()
                             isListening   = false
@@ -11937,7 +11999,7 @@ fun EnhancedHomeScreen(
                 ) {
                     Icon(
                         imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = "Voice",
+                        contentDescription = null, // parent orb carries the semantics
                         tint               = Color(0xFF00E0FF),
                         modifier           = Modifier
                             .size(40.dp)
@@ -11952,7 +12014,8 @@ fun EnhancedHomeScreen(
                 text       = statusMessage,
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace,
-                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                color      = JarvisTextSecondary,
+                modifier   = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
             )
 
             Spacer(Modifier.height(40.dp))
@@ -11963,7 +12026,8 @@ fun EnhancedHomeScreen(
                 fontSize      = 12.sp,
                 fontFamily    = FontFamily.Monospace,
                 letterSpacing = 2.sp,
-                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                color         = JarvisTextSecondary,
+                modifier      = Modifier.semantics { heading() }
             )
 
             Spacer(Modifier.height(16.dp))
@@ -11986,7 +12050,8 @@ fun EnhancedHomeScreen(
                 fontSize      = 12.sp,
                 fontFamily    = FontFamily.Monospace,
                 letterSpacing = 2.sp,
-                color         = Color(0xFF00E0FF).copy(alpha = 0.6f)
+                color         = JarvisTextSecondary,
+                modifier      = Modifier.semantics { heading() }
             )
 
             Spacer(Modifier.height(16.dp))
@@ -12010,42 +12075,42 @@ private fun QuickActionCard(
     icon:    ImageVector,
     onClick: () -> Unit,
 ) {
-    Surface(
+    val interaction = remember { MutableInteractionSource() }
+    GlassSurface(
         modifier = Modifier
             .size(100.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = Color.Transparent
+            .pressScale(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication        = null,
+                role              = Role.Button,
+                onClick           = onClick
+            ),
+        shape       = RoundedCornerShape(JarvisRadius.Card),
+        cornerTicks = true
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFF00E0FF).copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp)
-                ),
-            contentAlignment = Alignment.Center
+                // icon + label read as one button named by its text
+                .clearAndSetSemantics { contentDescription = title },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector        = icon,
-                    contentDescription = title,
-                    tint               = Color(0xFF00E0FF),
-                    modifier           = Modifier.size(32.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text       = title,
-                    fontSize   = 12.sp,
-                    color      = Color(0xFF00E0FF).copy(alpha = 0.8f),
-                    fontFamily = FontFamily.Monospace
-                )
-            }
+            Icon(
+                imageVector        = icon,
+                contentDescription = null,
+                tint               = JarvisCyan,
+                modifier           = Modifier.size(32.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text       = title,
+                fontSize   = 13.sp,
+                color      = JarvisTextPrimary,
+                fontFamily = FontFamily.Monospace,
+                maxLines   = 1
+            )
         }
     }
 }
@@ -12056,25 +12121,18 @@ private fun StatusCard(
     status:   String,
     isOnline: Boolean,
 ) {
-    Surface(
+    val statusColor = if (isOnline) JarvisOnline else JarvisOffline
+    GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = Color.Black.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(16.dp),
-        color = Color.Transparent
+            // one announcement: "Neural Networks, Online"; dot is decorative
+            .semantics(mergeDescendants = true) {},
+        shape = RoundedCornerShape(JarvisRadius.Small)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment     = Alignment.CenterVertically
         ) {
@@ -12082,23 +12140,21 @@ private fun StatusCard(
                 text       = label,
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace,
-                color      = Color(0xFF00E0FF).copy(alpha = 0.8f)
+                color      = JarvisTextPrimary
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .background(
-                            color = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466),
-                            shape = CircleShape
-                        )
+                        .background(color = statusColor, shape = CircleShape)
                 )
                 Spacer(Modifier.width(8.dp))
+                // state is conveyed by the word, not only by colour
                 Text(
                     text       = status,
-                    fontSize   = 12.sp,
+                    fontSize   = 13.sp,
                     fontFamily = FontFamily.Monospace,
-                    color      = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466)
+                    color      = statusColor
                 )
             }
         }
@@ -13019,7 +13075,16 @@ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/main/MainScreen.kt =====
 package com.jarvismini.ui.main
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.*
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
@@ -13089,7 +13154,25 @@ fun MainScreen() {
         }
     }
 
-    when (selectedTab) {
+    // System back from any sub-screen returns Home instead of leaving the app.
+    BackHandler(enabled = selectedTab != MainTab.Home) { selectedTab = MainTab.Home }
+
+    val motionEnabled = rememberMotionEnabled()
+
+    AnimatedContent(
+        targetState = selectedTab,
+        transitionSpec = {
+            if (!motionEnabled) {
+                fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+            } else {
+                (fadeIn(tween(JarvisMotion.Duration.Normal, easing = JarvisMotion.Standard)) +
+                    slideInVertically(tween(JarvisMotion.Duration.Normal, easing = JarvisMotion.Standard)) { it / 24 }) togetherWith
+                    fadeOut(tween(JarvisMotion.Duration.Fast, easing = JarvisMotion.Exit))
+            }
+        },
+        label = "mainTab"
+    ) { tab ->
+    when (tab) {
         MainTab.Home -> EnhancedHomeScreen(
             onNavigateToChat          = { selectedTab = MainTab.Chat },
             onNavigateToCalendar      = { selectedTab = MainTab.Calendar },
@@ -13122,6 +13205,7 @@ fun MainScreen() {
             onBack = { selectedTab = MainTab.Home },
         )
         MainTab.Convo -> ConvoScreen(onBack = { selectedTab = MainTab.Home })
+    }
     }
 }
 
@@ -14376,6 +14460,205 @@ val JarvisBackground = Color(0xFF001520)
 val JarvisBlack = Color.Black
 val JarvisGreen = Color(0xFF00FF00)
 val JarvisRed = Color(0xFFFF4444)
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/theme/JarvisGlass.kt =====
+package com.jarvismini.ui.theme
+
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+/** Corner radii shared by glass surfaces. */
+object JarvisRadius {
+    val Small = 8.dp
+    val Card = 12.dp
+    val Large = 20.dp
+}
+
+/** Text colours verified for >= 4.5:1 on the glass tint over JarvisBackground. */
+val JarvisTextPrimary = Color(0xFFD8F8FF)
+val JarvisTextSecondary = Color(0xFF8FE9FA)
+val JarvisOnline = Color(0xFF00FF88)
+val JarvisOffline = Color(0xFFFF6680)
+
+/** Real backdrop blur needs API 31+ and a library (Haze); until added, every API uses the tint path. */
+val canBlurBackdrop: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+@Composable
+private fun rememberHighContrast(): Boolean {
+    val ctx = LocalContext.current
+    return remember {
+        try {
+            Settings.Secure.getInt(ctx.contentResolver, "high_text_contrast_enabled", 0) == 1
+        } catch (_: Throwable) {
+            false
+        }
+    }
+}
+
+/**
+ * HUD glass surface (glass-compose skill): translucent cyan tint over navy, gradient edge
+ * (brighter on top), optional corner ticks. No backdrop blur yet, so tint alpha stays high
+ * enough to keep text readable on the particle field. Solid fallback when the system
+ * high-contrast-text setting is on. Do not use for dense lists or log views.
+ */
+@Composable
+fun GlassSurface(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(JarvisRadius.Card),
+    tint: Color = JarvisCyan,
+    cornerTicks: Boolean = false,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val highContrast = rememberHighContrast()
+    val fill = if (highContrast) {
+        JarvisBackground
+    } else {
+        tint.copy(alpha = 0.12f).compositeOver(JarvisBackground.copy(alpha = 0.86f))
+    }
+    val edge = if (highContrast) {
+        Brush.linearGradient(listOf(tint, tint))
+    } else {
+        Brush.linearGradient(listOf(tint.copy(alpha = 0.70f), tint.copy(alpha = 0.12f), tint.copy(alpha = 0.35f)))
+    }
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, edge, shape)
+            .then(if (cornerTicks) Modifier.hudCornerTicks(tint.copy(alpha = 0.9f)) else Modifier),
+        content = content,
+    )
+}
+
+/** 1dp-stroke L-shaped ticks in the four corners for the HUD look. */
+fun Modifier.hudCornerTicks(color: Color, length: Dp = 10.dp, stroke: Dp = 1.5.dp): Modifier =
+    drawBehind {
+        val l = length.toPx()
+        val s = stroke.toPx()
+        val w = size.width
+        val h = size.height
+        fun tick(a: Offset, b: Offset, c: Offset) {
+            drawLine(color, a, b, s)
+            drawLine(color, b, c, s)
+        }
+        tick(Offset(0f, l), Offset(0f, 0f), Offset(l, 0f))
+        tick(Offset(w - l, 0f), Offset(w, 0f), Offset(w, l))
+        tick(Offset(0f, h - l), Offset(0f, h), Offset(l, h))
+        tick(Offset(w - l, h), Offset(w, h), Offset(w, h - l))
+    }
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/theme/JarvisMotion.kt =====
+package com.jarvismini.ui.theme
+
+import android.content.Context
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+
+/**
+ * Motion tokens (motion-compose skill). Every duration, easing and spring in the UI
+ * comes from here; no inline tween(300) / spring(stiffness = ..) in screens.
+ */
+object JarvisMotion {
+    object Duration {
+        const val Instant = 90
+        const val Fast = 160
+        const val Normal = 240
+        const val Slow = 400
+    }
+
+    val Standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)   // enter / move
+    val Exit = CubicBezierEasing(0.4f, 0f, 1f, 1f)       // leave
+
+    object Distance {
+        val Small = 8.dp
+        val Medium = 16.dp
+        val Large = 32.dp
+    }
+
+    object Scale {
+        const val Press = 0.96f
+        const val Hover = 1.02f
+    }
+
+    fun <T> snappy(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.87f, stiffness = 300f)
+    fun <T> gentle(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.64f, stiffness = 120f)
+    fun <T> bouncy(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.25f, stiffness = 400f)
+    fun <T> instant(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.71f, stiffness = 600f)
+    fun <T> release(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.71f, stiffness = 200f)
+}
+
+/**
+ * Reduced-motion gate. False when the user turned animations off (animator scale 0)
+ * or battery saver is on: callers must drop decorative loops and make transitions instant.
+ */
+@Composable
+fun rememberMotionEnabled(): Boolean {
+    val ctx = LocalContext.current
+    return remember { isMotionEnabled(ctx) }
+}
+
+fun isMotionEnabled(ctx: Context): Boolean {
+    val scale = try {
+        Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+    } catch (_: Throwable) {
+        1f
+    }
+    val saver = try {
+        (ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode == true
+    } catch (_: Throwable) {
+        false
+    }
+    return scale != 0f && !saver
+}
+
+/** whileTap equivalent: scales to 0.96 on press using the instant spring. Feedback < 90 ms. */
+@Composable
+fun Modifier.pressScale(interactionSource: MutableInteractionSource): Modifier {
+    val enabled = rememberMotionEnabled()
+    val pressed by interactionSource.collectIsPressedAsState()
+    val s by animateFloatAsState(
+        targetValue = if (pressed && enabled) JarvisMotion.Scale.Press else 1f,
+        animationSpec = JarvisMotion.instant(),
+        label = "pressScale",
+    )
+    return this.graphicsLayer {
+        scaleX = s
+        scaleY = s
+    }
+}
 
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/timer/FloatingTimerService.kt =====
@@ -24969,4 +25252,29 @@ jobs:
 
       - name: Run Gradle build
         run: ./gradlew assembleDebug
+
+
+//===== FILE: .github/workflows/ui-compile.yml =====
+name: UI Kotlin compile check
+
+on:
+  push:
+    branches: [ ui-upgrade-claude1 ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: chmod +x ./gradlew
+      - name: Compile Kotlin only (skips native CMake)
+        run: ./gradlew :app:compileDebugKotlin --no-daemon
 

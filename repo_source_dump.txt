@@ -139,6 +139,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── StopwatchWidget.kt
 │   │   │   │   │   │   │   ├── theme
 │   │   │   │   │   │   │   │   ├── JarvisColors.kt
+│   │   │   │   │   │   │   │   ├── JarvisGlass.kt
+│   │   │   │   │   │   │   │   ├── JarvisMotion.kt
 │   │   │   │   │   │   │   ├── timer
 │   │   │   │   │   │   │   │   ├── FloatingTimerService.kt
 │   │   │   │   │   │   │   │   ├── TaskTimerDialog.kt
@@ -427,6 +429,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   ├── Apk.yml
 │   │   ├── main.yml
 │   │   ├── pr-build.yml
+│   │   ├── ui-compile.yml
 
 ================================
 SOURCE CODE
@@ -4527,6 +4530,12 @@ import com.jarvismini.llm.TermuxLlamaClient
 import com.jarvismini.ui.components.GridBackground
 import com.jarvismini.ui.ChatMessage
 import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.*
 
 private const val TAG = "JarvisChatScreen"
@@ -4538,16 +4547,9 @@ fun JarvisChatScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    val scope = rememberCoroutineScope()
-
-    // ================= TERMUX CLIENT =================
-    val llamaClient = remember { TermuxLlamaClient(context) }
-    val openRouter = remember { com.jarvismini.llm.OpenRouterClient(context) }
-
 
 // ... FILE TRUNCATED ...
 
-                            } finally {
                                 isProcessing = false
                             }
                         }
@@ -4563,6 +4565,7 @@ fun JarvisChatScreen(
                             JarvisBlue
                     )
                 }
+            }
             }
         }
     }
@@ -5192,43 +5195,43 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.jarvismini.ui.components.*
-import com.jarvismini.voice.VoiceTriggerManager
-
-@Composable
-fun EnhancedHomeScreen(
-    onNavigateToChat:          () -> Unit,
-    onNavigateToCalendar:      () -> Unit,
-    onNavigateToChecklist:     () -> Unit,
-    onNavigateToSettings:      () -> Unit,
-    onNavigateToDebug:         () -> Unit,
-    onNavigateToTermuxCommand: () -> Unit,
-    onNavigateToAgent:         () -> Unit,
-    onNavigateToHeal:          () -> Unit,
-    onNavigateToConvo:         () -> Unit = {},
-    // Called when voice produces a task string — parent routes it to AgentDashboard
-    onVoiceTask: ((String) -> Unit)? = null,
-) {
-    val context = LocalContext.current
-
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
 
 // ... FILE TRUNCATED ...
 
+                color      = JarvisTextPrimary
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .background(
-                            color = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466),
-                            shape = CircleShape
-                        )
+                        .background(color = statusColor, shape = CircleShape)
                 )
                 Spacer(Modifier.width(8.dp))
+                // state is conveyed by the word, not only by colour
                 Text(
                     text       = status,
-                    fontSize   = 12.sp,
+                    fontSize   = 13.sp,
                     fontFamily = FontFamily.Monospace,
-                    color      = if (isOnline) Color(0xFF00FF88) else Color(0xFFFF4466)
+                    color      = statusColor
                 )
             }
         }
@@ -5391,7 +5394,16 @@ class TermuxCommandViewModel(private val context: Context) : ViewModel() {
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.ui.main
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.*
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import androidx.compose.ui.platform.LocalContext
 import com.jarvismini.ProgressInitializer
 import com.jarvismini.core.progress.*
@@ -5430,19 +5442,9 @@ fun MainScreen() {
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
     var voiceTask   by remember { mutableStateOf<String?>(null) }
 
-    var blocks   by remember { mutableStateOf(emptyList<ProgressBlock>()) }
-    var routines by remember { mutableStateOf(emptyList<com.jarvismini.core.routine.model.Routine>()) }
-
-    if (showBoot) {
-        BootScreen(onBootComplete = { showBoot = false })
-        return
-    }
-
-    LaunchedEffect(Unit) {
 
 // ... FILE TRUNCATED ...
 
-        )
         MainTab.Chat          -> JarvisChatScreen(onBack = { selectedTab = MainTab.Home })
         MainTab.Calendar      -> {
             val vm = remember { CalendarViewModel(context) }
@@ -5460,6 +5462,7 @@ fun MainScreen() {
             onBack = { selectedTab = MainTab.Home },
         )
         MainTab.Convo -> ConvoScreen(onBack = { selectedTab = MainTab.Home })
+    }
     }
 }
 
@@ -5704,6 +5707,158 @@ val JarvisBlack = Color.Black
 val JarvisGreen = Color(0xFF00FF00)
 val JarvisRed = Color(0xFFFF4444)
 
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/theme/JarvisGlass.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.ui.theme
+
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+/** Corner radii shared by glass surfaces. */
+object JarvisRadius {
+    val Small = 8.dp
+    val Card = 12.dp
+    val Large = 20.dp
+}
+
+/** Text colours verified for >= 4.5:1 on the glass tint over JarvisBackground. */
+val JarvisTextPrimary = Color(0xFFD8F8FF)
+val JarvisTextSecondary = Color(0xFF8FE9FA)
+val JarvisOnline = Color(0xFF00FF88)
+val JarvisOffline = Color(0xFFFF6680)
+
+/** Real backdrop blur needs API 31+ and a library (Haze); until added, every API uses the tint path. */
+val canBlurBackdrop: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+@Composable
+private fun rememberHighContrast(): Boolean {
+    val ctx = LocalContext.current
+    return remember {
+        try {
+            Settings.Secure.getInt(ctx.contentResolver, "high_text_contrast_enabled", 0) == 1
+        } catch (_: Throwable) {
+            false
+        }
+    }
+}
+
+// ... FILE TRUNCATED ...
+
+        content = content,
+    )
+}
+
+/** 1dp-stroke L-shaped ticks in the four corners for the HUD look. */
+fun Modifier.hudCornerTicks(color: Color, length: Dp = 10.dp, stroke: Dp = 1.5.dp): Modifier =
+    drawBehind {
+        val l = length.toPx()
+        val s = stroke.toPx()
+        val w = size.width
+        val h = size.height
+        fun tick(a: Offset, b: Offset, c: Offset) {
+            drawLine(color, a, b, s)
+            drawLine(color, b, c, s)
+        }
+        tick(Offset(0f, l), Offset(0f, 0f), Offset(l, 0f))
+        tick(Offset(w - l, 0f), Offset(w, 0f), Offset(w, l))
+        tick(Offset(0f, h - l), Offset(0f, h), Offset(l, h))
+        tick(Offset(w - l, h), Offset(w, h), Offset(w, h - l))
+    }
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/theme/JarvisMotion.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.ui.theme
+
+import android.content.Context
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+
+/**
+ * Motion tokens (motion-compose skill). Every duration, easing and spring in the UI
+ * comes from here; no inline tween(300) / spring(stiffness = ..) in screens.
+ */
+object JarvisMotion {
+    object Duration {
+        const val Instant = 90
+        const val Fast = 160
+        const val Normal = 240
+        const val Slow = 400
+    }
+
+    val Standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)   // enter / move
+    val Exit = CubicBezierEasing(0.4f, 0f, 1f, 1f)       // leave
+
+    object Distance {
+        val Small = 8.dp
+        val Medium = 16.dp
+        val Large = 32.dp
+    }
+
+    object Scale {
+        const val Press = 0.96f
+        const val Hover = 1.02f
+    }
+
+    fun <T> snappy(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.87f, stiffness = 300f)
+    fun <T> gentle(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.64f, stiffness = 120f)
+    fun <T> bouncy(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.25f, stiffness = 400f)
+    fun <T> instant(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.71f, stiffness = 600f)
+    fun <T> release(): FiniteAnimationSpec<T> = spring(dampingRatio = 0.71f, stiffness = 200f)
+
+// ... FILE TRUNCATED ...
+
+        false
+    }
+    return scale != 0f && !saver
+}
+
+/** whileTap equivalent: scales to 0.96 on press using the instant spring. Feedback < 90 ms. */
+@Composable
+fun Modifier.pressScale(interactionSource: MutableInteractionSource): Modifier {
+    val enabled = rememberMotionEnabled()
+    val pressed by interactionSource.collectIsPressedAsState()
+    val s by animateFloatAsState(
+        targetValue = if (pressed && enabled) JarvisMotion.Scale.Press else 1f,
+        animationSpec = JarvisMotion.instant(),
+        label = "pressScale",
+    )
+    return this.graphicsLayer {
+        scaleX = s
+        scaleY = s
+    }
+}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/timer/FloatingTimerService.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
@@ -13076,4 +13231,30 @@ jobs:
 
       - name: Run Gradle build
         run: ./gradlew assembleDebug
+
+
+//===== FILE: .github/workflows/ui-compile.yml =====
+// TYPE: FULL
+name: UI Kotlin compile check
+
+on:
+  push:
+    branches: [ ui-upgrade-claude1 ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: chmod +x ./gradlew
+      - name: Compile Kotlin only (skips native CMake)
+        run: ./gradlew :app:compileDebugKotlin --no-daemon
 
