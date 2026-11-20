@@ -140,9 +140,8 @@ fun HealDashboardScreen(
                     Switch(
                         checked         = state.ttsEnabled,
                         onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier
-                            .height(20.dp)
-                            .semantics { contentDescription = "Read log aloud" },
+                        // no fixed height: the M3 Switch then keeps its 48dp touch target
+                        modifier        = Modifier.semantics { contentDescription = "Read log aloud" },
                         colors          = SwitchDefaults.colors(
                             checkedThumbColor   = Magenta,
                             checkedTrackColor   = DimMagenta,

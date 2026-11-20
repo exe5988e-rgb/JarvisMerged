@@ -194,7 +194,7 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                             )
                         }
                     }
-                    items(routines) { routine ->
+                    items(routines, key = { it.id }) { routine ->
                         val block = blocks.find { it.id == routine.id }
                         TaskCard(
                             routine      = routine,
