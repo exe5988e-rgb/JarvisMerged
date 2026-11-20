@@ -1,5 +1,7 @@
 package com.jarvismini.ui.checklist
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -13,8 +15,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +33,12 @@ import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.timer.TaskTimerDialog
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import com.jarvismini.ui.timer.TaskTimerDisplay
 import java.util.*
 
@@ -77,7 +91,8 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                         color      = JarvisBlue,
                         fontFamily = FontFamily.Monospace,
                         fontSize   = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier   = Modifier.semantics { heading() }
                     )
                 },
                 navigationIcon = {
@@ -99,16 +114,86 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                 val totalCount        = routines.size
                 val completionPercent = if (totalCount > 0) (completedCount * 100) / totalCount else 0
 
-                Text(
-                    text       = "SYSTEM COMPLETION: $completionPercent% ($completedCount/$totalCount)",
-                    fontSize   = 14.sp,
-                    color      = JarvisBlue.copy(alpha = 0.7f),
-                    fontFamily = FontFamily.Monospace
+                // Hero summary (glass-compose: one glass surface per screen); the task list below
+                // is dense, so its cards stay flat and solid.
+                val motionEnabled = rememberMotionEnabled()
+                val progress = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
+                val animatedProgress by animateFloatAsState(
+                    targetValue   = progress,
+                    animationSpec = if (motionEnabled) JarvisMotion.snappy() else snap(),
+                    label         = "completionProgress"
                 )
+
+                GlassSurface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {
+                            contentDescription =
+                                "System completion $completionPercent percent, $completedCount of $totalCount tasks done"
+                        },
+                    shape       = RoundedCornerShape(JarvisRadius.Card),
+                    cornerTicks = true
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text          = "SYSTEM COMPLETION",
+                                fontSize      = 12.sp,
+                                letterSpacing = 2.sp,
+                                color         = JarvisTextSecondary,
+                                fontFamily    = FontFamily.Monospace
+                            )
+                            Text(
+                                text       = "$completionPercent%",
+                                fontSize   = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color      = JarvisTextPrimary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        // Plain Box bar: avoids depending on a newer LinearProgressIndicator overload.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(JarvisBlue.copy(alpha = 0.15f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(animatedProgress.coerceIn(0f, 1f))
+                                    .fillMaxHeight()
+                                    .background(JarvisBlue)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text       = "$completedCount of $totalCount tasks done",
+                            fontSize   = 12.sp,
+                            color      = JarvisTextSecondary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (routines.isEmpty()) {
+                        item {
+                            Text(
+                                text       = "No tasks scheduled for today.",
+                                fontSize   = 13.sp,
+                                color      = JarvisTextSecondary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
                     items(routines) { routine ->
                         val block = blocks.find { it.id == routine.id }
                         TaskCard(
@@ -198,10 +283,20 @@ fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    modifier = Modifier.weight(1f),
+                    // read as one item: "<task name>, Completed/Missed/Pending"
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics(mergeDescendants = true) {
+                            stateDescription = when {
+                                isCompleted -> "Completed"
+                                isMissed    -> "Missed"
+                                else        -> "Pending"
+                            }
+                        },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
+                        modifier = Modifier.clearAndSetSemantics { },   // glyph is decorative; state is announced above
                         text = when {
                             isCompleted -> "✓ "
                             isMissed    -> "✗ "
@@ -233,17 +328,19 @@ fun TaskCard(
                         OutlinedButton(
                             onClick = onTimerClick,
                             colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
-                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen),
+                            modifier = Modifier.semantics { contentDescription = "Start timer for ${routine.name}" }
                         ) {
-                            Text("⏱️ TIMER", fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            Text("⏱️ TIMER", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                     } else {
                         OutlinedButton(
                             onClick = onStopTimer,
                             colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
-                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed),
+                            modifier = Modifier.semantics { contentDescription = "Stop timer for ${routine.name}" }
                         ) {
-                            Text("■ STOP", fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            Text("■ STOP", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -300,14 +397,17 @@ fun TaskCard(
                     onClick = onMarkComplete,
                     colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
                     border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen),
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .semantics { contentDescription = "Mark ${routine.name} as done" }
                 ) {
                     Text("DONE", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
                 OutlinedButton(
                     onClick = onMarkMissed,
                     colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
-                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed),
+                    modifier = Modifier.semantics { contentDescription = "Mark ${routine.name} as missed" }
                 ) {
                     Text("MISSED", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }

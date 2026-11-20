@@ -21,12 +21,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import kotlinx.coroutines.launch
 
 private val Cyan    = Color(0xFF00E0FF)
@@ -37,7 +45,8 @@ private val Green   = Color(0xFF00FF88)
 private val Red     = Color(0xFFFF4466)
 private val Yellow  = Color(0xFFFFCC00)
 private val White70 = Color(0xB3FFFFFF)
-private val White40 = Color(0x66FFFFFF)
+// Muted text colour; alpha raised from 0x66 (about 3.9:1 on BgCard) to 0x99 (about 7:1) for 4.5:1 text.
+private val White40 = Color(0x99FFFFFF)
 
 @Composable
 fun AgentDashboardScreen(
@@ -56,9 +65,13 @@ fun AgentDashboardScreen(
         }
     }
 
+    val motionEnabled = rememberMotionEnabled()
+
     LaunchedEffect(state.logs.size) {
         if (state.logs.isNotEmpty()) {
-            listState.animateScrollToItem(state.logs.lastIndex)
+            // reduced motion / battery saver: jump instead of animating
+            if (motionEnabled) listState.animateScrollToItem(state.logs.lastIndex)
+            else listState.scrollToItem(state.logs.lastIndex)
         }
     }
 
@@ -86,7 +99,8 @@ fun AgentDashboardScreen(
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 4.sp,
                     color         = Cyan,
-                    fontFamily    = FontFamily.Monospace
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
@@ -121,8 +135,10 @@ fun AgentDashboardScreen(
                     "LOGS",
                     fontSize      = 11.sp,
                     letterSpacing = 3.sp,
-                    color         = DimCyan,
-                    fontFamily    = FontFamily.Monospace
+                    // DimCyan on BgCard is about 2.3:1; this label is text, so lift it above 4.5:1
+                    color         = Cyan.copy(alpha = 0.75f),
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -136,7 +152,9 @@ fun AgentDashboardScreen(
                     Switch(
                         checked         = state.ttsEnabled,
                         onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier.height(20.dp),
+                        modifier        = Modifier
+                            .height(20.dp)
+                            .semantics { contentDescription = "Read log aloud" },
                         colors          = SwitchDefaults.colors(
                             checkedThumbColor   = Cyan,
                             checkedTrackColor   = DimCyan,
@@ -231,6 +249,8 @@ private fun StatusBar(state: AgentDashboardState) {
     Row(
         Modifier
             .fillMaxWidth()
+            // status changes (running / paused / done / error) are announced
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .clip(RoundedCornerShape(6.dp))
             .background(bg)
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -264,14 +284,14 @@ private fun TaskInputSection(
     onPause:  () -> Unit,
     onResume: () -> Unit,
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(BgCard)
-            .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
+    // glass-compose: the task controls are the one control cluster on this screen (glass);
+    // the log pane below is a dense list and stays solid.
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(JarvisRadius.Card),
+        tint     = Cyan
     ) {
+    Column(Modifier.fillMaxWidth().padding(12.dp)) {
         OutlinedTextField(
             value           = state.taskInput,
             onValueChange   = onTask,
@@ -373,6 +393,7 @@ private fun TaskInputSection(
             )
         }
     }
+    }
 }
 
 // Renamed from LogLineRow -> AgentLogLineRow (Session fix: Kotlin does not
@@ -408,7 +429,7 @@ private fun AgentLogLineRow(log: LogLine) {
 @Composable
 private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
     val pulse = rememberInfiniteTransition(label = "pulse")
-    val alpha by pulse.animateFloat(
+    val pulsed by pulse.animateFloat(
         initialValue = 0.4f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation  = tween(900, easing = FastOutSlowInEasing),
@@ -416,15 +437,24 @@ private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean =
         ),
         label = "dotAlpha"
     )
+    // decorative pulse is dropped under reduced motion / battery saver
+    val alpha = if (rememberMotionEnabled()) pulsed else 1f
     val color = when {
         !online -> Red
         paused  -> Yellow.copy(alpha = alpha)
         running -> Green.copy(alpha = alpha)
         else    -> Green
     }
+    val description = when {
+        !online -> "Agent server offline"
+        paused  -> "Agent paused"
+        running -> "Agent running"
+        else    -> "Agent server online"
+    }
     Box(
         Modifier
             .size(10.dp)
+            .semantics { contentDescription = description }
             .clip(CircleShape)
             .background(color)
     )

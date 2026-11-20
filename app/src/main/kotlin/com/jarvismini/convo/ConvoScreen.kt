@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -61,6 +63,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -70,6 +78,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -83,7 +95,9 @@ private val CvGreen = Color(0xFF00FF88)
 private val CvRed = Color(0xFFFF4466)
 private val CvYellow = Color(0xFFFFCC00)
 private val CvWhite70 = Color(0xB3FFFFFF)
-private val CvWhite40 = Color(0x66FFFFFF)
+// Muted text/icon colour. Name kept for history; alpha raised from 0x66 (about 3.9:1 on CvCard)
+// to 0x99 (about 7:1) so 10-13sp secondary text meets 4.5:1.
+private val CvWhite40 = Color(0x99FFFFFF)
 
 /**
  * Multi-agent (Convo) tab: roster with presence, a polled timeline grouped by broadcast with read
@@ -205,6 +219,7 @@ private fun ConvoTopBar(onBack: () -> Unit, onSearch: () -> Unit, searchOpen: Bo
             letterSpacing = 4.sp,
             color = CvMagenta,
             fontFamily = FontFamily.Monospace,
+            modifier = Modifier.semantics { heading() },
         )
         Spacer(Modifier.weight(1f))
         IconButton(onClick = onSearch) {
@@ -227,6 +242,8 @@ private fun ConvoBanner(text: String, color: Color) {
         Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            // errors and setup hints are announced when they appear
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .clip(RoundedCornerShape(10.dp))
             .background(color.copy(alpha = 0.15f))
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -246,6 +263,8 @@ private fun ConvoRoster(state: ConvoUiState) {
         items(agents, key = { it.id }) { agent ->
             Row(
                 Modifier
+                    // read as one item: "name, online"; the dot is decorative
+                    .semantics(mergeDescendants = true) {}
                     .clip(RoundedCornerShape(16.dp))
                     .border(1.dp, CvDim, RoundedCornerShape(16.dp))
                     .background(CvCard)
@@ -278,19 +297,35 @@ private fun ConvoRoster(state: ConvoUiState) {
 }
 
 @Composable
-private fun ConvoChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ConvoChip(
+    label: String,
+    selected: Boolean,
+    role: Role = Role.RadioButton,
+    onClick: () -> Unit,
+) {
     val shape = RoundedCornerShape(16.dp)
-    Text(
-        label,
-        color = if (selected) CvMagenta else CvWhite70,
-        fontSize = 12.sp,
+    val interaction = remember { MutableInteractionSource() }
+    // The visible pill stays compact; the outer Box gives a 48dp touch target and carries
+    // role + selected state so TalkBack reads "Filter, selected, radio button".
+    Box(
         modifier = Modifier
-            .clip(shape)
-            .background(if (selected) CvDim else Color.Transparent)
-            .border(1.dp, if (selected) CvMagenta else CvDim, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
+            .heightIn(min = 48.dp)
+            .pressScale(interaction)
+            .clickable(interactionSource = interaction, indication = null, role = role, onClick = onClick)
+            .semantics { this.selected = selected },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = if (selected) CvMagenta else CvWhite70,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .clip(shape)
+                .background(if (selected) CvDim else Color.Transparent)
+                .border(1.dp, if (selected) CvMagenta else CvDim, shape)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
 }
 
 @Composable
@@ -314,8 +349,14 @@ private fun ConvoTimeline(
     val lastKey = visible.lastOrNull()?.key
     val headerOffset = if (state.hasOlder) 1 else 0
 
+    val motionEnabled = rememberMotionEnabled()
+
     LaunchedEffect(lastKey) {
-        if (visible.isNotEmpty()) listState.animateScrollToItem(visible.lastIndex + headerOffset)
+        if (visible.isNotEmpty()) {
+            val target = visible.lastIndex + headerOffset
+            // reduced motion / battery saver: jump instead of animating
+            if (motionEnabled) listState.animateScrollToItem(target) else listState.scrollToItem(target)
+        }
     }
 
     Box(modifier.fillMaxWidth()) {
@@ -466,7 +507,7 @@ private fun ConvoBubbleRow(bubble: ConvoBubble, timeFormat: SimpleDateFormat, on
                 .clip(shape)
                 .background(if (mine) CvMine else CvCard)
                 .border(1.dp, if (bubble.hasUnread) CvYellow.copy(alpha = 0.35f) else CvDim, shape)
-                .clickable(onClick = onClick)
+                .clickable(role = Role.Button, onClickLabel = "Show read receipts", onClick = onClick)
                 .padding(10.dp),
         ) {
             if (!mine) {
@@ -504,7 +545,14 @@ private fun ConvoBubbleRow(bubble: ConvoBubble, timeFormat: SimpleDateFormat, on
 
 @Composable
 private fun ConvoComposeBar(state: ConvoUiState, vm: ConvoViewModel) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    // glass-compose: the compose bar is the one floating control cluster on this screen, so it
+    // gets the glass surface; the dense timeline and search lists stay on flat solid rows.
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        shape = RoundedCornerShape(JarvisRadius.Large),
+        tint = CvMagenta,
+    ) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             item(key = "all") {
                 ConvoChip("All", state.recipients.isEmpty()) { vm.allRecipients() }
@@ -513,6 +561,7 @@ private fun ConvoComposeBar(state: ConvoUiState, vm: ConvoViewModel) {
                 ConvoChip(
                     agent.displayName.ifBlank { agent.id },
                     state.recipients.contains(agent.id),
+                    role = Role.Checkbox,
                 ) { vm.toggleRecipient(agent.id) }
             }
         }
@@ -552,6 +601,7 @@ private fun ConvoComposeBar(state: ConvoUiState, vm: ConvoViewModel) {
                 }
             }
         }
+    }
     }
 }
 

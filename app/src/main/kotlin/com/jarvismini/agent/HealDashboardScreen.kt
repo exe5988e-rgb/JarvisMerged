@@ -19,12 +19,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.rememberMotionEnabled
 
 private val Magenta    = Color(0xFFE040FB)
 private val DimMagenta = Color(0xFF4A0070)
@@ -34,7 +42,8 @@ private val Green      = Color(0xFF00FF88)
 private val Red        = Color(0xFFFF4466)
 private val Yellow     = Color(0xFFFFCC00)
 private val White70    = Color(0xB3FFFFFF)
-private val White40    = Color(0x66FFFFFF)
+// Muted text colour; alpha raised from 0x66 (about 3.9:1 on BgCard) to 0x99 (about 7:1) for 4.5:1 text.
+private val White40    = Color(0x99FFFFFF)
 
 @Composable
 fun HealDashboardScreen(
@@ -44,8 +53,14 @@ fun HealDashboardScreen(
     val state     by vm.state.collectAsState()
     val listState = rememberLazyListState()
 
+    val motionEnabled = rememberMotionEnabled()
+
     LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
+        if (state.logs.isNotEmpty()) {
+            // reduced motion / battery saver: jump instead of animating
+            if (motionEnabled) listState.animateScrollToItem(state.logs.lastIndex)
+            else listState.scrollToItem(state.logs.lastIndex)
+        }
     }
 
     Box(
@@ -74,7 +89,8 @@ fun HealDashboardScreen(
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 4.sp,
                     color         = Magenta,
-                    fontFamily    = FontFamily.Monospace
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 HealStatusDot(online = state.serverOnline, healing = state.healing)
@@ -108,8 +124,10 @@ fun HealDashboardScreen(
                     "HEAL LOG",
                     fontSize      = 11.sp,
                     letterSpacing = 3.sp,
-                    color         = DimMagenta,
-                    fontFamily    = FontFamily.Monospace
+                    // DimMagenta on BgCard is under 2:1; this label is text, so lift it above 4.5:1
+                    color         = Magenta.copy(alpha = 0.75f),
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -122,7 +140,9 @@ fun HealDashboardScreen(
                     Switch(
                         checked         = state.ttsEnabled,
                         onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier.height(20.dp),
+                        modifier        = Modifier
+                            .height(20.dp)
+                            .semantics { contentDescription = "Read log aloud" },
                         colors          = SwitchDefaults.colors(
                             checkedThumbColor   = Magenta,
                             checkedTrackColor   = DimMagenta,
@@ -225,6 +245,8 @@ private fun HealStatusBar(state: HealDashboardState) {
     Row(
         Modifier
             .fillMaxWidth()
+            // status changes (healing / done / error) are announced
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .clip(RoundedCornerShape(6.dp))
             .background(bg)
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -244,14 +266,14 @@ private fun HealInputSection(
     onTask:  (String) -> Unit,
     onStart: () -> Unit,
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(BgCard)
-            .border(0.5.dp, DimMagenta.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
+    // glass-compose: the fix controls are the one control cluster on this screen (glass);
+    // the heal log below is a dense list and stays solid.
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(JarvisRadius.Card),
+        tint     = Magenta
     ) {
+    Column(Modifier.fillMaxWidth().padding(12.dp)) {
         OutlinedTextField(
             value           = state.taskInput,
             onValueChange   = onTask,
@@ -302,20 +324,34 @@ private fun HealInputSection(
             )
         }
     }
+    }
 }
 
 @Composable
 private fun HealStatusDot(online: Boolean, healing: Boolean) {
     val pulse = rememberInfiniteTransition(label = "pulse")
-    val alpha by pulse.animateFloat(
+    val pulsed by pulse.animateFloat(
         initialValue  = 0.4f, targetValue = 1f,
         animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
         label = "dotAlpha"
     )
+    // decorative pulse is dropped under reduced motion / battery saver
+    val alpha = if (rememberMotionEnabled()) pulsed else 1f
     val color = when {
         !online -> Red
         healing -> Magenta.copy(alpha = alpha)
         else    -> Green
     }
-    Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+    val description = when {
+        !online -> "Agent server offline"
+        healing -> "Healing in progress"
+        else    -> "Agent server online"
+    }
+    Box(
+        Modifier
+            .size(10.dp)
+            .semantics { contentDescription = description }
+            .clip(CircleShape)
+            .background(color)
+    )
 }
