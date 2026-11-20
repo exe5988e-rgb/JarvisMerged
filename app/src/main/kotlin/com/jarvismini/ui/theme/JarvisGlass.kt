@@ -89,14 +89,16 @@ fun Modifier.hudCornerTicks(color: Color, length: Dp = 10.dp, stroke: Dp = 1.5.d
     drawBehind {
         val l = length.toPx()
         val s = stroke.toPx()
-        val w = size.width
-        val h = size.height
+        // Inset by half the stroke so the clip does not cut the line in half.
+        val i = s / 2f
+        val w = size.width - i
+        val h = size.height - i
         fun tick(a: Offset, b: Offset, c: Offset) {
             drawLine(color, a, b, s)
             drawLine(color, b, c, s)
         }
-        tick(Offset(0f, l), Offset(0f, 0f), Offset(l, 0f))
-        tick(Offset(w - l, 0f), Offset(w, 0f), Offset(w, l))
-        tick(Offset(0f, h - l), Offset(0f, h), Offset(l, h))
+        tick(Offset(i, l), Offset(i, i), Offset(l, i))
+        tick(Offset(w - l, i), Offset(w, i), Offset(w, l))
+        tick(Offset(i, h - l), Offset(i, h), Offset(l, h))
         tick(Offset(w - l, h), Offset(w, h), Offset(w, h - l))
     }

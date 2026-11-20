@@ -10,6 +10,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.remember
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.Modifier
@@ -72,6 +77,32 @@ fun isMotionEnabled(ctx: Context): Boolean {
         false
     }
     return scale != 0f && !saver
+}
+
+/**
+ * Staggered enter: fade + small rise, delayed by index (capped at 6 x 35 ms).
+ * Instant when motion is disabled. Use on a static Column, not inside LazyColumn items
+ * (items replay the enter when scrolled back into view).
+ */
+@Composable
+fun Modifier.staggerEnter(index: Int): Modifier {
+    val enabled = rememberMotionEnabled()
+    var shown by remember { mutableStateOf(!enabled) }
+    LaunchedEffect(Unit) { shown = true }
+    val progress by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = JarvisMotion.Duration.Normal,
+            delayMillis = index.coerceIn(0, 6) * 35,
+            easing = JarvisMotion.Standard,
+        ),
+        label = "staggerEnter",
+    )
+    val rise = with(LocalDensity.current) { JarvisMotion.Distance.Medium.toPx() }
+    return this.graphicsLayer {
+        alpha = progress
+        translationY = (1f - progress) * rise
+    }
 }
 
 /** whileTap equivalent: scales to 0.96 on press using the instant spring. Feedback < 90 ms. */
