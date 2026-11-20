@@ -44,8 +44,22 @@ class ModelSelectorView @JvmOverloads constructor(
         tvLoadingMessage = findViewById(R.id.tvLoadingMessage)
         tvModelInfo = findViewById(R.id.tvModelInfo)
 
+        // Accessibility: announce status changes politely, name the spinner for TalkBack.
+        tvStatus.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        if (spinnerModelSelect.contentDescription.isNullOrEmpty()) {
+            spinnerModelSelect.contentDescription = "AI model selection"
+        }
+        // Spinner and its row should be at least 48dp tall.
+        spinnerModelSelect.minimumHeight = (48 * resources.displayMetrics.density).toInt()
+
         setupSpinner()
         startStatusMonitoring()
+    }
+
+    /** Set text/colour only when they changed: the 1 s poll must not re-announce an unchanged status. */
+    private fun setStatus(text: String, color: Int) {
+        if (tvStatus.text.toString() != text) tvStatus.text = text
+        if (tvStatus.currentTextColor != color) tvStatus.setTextColor(color)
     }
 
     private fun setupSpinner() {
@@ -84,20 +98,20 @@ class ModelSelectorView @JvmOverloads constructor(
         // Update loading indicator
         if (status.isLoading) {
             layoutLoading.visibility = View.VISIBLE
-            tvStatus.text = "Loading..."
-            tvStatus.setTextColor(context.getColor(android.R.color.holo_orange_light))
+            setStatus("Loading...", context.getColor(android.R.color.holo_orange_light))
             spinnerModelSelect.isEnabled = false
         } else {
             layoutLoading.visibility = View.GONE
             spinnerModelSelect.isEnabled = true
 
             val readyCount = listOf(status.chatReady, status.codeReady).count { it }
-            tvStatus.text = when {
-                readyCount == 0 -> "No models"
-                readyCount == 1 -> "1 model ready"
-                else -> "$readyCount models ready"
-            }
-            tvStatus.setTextColor(
+            // Status is always text as well as colour.
+            setStatus(
+                when {
+                    readyCount == 0 -> "No models"
+                    readyCount == 1 -> "1 model ready"
+                    else -> "$readyCount models ready"
+                },
                 if (readyCount > 0) context.getColor(android.R.color.holo_green_light)
                 else context.getColor(android.R.color.holo_red_light)
             )

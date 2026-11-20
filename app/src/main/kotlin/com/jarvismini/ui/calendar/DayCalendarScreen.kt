@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,14 +14,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import android.text.format.DateFormat
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextAlign
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.staggerEnter
 import androidx.compose.ui.text.font.FontFamily
 import com.jarvismini.core.calendar.model.CalendarEvent
 import com.jarvismini.core.utils.TimeUtils
 import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.calendar.model.EventStatus
 import java.util.*
-
-private val JarvisBlue = Color(0xFF00E0FF)
 
 /**
  * FULLY WORKING DayCalendarScreen with back button
@@ -71,6 +83,12 @@ fun DayCalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit) {
             .sortedBy { it.startTimeMs }
     }
 
+    val timeFormat = remember { DateFormat.getTimeFormat(context) }
+    val dateLabel = remember(dayStart) {
+        java.text.SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date()).uppercase()
+    }
+    val nextEvent = events.firstOrNull { it.status == EventStatus.SCHEDULED }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -81,12 +99,15 @@ fun DayCalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit) {
                     "Today's Schedule",
                     color = JarvisBlue,
                     fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.headlineMedium
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    modifier = Modifier.semantics { heading() }
                 )
             },
             navigationIcon = {
+                // IconButton is 48dp by default.
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = JarvisBlue)
+                    Icon(Icons.Default.ArrowBack, "Navigate back", tint = JarvisBlue)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -94,26 +115,67 @@ fun DayCalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit) {
             )
         )
 
+        // Summary strip: one glass surface, outside the scrolling list.
+        GlassSurface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, top = 12.dp)
+                .staggerEnter(0)
+                .semantics(mergeDescendants = true) {},
+            shape = RoundedCornerShape(JarvisRadius.Card),
+            cornerTicks = true
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(
+                    text = dateLabel,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = JarvisTextSecondary
+                )
+                Text(
+                    text = when {
+                        events.isEmpty() -> "No routines today"
+                        nextEvent != null ->
+                            "${events.size} routines · next at ${timeFormat.format(Date(nextEvent.startTimeMs))}"
+                        else -> "${events.size} routines · all done"
+                    },
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = JarvisTextPrimary
+                )
+            }
+        }
+
         if (events.isEmpty()) {
-            // Show empty state
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(12.dp),
+                    .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "No routines scheduled for today",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.semantics(mergeDescendants = true) {}
+                ) {
+                    Icon(
+                        Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = JarvisTextSecondary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Text(
+                        text = "No routines scheduled for today",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = JarvisTextSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                }
             }
         } else {
-            // Show events
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(events) { event ->

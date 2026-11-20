@@ -1,14 +1,41 @@
 package com.jarvismini.ui.timer
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -16,12 +43,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.staggerEnter
 
-private val JarvisBlue = Color(0xFF00E0FF)
-private val JarvisGreen = Color(0xFF00FF00)
+private val PresetMinutes = listOf(15L, 30L, 45L, 60L)
 
 /**
- * JARVIS-themed timer duration picker dialog
+ * JARVIS-themed timer duration picker dialog (glass panel, HUD corner ticks).
+ * All controls are >= 48dp, the selected preset is announced, and the chosen
+ * duration is a polite live region.
  */
 @Composable
 fun TaskTimerDialog(
@@ -31,169 +68,217 @@ fun TaskTimerDialog(
 ) {
     var selectedMinutes by remember { mutableStateOf(30L) }
     var customInput by remember { mutableStateOf("") }
-    
+
+    val effectiveMinutes = customInput.toLongOrNull() ?: selectedMinutes
+    val canStart = effectiveMinutes > 0
+
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF001520)
-            ),
-            border = BorderStroke(2.dp, JarvisBlue)
+                .padding(16.dp)
+                .staggerEnter(0),
+            shape = RoundedCornerShape(JarvisRadius.Large),
+            cornerTicks = true
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Title
                 Text(
-                    text = "⏱️ SET TASK TIMER",
+                    text = "SET TASK TIMER",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = JarvisBlue,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.semantics { heading() }
                 )
-                
-                // Task name
+
                 Text(
                     text = taskName.uppercase(),
                     fontSize = 14.sp,
-                    color = JarvisGreen,
+                    color = JarvisOnline,
                     fontFamily = FontFamily.Monospace,
                     textAlign = TextAlign.Center
                 )
-                
+
                 Divider(color = JarvisBlue.copy(alpha = 0.3f))
-                
-                // Quick preset buttons
+
                 Text(
-                    text = "QUICK PRESETS:",
-                    fontSize = 12.sp,
-                    color = JarvisBlue,
+                    text = "QUICK PRESETS",
+                    fontSize = 14.sp,
+                    color = JarvisTextSecondary,
                     fontFamily = FontFamily.Monospace
                 )
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(15L, 30L, 45L, 60L).forEach { minutes ->
-                        OutlinedButton(
+                    PresetMinutes.forEach { minutes ->
+                        PresetButton(
+                            minutes = minutes,
+                            selected = selectedMinutes == minutes && customInput.isEmpty(),
                             onClick = {
                                 selectedMinutes = minutes
                                 customInput = ""
                             },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (selectedMinutes == minutes && customInput.isEmpty()) 
-                                    JarvisBlue.copy(alpha = 0.2f) 
-                                else 
-                                    Color.Transparent,
-                                contentColor = JarvisBlue
-                            ),
-                            border = BorderStroke(1.dp, JarvisBlue),
-                            modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
-                        ) {
-                            Text(
-                                text = "${minutes}m",
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
-                
-                // Custom input
+
                 Text(
-                    text = "OR CUSTOM DURATION:",
-                    fontSize = 12.sp,
-                    color = JarvisBlue,
+                    text = "OR CUSTOM DURATION",
+                    fontSize = 14.sp,
+                    color = JarvisTextSecondary,
                     fontFamily = FontFamily.Monospace
                 )
-                
+
                 OutlinedTextField(
                     value = customInput,
-                    onValueChange = { 
-                        if (it.isEmpty() || it.all { char -> char.isDigit() }) {
+                    onValueChange = {
+                        if (it.length <= 4 && (it.isEmpty() || it.all { char -> char.isDigit() })) {
                             customInput = it
                             if (it.isNotEmpty()) {
                                 selectedMinutes = it.toLongOrNull() ?: selectedMinutes
                             }
                         }
                     },
-                    label = { 
+                    label = {
                         Text(
                             "Minutes",
                             fontFamily = FontFamily.Monospace
-                        ) 
+                        )
+                    },
+                    isError = customInput.isNotEmpty() && !canStart,
+                    supportingText = {
+                        if (customInput.isNotEmpty() && !canStart) {
+                            Text("Enter at least 1 minute")
+                        }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = JarvisBlue,
-                        unfocusedBorderColor = JarvisBlue.copy(alpha = 0.5f),
+                        unfocusedBorderColor = JarvisBlue.copy(alpha = 0.6f),
                         focusedLabelColor = JarvisBlue,
-                        unfocusedLabelColor = JarvisBlue.copy(alpha = 0.5f),
-                        focusedTextColor = JarvisGreen,
-                        unfocusedTextColor = JarvisGreen
+                        unfocusedLabelColor = JarvisTextSecondary,
+                        focusedTextColor = JarvisTextPrimary,
+                        unfocusedTextColor = JarvisTextPrimary,
+                        errorTextColor = JarvisTextPrimary,
+                        errorBorderColor = JarvisOffline,
+                        errorLabelColor = JarvisOffline,
+                        errorSupportingTextColor = JarvisOffline,
+                        cursorColor = JarvisBlue
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
-                
-                // Selected duration display
+
                 Text(
-                    text = "DURATION: ${selectedMinutes} MINUTES",
+                    text = "DURATION: $effectiveMinutes MINUTES",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = JarvisGreen,
-                    fontFamily = FontFamily.Monospace
+                    color = JarvisOnline,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                 )
-                
+
                 Divider(color = JarvisBlue.copy(alpha = 0.3f))
-                
-                // Action buttons
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val cancelSource = remember { MutableInteractionSource() }
                     OutlinedButton(
                         onClick = onDismiss,
+                        interactionSource = cancelSource,
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.Red
+                            contentColor = JarvisOffline
                         ),
-                        border = BorderStroke(1.dp, Color.Red),
-                        modifier = Modifier.weight(1f)
+                        border = BorderStroke(1.dp, JarvisOffline),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .pressScale(cancelSource)
                     ) {
                         Text(
                             "CANCEL",
                             fontFamily = FontFamily.Monospace
                         )
                     }
-                    
+
+                    val startSource = remember { MutableInteractionSource() }
                     Button(
                         onClick = {
-                            val duration = customInput.toLongOrNull() ?: selectedMinutes
-                            if (duration > 0) {
-                                onStartTimer(duration)
+                            if (canStart) {
+                                onStartTimer(effectiveMinutes)
                                 onDismiss()
                             }
                         },
+                        enabled = canStart,
+                        interactionSource = startSource,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = JarvisGreen,
-                            contentColor = Color.Black
+                            containerColor = JarvisOnline,
+                            contentColor = Color.Black,
+                            disabledContainerColor = JarvisOnline.copy(alpha = 0.3f),
+                            disabledContentColor = JarvisTextSecondary
                         ),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .pressScale(startSource)
                     ) {
                         Text(
-                            "START ▶",
+                            "START",
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(18.dp)
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PresetButton(
+    minutes: Long,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val source = remember { MutableInteractionSource() }
+    OutlinedButton(
+        onClick = onClick,
+        interactionSource = source,
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected) JarvisBlue.copy(alpha = 0.25f) else Color.Transparent,
+            contentColor = JarvisBlue
+        ),
+        border = BorderStroke(if (selected) 2.dp else 1.dp, JarvisBlue),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .pressScale(source)
+            .semantics { stateDescription = if (selected) "Selected" else "Not selected" }
+    ) {
+        Text(
+            text = "${minutes}m",
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
