@@ -127,6 +127,8 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── DebugViewModel.kt
 │   │   │   │   │   │   │   ├── home
 │   │   │   │   │   │   │   │   ├── EnhancedHomeScreen.kt
+│   │   │   │   │   │   │   │   ├── JarvisDock.kt
+│   │   │   │   │   │   │   │   ├── StatusStrip.kt
 │   │   │   │   │   │   │   ├── llm
 │   │   │   │   │   │   │   │   ├── TermuxCommandScreen.kt
 │   │   │   │   │   │   │   │   ├── TermuxCommandViewModel.kt
@@ -2761,12 +2763,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import kotlinx.coroutines.launch
 
 private val Cyan    = Color(0xFF00E0FF)
@@ -2777,7 +2787,8 @@ private val Green   = Color(0xFF00FF88)
 private val Red     = Color(0xFFFF4466)
 private val Yellow  = Color(0xFFFFCC00)
 private val White70 = Color(0xB3FFFFFF)
-private val White40 = Color(0x66FFFFFF)
+// Muted text colour; alpha raised from 0x66 (about 3.9:1 on BgCard) to 0x99 (about 7:1) for 4.5:1 text.
+private val White40 = Color(0x99FFFFFF)
 
 @Composable
 fun AgentDashboardScreen(
@@ -2796,9 +2807,13 @@ fun AgentDashboardScreen(
         }
     }
 
+    val motionEnabled = rememberMotionEnabled()
+
     LaunchedEffect(state.logs.size) {
         if (state.logs.isNotEmpty()) {
-            listState.animateScrollToItem(state.logs.lastIndex)
+            // reduced motion / battery saver: jump instead of animating
+            if (motionEnabled) listState.animateScrollToItem(state.logs.lastIndex)
+            else listState.scrollToItem(state.logs.lastIndex)
         }
     }
 
@@ -2826,7 +2841,8 @@ fun AgentDashboardScreen(
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 4.sp,
                     color         = Cyan,
-                    fontFamily    = FontFamily.Monospace
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 ServerStatusDot(online = state.serverOnline, running = state.running, paused = state.paused)
@@ -2861,8 +2877,10 @@ fun AgentDashboardScreen(
                     "LOGS",
                     fontSize      = 11.sp,
                     letterSpacing = 3.sp,
-                    color         = DimCyan,
-                    fontFamily    = FontFamily.Monospace
+                    // DimCyan on BgCard is about 2.3:1; this label is text, so lift it above 4.5:1
+                    color         = Cyan.copy(alpha = 0.75f),
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2876,7 +2894,9 @@ fun AgentDashboardScreen(
                     Switch(
                         checked         = state.ttsEnabled,
                         onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier.height(20.dp),
+                        modifier        = Modifier
+                            .height(20.dp)
+                            .semantics { contentDescription = "Read log aloud" },
                         colors          = SwitchDefaults.colors(
                             checkedThumbColor   = Cyan,
                             checkedTrackColor   = DimCyan,
@@ -2971,6 +2991,8 @@ private fun StatusBar(state: AgentDashboardState) {
     Row(
         Modifier
             .fillMaxWidth()
+            // status changes (running / paused / done / error) are announced
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .clip(RoundedCornerShape(6.dp))
             .background(bg)
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -3004,14 +3026,14 @@ private fun TaskInputSection(
     onPause:  () -> Unit,
     onResume: () -> Unit,
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(BgCard)
-            .border(0.5.dp, DimCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
+    // glass-compose: the task controls are the one control cluster on this screen (glass);
+    // the log pane below is a dense list and stays solid.
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(JarvisRadius.Card),
+        tint     = Cyan
     ) {
+    Column(Modifier.fillMaxWidth().padding(12.dp)) {
         OutlinedTextField(
             value           = state.taskInput,
             onValueChange   = onTask,
@@ -3113,6 +3135,7 @@ private fun TaskInputSection(
             )
         }
     }
+    }
 }
 
 // Renamed from LogLineRow -> AgentLogLineRow (Session fix: Kotlin does not
@@ -3148,7 +3171,7 @@ private fun AgentLogLineRow(log: LogLine) {
 @Composable
 private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
     val pulse = rememberInfiniteTransition(label = "pulse")
-    val alpha by pulse.animateFloat(
+    val pulsed by pulse.animateFloat(
         initialValue = 0.4f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation  = tween(900, easing = FastOutSlowInEasing),
@@ -3156,15 +3179,24 @@ private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean =
         ),
         label = "dotAlpha"
     )
+    // decorative pulse is dropped under reduced motion / battery saver
+    val alpha = if (rememberMotionEnabled()) pulsed else 1f
     val color = when {
         !online -> Red
         paused  -> Yellow.copy(alpha = alpha)
         running -> Green.copy(alpha = alpha)
         else    -> Green
     }
+    val description = when {
+        !online -> "Agent server offline"
+        paused  -> "Agent paused"
+        running -> "Agent running"
+        else    -> "Agent server online"
+    }
     Box(
         Modifier
             .size(10.dp)
+            .semantics { contentDescription = description }
             .clip(CircleShape)
             .background(color)
     )
@@ -3672,12 +3704,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.rememberMotionEnabled
 
 private val Magenta    = Color(0xFFE040FB)
 private val DimMagenta = Color(0xFF4A0070)
@@ -3687,7 +3727,8 @@ private val Green      = Color(0xFF00FF88)
 private val Red        = Color(0xFFFF4466)
 private val Yellow     = Color(0xFFFFCC00)
 private val White70    = Color(0xB3FFFFFF)
-private val White40    = Color(0x66FFFFFF)
+// Muted text colour; alpha raised from 0x66 (about 3.9:1 on BgCard) to 0x99 (about 7:1) for 4.5:1 text.
+private val White40    = Color(0x99FFFFFF)
 
 @Composable
 fun HealDashboardScreen(
@@ -3697,8 +3738,14 @@ fun HealDashboardScreen(
     val state     by vm.state.collectAsState()
     val listState = rememberLazyListState()
 
+    val motionEnabled = rememberMotionEnabled()
+
     LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
+        if (state.logs.isNotEmpty()) {
+            // reduced motion / battery saver: jump instead of animating
+            if (motionEnabled) listState.animateScrollToItem(state.logs.lastIndex)
+            else listState.scrollToItem(state.logs.lastIndex)
+        }
     }
 
     Box(
@@ -3727,7 +3774,8 @@ fun HealDashboardScreen(
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 4.sp,
                     color         = Magenta,
-                    fontFamily    = FontFamily.Monospace
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 HealStatusDot(online = state.serverOnline, healing = state.healing)
@@ -3761,8 +3809,10 @@ fun HealDashboardScreen(
                     "HEAL LOG",
                     fontSize      = 11.sp,
                     letterSpacing = 3.sp,
-                    color         = DimMagenta,
-                    fontFamily    = FontFamily.Monospace
+                    // DimMagenta on BgCard is under 2:1; this label is text, so lift it above 4.5:1
+                    color         = Magenta.copy(alpha = 0.75f),
+                    fontFamily    = FontFamily.Monospace,
+                    modifier      = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3775,7 +3825,9 @@ fun HealDashboardScreen(
                     Switch(
                         checked         = state.ttsEnabled,
                         onCheckedChange = vm::onTtsToggle,
-                        modifier        = Modifier.height(20.dp),
+                        modifier        = Modifier
+                            .height(20.dp)
+                            .semantics { contentDescription = "Read log aloud" },
                         colors          = SwitchDefaults.colors(
                             checkedThumbColor   = Magenta,
                             checkedTrackColor   = DimMagenta,
@@ -3878,6 +3930,8 @@ private fun HealStatusBar(state: HealDashboardState) {
     Row(
         Modifier
             .fillMaxWidth()
+            // status changes (healing / done / error) are announced
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .clip(RoundedCornerShape(6.dp))
             .background(bg)
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -3897,14 +3951,14 @@ private fun HealInputSection(
     onTask:  (String) -> Unit,
     onStart: () -> Unit,
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(BgCard)
-            .border(0.5.dp, DimMagenta.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
+    // glass-compose: the fix controls are the one control cluster on this screen (glass);
+    // the heal log below is a dense list and stays solid.
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(JarvisRadius.Card),
+        tint     = Magenta
     ) {
+    Column(Modifier.fillMaxWidth().padding(12.dp)) {
         OutlinedTextField(
             value           = state.taskInput,
             onValueChange   = onTask,
@@ -3955,22 +4009,36 @@ private fun HealInputSection(
             )
         }
     }
+    }
 }
 
 @Composable
 private fun HealStatusDot(online: Boolean, healing: Boolean) {
     val pulse = rememberInfiniteTransition(label = "pulse")
-    val alpha by pulse.animateFloat(
+    val pulsed by pulse.animateFloat(
         initialValue  = 0.4f, targetValue = 1f,
         animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
         label = "dotAlpha"
     )
+    // decorative pulse is dropped under reduced motion / battery saver
+    val alpha = if (rememberMotionEnabled()) pulsed else 1f
     val color = when {
         !online -> Red
         healing -> Magenta.copy(alpha = alpha)
         else    -> Green
     }
-    Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+    val description = when {
+        !online -> "Agent server offline"
+        healing -> "Healing in progress"
+        else    -> "Agent server online"
+    }
+    Box(
+        Modifier
+            .size(10.dp)
+            .semantics { contentDescription = description }
+            .clip(CircleShape)
+            .background(color)
+    )
 }
 
 
@@ -5812,6 +5880,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -5820,6 +5889,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -5867,6 +5937,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -5876,6 +5952,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -5889,7 +5969,9 @@ private val CvGreen = Color(0xFF00FF88)
 private val CvRed = Color(0xFFFF4466)
 private val CvYellow = Color(0xFFFFCC00)
 private val CvWhite70 = Color(0xB3FFFFFF)
-private val CvWhite40 = Color(0x66FFFFFF)
+// Muted text/icon colour. Name kept for history; alpha raised from 0x66 (about 3.9:1 on CvCard)
+// to 0x99 (about 7:1) so 10-13sp secondary text meets 4.5:1.
+private val CvWhite40 = Color(0x99FFFFFF)
 
 /**
  * Multi-agent (Convo) tab: roster with presence, a polled timeline grouped by broadcast with read
@@ -6011,6 +6093,7 @@ private fun ConvoTopBar(onBack: () -> Unit, onSearch: () -> Unit, searchOpen: Bo
             letterSpacing = 4.sp,
             color = CvMagenta,
             fontFamily = FontFamily.Monospace,
+            modifier = Modifier.semantics { heading() },
         )
         Spacer(Modifier.weight(1f))
         IconButton(onClick = onSearch) {
@@ -6033,6 +6116,8 @@ private fun ConvoBanner(text: String, color: Color) {
         Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            // errors and setup hints are announced when they appear
+            .semantics { liveRegion = LiveRegionMode.Polite }
             .clip(RoundedCornerShape(10.dp))
             .background(color.copy(alpha = 0.15f))
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -6052,6 +6137,8 @@ private fun ConvoRoster(state: ConvoUiState) {
         items(agents, key = { it.id }) { agent ->
             Row(
                 Modifier
+                    // read as one item: "name, online"; the dot is decorative
+                    .semantics(mergeDescendants = true) {}
                     .clip(RoundedCornerShape(16.dp))
                     .border(1.dp, CvDim, RoundedCornerShape(16.dp))
                     .background(CvCard)
@@ -6084,19 +6171,35 @@ private fun ConvoRoster(state: ConvoUiState) {
 }
 
 @Composable
-private fun ConvoChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ConvoChip(
+    label: String,
+    selected: Boolean,
+    role: Role = Role.RadioButton,
+    onClick: () -> Unit,
+) {
     val shape = RoundedCornerShape(16.dp)
-    Text(
-        label,
-        color = if (selected) CvMagenta else CvWhite70,
-        fontSize = 12.sp,
+    val interaction = remember { MutableInteractionSource() }
+    // The visible pill stays compact; the outer Box gives a 48dp touch target and carries
+    // role + selected state so TalkBack reads "Filter, selected, radio button".
+    Box(
         modifier = Modifier
-            .clip(shape)
-            .background(if (selected) CvDim else Color.Transparent)
-            .border(1.dp, if (selected) CvMagenta else CvDim, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
+            .heightIn(min = 48.dp)
+            .pressScale(interaction)
+            .clickable(interactionSource = interaction, indication = null, role = role, onClick = onClick)
+            .semantics { this.selected = selected },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = if (selected) CvMagenta else CvWhite70,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .clip(shape)
+                .background(if (selected) CvDim else Color.Transparent)
+                .border(1.dp, if (selected) CvMagenta else CvDim, shape)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
 }
 
 @Composable
@@ -6120,8 +6223,14 @@ private fun ConvoTimeline(
     val lastKey = visible.lastOrNull()?.key
     val headerOffset = if (state.hasOlder) 1 else 0
 
+    val motionEnabled = rememberMotionEnabled()
+
     LaunchedEffect(lastKey) {
-        if (visible.isNotEmpty()) listState.animateScrollToItem(visible.lastIndex + headerOffset)
+        if (visible.isNotEmpty()) {
+            val target = visible.lastIndex + headerOffset
+            // reduced motion / battery saver: jump instead of animating
+            if (motionEnabled) listState.animateScrollToItem(target) else listState.scrollToItem(target)
+        }
     }
 
     Box(modifier.fillMaxWidth()) {
@@ -6272,7 +6381,7 @@ private fun ConvoBubbleRow(bubble: ConvoBubble, timeFormat: SimpleDateFormat, on
                 .clip(shape)
                 .background(if (mine) CvMine else CvCard)
                 .border(1.dp, if (bubble.hasUnread) CvYellow.copy(alpha = 0.35f) else CvDim, shape)
-                .clickable(onClick = onClick)
+                .clickable(role = Role.Button, onClickLabel = "Show read receipts", onClick = onClick)
                 .padding(10.dp),
         ) {
             if (!mine) {
@@ -6310,7 +6419,14 @@ private fun ConvoBubbleRow(bubble: ConvoBubble, timeFormat: SimpleDateFormat, on
 
 @Composable
 private fun ConvoComposeBar(state: ConvoUiState, vm: ConvoViewModel) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    // glass-compose: the compose bar is the one floating control cluster on this screen, so it
+    // gets the glass surface; the dense timeline and search lists stay on flat solid rows.
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        shape = RoundedCornerShape(JarvisRadius.Large),
+        tint = CvMagenta,
+    ) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             item(key = "all") {
                 ConvoChip("All", state.recipients.isEmpty()) { vm.allRecipients() }
@@ -6319,6 +6435,7 @@ private fun ConvoComposeBar(state: ConvoUiState, vm: ConvoViewModel) {
                 ConvoChip(
                     agent.displayName.ifBlank { agent.id },
                     state.recipients.contains(agent.id),
+                    role = Role.Checkbox,
                 ) { vm.toggleRecipient(agent.id) }
             }
         }
@@ -6358,6 +6475,7 @@ private fun ConvoComposeBar(state: ConvoUiState, vm: ConvoViewModel) {
                 }
             }
         }
+    }
     }
 }
 
@@ -10858,6 +10976,8 @@ private fun formatTime(timestampMs: Long): String {
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/checklist/JarvisChecklistScreen.kt =====
 package com.jarvismini.ui.checklist
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -10871,8 +10991,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -10883,6 +11009,12 @@ import com.jarvismini.core.progress.ProgressRepository
 import com.jarvismini.core.progress.ProgressBlock
 import com.jarvismini.core.tts.AssistantTTS
 import com.jarvismini.ui.timer.TaskTimerDialog
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import com.jarvismini.ui.timer.TaskTimerDisplay
 import java.util.*
 
@@ -10935,7 +11067,8 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                         color      = JarvisBlue,
                         fontFamily = FontFamily.Monospace,
                         fontSize   = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier   = Modifier.semantics { heading() }
                     )
                 },
                 navigationIcon = {
@@ -10957,16 +11090,86 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                 val totalCount        = routines.size
                 val completionPercent = if (totalCount > 0) (completedCount * 100) / totalCount else 0
 
-                Text(
-                    text       = "SYSTEM COMPLETION: $completionPercent% ($completedCount/$totalCount)",
-                    fontSize   = 14.sp,
-                    color      = JarvisBlue.copy(alpha = 0.7f),
-                    fontFamily = FontFamily.Monospace
+                // Hero summary (glass-compose: one glass surface per screen); the task list below
+                // is dense, so its cards stay flat and solid.
+                val motionEnabled = rememberMotionEnabled()
+                val progress = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
+                val animatedProgress by animateFloatAsState(
+                    targetValue   = progress,
+                    animationSpec = if (motionEnabled) JarvisMotion.snappy() else snap(),
+                    label         = "completionProgress"
                 )
+
+                GlassSurface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {
+                            contentDescription =
+                                "System completion $completionPercent percent, $completedCount of $totalCount tasks done"
+                        },
+                    shape       = RoundedCornerShape(JarvisRadius.Card),
+                    cornerTicks = true
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text          = "SYSTEM COMPLETION",
+                                fontSize      = 12.sp,
+                                letterSpacing = 2.sp,
+                                color         = JarvisTextSecondary,
+                                fontFamily    = FontFamily.Monospace
+                            )
+                            Text(
+                                text       = "$completionPercent%",
+                                fontSize   = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color      = JarvisTextPrimary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        // Plain Box bar: avoids depending on a newer LinearProgressIndicator overload.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(JarvisBlue.copy(alpha = 0.15f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(animatedProgress.coerceIn(0f, 1f))
+                                    .fillMaxHeight()
+                                    .background(JarvisBlue)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text       = "$completedCount of $totalCount tasks done",
+                            fontSize   = 12.sp,
+                            color      = JarvisTextSecondary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (routines.isEmpty()) {
+                        item {
+                            Text(
+                                text       = "No tasks scheduled for today.",
+                                fontSize   = 13.sp,
+                                color      = JarvisTextSecondary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
                     items(routines) { routine ->
                         val block = blocks.find { it.id == routine.id }
                         TaskCard(
@@ -11056,10 +11259,20 @@ fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    modifier = Modifier.weight(1f),
+                    // read as one item: "<task name>, Completed/Missed/Pending"
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics(mergeDescendants = true) {
+                            stateDescription = when {
+                                isCompleted -> "Completed"
+                                isMissed    -> "Missed"
+                                else        -> "Pending"
+                            }
+                        },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
+                        modifier = Modifier.clearAndSetSemantics { },   // glyph is decorative; state is announced above
                         text = when {
                             isCompleted -> "✓ "
                             isMissed    -> "✗ "
@@ -11091,17 +11304,19 @@ fun TaskCard(
                         OutlinedButton(
                             onClick = onTimerClick,
                             colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
-                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen)
+                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen),
+                            modifier = Modifier.semantics { contentDescription = "Start timer for ${routine.name}" }
                         ) {
-                            Text("⏱️ TIMER", fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            Text("⏱️ TIMER", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                     } else {
                         OutlinedButton(
                             onClick = onStopTimer,
                             colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
-                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed),
+                            modifier = Modifier.semantics { contentDescription = "Stop timer for ${routine.name}" }
                         ) {
-                            Text("■ STOP", fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            Text("■ STOP", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -11158,14 +11373,17 @@ fun TaskCard(
                     onClick = onMarkComplete,
                     colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
                     border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen),
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .semantics { contentDescription = "Mark ${routine.name} as done" }
                 ) {
                     Text("DONE", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
                 OutlinedButton(
                     onClick = onMarkMissed,
                     colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
-                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed)
+                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed),
+                    modifier = Modifier.semantics { contentDescription = "Mark ${routine.name} as missed" }
                 ) {
                     Text("MISSED", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
@@ -11758,8 +11976,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -11779,10 +11997,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -11802,7 +12021,14 @@ import com.jarvismini.ui.theme.JarvisTextPrimary
 import com.jarvismini.ui.theme.JarvisTextSecondary
 import com.jarvismini.ui.theme.pressScale
 import com.jarvismini.ui.theme.rememberMotionEnabled
+import com.jarvismini.ui.theme.staggerEnter
 import com.jarvismini.voice.VoiceTriggerManager
+
+private data class QuickAction(
+    val title: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit,
+)
 
 @Composable
 fun EnhancedHomeScreen(
@@ -11855,6 +12081,17 @@ fun EnhancedHomeScreen(
     )
     val ringRotation = if (motionEnabled) ringRotationAnimated else 0f
 
+    // Ordered by how often they are used: conversation first, maintenance last.
+    val quickActions = listOf(
+        QuickAction("Chat",        Icons.Default.Chat,          onNavigateToChat),
+        QuickAction("Agent",       Icons.Default.SmartToy,      onNavigateToAgent),
+        QuickAction("Tasks",       Icons.Default.Checklist,     onNavigateToChecklist),
+        QuickAction("Calendar",    Icons.Default.CalendarToday, onNavigateToCalendar),
+        QuickAction("Terminal",    Icons.Default.Terminal,      onNavigateToTermuxCommand),
+        QuickAction("Heal",        Icons.Default.Build,         onNavigateToHeal),
+        QuickAction("Multi-agent", Icons.Default.Groups,        onNavigateToConvo),
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -11870,198 +12107,245 @@ fun EnhancedHomeScreen(
             ScanLine()
         }
 
+        // One scrolling column: nothing is clipped on small screens or at large font scale.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
             // ===== HEADER =====
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .staggerEnter(0),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 Text(
                     text          = "J.A.R.V.I.S.",
-                    fontSize      = 32.sp,
+                    fontSize      = 28.sp,
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 6.sp,
                     color         = JarvisCyan,
-                    modifier      = Modifier.semantics { heading() }
+                    maxLines      = 1,
+                    modifier      = Modifier
+                        .weight(1f)
+                        .semantics { heading() }
                 )
                 Row {
                     IconButton(onClick = onNavigateToDebug) {
-                        Icon(Icons.Default.BugReport, "Debug", tint = Color(0xFF00E0FF))
+                        Icon(Icons.Default.BugReport, "Debug", tint = JarvisCyan)
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF00E0FF))
+                        Icon(Icons.Default.Settings, "Settings", tint = JarvisCyan)
                     }
                 }
             }
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // ===== CORE ORB =====
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier         = Modifier
-                    .size(200.dp)
-                    .semantics {
-                        contentDescription = "Voice assistant"
-                        stateDescription   = if (isListening) "Listening" else "Idle"
-                    }
-                    .clickable(
-                        role = Role.Button,
-                        onClickLabel = if (isListening) "Stop listening" else "Start listening"
-                    ) {
-                        if (isListening) {
-                            vtm.stop()
-                            isListening   = false
-                            statusMessage = "TAP TO ACTIVATE"
-                        } else {
-                            isListening   = true
-                            statusMessage = "LISTENING..."
-                            vtm.start(
-                                onReady  = {
-                                    isListening   = true
-                                    statusMessage = "LISTENING..."
-                                },
-                                onResult = { result ->
+            // ===== HERO: voice orb + live state, one glass surface =====
+            GlassSurface(
+                modifier    = Modifier
+                    .fillMaxWidth()
+                    .staggerEnter(1),
+                shape       = RoundedCornerShape(JarvisRadius.Large),
+                cornerTicks = true
+            ) {
+                Column(
+                    modifier            = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp, horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier         = Modifier
+                            .size(188.dp)
+                            .semantics {
+                                contentDescription = "Voice assistant"
+                                stateDescription   = if (isListening) "Listening" else "Idle"
+                            }
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = if (isListening) "Stop listening" else "Start listening"
+                            ) {
+                                if (isListening) {
+                                    vtm.stop()
                                     isListening   = false
                                     statusMessage = "TAP TO ACTIVATE"
-                                    onVoiceTask?.invoke(result) ?: onNavigateToAgent()
-                                },
-                                onError  = { err ->
-                                    isListening   = false
-                                    statusMessage = err
+                                } else {
+                                    isListening   = true
+                                    statusMessage = "LISTENING..."
+                                    vtm.start(
+                                        onReady  = {
+                                            isListening   = true
+                                            statusMessage = "LISTENING..."
+                                        },
+                                        onResult = { result ->
+                                            isListening   = false
+                                            statusMessage = "TAP TO ACTIVATE"
+                                            onVoiceTask?.invoke(result) ?: onNavigateToAgent()
+                                        },
+                                        onError  = { err ->
+                                            isListening   = false
+                                            statusMessage = err
+                                        }
+                                    )
                                 }
-                            )
-                        }
-                    }
-            ) {
-                // Outer ring
-                Box(
-                    modifier = Modifier
-                        .size(200.dp)
-                        .alpha(if (isListening) pulseAlpha else 0.3f)
-                        .background(Color(0xFF00E0FF).copy(alpha = 0.1f), CircleShape)
-                        .border(
-                            2.dp,
-                            Color(0xFF00E0FF).copy(alpha = if (isListening) pulseAlpha else 0.3f),
-                            CircleShape
-                        )
-                )
-                // Rotating tick ring — four short arcs spinning slowly around the orb,
-                // the kind of detail that sells "live system" even when idle
-                Canvas(modifier = Modifier.size(225.dp)) {
-                    rotate(ringRotation) {
-                        val stroke = 3.dp.toPx()
-                        val sweep  = 18f
-                        listOf(0f, 90f, 180f, 270f).forEach { start ->
-                            drawArc(
-                                color      = Color(0xFF00E0FF).copy(alpha = if (isListening) 0.9f else 0.45f),
-                                startAngle = start,
-                                sweepAngle = sweep,
-                                useCenter  = false,
-                                style      = Stroke(width = stroke, cap = StrokeCap.Round)
-                            )
-                        }
-                    }
-                }
-                // Mid ring
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .background(Color(0xFF00E0FF).copy(alpha = 0.05f), CircleShape)
-                        .border(1.dp, Color(0xFF00E0FF).copy(alpha = 0.4f), CircleShape)
-                )
-                // Inner orb with mic icon
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .shadow(
-                            elevation  = if (isListening) 30.dp else 10.dp,
-                            shape      = CircleShape,
-                            spotColor  = Color(0xFF00E0FF)
-                        )
-                        .background(
-                            brush = Brush.radialGradient(
-                                listOf(
-                                    Color(0xFF00E0FF).copy(alpha = if (isListening) 0.8f else 0.5f),
-                                    Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
-                                    Color.Transparent
+                            }
+                    ) {
+                        // Outer ring
+                        Box(
+                            modifier = Modifier
+                                .size(168.dp)
+                                .alpha(if (isListening) pulseAlpha else 0.3f)
+                                .background(JarvisCyan.copy(alpha = 0.1f), CircleShape)
+                                .border(
+                                    2.dp,
+                                    JarvisCyan.copy(alpha = if (isListening) pulseAlpha else 0.3f),
+                                    CircleShape
                                 )
-                            ),
-                            shape = CircleShape
                         )
-                ) {
-                    Icon(
-                        imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = null, // parent orb carries the semantics
-                        tint               = Color(0xFF00E0FF),
-                        modifier           = Modifier
-                            .size(40.dp)
-                            .align(Alignment.Center)
+                        // Rotating tick ring — four short arcs spinning slowly around the orb
+                        Canvas(modifier = Modifier.size(188.dp)) {
+                            rotate(ringRotation) {
+                                val stroke = 3.dp.toPx()
+                                val inset  = stroke / 2f
+                                val sweep  = 18f
+                                listOf(0f, 90f, 180f, 270f).forEach { start ->
+                                    drawArc(
+                                        color      = JarvisCyan.copy(alpha = if (isListening) 0.9f else 0.45f),
+                                        startAngle = start,
+                                        sweepAngle = sweep,
+                                        useCenter  = false,
+                                        topLeft    = androidx.compose.ui.geometry.Offset(inset, inset),
+                                        size       = androidx.compose.ui.geometry.Size(
+                                            size.width - stroke,
+                                            size.height - stroke
+                                        ),
+                                        style      = Stroke(width = stroke, cap = StrokeCap.Round)
+                                    )
+                                }
+                            }
+                        }
+                        // Mid ring
+                        Box(
+                            modifier = Modifier
+                                .size(126.dp)
+                                .background(JarvisCyan.copy(alpha = 0.05f), CircleShape)
+                                .border(1.dp, JarvisCyan.copy(alpha = 0.4f), CircleShape)
+                        )
+                        // Inner orb with mic icon
+                        Box(
+                            modifier = Modifier
+                                .size(86.dp)
+                                .shadow(
+                                    elevation  = if (isListening) 30.dp else 10.dp,
+                                    shape      = CircleShape,
+                                    spotColor  = JarvisCyan
+                                )
+                                .background(
+                                    brush = Brush.radialGradient(
+                                        listOf(
+                                            JarvisCyan.copy(alpha = if (isListening) 0.8f else 0.5f),
+                                            Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
+                                            Color.Transparent
+                                        )
+                                    ),
+                                    shape = CircleShape
+                                )
+                        ) {
+                            Icon(
+                                imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                                contentDescription = null, // parent orb carries the semantics
+                                tint               = JarvisCyan,
+                                modifier           = Modifier
+                                    .size(36.dp)
+                                    .align(Alignment.Center)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Text(
+                        text       = statusMessage,
+                        fontSize   = 14.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color      = JarvisTextPrimary,
+                        textAlign  = TextAlign.Center,
+                        modifier   = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                     )
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(28.dp))
 
-            Text(
-                text       = statusMessage,
-                fontSize   = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                color      = JarvisTextSecondary,
-                modifier   = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-            )
+            // ===== QUICK ACCESS: 3-column grid, every action visible without scrolling sideways =====
+            SectionLabel("QUICK ACCESS", Modifier.staggerEnter(2))
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // ===== QUICK ACCESS =====
-            Text(
-                text          = "QUICK ACCESS",
-                fontSize      = 12.sp,
-                fontFamily    = FontFamily.Monospace,
-                letterSpacing = 2.sp,
-                color         = JarvisTextSecondary,
-                modifier      = Modifier.semantics { heading() }
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { QuickActionCard("Chat",     Icons.Default.Chat,          onNavigateToChat) }
-                item { QuickActionCard("Calendar", Icons.Default.CalendarToday, onNavigateToCalendar) }
-                item { QuickActionCard("Tasks",    Icons.Default.Checklist,     onNavigateToChecklist) }
-                item { QuickActionCard("Terminal", Icons.Default.Terminal,      onNavigateToTermuxCommand) }
-                item { QuickActionCard("Agent",    Icons.Default.SmartToy,      onNavigateToAgent) }
-                item { QuickActionCard("Heal",     Icons.Default.Build,         onNavigateToHeal) }
-                item { QuickActionCard("Multi-agent", Icons.Default.Groups,     onNavigateToConvo) }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                quickActions.chunked(3).forEachIndexed { rowIndex, row ->
+                    Row(
+                        modifier              = Modifier
+                            .fillMaxWidth()
+                            .staggerEnter(3 + rowIndex),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        row.forEach { action ->
+                            QuickActionTile(
+                                title    = action.title,
+                                icon     = action.icon,
+                                onClick  = action.onClick,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // keep the last row's tiles the same width as the rows above
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
             }
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(28.dp))
 
-            // ===== SYSTEM STATUS =====
-            Text(
-                text          = "SYSTEM STATUS",
-                fontSize      = 12.sp,
-                fontFamily    = FontFamily.Monospace,
-                letterSpacing = 2.sp,
-                color         = JarvisTextSecondary,
-                modifier      = Modifier.semantics { heading() }
-            )
+            // ===== SYSTEM STATUS: one card, rows separated by hairlines (was 5 bordered cards) =====
+            SectionLabel("SYSTEM STATUS", Modifier.staggerEnter(6))
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { StatusCard("Neural Networks",   "Online",  true) }
-                item { StatusCard("Voice Recognition", "Active",  true) }
-                item { StatusCard("Automation Engine", "Standby", false) }
-                item { StatusCard("Local LLM",         "Ready",   true) }
-                item { StatusCard("Agent Server",       "Standby", false) }
+            GlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .staggerEnter(6),
+                shape = RoundedCornerShape(JarvisRadius.Card)
+            ) {
+                Column {
+                    val rows = listOf(
+                        Triple("Neural Networks",   "Online",  true),
+                        Triple("Voice Recognition", "Active",  true),
+                        Triple("Automation Engine", "Standby", false),
+                        Triple("Local LLM",         "Ready",   true),
+                        Triple("Agent Server",      "Standby", false),
+                    )
+                    rows.forEachIndexed { index, (label, status, online) ->
+                        StatusRow(label, status, online)
+                        if (index < rows.lastIndex) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .height(1.dp)
+                                    .background(JarvisCyan.copy(alpha = 0.12f))
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -12070,15 +12354,30 @@ fun EnhancedHomeScreen(
 // ─── Local components ─────────────────────────────────────────────────────────
 
 @Composable
-private fun QuickActionCard(
-    title:   String,
-    icon:    ImageVector,
-    onClick: () -> Unit,
+private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text          = text,
+        fontSize      = 12.sp,
+        fontFamily    = FontFamily.Monospace,
+        letterSpacing = 2.sp,
+        color         = JarvisTextSecondary,
+        modifier      = modifier
+            .fillMaxWidth()
+            .semantics { heading() }
+    )
+}
+
+@Composable
+private fun QuickActionTile(
+    title:    String,
+    icon:     ImageVector,
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
     GlassSurface(
-        modifier = Modifier
-            .size(100.dp)
+        modifier = modifier
+            .heightIn(min = 92.dp)
             .pressScale(interaction)
             .clickable(
                 interactionSource = interaction,
@@ -12091,7 +12390,9 @@ private fun QuickActionCard(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .heightIn(min = 92.dp)
+                .padding(horizontal = 6.dp, vertical = 12.dp)
                 // icon + label read as one button named by its text
                 .clearAndSetSemantics { contentDescription = title },
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -12101,7 +12402,7 @@ private fun QuickActionCard(
                 imageVector        = icon,
                 contentDescription = null,
                 tint               = JarvisCyan,
-                modifier           = Modifier.size(32.dp)
+                modifier           = Modifier.size(30.dp)
             )
             Spacer(Modifier.height(8.dp))
             Text(
@@ -12109,54 +12410,306 @@ private fun QuickActionCard(
                 fontSize   = 13.sp,
                 color      = JarvisTextPrimary,
                 fontFamily = FontFamily.Monospace,
-                maxLines   = 1
+                maxLines   = 1,
+                overflow   = TextOverflow.Ellipsis
             )
         }
     }
 }
 
 @Composable
-private fun StatusCard(
+private fun StatusRow(
     label:    String,
     status:   String,
     isOnline: Boolean,
 ) {
     val statusColor = if (isOnline) JarvisOnline else JarvisOffline
-    GlassSurface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             // one announcement: "Neural Networks, Online"; dot is decorative
-            .semantics(mergeDescendants = true) {},
-        shape = RoundedCornerShape(JarvisRadius.Small)
+            .semantics(mergeDescendants = true) {}
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment     = Alignment.CenterVertically
+    ) {
+        Text(
+            text       = label,
+            fontSize   = 14.sp,
+            fontFamily = FontFamily.Monospace,
+            color      = JarvisTextPrimary,
+            modifier   = Modifier.weight(1f)
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(color = statusColor, shape = CircleShape)
+            )
+            Spacer(Modifier.width(8.dp))
+            // state is conveyed by the word, not only by colour
+            Text(
+                text       = status,
+                fontSize   = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                color      = statusColor
+            )
+        }
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/JarvisDock.kt =====
+package com.jarvismini.ui.home
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.pressScale
+
+/** One primary action shown in [JarvisDock]. */
+data class DockItem(
+    val label: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit,
+)
+
+/**
+ * Bottom glass dock: the few actions people use most, plus a trailing "More" button
+ * that the caller wires to a bottom sheet for everything else.
+ *
+ * Built on GlassSurface (glass-compose) with the outer radius (Large, 20dp) larger than
+ * the inner button radius (Card, 12dp) so the corners stay concentric
+ * (make-interfaces-feel-better). Each button is a 56dp-high target (>= 48dp, WCAG 2.2),
+ * icon + text label, scaled to 0.96 on press via pressScale (honours the reduced-motion gate).
+ * Intended for 3 to 4 [items]; more than 4 will crowd small phones, so move extras behind More.
+ */
+@Composable
+fun JarvisDock(
+    items: List<DockItem>,
+    onMore: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    GlassSurface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(JarvisRadius.Large),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text       = label,
-                fontSize   = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                color      = JarvisTextPrimary
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(color = statusColor, shape = CircleShape)
-                )
-                Spacer(Modifier.width(8.dp))
-                // state is conveyed by the word, not only by colour
-                Text(
-                    text       = status,
-                    fontSize   = 13.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color      = statusColor
-                )
+            items.forEach { item ->
+                DockButton(item.label, item.icon, item.onClick)
             }
+            DockButton("More", Icons.Default.MoreHoriz, onMore)
+        }
+    }
+}
+
+@Composable
+private fun RowScope.DockButton(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .defaultMinSize(minHeight = 56.dp)
+            .pressScale(interaction)
+            .clip(RoundedCornerShape(JarvisRadius.Card))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        // The clickable merges its children, so the button is announced by its text label.
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = JarvisCyan,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            color = JarvisTextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/StatusStrip.kt =====
+package com.jarvismini.ui.home
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+
+/**
+ * One live status shown in [StatusStrip].
+ *
+ * [state] is the word shown to the user ("Active", "Offline", "Unknown"), and [ok] picks the
+ * dot colour: true = online, false = offline, null = unknown/neutral. Build these from real
+ * state only; do not pass literal "Online" strings for things that are not being checked.
+ */
+data class StatusChipData(
+    val label: String,
+    val state: String,
+    val ok: Boolean?,
+)
+
+/**
+ * A single glass row that replaces a stack of status cards: 2 to 3 compact chips side by side.
+ * State is carried by the word as well as the dot colour, so it does not rely on colour alone
+ * (WCAG 1.4.1), and each chip is announced as one unit, "Voice, Active".
+ * Pass [onChipClick] to make chips tappable (48dp minimum height), e.g. to open a detail sheet.
+ */
+@Composable
+fun StatusStrip(
+    chips: List<StatusChipData>,
+    modifier: Modifier = Modifier,
+    onChipClick: ((StatusChipData) -> Unit)? = null,
+) {
+    GlassSurface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(JarvisRadius.Card),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            chips.forEach { chip ->
+                StatusChip(chip, onChipClick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.StatusChip(
+    chip: StatusChipData,
+    onChipClick: ((StatusChipData) -> Unit)?,
+) {
+    val dot = when (chip.ok) {
+        true -> JarvisOnline
+        false -> JarvisOffline
+        null -> JarvisTextSecondary
+    }
+    val base = Modifier
+        .weight(1f)
+        .defaultMinSize(minHeight = 48.dp)
+        .clip(RoundedCornerShape(JarvisRadius.Small))
+    val tappable = if (onChipClick != null) {
+        base.clickable(role = Role.Button) { onChipClick(chip) }
+    } else {
+        base.semantics(mergeDescendants = true) {}
+    }
+    Column(
+        modifier = tappable.padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = chip.label,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            color = JarvisTextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(dot, CircleShape),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = chip.state,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                color = JarvisTextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -14554,15 +15107,17 @@ fun Modifier.hudCornerTicks(color: Color, length: Dp = 10.dp, stroke: Dp = 1.5.d
     drawBehind {
         val l = length.toPx()
         val s = stroke.toPx()
-        val w = size.width
-        val h = size.height
+        // Inset by half the stroke so the clip does not cut the line in half.
+        val i = s / 2f
+        val w = size.width - i
+        val h = size.height - i
         fun tick(a: Offset, b: Offset, c: Offset) {
             drawLine(color, a, b, s)
             drawLine(color, b, c, s)
         }
-        tick(Offset(0f, l), Offset(0f, 0f), Offset(l, 0f))
-        tick(Offset(w - l, 0f), Offset(w, 0f), Offset(w, l))
-        tick(Offset(0f, h - l), Offset(0f, h), Offset(l, h))
+        tick(Offset(i, l), Offset(i, i), Offset(l, i))
+        tick(Offset(w - l, i), Offset(w, i), Offset(w, l))
+        tick(Offset(i, h - l), Offset(i, h), Offset(l, h))
         tick(Offset(w - l, h), Offset(w, h), Offset(w, h - l))
     }
 
@@ -14580,6 +15135,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.remember
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.Modifier
@@ -14642,6 +15202,32 @@ fun isMotionEnabled(ctx: Context): Boolean {
         false
     }
     return scale != 0f && !saver
+}
+
+/**
+ * Staggered enter: fade + small rise, delayed by index (capped at 6 x 35 ms).
+ * Instant when motion is disabled. Use on a static Column, not inside LazyColumn items
+ * (items replay the enter when scrolled back into view).
+ */
+@Composable
+fun Modifier.staggerEnter(index: Int): Modifier {
+    val enabled = rememberMotionEnabled()
+    var shown by remember { mutableStateOf(!enabled) }
+    LaunchedEffect(Unit) { shown = true }
+    val progress by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = JarvisMotion.Duration.Normal,
+            delayMillis = index.coerceIn(0, 6) * 35,
+            easing = JarvisMotion.Standard,
+        ),
+        label = "staggerEnter",
+    )
+    val rise = with(LocalDensity.current) { JarvisMotion.Distance.Medium.toPx() }
+    return this.graphicsLayer {
+        alpha = progress
+        translationY = (1f - progress) * rise
+    }
 }
 
 /** whileTap equivalent: scales to 0.96 on press using the instant spring. Feedback < 90 ms. */
