@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -17,11 +18,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlack
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.rememberMotionEnabled
+import com.jarvismini.ui.theme.staggerEnter
+
+// Log-level accents with no theme token yet. ERROR and INFO use JarvisOffline / JarvisCyan.
+private val LogWarning = Color(0xFFFFCC00)
+private val LogDebug = Color(0xFFE040FB)
 
 @Composable
 fun DebugScreen(onBack: () -> Unit) {
@@ -29,9 +50,14 @@ fun DebugScreen(onBack: () -> Unit) {
     val vm: DebugViewModel = viewModel(factory = DebugViewModel.Factory(context))
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
+    val motionEnabled = rememberMotionEnabled()
 
     LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
+        if (state.logs.isNotEmpty()) {
+            // reduced motion / battery saver: jump instead of animating
+            if (motionEnabled) listState.animateScrollToItem(state.logs.lastIndex)
+            else listState.scrollToItem(state.logs.lastIndex)
+        }
     }
 
     Box(
@@ -39,7 +65,7 @@ fun DebugScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .background(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                    colors = listOf(JarvisBlack, JarvisBackground, JarvisBlack)
                 )
             )
     ) {
@@ -50,14 +76,16 @@ fun DebugScreen(onBack: () -> Unit) {
         ) {
             // ── Top bar ───────────────────────────────────────────────────────
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .staggerEnter(0),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector        = Icons.Default.ArrowBack,
                         contentDescription = "Back",
-                        tint               = Color(0xFF00E0FF)
+                        tint               = JarvisCyan
                     )
                 }
                 Text(
@@ -65,97 +93,101 @@ fun DebugScreen(onBack: () -> Unit) {
                     fontSize      = 24.sp,
                     fontWeight    = FontWeight.Light,
                     letterSpacing = 4.sp,
-                    color         = Color(0xFF00E0FF)
+                    color         = JarvisCyan,
+                    maxLines      = 1,
+                    overflow      = TextOverflow.Ellipsis,
+                    modifier      = Modifier
+                        .weight(1f)
+                        .semantics { heading() }
                 )
-                Spacer(Modifier.weight(1f))
                 if (state.logs.isNotEmpty()) {
                     IconButton(onClick = vm::clearLogs) {
-                        Icon(Icons.Default.Delete, "Clear", tint = Color(0xFF00E0FF).copy(alpha = 0.6f))
+                        Icon(Icons.Default.Delete, "Clear logs", tint = JarvisCyan)
                     }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Stats header ──────────────────────────────────────────────────
-            Surface(
+            // ── Stats header (glass: the one summary cluster) ─────────────────
+            GlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(8.dp)
-                    ),
-                shape = RoundedCornerShape(8.dp),
-                color = Color.Black.copy(alpha = 0.5f)
+                    .staggerEnter(1),
+                shape = RoundedCornerShape(JarvisRadius.Card)
             ) {
                 Row(
                     modifier              = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(vertical = 16.dp, horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
                     StatItem("LOGS", state.logs.size.toString())
                     StatItem("CPU",  state.cpuPct)
                     StatItem("RAM",  state.ramMb)
+                    // The word ON / OFF carries the state, the colour only reinforces it.
                     StatItem(
                         label = "SERVER",
                         value = if (state.connected) "ON" else "OFF",
-                        valueColor = if (state.connected) Color(0xFF00FF88) else Color(0xFFFF4466)
+                        valueColor = if (state.connected) JarvisOnline else JarvisOffline
                     )
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Log pane ──────────────────────────────────────────────────────
+            // ── Log pane (dense log view: flat and solid, no glass) ───────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .staggerEnter(2)
                     .border(
                         width = 1.dp,
-                        color = Color(0xFF00E0FF).copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(8.dp)
+                        color = JarvisCyan.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(JarvisRadius.Small)
                     )
-                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .background(JarvisBlack.copy(alpha = 0.55f), RoundedCornerShape(JarvisRadius.Small))
                     .padding(8.dp)
             ) {
                 if (state.logs.isEmpty()) {
                     Text(
                         text       = "Waiting for logs…",
-                        color      = Color(0xFF00E0FF).copy(alpha = 0.4f),
+                        color      = JarvisTextSecondary,
                         fontSize   = 12.sp,
                         fontFamily = FontFamily.Monospace,
                         modifier   = Modifier.align(Alignment.Center)
                     )
                 } else {
-                    LazyColumn(
-                        state               = listState,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(state.logs, key = { it.id }) { entry ->
-                            Row {
-                                Text(
-                                    text       = "[${entry.level}]",
-                                    fontSize   = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    color      = when (entry.level) {
-                                        "ERROR"   -> Color(0xFFFF4466)
-                                        "WARNING" -> Color(0xFFFFCC00)
-                                        "DEBUG"   -> Color(0xFFE040FB)
-                                        else      -> Color(0xFF00E0FF)
-                                    }
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text       = entry.message,
-                                    fontSize   = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color      = Color.White.copy(alpha = 0.8f),
-                                    lineHeight = 15.sp,
-                                )
+                    // Selectable so a line can be copied for a bug report.
+                    SelectionContainer {
+                        LazyColumn(
+                            state               = listState,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(state.logs, key = { it.id }) { entry ->
+                                Row {
+                                    Text(
+                                        text       = "[${entry.level}]",
+                                        fontSize   = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color      = when (entry.level) {
+                                            "ERROR"   -> JarvisOffline
+                                            "WARNING" -> LogWarning
+                                            "DEBUG"   -> LogDebug
+                                            else      -> JarvisCyan
+                                        }
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text       = entry.message,
+                                        fontSize   = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color      = JarvisTextPrimary,
+                                        lineHeight = 15.sp,
+                                    )
+                                }
                             }
                         }
                     }
@@ -166,23 +198,32 @@ fun DebugScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun StatItem(
+private fun RowScope.StatItem(
     label:      String,
     value:      String,
-    valueColor: Color = Color(0xFF00E0FF),
+    valueColor: Color = JarvisCyan,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .weight(1f)
+            // announced as one unit, "LOGS 12", not value and label separately
+            .clearAndSetSemantics { contentDescription = "$label $value" }
+    ) {
         Text(
             text       = value,
             fontSize   = 20.sp,
             fontWeight = FontWeight.Bold,
-            color      = valueColor
+            color      = valueColor,
+            maxLines   = 1,
+            // tabular digits so live numbers do not jitter as they change
+            style      = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
         )
         Spacer(Modifier.height(4.dp))
         Text(
             text     = label,
             fontSize = 12.sp,
-            color    = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            color    = JarvisTextSecondary
         )
     }
 }
