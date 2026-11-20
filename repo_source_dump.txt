@@ -5673,52 +5673,52 @@ package com.jarvismini.ui.settings
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlack
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.rememberMotionEnabled
+import com.jarvismini.ui.theme.staggerEnter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import java.net.HttpURLConnection
-import java.net.URL
-
-@Composable
-fun ClientPairingScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    var serverIp by remember { mutableStateOf("") }
-    var serverPort by remember { mutableStateOf("8081") }
-    var deviceName by remember { mutableStateOf("JARVIS-Client-${(1000..9999).random()}") }
-    var isPairing by remember { mutableStateOf(false) }
-    var pairingResult by remember { mutableStateOf<PairingResult?>(null) }
-    
-    val scope = rememberCoroutineScope()
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black))
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
 
 // ... FILE TRUNCATED ...
 
@@ -5748,28 +5748,38 @@ data class PairData(
 package com.jarvismini.ui.settings
 
 import android.content.Context
-import androidx.compose.foundation.BorderStroke
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -5777,24 +5787,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.security.SecurityManager
-import com.jarvismini.server.LanServerService
-import com.jarvismini.voice.WakeWordService
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.net.NetworkInterface
-import java.text.SimpleDateFormat
-import java.util.*
-
-// Voice map: display name -> voice ID
-private val VOICE_MAP = linkedMapOf(
-    "Jarvis"    to "lNiTyQyEeDoFcsYb4RUT",
-    "Jarvis 2"  to "lNiTyQyEeDoFcsYb4RUT",
-    "Adam"      to "pNInz6obpgDQGcFmaJgB",
-    "Sarah"     to "EXAVITQu4vr4xnSDxMaL",
-    "Daniel"    to "onwK4e9ZLuTAKqWW03F9",
-    "Charlotte" to "XB0fDUnXU5powFXDhCwa",
-    "Callum"    to "N2lVS1w4EtoT3dr4eOWO",
-)
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlack
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
 
 // ... FILE TRUNCATED ...
 
