@@ -11970,6 +11970,8 @@ class DebugViewModel(private val context: Context) : ViewModel() {
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/home/EnhancedHomeScreen.kt =====
 package com.jarvismini.ui.home
 
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -11979,7 +11981,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -11988,6 +11989,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -11998,10 +12001,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -12009,27 +12010,21 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.jarvismini.convo.ConvoNotifier
 import com.jarvismini.ui.components.*
-import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBackground
 import com.jarvismini.ui.theme.JarvisCyan
 import com.jarvismini.ui.theme.JarvisMotion
-import com.jarvismini.ui.theme.JarvisOffline
-import com.jarvismini.ui.theme.JarvisOnline
-import com.jarvismini.ui.theme.JarvisRadius
 import com.jarvismini.ui.theme.JarvisTextPrimary
-import com.jarvismini.ui.theme.JarvisTextSecondary
-import com.jarvismini.ui.theme.pressScale
 import com.jarvismini.ui.theme.rememberMotionEnabled
 import com.jarvismini.ui.theme.staggerEnter
 import com.jarvismini.voice.VoiceTriggerManager
 
-private data class QuickAction(
-    val title: String,
-    val icon: ImageVector,
-    val onClick: () -> Unit,
-)
-
+/**
+ * Home: the voice orb is the single hero. Under it, one live status strip (real state only).
+ * The four primary destinations live in a bottom dock; everything else sits behind "More".
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedHomeScreen(
     onNavigateToChat:          () -> Unit,
@@ -12052,6 +12047,16 @@ fun EnhancedHomeScreen(
 
     var isListening   by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf("TAP TO ACTIVATE") }
+    var showMore      by remember { mutableStateOf(false) }
+
+    // ── Real status (checked, not hardcoded) ─────────────────────────────────
+    val a11yOn      = remember { isJarvisAccessibilityOn(context) }
+    val convoAlerts = remember { ConvoNotifier.isEnabled(context) }
+    val chips = listOf(
+        StatusChipData("Voice",         if (isListening) "Listening" else "Ready", if (isListening) true else null),
+        StatusChipData("Accessibility", if (a11yOn) "On" else "Off",               a11yOn),
+        StatusChipData("Convo alerts",  if (convoAlerts) "On" else "Off",          convoAlerts),
+    )
 
     // ── Pulse animation ──────────────────────────────────────────────────────
     // Decorative loops are gated: animator scale 0 / battery saver => static HUD.
@@ -12081,17 +12086,6 @@ fun EnhancedHomeScreen(
     )
     val ringRotation = if (motionEnabled) ringRotationAnimated else 0f
 
-    // Ordered by how often they are used: conversation first, maintenance last.
-    val quickActions = listOf(
-        QuickAction("Chat",        Icons.Default.Chat,          onNavigateToChat),
-        QuickAction("Agent",       Icons.Default.SmartToy,      onNavigateToAgent),
-        QuickAction("Tasks",       Icons.Default.Checklist,     onNavigateToChecklist),
-        QuickAction("Calendar",    Icons.Default.CalendarToday, onNavigateToCalendar),
-        QuickAction("Terminal",    Icons.Default.Terminal,      onNavigateToTermuxCommand),
-        QuickAction("Heal",        Icons.Default.Build,         onNavigateToHeal),
-        QuickAction("Multi-agent", Icons.Default.Groups,        onNavigateToConvo),
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -12107,16 +12101,13 @@ fun EnhancedHomeScreen(
             ScanLine()
         }
 
-        // One scrolling column: nothing is clipped on small screens or at large font scale.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(start = 20.dp, end = 20.dp, top = 12.dp),
         ) {
 
-            // ===== HEADER =====
+            // ===== TOP BAR: title + one icon =====
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -12135,36 +12126,32 @@ fun EnhancedHomeScreen(
                         .weight(1f)
                         .semantics { heading() }
                 )
-                Row {
-                    IconButton(onClick = onNavigateToDebug) {
-                        Icon(Icons.Default.BugReport, "Debug", tint = JarvisCyan)
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, "Settings", tint = JarvisCyan)
-                    }
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(Icons.Default.Settings, "Settings", tint = JarvisCyan)
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            // ===== HERO: voice orb + live state, one glass surface =====
-            GlassSurface(
-                modifier    = Modifier
+            // ===== CENTRE: orb (hero) + state line + status strip =====
+            // heightIn(min = maxHeight) keeps the content vertically centred when it fits,
+            // and lets it scroll on short screens or at large font scale.
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .staggerEnter(1),
-                shape       = RoundedCornerShape(JarvisRadius.Large),
-                cornerTicks = true
             ) {
                 Column(
-                    modifier            = Modifier
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 24.dp, horizontal = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .heightIn(min = maxHeight)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier         = Modifier
-                            .size(188.dp)
+                            .staggerEnter(1)
+                            .size(224.dp)
                             .semantics {
                                 contentDescription = "Voice assistant"
                                 stateDescription   = if (isListening) "Listening" else "Idle"
@@ -12201,7 +12188,7 @@ fun EnhancedHomeScreen(
                         // Outer ring
                         Box(
                             modifier = Modifier
-                                .size(168.dp)
+                                .size(200.dp)
                                 .alpha(if (isListening) pulseAlpha else 0.3f)
                                 .background(JarvisCyan.copy(alpha = 0.1f), CircleShape)
                                 .border(
@@ -12211,22 +12198,18 @@ fun EnhancedHomeScreen(
                                 )
                         )
                         // Rotating tick ring — four short arcs spinning slowly around the orb
-                        Canvas(modifier = Modifier.size(188.dp)) {
+                        Canvas(modifier = Modifier.size(224.dp)) {
                             rotate(ringRotation) {
                                 val stroke = 3.dp.toPx()
                                 val inset  = stroke / 2f
-                                val sweep  = 18f
                                 listOf(0f, 90f, 180f, 270f).forEach { start ->
                                     drawArc(
                                         color      = JarvisCyan.copy(alpha = if (isListening) 0.9f else 0.45f),
                                         startAngle = start,
-                                        sweepAngle = sweep,
+                                        sweepAngle = 18f,
                                         useCenter  = false,
-                                        topLeft    = androidx.compose.ui.geometry.Offset(inset, inset),
-                                        size       = androidx.compose.ui.geometry.Size(
-                                            size.width - stroke,
-                                            size.height - stroke
-                                        ),
+                                        topLeft    = Offset(inset, inset),
+                                        size       = Size(size.width - stroke, size.height - stroke),
                                         style      = Stroke(width = stroke, cap = StrokeCap.Round)
                                     )
                                 }
@@ -12235,14 +12218,14 @@ fun EnhancedHomeScreen(
                         // Mid ring
                         Box(
                             modifier = Modifier
-                                .size(126.dp)
+                                .size(150.dp)
                                 .background(JarvisCyan.copy(alpha = 0.05f), CircleShape)
                                 .border(1.dp, JarvisCyan.copy(alpha = 0.4f), CircleShape)
                         )
                         // Inner orb with mic icon
                         Box(
                             modifier = Modifier
-                                .size(86.dp)
+                                .size(100.dp)
                                 .shadow(
                                     elevation  = if (isListening) 30.dp else 10.dp,
                                     shape      = CircleShape,
@@ -12264,198 +12247,109 @@ fun EnhancedHomeScreen(
                                 contentDescription = null, // parent orb carries the semantics
                                 tint               = JarvisCyan,
                                 modifier           = Modifier
-                                    .size(36.dp)
+                                    .size(40.dp)
                                     .align(Alignment.Center)
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
 
-                    Text(
-                        text       = statusMessage,
-                        fontSize   = 14.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color      = JarvisTextPrimary,
-                        textAlign  = TextAlign.Center,
-                        modifier   = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(28.dp))
-
-            // ===== QUICK ACCESS: 3-column grid, every action visible without scrolling sideways =====
-            SectionLabel("QUICK ACCESS", Modifier.staggerEnter(2))
-
-            Spacer(Modifier.height(12.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                quickActions.chunked(3).forEachIndexed { rowIndex, row ->
-                    Row(
-                        modifier              = Modifier
+                    // Fixed-height box so LISTENING... / TAP TO ACTIVATE / error text never shifts the layout
+                    Box(
+                        modifier = Modifier
+                            .staggerEnter(2)
                             .fillMaxWidth()
-                            .staggerEnter(3 + rowIndex),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            .heightIn(min = 40.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        row.forEach { action ->
-                            QuickActionTile(
-                                title    = action.title,
-                                icon     = action.icon,
-                                onClick  = action.onClick,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        // keep the last row's tiles the same width as the rows above
-                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        Text(
+                            text       = statusMessage,
+                            fontSize   = 14.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color      = JarvisTextPrimary,
+                            textAlign  = TextAlign.Center,
+                            modifier   = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                        )
                     }
-                }
-            }
 
-            Spacer(Modifier.height(28.dp))
+                    Spacer(Modifier.height(20.dp))
 
-            // ===== SYSTEM STATUS: one card, rows separated by hairlines (was 5 bordered cards) =====
-            SectionLabel("SYSTEM STATUS", Modifier.staggerEnter(6))
-
-            Spacer(Modifier.height(12.dp))
-
-            GlassSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .staggerEnter(6),
-                shape = RoundedCornerShape(JarvisRadius.Card)
-            ) {
-                Column {
-                    val rows = listOf(
-                        Triple("Neural Networks",   "Online",  true),
-                        Triple("Voice Recognition", "Active",  true),
-                        Triple("Automation Engine", "Standby", false),
-                        Triple("Local LLM",         "Ready",   true),
-                        Triple("Agent Server",      "Standby", false),
+                    StatusStrip(
+                        chips    = chips,
+                        modifier = Modifier.staggerEnter(3)
                     )
-                    rows.forEachIndexed { index, (label, status, online) ->
-                        StatusRow(label, status, online)
-                        if (index < rows.lastIndex) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp)
-                                    .height(1.dp)
-                                    .background(JarvisCyan.copy(alpha = 0.12f))
-                            )
-                        }
-                    }
                 }
+            }
+
+            // ===== DOCK: four primary destinations + More =====
+            JarvisDock(
+                items = listOf(
+                    DockItem("Chat",     Icons.Default.Chat,      onNavigateToChat),
+                    DockItem("Tasks",    Icons.Default.Checklist, onNavigateToChecklist),
+                    DockItem("Agent",    Icons.Default.SmartToy,  onNavigateToAgent),
+                    DockItem("Terminal", Icons.Default.Terminal,  onNavigateToTermuxCommand),
+                ),
+                onMore   = { showMore = true },
+                modifier = Modifier
+                    .staggerEnter(4)
+                    .padding(top = 8.dp, bottom = 12.dp)
+                    .navigationBarsPadding()
+            )
+        }
+    }
+
+    // ===== MORE: secondary destinations =====
+    if (showMore) {
+        ModalBottomSheet(
+            onDismissRequest = { showMore = false },
+            sheetState       = rememberModalBottomSheetState(),
+            containerColor   = JarvisBackground,
+            contentColor     = JarvisTextPrimary,
+        ) {
+            Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                MoreRow("Calendar",    Icons.Default.CalendarToday) { showMore = false; onNavigateToCalendar() }
+                MoreRow("Multi-agent", Icons.Default.Groups)        { showMore = false; onNavigateToConvo() }
+                MoreRow("Heal",        Icons.Default.Build)         { showMore = false; onNavigateToHeal() }
+                MoreRow("Debug",       Icons.Default.BugReport)     { showMore = false; onNavigateToDebug() }
             }
         }
     }
 }
 
-// ─── Local components ─────────────────────────────────────────────────────────
+// ─── Local helpers ────────────────────────────────────────────────────────────
 
-@Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text          = text,
-        fontSize      = 12.sp,
-        fontFamily    = FontFamily.Monospace,
-        letterSpacing = 2.sp,
-        color         = JarvisTextSecondary,
-        modifier      = modifier
-            .fillMaxWidth()
-            .semantics { heading() }
-    )
+/** True when one of our accessibility services is enabled in system settings. */
+private fun isJarvisAccessibilityOn(ctx: Context): Boolean = try {
+    Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        ?.contains(ctx.packageName) == true
+} catch (_: Throwable) {
+    false
 }
 
 @Composable
-private fun QuickActionTile(
-    title:    String,
-    icon:     ImageVector,
-    onClick:  () -> Unit,
-    modifier: Modifier = Modifier,
+private fun MoreRow(
+    label:   String,
+    icon:    ImageVector,
+    onClick: () -> Unit,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    GlassSurface(
-        modifier = modifier
-            .heightIn(min = 92.dp)
-            .pressScale(interaction)
-            .clickable(
-                interactionSource = interaction,
-                indication        = null,
-                role              = Role.Button,
-                onClick           = onClick
-            ),
-        shape       = RoundedCornerShape(JarvisRadius.Card),
-        cornerTicks = true
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 92.dp)
-                .padding(horizontal = 6.dp, vertical = 12.dp)
-                // icon + label read as one button named by its text
-                .clearAndSetSemantics { contentDescription = title },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector        = icon,
-                contentDescription = null,
-                tint               = JarvisCyan,
-                modifier           = Modifier.size(30.dp)
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text       = title,
-                fontSize   = 13.sp,
-                color      = JarvisTextPrimary,
-                fontFamily = FontFamily.Monospace,
-                maxLines   = 1,
-                overflow   = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatusRow(
-    label:    String,
-    status:   String,
-    isOnline: Boolean,
-) {
-    val statusColor = if (isOnline) JarvisOnline else JarvisOffline
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // one announcement: "Neural Networks, Online"; dot is decorative
-            .semantics(mergeDescendants = true) {}
-            .heightIn(min = 48.dp)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+            .heightIn(min = 56.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // the row is announced by its label; the icon is decorative
+        Icon(icon, contentDescription = null, tint = JarvisCyan, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(16.dp))
         Text(
             text       = label,
-            fontSize   = 14.sp,
+            fontSize   = 15.sp,
             fontFamily = FontFamily.Monospace,
-            color      = JarvisTextPrimary,
-            modifier   = Modifier.weight(1f)
+            color      = JarvisTextPrimary
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(color = statusColor, shape = CircleShape)
-            )
-            Spacer(Modifier.width(8.dp))
-            // state is conveyed by the word, not only by colour
-            Text(
-                text       = status,
-                fontSize   = 13.sp,
-                fontFamily = FontFamily.Monospace,
-                color      = statusColor
-            )
-        }
     }
 }
 
