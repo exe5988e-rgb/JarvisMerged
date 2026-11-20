@@ -5023,6 +5023,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -5033,57 +5034,56 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlack
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.rememberMotionEnabled
+import com.jarvismini.ui.theme.staggerEnter
+
+// Log-level accents with no theme token yet. ERROR and INFO use JarvisOffline / JarvisCyan.
+private val LogWarning = Color(0xFFFFCC00)
+private val LogDebug = Color(0xFFE040FB)
 
 @Composable
 fun DebugScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val vm: DebugViewModel = viewModel(factory = DebugViewModel.Factory(context))
-    val state by vm.state.collectAsState()
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) listState.animateScrollToItem(state.logs.lastIndex)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
-                )
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp)
-        ) {
 
 // ... FILE TRUNCATED ...
 
-private fun StatItem(
-    label:      String,
-    value:      String,
-    valueColor: Color = Color(0xFF00E0FF),
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // announced as one unit, "LOGS 12", not value and label separately
+            .clearAndSetSemantics { contentDescription = "$label $value" }
+    ) {
         Text(
             text       = value,
             fontSize   = 20.sp,
             fontWeight = FontWeight.Bold,
-            color      = valueColor
+            color      = valueColor,
+            maxLines   = 1,
+            // tabular digits so live numbers do not jitter as they change
+            style      = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
         )
         Spacer(Modifier.height(4.dp))
         Text(
             text     = label,
             fontSize = 12.sp,
-            color    = Color(0xFF00E0FF).copy(alpha = 0.6f)
+            color    = JarvisTextSecondary
         )
     }
 }
@@ -5397,10 +5397,16 @@ data class StatusChipData(
 package com.jarvismini.ui.llm
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -5409,59 +5415,53 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlack
 import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.rememberMotionEnabled
 
 /**
  * Main screen for Termux command generation
- * 
- * ✅ FIXED: ViewModel moved to separate file
- * Now uses FIFO for all command execution (no more Termux intent)
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TermuxCommandScreen(
-    onNavigateBack: () -> Unit = {}
-) {
-    val context = LocalContext.current
-    val viewModel = remember { TermuxCommandViewModel(context) }
-    
-    val uiState by viewModel.uiState.collectAsState()
-    val serverStatus by viewModel.serverStatus.collectAsState()
-    val commandHistory by viewModel.commandHistory.collectAsState()
-    
-    var currentQuery by remember { mutableStateOf("") }
-    var showHistory by remember { mutableStateOf(false) }
-    
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Termux Command Generator") },
-                navigationIcon = {
+ *
 
 // ... FILE TRUNCATED ...
 
-            Spacer(modifier = Modifier.height(4.dp))
-            
+
             Text(
                 item.command,
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.6f),
-                maxLines = 1
+                color = JarvisTextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            
+
             if (item.executionMethod != null) {
                 Text(
                     "via ${item.executionMethod}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = JarvisCyan.copy(alpha = 0.6f)
+                    color = JarvisTextSecondary
                 )
             }
         }
