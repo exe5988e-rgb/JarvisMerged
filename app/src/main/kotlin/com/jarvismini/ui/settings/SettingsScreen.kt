@@ -1,28 +1,38 @@
 package com.jarvismini.ui.settings
 
 import android.content.Context
-import androidx.compose.foundation.BorderStroke
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -30,13 +40,19 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jarvismini.core.JarvisPrefs
 import com.jarvismini.security.SecurityManager
-import com.jarvismini.server.LanServerService
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlack
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
+import com.jarvismini.ui.theme.staggerEnter
 import com.jarvismini.voice.WakeWordService
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.net.NetworkInterface
-import java.text.SimpleDateFormat
-import java.util.*
 
 // Voice map: display name -> voice ID
 private val VOICE_MAP = linkedMapOf(
@@ -49,12 +65,16 @@ private val VOICE_MAP = linkedMapOf(
     "Callum"    to "N2lVS1w4EtoT3dr4eOWO",
 )
 
+// Flat surfaces derived from the theme (settings are text-heavy: solid rows, glass only on the summary).
+private val RowSurface = JarvisCyan.copy(alpha = 0.06f).compositeOver(JarvisBackground)
+private val DialogSurface = JarvisCyan.copy(alpha = 0.09f).compositeOver(JarvisBackground)
+private val Hairline = JarvisCyan.copy(alpha = 0.18f)
+
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val context  = LocalContext.current
     val prefs    = remember { context.getSharedPreferences("jarvis_llm", Context.MODE_PRIVATE) }
     val securityManager = remember { SecurityManager.getInstance(context) }
-    val scope    = rememberCoroutineScope()
 
     // LLM / Model state
     var selectedModel    by remember { mutableStateOf(prefs.getString("selected_model", "gpt-4o-mini") ?: "gpt-4o-mini") }
@@ -65,8 +85,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var showApiKey       by remember { mutableStateOf(false) }
 
     // LAN server state
-    var isServerRunning         by remember { mutableStateOf(false) }
-    var serverIpAddress         by remember { mutableStateOf(getLocalIpAddress()) }
+    val serverIpAddress         by remember { mutableStateOf(getLocalIpAddress()) }
     var pairedDevices           by remember { mutableStateOf(securityManager.getPairedDevices()) }
     var isPairingMode           by remember { mutableStateOf(false) }
     var pairingTimeLeft         by remember { mutableStateOf(0) }
@@ -95,6 +114,9 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
+    // Back from the pairing sub-screen returns to Settings, not all the way Home.
+    BackHandler(enabled = showClientPairingScreen) { showClientPairingScreen = false }
+
     if (showClientPairingScreen) {
         ClientPairingScreen(onBack = { showClientPairingScreen = false })
         return
@@ -103,48 +125,60 @@ fun SettingsScreen(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.radialGradient(listOf(Color.Black, Color(0xFF001520), Color.Black)))
+            .background(Brush.radialGradient(listOf(JarvisBlack, JarvisBackground, JarvisBlack)))
     ) {
-        Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = Color(0xFF00E0FF))
+                    Icon(Icons.Default.ArrowBack, "Back", tint = JarvisCyan)
                 }
-                Text("SETTINGS", fontSize = 24.sp, fontWeight = FontWeight.Light,
-                    letterSpacing = 4.sp, color = Color(0xFF00E0FF))
+                Text(
+                    "SETTINGS", fontSize = 24.sp, fontWeight = FontWeight.Light,
+                    letterSpacing = 4.sp, color = JarvisCyan,
+                    modifier = Modifier.semantics { heading() }
+                )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+
+                // ── Summary (the one glass surface) ───────────────────────
+                ConfigSummary(
+                    model     = getModelDisplayName(selectedModel),
+                    ip        = serverIpAddress,
+                    pairing   = isPairingMode,
+                    voiceOut  = ttsEnabled,
+                    modifier  = Modifier.staggerEnter(0)
+                )
 
                 // ── LLM ──────────────────────────────────────────────────
-                item { SectionLabel("LLM CONFIGURATION") }
-                item {
-                    SettingsTile("AI Model", getModelDisplayName(selectedModel),
-                        Icons.Default.Psychology) { showModelDialog = true }
-                }
-                item {
-                    SettingsTile("Cloud API Provider", cloudProvider, Icons.Default.Cloud) {
+                SettingsSection("LLM CONFIGURATION", Modifier.staggerEnter(1)) {
+                    SettingsRow("AI Model", getModelDisplayName(selectedModel),
+                        Icons.Default.Psychology, onClickLabel = "Change model") { showModelDialog = true }
+                    RowDivider()
+                    SettingsRow("Cloud API Provider", cloudProvider, Icons.Default.Cloud,
+                        onClickLabel = "Switch provider") {
                         cloudProvider = if (cloudProvider == "OPENAI") "ANTHROPIC" else "OPENAI"
                         prefs.edit().putString("cloud_provider", cloudProvider).apply()
                     }
-                }
-                item {
-                    SettingsTile("API Key", if (apiKey.isEmpty()) "Not Configured" else "••••••••",
-                        Icons.Default.Key) { showApiKeyDialog = true }
+                    RowDivider()
+                    SettingsRow("API Key", if (apiKey.isEmpty()) "Not configured" else "••••••••",
+                        Icons.Default.Key, onClickLabel = "Edit API key") { showApiKeyDialog = true }
                 }
 
                 // ── LAN Server ────────────────────────────────────────────
-                item { SectionLabel("LAN SERVER") }
-                item {
-                    SettingsTile("Server IP", serverIpAddress, Icons.Default.Wifi) {}
-                }
-                item {
-                    SettingsTile(
+                SettingsSection("LAN SERVER", Modifier.staggerEnter(2)) {
+                    SettingsRow("Server IP", serverIpAddress, Icons.Default.Wifi, monoSubtitle = true)
+                    RowDivider()
+                    SettingsRow(
                         "Pairing Mode",
-                        if (isPairingMode) "Active ($pairingTimeLeft sec remaining)" else "Disabled — tap to enable",
-                        if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled
+                        if (isPairingMode) "Active — $pairingTimeLeft s remaining" else "Disabled — tap to enable",
+                        if (isPairingMode) Icons.Default.BluetoothSearching else Icons.Default.BluetoothDisabled,
+                        onClickLabel = if (isPairingMode) "Disable pairing mode" else "Enable pairing mode"
                     ) {
                         if (isPairingMode) {
                             securityManager.disablePairingMode()
@@ -155,29 +189,28 @@ fun SettingsScreen(onBack: () -> Unit) {
                             showPairingDialog = true
                         }
                     }
-                }
-                item {
-                    SettingsTile(
+                    RowDivider()
+                    SettingsRow(
                         "Paired Devices",
                         "${pairedDevices.size} device(s) paired",
-                        Icons.Default.Devices
+                        Icons.Default.Devices,
+                        onClickLabel = "Show paired devices"
                     ) {
                         pairedDevices = securityManager.getPairedDevices()
                         showDeviceListDialog = true
                     }
-                }
-                item {
-                    SettingsTile(
+                    RowDivider()
+                    SettingsRow(
                         "Pair As Client",
                         "Connect to another JARVIS device",
-                        Icons.Default.DeviceHub
+                        Icons.Default.DeviceHub,
+                        onClickLabel = "Open client pairing"
                     ) { showClientPairingScreen = true }
                 }
 
                 // ── Agent ─────────────────────────────────────────────────
-                item { SectionLabel("AGENT SETTINGS") }
-                item {
-                    SettingsTileEditable(
+                SettingsSection("AGENT SETTINGS", Modifier.staggerEnter(3)) {
+                    EditableRow(
                         title  = "Phone A Host",
                         value  = agentHost,
                         icon   = Icons.Default.PhoneAndroid,
@@ -190,10 +223,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
 
                 // ── Voice / TTS ────────────────────────────────────────────
-                item { SectionLabel("VOICE — ELEVENLABS") }
-                item {
-                    SettingsTileToggle(
+                SettingsSection("VOICE — ELEVENLABS", Modifier.staggerEnter(4)) {
+                    ToggleRow(
                         title    = "Voice Output",
+                        subtitle = "Speak replies aloud",
                         checked  = ttsEnabled,
                         icon     = Icons.Default.VolumeUp,
                         onToggle = { v ->
@@ -201,10 +234,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                             prefs.edit().putBoolean("tts_enabled", v).apply()
                         }
                     )
-                }
-                item {
-                    SettingsTileToggle(
-                        title    = "Background Voice (always-on mic)",
+                    RowDivider()
+                    ToggleRow(
+                        title    = "Background Voice",
+                        subtitle = "Always-on microphone",
                         checked  = bgVoiceEnabled,
                         icon     = Icons.Default.Mic,
                         onToggle = { v ->
@@ -212,20 +245,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                             WakeWordService.setBackgroundVoiceEnabled(context, v)
                         }
                     )
-                }
-                item {
-                    SettingsTile(
+                    RowDivider()
+                    SettingsRow(
                         "ElevenLabs API Keys",
                         if (elevenApiKeys.isBlank()) "Not configured"
                         else "${elevenApiKeys.lines().filter { it.isNotBlank() }.size} key(s) — one per line",
-                        Icons.Default.Key
+                        Icons.Default.Key,
+                        onClickLabel = "Edit ElevenLabs keys"
                     ) { showElevenDialog = true }
-                }
-                item {
-                    SettingsTile("Voice", selectedVoice, Icons.Default.RecordVoiceOver) {
+                    RowDivider()
+                    SettingsRow("Voice", selectedVoice, Icons.Default.RecordVoiceOver,
+                        onClickLabel = "Change voice") {
                         showVoiceDialog = true
                     }
                 }
+
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
@@ -304,110 +339,280 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
-// ─── Composable helpers ───────────────────────────────────────────────────────
+// ─── Layout building blocks ───────────────────────────────────────────────────
 
+/** Glass summary of the live config: one scannable hero instead of five equal tiles. */
 @Composable
-private fun SectionLabel(text: String) {
-    Text(text, fontSize = 12.sp, letterSpacing = 2.sp,
-        color = Color(0xFF00E0FF), fontFamily = FontFamily.Monospace,
-        modifier = Modifier.padding(bottom = 4.dp, top = 8.dp))
-}
-
-@Composable
-private fun SettingsTile(
-    title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit
+private fun ConfigSummary(
+    model: String, ip: String, pairing: Boolean, voiceOut: Boolean, modifier: Modifier = Modifier
 ) {
-    Surface(
-        onClick  = onClick,
-        shape    = RoundedCornerShape(10.dp),
-        color    = Color(0xFF0A1A22),
-        modifier = Modifier.fillMaxWidth()
+    GlassSurface(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {},
+        shape = RoundedCornerShape(JarvisRadius.Large),
+        cornerTicks = true
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 13.sp, color = Color.White)
-                Text(subtitle, fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
-            }
-            Icon(Icons.Default.ChevronRight, null,
-                tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun SettingsTileToggle(
-    title: String, checked: Boolean, icon: ImageVector, onToggle: (Boolean) -> Unit
-) {
-    Surface(
-        shape    = RoundedCornerShape(10.dp),
-        color    = Color(0xFF0A1A22),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
-            Text(title, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-            Switch(
-                checked         = checked,
-                onCheckedChange = onToggle,
-                colors          = SwitchDefaults.colors(
-                    checkedThumbColor = Color(0xFF00E0FF),
-                    checkedTrackColor = Color(0xFF00E0FF).copy(alpha = 0.3f),
-                )
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+            Text("ACTIVE MODEL", fontSize = 11.sp, letterSpacing = 2.sp,
+                color = JarvisTextSecondary, fontFamily = FontFamily.Monospace)
+            Spacer(Modifier.height(4.dp))
+            Text(model, fontSize = 20.sp, fontWeight = FontWeight.Medium, color = JarvisTextPrimary)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "LAN $ip  ·  PAIRING ${if (pairing) "ON" else "OFF"}  ·  VOICE ${if (voiceOut) "ON" else "OFF"}",
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = JarvisTextSecondary
             )
         }
     }
 }
 
+/** Heading + one flat card that groups related rows (fewer boxes, clearer hierarchy). */
 @Composable
-private fun SettingsTileEditable(
+private fun SettingsSection(
+    label: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val shape = RoundedCornerShape(JarvisRadius.Card)
+    Column(modifier.fillMaxWidth()) {
+        Text(
+            label, fontSize = 12.sp, letterSpacing = 2.sp,
+            color = JarvisTextSecondary, fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp).semantics { heading() }
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(RowSurface)
+                .border(1.dp, Hairline, shape),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun RowDivider() {
+    Box(Modifier.fillMaxWidth().padding(start = 54.dp).height(1.dp).background(Hairline))
+}
+
+/** Navigation / action row. 56dp minimum, whole row is the target; no onClick = info-only row. */
+@Composable
+private fun SettingsRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    monoSubtitle: Boolean = false,
+    onClickLabel: String? = null,
+    onClick: (() -> Unit)? = null
+) {
+    val base = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+    val target = if (onClick != null) {
+        base.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
+    } else {
+        base.semantics(mergeDescendants = true) {}
+    }
+    Row(
+        target.padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = JarvisCyan, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, color = JarvisTextPrimary)
+            Text(
+                subtitle, fontSize = 12.sp, color = JarvisTextSecondary,
+                fontFamily = if (monoSubtitle) FontFamily.Monospace else FontFamily.Default
+            )
+        }
+        if (onClick != null) {
+            Icon(Icons.Default.ChevronRight, null,
+                tint = JarvisTextSecondary, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+/** Whole row toggles; the switch is visual only so TalkBack reads one "Switch, on/off" element. */
+@Composable
+private fun ToggleRow(
+    title: String, subtitle: String, checked: Boolean, icon: ImageVector, onToggle: (Boolean) -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onToggle)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = JarvisCyan, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, color = JarvisTextPrimary)
+            Text(subtitle, fontSize = 12.sp, color = JarvisTextSecondary)
+        }
+        Switch(
+            checked         = checked,
+            onCheckedChange = null,
+            colors          = SwitchDefaults.colors(
+                checkedThumbColor    = JarvisBlack,
+                checkedTrackColor    = JarvisCyan,
+                uncheckedThumbColor  = JarvisTextSecondary,
+                uncheckedTrackColor  = Hairline,
+                uncheckedBorderColor = JarvisTextSecondary.copy(alpha = 0.6f),
+            )
+        )
+    }
+}
+
+@Composable
+private fun EditableRow(
     title: String, value: String, icon: ImageVector,
     hint: String = "", onSave: (String) -> Unit
 ) {
     var editing by remember { mutableStateOf(false) }
     var text    by remember { mutableStateOf(value) }
+    val focus   = remember { FocusRequester() }
 
-    Surface(
-        onClick  = { editing = true },
-        shape    = RoundedCornerShape(10.dp),
-        color    = Color(0xFF0A1A22),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Color(0xFF00E0FF), modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
-            if (editing) {
-                OutlinedTextField(
-                    value         = text,
-                    onValueChange = { text = it },
-                    singleLine    = true,
-                    modifier      = Modifier.weight(1f),
-                    colors        = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor   = Color(0xFF00E0FF),
-                        unfocusedBorderColor = Color(0xFF005566),
-                        cursorColor          = Color(0xFF00E0FF),
-                    ),
-                    textStyle = LocalTextStyle.current.copy(
-                        color      = Color.White,
-                        fontSize   = 13.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
+    LaunchedEffect(editing) { if (editing) focus.requestFocus() }
+
+    val rowModifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+    if (editing) {
+        Row(
+            rowModifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, null, tint = JarvisCyan, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(14.dp))
+            OutlinedTextField(
+                value           = text,
+                onValueChange   = { text = it },
+                label           = { Text(title) },
+                singleLine      = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSave(text); editing = false }),
+                modifier        = Modifier.weight(1f).focusRequester(focus),
+                colors          = fieldColors(),
+                textStyle       = LocalTextStyle.current.copy(
+                    color = JarvisTextPrimary, fontSize = 14.sp, fontFamily = FontFamily.Monospace
                 )
-                TextButton(onClick = { onSave(text); editing = false }) {
-                    Text("Save", color = Color(0xFF00E0FF))
-                }
-            } else {
-                Column(Modifier.weight(1f)) {
-                    Text(title, fontSize = 13.sp, color = Color.White)
-                    Text(value.ifBlank { hint }, fontSize = 11.sp,
-                        color = if (value.isBlank()) Color.White.copy(0.3f) else Color.White.copy(0.5f))
-                }
-                Icon(Icons.Default.Edit, null,
-                    tint = Color.White.copy(0.3f), modifier = Modifier.size(16.dp))
+            )
+            TextButton(onClick = { onSave(text); editing = false }) {
+                Text("Save", color = JarvisCyan)
             }
         }
+    } else {
+        Row(
+            rowModifier
+                .clickable(onClickLabel = "Edit $title", role = Role.Button) {
+                    text = value
+                    editing = true
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, null, tint = JarvisCyan, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 14.sp, color = JarvisTextPrimary)
+                Text(
+                    value.ifBlank { hint }, fontSize = 12.sp,
+                    color = JarvisTextSecondary, fontFamily = FontFamily.Monospace
+                )
+            }
+            Icon(Icons.Default.Edit, null,
+                tint = JarvisTextSecondary, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor   = JarvisCyan,
+    unfocusedBorderColor = JarvisCyan.copy(alpha = 0.5f),   // >= 3:1 against the dialog surface
+    cursorColor          = JarvisCyan,
+    focusedLabelColor    = JarvisCyan,
+    unfocusedLabelColor  = JarvisTextSecondary,
+    focusedTextColor     = JarvisTextPrimary,
+    unfocusedTextColor   = JarvisTextPrimary,
+)
+
+// ─── Dialog building blocks ───────────────────────────────────────────────────
+
+@Composable
+private fun DialogCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(JarvisRadius.Large)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(DialogSurface)
+            .border(1.dp, Hairline, shape)
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp)
+    ) {
+        Text(
+            title, fontSize = 16.sp, color = JarvisCyan, fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() }
+        )
+        Spacer(Modifier.height(12.dp))
+        content()
+    }
+}
+
+/** Whole row selects; the radio is visual only (one TalkBack element, Role.RadioButton). */
+@Composable
+private fun RadioOption(selected: Boolean, title: String, detail: String, onSelect: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick  = null,
+            colors   = RadioButtonDefaults.colors(
+                selectedColor   = JarvisCyan,
+                unselectedColor = JarvisTextSecondary
+            )
+        )
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(title, fontSize = 14.sp, color = JarvisTextPrimary)
+            if (detail.isNotEmpty()) {
+                Text(detail, fontSize = 11.sp, color = JarvisTextSecondary,
+                    fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrimaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    Button(
+        onClick           = onClick,
+        interactionSource = source,
+        modifier          = modifier.heightIn(min = 48.dp).pressScale(source),
+        colors            = ButtonDefaults.buttonColors(
+            containerColor = JarvisCyan, contentColor = JarvisBlack)
+    ) { Text(text) }
+}
+
+@Composable
+private fun DialogActions(onCancel: () -> Unit, onSave: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text("Cancel", color = JarvisTextSecondary)
+        }
+        Spacer(Modifier.width(8.dp))
+        PrimaryButton("Save", onClick = onSave)
     }
 }
 
@@ -424,34 +629,9 @@ private fun ModelSelectorDialog(selected: String, onSelect: (String) -> Unit, on
         "local"                             to "Local LLM (Termux)",
     )
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
-                .padding(20.dp)
-        ) {
-            Text("Select AI Model", fontSize = 16.sp, color = Color(0xFF00E0FF),
-                fontFamily = FontFamily.Monospace)
-            Spacer(Modifier.height(12.dp))
+        DialogCard("Select AI Model") {
             models.forEach { (id, name) ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(id) }
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selected == id,
-                        onClick  = { onSelect(id) },
-                        colors   = RadioButtonDefaults.colors(selectedColor = Color(0xFF00E0FF))
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text(name, fontSize = 13.sp, color = Color.White)
-                        Text(id, fontSize = 10.sp, color = Color.White.copy(0.4f),
-                            fontFamily = FontFamily.Monospace)
-                    }
-                }
+                RadioOption(selected == id, name, id) { onSelect(id) }
             }
         }
     }
@@ -464,46 +644,30 @@ private fun ApiKeyDialog(
 ) {
     var text by remember { mutableStateOf(current) }
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
-                .padding(20.dp)
-        ) {
-            Text("API Key", fontSize = 16.sp, color = Color(0xFF00E0FF))
-            Spacer(Modifier.height(12.dp))
+        DialogCard("API Key") {
             OutlinedTextField(
                 value                = text,
                 onValueChange        = { text = it },
+                label                = { Text("API key") },
                 singleLine           = true,
                 visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon         = {
                     IconButton(onClick = onToggleShow) {
                         Icon(
                             if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            null, tint = Color(0xFF00E0FF)
+                            if (showKey) "Hide API key" else "Show API key",
+                            tint = JarvisCyan
                         )
                     }
                 },
                 modifier  = Modifier.fillMaxWidth(),
-                colors    = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = Color(0xFF00E0FF),
-                    unfocusedBorderColor = Color(0xFF005566),
-                    cursorColor          = Color(0xFF00E0FF),
-                ),
+                colors    = fieldColors(),
                 textStyle = LocalTextStyle.current.copy(
-                    color = Color.White, fontFamily = FontFamily.Monospace
+                    color = JarvisTextPrimary, fontFamily = FontFamily.Monospace
                 )
             )
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(0.5f)) }
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = { onSave(text) },
-                    colors  = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E0FF), contentColor = Color.Black)
-                ) { Text("Save") }
-            }
+            DialogActions(onCancel = onDismiss, onSave = { onSave(text) })
         }
     }
 }
@@ -515,41 +679,23 @@ private fun MultiLineDialog(
 ) {
     var text by remember { mutableStateOf(current) }
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
-                .padding(20.dp)
-        ) {
-            Text(title, fontSize = 16.sp, color = Color(0xFF00E0FF))
-            Spacer(Modifier.height(8.dp))
-            Text(hint, fontSize = 11.sp, color = Color.White.copy(0.4f),
-                fontFamily = FontFamily.Monospace)
+        DialogCard(title) {
+            Text(hint, fontSize = 12.sp, color = JarvisTextSecondary)
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value         = text,
                 onValueChange = { text = it },
+                label         = { Text("Keys") },
                 minLines      = 4,
                 maxLines      = 8,
                 modifier      = Modifier.fillMaxWidth(),
-                colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = Color(0xFF00E0FF),
-                    unfocusedBorderColor = Color(0xFF005566),
-                    cursorColor          = Color(0xFF00E0FF),
-                ),
-                textStyle = LocalTextStyle.current.copy(
-                    color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace
+                colors        = fieldColors(),
+                textStyle     = LocalTextStyle.current.copy(
+                    color = JarvisTextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace
                 )
             )
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(0.5f)) }
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = { onSave(text) },
-                    colors  = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E0FF), contentColor = Color.Black)
-                ) { Text("Save") }
-            }
+            DialogActions(onCancel = onDismiss, onSave = { onSave(text) })
         }
     }
 }
@@ -562,37 +708,9 @@ private fun VoiceSelectorDialog(
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
-                .padding(20.dp)
-        ) {
-            Text("Select Voice", fontSize = 16.sp, color = Color(0xFF00E0FF))
-            Spacer(Modifier.height(12.dp))
+        DialogCard("Select Voice") {
             voices.forEach { v ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(v) }
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selected == v,
-                        onClick  = { onSelect(v) },
-                        colors   = RadioButtonDefaults.colors(selectedColor = Color(0xFF00E0FF))
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text(v, fontSize = 13.sp, color = Color.White)
-                        Text(
-                            VOICE_MAP[v] ?: "",
-                            fontSize   = 10.sp,
-                            color      = Color.White.copy(0.35f),
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
+                RadioOption(selected == v, v, VOICE_MAP[v] ?: "") { onSelect(v) }
             }
         }
     }
@@ -605,42 +723,32 @@ private fun PairingInstructionsDialog(
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
-                .padding(20.dp)
-        ) {
-            Text("PAIRING MODE ACTIVE", fontSize = 16.sp, color = Color(0xFF00E0FF),
-                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+        DialogCard("PAIRING MODE ACTIVE") {
             Text("Time remaining: $timeLeft sec", fontSize = 13.sp,
-                color = Color(0xFF00FF88), fontFamily = FontFamily.Monospace)
+                color = JarvisOnline, fontFamily = FontFamily.Monospace)
             Spacer(Modifier.height(12.dp))
-            Text("Send a POST request to:", fontSize = 12.sp, color = Color.White.copy(0.7f))
+            Text("Send a POST request to:", fontSize = 12.sp, color = JarvisTextPrimary)
             Spacer(Modifier.height(6.dp))
-            Surface(shape = RoundedCornerShape(6.dp), color = Color.Black.copy(0.5f),
-                modifier = Modifier.fillMaxWidth()) {
-                Text("http://$ipAddress:8081/api/v1/pair", fontSize = 11.sp,
-                    color = Color(0xFF00FF88), fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(10.dp))
-            }
+            CodeBox("http://$ipAddress:8081/api/v1/pair")
             Spacer(Modifier.height(8.dp))
-            Text("With JSON body:", fontSize = 12.sp, color = Color.White.copy(0.7f))
+            Text("With JSON body:", fontSize = 12.sp, color = JarvisTextPrimary)
             Spacer(Modifier.height(6.dp))
-            Surface(shape = RoundedCornerShape(6.dp), color = Color.Black.copy(0.5f),
-                modifier = Modifier.fillMaxWidth()) {
-                Text("{\"device_name\": \"My Device\"}", fontSize = 11.sp,
-                    color = Color(0xFF00FF88), fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(10.dp))
-            }
+            CodeBox("{\"device_name\": \"My Device\"}")
             Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                colors  = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00E0FF), contentColor = Color.Black)
-            ) { Text("GOT IT") }
+            PrimaryButton("GOT IT", Modifier.fillMaxWidth(), onDismiss)
         }
+    }
+}
+
+@Composable
+private fun CodeBox(text: String) {
+    Surface(
+        shape = RoundedCornerShape(JarvisRadius.Small),
+        color = JarvisBlack.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(text, fontSize = 12.sp, color = JarvisOnline, fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(10.dp))
     }
 }
 
@@ -649,35 +757,36 @@ private fun DeviceListDialog(
     devices: List<com.jarvismini.security.TrustedDevice>, onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .background(Color(0xFF0A1A22), RoundedCornerShape(14.dp))
-                .padding(20.dp)
-        ) {
-            Text("Paired Devices", fontSize = 16.sp, color = Color(0xFF00E0FF))
-            Spacer(Modifier.height(12.dp))
+        DialogCard("Paired Devices") {
             if (devices.isEmpty()) {
-                Text("No paired devices", fontSize = 13.sp, color = Color.White.copy(0.5f))
+                Text("No paired devices", fontSize = 14.sp, color = JarvisTextSecondary)
             } else {
                 devices.forEach { d ->
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .semantics(mergeDescendants = true) {}
+                            .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Devices, null,
-                            tint = Color(0xFF00E0FF), modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(10.dp))
+                            tint = JarvisCyan, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
                         Column {
-                            Text(d.name, fontSize = 13.sp, color = Color.White)
-                            Text(d.ipAddress, fontSize = 11.sp,
-                                color = Color.White.copy(0.5f), fontFamily = FontFamily.Monospace)
+                            Text(d.name, fontSize = 14.sp, color = JarvisTextPrimary)
+                            Text(d.ipAddress, fontSize = 12.sp,
+                                color = JarvisTextSecondary, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
             }
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text("Close", color = Color(0xFF00E0FF))
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
+            ) {
+                Text("Close", color = JarvisCyan)
             }
         }
     }
