@@ -4224,10 +4224,10 @@ class ModelSelectorView @JvmOverloads constructor(
         tvLoadingMessage = findViewById(R.id.tvLoadingMessage)
         tvModelInfo = findViewById(R.id.tvModelInfo)
 
-        setupSpinner()
-        startStatusMonitoring()
-    }
-
+        // Accessibility: announce status changes politely, name the spinner for TalkBack.
+        tvStatus.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        if (spinnerModelSelect.contentDescription.isNullOrEmpty()) {
+            spinnerModelSelect.contentDescription = "AI model selection"
 
 // ... FILE TRUNCATED ...
 
@@ -4256,106 +4256,153 @@ class ModelSelectorView @JvmOverloads constructor(
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.ui.boot
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
+
+// ... FILE TRUNCATED ...
+
+            .semantics {
+                contentDescription = "Boot progress"
+                progressBarRangeInfo = ProgressBarRangeInfo(safeProgress, 0f..1f)
+            }
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(1.dp)
+                .fillMaxHeight()
+                .fillMaxWidth(safeProgress)
+                .clip(inner)
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(JarvisBlue, JarvisTextSecondary, JarvisBlue)
+                    ),
+                    shape = inner
+                )
+        )
+    }
+}
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/CalendarEventCard.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.ui.calendar
+
+import android.text.format.DateFormat
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jarvismini.ui.components.GridBackground
-import kotlinx.coroutines.delay
-import kotlin.math.PI
-import kotlin.math.max
+import com.jarvismini.core.calendar.model.CalendarEvent
+import com.jarvismini.core.calendar.model.EventStatus
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import java.util.Date
 
-data class BootStep(
-    val progress: Float,
-    val message: String,
-    val delayMs: Long
-)
-
-@Composable
-fun BootScreen(onBootComplete: () -> Unit) {
-    val bootSteps = remember {
-        listOf(
-            BootStep(0.15f, "INITIALIZING NEURAL NETWORKS...", 300),
-            BootStep(0.35f, "LOADING VISION SYSTEMS...", 500),
-            BootStep(0.55f, "CALIBRATING VOICE RECOGNITION...", 400),
-            BootStep(0.75f, "ESTABLISHING SECURE PROTOCOLS...", 600),
-            BootStep(0.95f, "SYSTEMS ONLINE...", 400),
-            BootStep(1.0f, "JARVIS OPERATIONAL", 500)
-        )
-    }
-
-    var currentStep by remember { mutableStateOf(0) }
-    var bootProgress by remember { mutableStateOf(0f) }
-    var bootMessage by remember { mutableStateOf("INITIALIZING...") }
-
+/**
+ * One row of the day schedule. Dense list item, so it stays a flat tinted card (no glass).
+ * Status is conveyed by icon + text label + stripe colour, never colour alone.
+ * The whole card is one TalkBack node: "06:30 to 07:30, Morning briefing, Scheduled".
 
 // ... FILE TRUNCATED ...
 
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(safeProgress)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(JarvisBlue, Color(0xFF0080FF), JarvisBlue)
-                    ),
-                    shape = RoundedCornerShape(4.dp)
+                    color = accent
                 )
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(4.dp),
-                    spotColor = JarvisBlue
-                )
-        )
-    }
-}
-
-val JarvisBlue = Color(0xFF00E0FF)
-
-//===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/CalendarEventCard.kt =====
-// TYPE: FULL
-package com.jarvismini.ui.calendar
-
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.jarvismini.core.calendar.model.CalendarEvent
-
-@Composable
-fun CalendarEventCard(event: CalendarEvent) {
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(statusColor(event.status))
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(event.title, style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Status: ${event.status}")
+            }
         }
     }
 }
 
+private fun statusLabel(status: EventStatus): String = when (status) {
+    EventStatus.SCHEDULED -> "Scheduled"
+    EventStatus.COMPLETED -> "Completed"
+    EventStatus.INCOMPLETE -> "Incomplete"
+    EventStatus.RETRY_SCHEDULED -> "Retry scheduled"
+}
+
+private fun statusIcon(status: EventStatus): ImageVector = when (status) {
+    EventStatus.SCHEDULED -> Icons.Default.DateRange
+    EventStatus.COMPLETED -> Icons.Default.CheckCircle
+    EventStatus.INCOMPLETE -> Icons.Default.Warning
+    EventStatus.RETRY_SCHEDULED -> Icons.Default.Refresh
+}
 
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/calendar/CalendarViewModel.kt =====
 // TYPE: FULL
@@ -4388,6 +4435,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -4395,14 +4443,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import android.text.format.DateFormat
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextAlign
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextPrimary
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.staggerEnter
 import androidx.compose.ui.text.font.FontFamily
 import com.jarvismini.core.calendar.model.CalendarEvent
 import com.jarvismini.core.utils.TimeUtils
 import com.jarvismini.core.routine.RoutineProvider
 import com.jarvismini.core.calendar.model.EventStatus
 import java.util.*
-
-private val JarvisBlue = Color(0xFF00E0FF)
 
 /**
  * FULLY WORKING DayCalendarScreen with back button
@@ -4418,18 +4477,6 @@ fun DayCalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit) {
 
     // Get today's routines and convert to calendar events
     val events = remember(dayStart) {
-        val routines = RoutineProvider.getAllRoutines(context)
-        val today = getCurrentDayOfWeek()
-
-        routines
-            .filter { routine ->
-                routine.enabled && routine.trigger?.days?.contains(today) == true
-            }
-            .mapNotNull { routine ->
-                routine.trigger?.time?.let { timeStr ->
-                    val eventTime = parseTimeToMs(timeStr)
-                    CalendarEvent(
-                        id = routine.id,
 
 // ... FILE TRUNCATED ...
 
@@ -6095,14 +6142,41 @@ private fun formatBarTime(seconds: Long): String {
 package com.jarvismini.ui.timer
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -6110,59 +6184,32 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-
-private val JarvisBlue = Color(0xFF00E0FF)
-private val JarvisGreen = Color(0xFF00FF00)
-
-/**
- * JARVIS-themed timer duration picker dialog
- */
-@Composable
-fun TaskTimerDialog(
-    taskName: String,
-    onDismiss: () -> Unit,
-    onStartTimer: (Long) -> Unit
-) {
-    var selectedMinutes by remember { mutableStateOf(30L) }
-    var customInput by remember { mutableStateOf("") }
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF001520)
-            ),
-            border = BorderStroke(2.dp, JarvisBlue)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
 
 // ... FILE TRUNCATED ...
 
-                                onDismiss()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = JarvisGreen,
-                            contentColor = Color.Black
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            "START ▶",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
+        interactionSource = source,
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected) JarvisBlue.copy(alpha = 0.25f) else Color.Transparent,
+            contentColor = JarvisBlue
+        ),
+        border = BorderStroke(if (selected) 2.dp else 1.dp, JarvisBlue),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .pressScale(source)
+            .semantics { stateDescription = if (selected) "Selected" else "Not selected" }
+    ) {
+        Text(
+            text = "${minutes}m",
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 
