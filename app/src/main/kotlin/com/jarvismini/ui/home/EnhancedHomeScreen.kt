@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -88,40 +89,15 @@ fun EnhancedHomeScreen(
         StatusChipData("Convo alerts",  if (convoAlerts) "On" else "Off",          convoAlerts),
     )
 
-    // ── Pulse animation ──────────────────────────────────────────────────────
-    // Decorative loops are gated: animator scale 0 / battery saver => static HUD.
+    // Decorative motion is gated: animator scale 0 / battery saver => static sphere, no particles.
     val motionEnabled = rememberMotionEnabled()
-    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-    val pulseAnimated by pulseAnimation.animateFloat(
-        initialValue = 0.3f,
-        targetValue  = 1f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(1500, easing = JarvisMotion.Standard),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-    val pulseAlpha = if (motionEnabled) pulseAnimated else 0.8f
-
-    // ── Slow continuous ring rotation — reads as a live HUD even at rest ──────
-    val rotationAnimation = rememberInfiniteTransition(label = "rotation")
-    val ringRotationAnimated by rotationAnimation.animateFloat(
-        initialValue = 0f,
-        targetValue  = 360f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ringRotation"
-    )
-    val ringRotation = if (motionEnabled) ringRotationAnimated else 0f
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.Black, Color(0xFF001520), Color.Black)
+                    colors = listOf(Color.Black, JarvisBackground, Color.Black)
                 )
             )
     ) {
@@ -181,7 +157,7 @@ fun EnhancedHomeScreen(
                         contentAlignment = Alignment.Center,
                         modifier         = Modifier
                             .staggerEnter(1)
-                            .size(224.dp)
+                            .size(256.dp)
                             .semantics {
                                 contentDescription = "Voice assistant"
                                 stateDescription   = if (isListening) "Listening" else "Idle"
@@ -215,70 +191,42 @@ fun EnhancedHomeScreen(
                                 }
                             }
                     ) {
-                        // Outer ring
-                        Box(
-                            modifier = Modifier
-                                .size(200.dp)
-                                .alpha(if (isListening) pulseAlpha else 0.3f)
-                                .background(JarvisCyan.copy(alpha = 0.1f), CircleShape)
-                                .border(
-                                    2.dp,
-                                    JarvisCyan.copy(alpha = if (isListening) pulseAlpha else 0.3f),
-                                    CircleShape
-                                )
+                        PlexusSphere(
+                            listening     = isListening,
+                            motionEnabled = motionEnabled,
+                            modifier      = Modifier.fillMaxSize()
                         )
-                        // Rotating tick ring — four short arcs spinning slowly around the orb
-                        Canvas(modifier = Modifier.size(224.dp)) {
-                            rotate(ringRotation) {
-                                val stroke = 3.dp.toPx()
-                                val inset  = stroke / 2f
-                                listOf(0f, 90f, 180f, 270f).forEach { start ->
-                                    drawArc(
-                                        color      = JarvisCyan.copy(alpha = if (isListening) 0.9f else 0.45f),
-                                        startAngle = start,
-                                        sweepAngle = 18f,
-                                        useCenter  = false,
-                                        topLeft    = Offset(inset, inset),
-                                        size       = Size(size.width - stroke, size.height - stroke),
-                                        style      = Stroke(width = stroke, cap = StrokeCap.Round)
-                                    )
-                                }
-                            }
-                        }
-                        // Mid ring
-                        Box(
-                            modifier = Modifier
-                                .size(150.dp)
-                                .background(JarvisCyan.copy(alpha = 0.05f), CircleShape)
-                                .border(1.dp, JarvisCyan.copy(alpha = 0.4f), CircleShape)
+                        // Centre mic disc: the tap affordance inside the sphere
+                        val micScale by animateFloatAsState(
+                            targetValue   = if (isListening && motionEnabled) 1.12f else 1f,
+                            animationSpec = JarvisMotion.snappy(),
+                            label         = "micScale"
                         )
-                        // Inner orb with mic icon
                         Box(
+                            contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(100.dp)
-                                .shadow(
-                                    elevation  = if (isListening) 30.dp else 10.dp,
-                                    shape      = CircleShape,
-                                    spotColor  = JarvisCyan
-                                )
+                                .size(64.dp)
+                                .graphicsLayer { scaleX = micScale; scaleY = micScale }
                                 .background(
                                     brush = Brush.radialGradient(
                                         listOf(
-                                            JarvisCyan.copy(alpha = if (isListening) 0.8f else 0.5f),
-                                            Color(0xFF0080FF).copy(alpha = if (isListening) 0.4f else 0.2f),
-                                            Color.Transparent
+                                            JarvisCyan.copy(alpha = if (isListening) 0.45f else 0.22f),
+                                            JarvisBackground.copy(alpha = 0.85f)
                                         )
                                     ),
                                     shape = CircleShape
+                                )
+                                .border(
+                                    1.dp,
+                                    JarvisCyan.copy(alpha = if (isListening) 0.9f else 0.5f),
+                                    CircleShape
                                 )
                         ) {
                             Icon(
                                 imageVector        = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
                                 contentDescription = null, // parent orb carries the semantics
                                 tint               = JarvisCyan,
-                                modifier           = Modifier
-                                    .size(40.dp)
-                                    .align(Alignment.Center)
+                                modifier           = Modifier.size(28.dp)
                             )
                         }
                     }
