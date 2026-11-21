@@ -159,7 +159,7 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                                 fontWeight = FontWeight.Bold,
                                 color      = JarvisTextPrimary,
                                 fontFamily = FontFamily.Monospace,
-                                fontFeatureSettings = "tnum"
+                                style      = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
