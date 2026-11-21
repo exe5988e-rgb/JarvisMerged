@@ -121,6 +121,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── GridBackground.kt
 │   │   │   │   │   │   │   │   ├── HologramCanvas.kt
 │   │   │   │   │   │   │   │   ├── ParticleField.kt
+│   │   │   │   │   │   │   │   ├── PlexusSphere.kt
 │   │   │   │   │   │   │   │   ├── ScanLine.kt
 │   │   │   │   │   │   │   ├── debug
 │   │   │   │   │   │   │   │   ├── DebugScreen.kt
@@ -4991,6 +4992,82 @@ fun ParticleField() {
     }
 }
 
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/components/PlexusSphere.kt =====
+// TYPE: SNAPSHOT (LARGE FILE)
+package com.jarvismini.ui.components
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisMotion
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.random.Random
+
+// Back-of-sphere colour (no theme token for the deeper azure yet; same value the old orb used).
+private val SphereDeep = Color(0xFF0080FF)
+
+private const val TILT = 0.38f
+private val COS_TILT = cos(TILT)
+private val SIN_TILT = sin(TILT)
+private const val TWO_PI = 6.2831855f
+private const val CLOCK_WRAP = 600f // divisible by every period used below (1.25 / 1.6 / 2.5 s)
+
+private class SphereMesh(
+    val x: FloatArray,
+    val y: FloatArray,
+    val z: FloatArray,
+    val edgeA: IntArray,
+    val edgeB: IntArray,
+    val edgeW: FloatArray,
+)
+
+/** Fibonacci shell + a few inner nodes, joined to their nearest neighbours plus faint long chords. */
+private fun buildMesh(shellPoints: Int = 104, corePoints: Int = 22): SphereMesh {
+    val rnd = Random(7)
+    val n = shellPoints + corePoints
+
+// ... FILE TRUNCATED ...
+
+            val alpha = (0.22f + 0.78f * d) * twinkle * (0.8f + 0.2f * e)
+            drawCircle(
+                color = lerp(deep, color, d).copy(alpha = alpha.coerceIn(0f, 1f)),
+                radius = unit * (0.9f + 1.5f * d) * sp[i],
+                center = Offset(sx[i], sy[i]),
+            )
+        }
+
+        // listening ripple
+        if (motionEnabled && e > 0.02f) {
+            val t = (clock % 1.6f) / 1.6f
+            drawCircle(
+                color = color.copy(alpha = ((1f - t) * 0.28f * e).coerceIn(0f, 1f)),
+                radius = radius * (1.02f + 0.32f * t),
+                center = c,
+                style = Stroke(width = 1.5f * unit),
+            )
+        }
+    }
+}
+
 //===== FILE: app/src/main/kotlin/com/jarvismini/ui/components/ScanLine.kt =====
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.ui.components
@@ -5241,6 +5318,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -5262,7 +5340,6 @@ import com.jarvismini.ui.theme.JarvisCyan
 import com.jarvismini.ui.theme.JarvisMotion
 import com.jarvismini.ui.theme.JarvisTextPrimary
 import com.jarvismini.ui.theme.rememberMotionEnabled
-import com.jarvismini.ui.theme.staggerEnter
 
 // ... FILE TRUNCATED ...
 
