@@ -4095,9 +4095,20 @@ class WorkModeTileService : TileService() {
 // TYPE: FULL
 package com.jarvismini.ui
 
+import java.util.concurrent.atomic.AtomicLong
+
+private val chatMessageIds = AtomicLong(0)
+
+/**
+ * [id] is a stable list key (LazyColumn keeps scroll anchoring and skips re-composing old bubbles);
+ * [createdAtNanos] lets a bubble play its enter animation only when it is actually new.
+ * Both have defaults, so existing `ChatMessage(text, isUser = ..)` call sites are unchanged.
+ */
 data class ChatMessage(
     val text: String,
-    val isUser: Boolean
+    val isUser: Boolean,
+    val id: Long = chatMessageIds.incrementAndGet(),
+    val createdAtNanos: Long = System.nanoTime()
 )
 
 
@@ -4552,71 +4563,71 @@ package com.jarvismini.ui.chat
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.util.Log
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.jarvismini.core.JarvisMode
 import com.jarvismini.core.JarvisState
-import com.jarvismini.core.ModeCommands
-import com.jarvismini.core.announce.AnnouncementEngine
-import com.jarvismini.core.WorkModeManager
-import com.jarvismini.llm.TermuxLlamaClient
-import com.jarvismini.ui.components.GridBackground
-import com.jarvismini.ui.ChatMessage
-import com.jarvismini.ui.theme.JarvisBlue
-import com.jarvismini.ui.theme.GlassSurface
-import com.jarvismini.ui.theme.JarvisRadius
-import com.jarvismini.ui.theme.JarvisTextPrimary
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import kotlinx.coroutines.*
-
-private const val TAG = "JarvisChatScreen"
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun JarvisChatScreen(
-    onBack: () -> Unit
-) {
-    val context = LocalContext.current
-    val activity = context as? Activity
 
 // ... FILE TRUNCATED ...
 
-                                isProcessing = false
-                            }
-                        }
-                    },
-                    enabled = !isProcessing
-                ) {
-                    Icon(
-                        Icons.Default.Send,
-                        contentDescription = "Send",
-                        tint = if (isProcessing)
-                            JarvisBlue.copy(alpha = 0.3f)
-                        else
-                            JarvisBlue
-                    )
-                }
-            }
-            }
+    )
+    Row(
+        modifier = Modifier.height(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { i ->
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .graphicsLayer {
+                        // Cyclic distance from this dot's turn; read in the draw phase, no recomposition.
+                        val x = (phase - i + 3f) % 3f
+                        alpha = 0.3f + 0.7f * maxOf(0f, 1f - minOf(x, 3f - x))
+                    }
+                    .background(JarvisBlue, CircleShape)
+            )
         }
     }
 }
@@ -4701,10 +4712,15 @@ private fun formatTime(timestampMs: Long): String {
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.ui.checklist
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -4739,16 +4755,11 @@ import com.jarvismini.ui.theme.JarvisMotion
 import com.jarvismini.ui.theme.JarvisRadius
 import com.jarvismini.ui.theme.JarvisTextPrimary
 import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
 import com.jarvismini.ui.theme.rememberMotionEnabled
 import com.jarvismini.ui.timer.TaskTimerDisplay
 import java.util.*
 
-private val JarvisBlue  = Color(0xFF00E0FF)
-private val JarvisGreen = Color(0xFF00FF00)
-private val JarvisRed   = Color(0xFFFF4444)
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 
 // ... FILE TRUNCATED ...
 
