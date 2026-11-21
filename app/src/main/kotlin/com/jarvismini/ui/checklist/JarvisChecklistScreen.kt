@@ -1,9 +1,14 @@
 package com.jarvismini.ui.checklist
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,6 +43,7 @@ import com.jarvismini.ui.theme.JarvisMotion
 import com.jarvismini.ui.theme.JarvisRadius
 import com.jarvismini.ui.theme.JarvisTextPrimary
 import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.pressScale
 import com.jarvismini.ui.theme.rememberMotionEnabled
 import com.jarvismini.ui.timer.TaskTimerDisplay
 import java.util.*
@@ -152,7 +158,8 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
                                 fontSize   = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 color      = JarvisTextPrimary,
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = FontFamily.Monospace,
+                                fontFeatureSettings = "tnum"
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
@@ -183,7 +190,13 @@ fun JarvisChecklistScreen(onBack: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Last card clears the (edge-to-edge) navigation bar instead of ending under it.
+                val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding      = PaddingValues(bottom = navBottom + 16.dp)
+                ) {
                     if (routines.isEmpty()) {
                         item {
                             Text(
@@ -257,24 +270,34 @@ fun TaskCard(
     val isCompleted = block?.completed == true
     val isMissed    = block?.missedAt != null && !isCompleted
 
+    // State change feedback: card tint + border ease to the new state (instant when motion is off).
+    val motionEnabled = rememberMotionEnabled()
+    val colorSpec: AnimationSpec<Color> =
+        if (motionEnabled) tween(JarvisMotion.Duration.Normal, easing = JarvisMotion.Standard) else snap()
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            isCompleted -> Color(0xFF001520).copy(alpha = 0.5f)
+            isMissed    -> Color(0xFF200505)
+            else        -> Color(0xFF001520)
+        },
+        animationSpec = colorSpec,
+        label = "taskContainer"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            isCompleted -> JarvisGreen.copy(alpha = 0.5f)
+            isMissed    -> JarvisRed.copy(alpha = 0.5f)
+            else        -> JarvisBlue.copy(alpha = 0.5f)
+        },
+        animationSpec = colorSpec,
+        label = "taskBorder"
+    )
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape    = RoundedCornerShape(8.dp),
-        colors   = CardDefaults.cardColors(
-            containerColor = when {
-                isCompleted -> Color(0xFF001520).copy(alpha = 0.5f)
-                isMissed    -> Color(0xFF200505)
-                else        -> Color(0xFF001520)
-            }
-        ),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = when {
-                isCompleted -> JarvisGreen.copy(alpha = 0.5f)
-                isMissed    -> JarvisRed.copy(alpha = 0.5f)
-                else        -> JarvisBlue.copy(alpha = 0.5f)
-            }
-        )
+        shape    = RoundedCornerShape(JarvisRadius.Card),
+        colors   = CardDefaults.cardColors(containerColor = containerColor),
+        border   = BorderStroke(width = 1.dp, color = borderColor)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -325,23 +348,19 @@ fun TaskCard(
 
                 if (!isCompleted && !isMissed) {
                     if (timerState == null) {
-                        OutlinedButton(
-                            onClick = onTimerClick,
-                            colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
-                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen),
-                            modifier = Modifier.semantics { contentDescription = "Start timer for ${routine.name}" }
-                        ) {
-                            Text("⏱️ TIMER", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                        }
+                        HudActionButton(
+                            label       = "⏱️ TIMER",
+                            color       = JarvisGreen,
+                            description = "Start timer for ${routine.name}",
+                            onClick     = onTimerClick
+                        )
                     } else {
-                        OutlinedButton(
-                            onClick = onStopTimer,
-                            colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
-                            border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed),
-                            modifier = Modifier.semantics { contentDescription = "Stop timer for ${routine.name}" }
-                        ) {
-                            Text("■ STOP", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                        }
+                        HudActionButton(
+                            label       = "■ STOP",
+                            color       = JarvisRed,
+                            description = "Stop timer for ${routine.name}",
+                            onClick     = onStopTimer
+                        )
                     }
                 }
             }
@@ -393,26 +412,45 @@ fun TaskCard(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedButton(
-                    onClick = onMarkComplete,
-                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisGreen),
-                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisGreen),
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .semantics { contentDescription = "Mark ${routine.name} as done" }
-                ) {
-                    Text("DONE", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                }
-                OutlinedButton(
-                    onClick = onMarkMissed,
-                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = JarvisRed),
-                    border  = androidx.compose.foundation.BorderStroke(1.dp, JarvisRed),
-                    modifier = Modifier.semantics { contentDescription = "Mark ${routine.name} as missed" }
-                ) {
-                    Text("MISSED", fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                }
+                HudActionButton(
+                    label       = "DONE",
+                    color       = JarvisGreen,
+                    description = "Mark ${routine.name} as done",
+                    onClick     = onMarkComplete,
+                    modifier    = Modifier.padding(end = 8.dp)
+                )
+                HudActionButton(
+                    label       = "MISSED",
+                    color       = JarvisRed,
+                    description = "Mark ${routine.name} as missed",
+                    onClick     = onMarkMissed
+                )
             }
         }
+    }
+}
+
+/** Outlined HUD action: 48dp tall hit area, press scale, one spoken description. */
+@Composable
+private fun HudActionButton(
+    label: String,
+    color: Color,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val source = remember { MutableInteractionSource() }
+    OutlinedButton(
+        onClick           = onClick,
+        interactionSource = source,
+        colors            = ButtonDefaults.outlinedButtonColors(contentColor = color),
+        border            = BorderStroke(1.dp, color),
+        modifier          = modifier
+            .heightIn(min = 48.dp)
+            .pressScale(source)
+            .semantics { contentDescription = description }
+    ) {
+        Text(label, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
     }
 }
 
