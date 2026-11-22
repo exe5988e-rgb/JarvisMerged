@@ -5990,72 +5990,72 @@ package com.jarvismini.ui.stopwatch
 
 import android.app.Activity
 import android.widget.Toast
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jarvismini.core.stopwatch.NotificationPermissionHelper
 import com.jarvismini.core.stopwatch.StopwatchManager
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisTextPrimary
 import kotlinx.coroutines.delay
 
 /**
- * Stopwatch UI Widget with proper permission handling
- */
-@Composable
-fun StopwatchWidget() {
-    val context = LocalContext.current
-    val state by StopwatchManager.state.collectAsState()
-    
-    var displayTime by remember { mutableStateOf("00:00") }
-    
-    // Update display time every 100ms when running
-    LaunchedEffect(state.isRunning) {
-        while (state.isRunning) {
-            displayTime = StopwatchManager.formatElapsedTimeLong(
-                StopwatchManager.getCurrentElapsed()
-            )
-            delay(100)
-        }
-    }
-    
-    // Update display time even when paused (for resume case)
-    LaunchedEffect(Unit) {
-        while (true) {
-            if (!state.isRunning) {
-                displayTime = StopwatchManager.formatElapsedTimeLong(
-                    StopwatchManager.getCurrentElapsed()
-                )
-            }
-            delay(100)
-        }
-    }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
+ * Stopwatch UI Widget with proper permission handling.
+ *
+ * Visual hierarchy: elapsed time (hero, tabular monospace so digits do not jitter) ->
+ * primary Start/Pause -> secondary Reset -> permission notice. Buttons are at least 48dp
 
 // ... FILE TRUNCATED ...
 
-            }
-            
-            Button(
-                onClick = { StopwatchManager.reset(context) },
-                enabled = displayTime != "00:00"
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.semantics(mergeDescendants = true) {
+                    liveRegion = LiveRegionMode.Polite
+                }
             ) {
-                Text("Reset")
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = JarvisOffline,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Notification permission required for background timer",
+                    fontSize = 14.sp,
+                    color = JarvisOffline
+                )
             }
-        }
-        
-        // Permission status indicator
-        if (NotificationPermissionHelper.shouldRequestPermission(context)) {
-            Text(
-                text = "⚠️ Notification permission required for background timer",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error
-            )
         }
     }
 }
@@ -6382,71 +6382,71 @@ import com.jarvismini.ui.theme.JarvisRadius
 // TYPE: SNAPSHOT (LARGE FILE)
 package com.jarvismini.ui.timer
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.rememberMotionEnabled
 
-private val JarvisBlue = Color(0xFF00E0FF)
-private val JarvisGreen = Color(0xFF00FF00)
-private val JarvisRed = Color(0xFFFF4444)
+private const val LOW_TIME_SECONDS = 120L
 
 /**
- * Live countdown timer display for task cards
- */
-@Composable
-fun TaskTimerDisplay(
-    remainingSeconds: Long,
-    totalSeconds: Long
-) {
-    val progress = 1f - (remainingSeconds.toFloat() / totalSeconds.toFloat())
-    
-    // Pulsing animation when time is running low (< 2 minutes)
-    val isLowTime = remainingSeconds < 120
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-    
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
+ * Live countdown for task cards. Dense list surface, so flat tint rather than glass.
+ * Low time is conveyed by label text ("LOW TIME") and colour, never colour alone; the
 
 // ... FILE TRUNCATED ...
 
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp)),
-            color = if (isLowTime) JarvisRed else JarvisGreen,
-            trackColor = Color(0xFF001520),
-        )
+    val s = seconds % 60
+    val parts = buildList {
+        if (h > 0) add("$h ${if (h == 1L) "hour" else "hours"}")
+        if (m > 0) add("$m ${if (m == 1L) "minute" else "minutes"}")
+        if (s > 0 || isEmpty()) add("$s ${if (s == 1L) "second" else "seconds"}")
     }
+    return parts.joinToString(" ")
 }
 
 private fun formatTime(seconds: Long): String {
     val hours = seconds / 3600
     val minutes = (seconds % 3600) / 60
     val secs = seconds % 60
-    
+
     return if (hours > 0) {
         String.format("%d:%02d:%02d", hours, minutes, secs)
     } else {
