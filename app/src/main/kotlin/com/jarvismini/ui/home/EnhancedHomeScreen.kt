@@ -196,6 +196,13 @@ fun EnhancedHomeScreen(
                             motionEnabled = motionEnabled,
                             modifier      = Modifier.fillMaxSize()
                         )
+                        // Siri-style wave mesh while the mic is live
+                        if (isListening) {
+                            SiriWaveMesh(
+                                motionEnabled = motionEnabled,
+                                modifier      = Modifier.fillMaxSize()
+                            )
+                        }
                         // Centre mic disc: the tap affordance inside the sphere
                         val micScale by animateFloatAsState(
                             targetValue   = if (isListening && motionEnabled) 1.12f else 1f,
