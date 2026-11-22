@@ -337,7 +337,7 @@ private fun TaskInputSection(
                     OutlinedButton(
                         onClick  = onResume,
                         colors   = ButtonDefaults.outlinedButtonColors(contentColor = Green),
-                        modifier = Modifier.height(38.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -347,7 +347,7 @@ private fun TaskInputSection(
                     OutlinedButton(
                         onClick  = onPause,
                         colors   = ButtonDefaults.outlinedButtonColors(contentColor = Yellow),
-                        modifier = Modifier.height(38.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Icon(Icons.Default.Pause, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -359,7 +359,7 @@ private fun TaskInputSection(
                 OutlinedButton(
                     onClick  = onStop,
                     colors   = ButtonDefaults.outlinedButtonColors(contentColor = Red),
-                    modifier = Modifier.height(38.dp)
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Icon(Icons.Default.Stop, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
@@ -373,7 +373,7 @@ private fun TaskInputSection(
                         containerColor = Cyan,
                         contentColor   = BgDark
                     ),
-                    modifier = Modifier.height(38.dp)
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
