@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +22,8 @@ import android.text.format.DateFormat
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
 import com.jarvismini.ui.theme.GlassSurface
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlack
 import com.jarvismini.ui.theme.JarvisBlue
 import com.jarvismini.ui.theme.JarvisRadius
 import com.jarvismini.ui.theme.JarvisTextPrimary
@@ -89,8 +91,11 @@ fun DayCalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit) {
     }
     val nextEvent = events.firstOrNull { it.status == EventStatus.SCHEDULED }
 
+    // Same HUD backdrop as Debug / Termux so the glass summary strip has something to sit on.
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.radialGradient(listOf(JarvisBlack, JarvisBackground, JarvisBlack)))
     ) {
         // ===== TOP APP BAR WITH BACK BUTTON =====
         TopAppBar(
@@ -111,7 +116,7 @@ fun DayCalendarScreen(viewModel: CalendarViewModel, onBack: () -> Unit) {
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Black.copy(alpha = 0.6f)
+                containerColor = JarvisBlack.copy(alpha = 0.6f)
             )
         )
 
