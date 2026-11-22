@@ -9,22 +9,28 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.PI
 
 @Composable
 fun HologramCanvas() {
-    val infiniteTransition = rememberInfiniteTransition(label = "hologram")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
+    // Static hexagon when reduced motion / power saver is on.
+    val rotation = if (rememberMotionEnabled()) {
+        val infiniteTransition = rememberInfiniteTransition(label = "hologram")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(10000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "rotation"
+        ).value
+    } else {
+        0f
+    }
 
     Canvas(modifier = Modifier.fillMaxSize()) {
         val center = Offset(size.width / 2f, size.height / 2f)
