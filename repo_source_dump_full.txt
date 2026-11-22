@@ -123,6 +123,7 @@ FILE TREE (SELECTED FOLDERS)
 │   │   │   │   │   │   │   │   ├── ParticleField.kt
 │   │   │   │   │   │   │   │   ├── PlexusSphere.kt
 │   │   │   │   │   │   │   │   ├── ScanLine.kt
+│   │   │   │   │   │   │   │   ├── SiriWaveMesh.kt
 │   │   │   │   │   │   │   ├── debug
 │   │   │   │   │   │   │   │   ├── DebugScreen.kt
 │   │   │   │   │   │   │   │   ├── DebugViewModel.kt
@@ -12136,7 +12137,7 @@ private class SphereMesh(
 )
 
 /** Fibonacci shell + a few inner nodes, joined to their nearest neighbours plus faint long chords. */
-private fun buildMesh(shellPoints: Int = 104, corePoints: Int = 22): SphereMesh {
+private fun buildMesh(shellPoints: Int = 210, corePoints: Int = 44): SphereMesh {
     val rnd = Random(7)
     val n = shellPoints + corePoints
     val x = FloatArray(n)
@@ -12187,7 +12188,7 @@ private fun buildMesh(shellPoints: Int = 104, corePoints: Int = 22): SphereMesh 
     }
 
     for (i in 0 until n) {
-        val k = if (i < shellPoints) 4 else 3
+        val k = if (i < shellPoints) 5 else 4
         val near = (0 until n)
             .filter { it != i }
             .map { j ->
@@ -12204,7 +12205,7 @@ private fun buildMesh(shellPoints: Int = 104, corePoints: Int = 22): SphereMesh 
 
     var made = 0
     var tries = 0
-    while (made < 36 && tries < 2000) {
+    while (made < 64 && tries < 4000) {
         tries++
         val a = rnd.nextInt(shellPoints)
         val b = rnd.nextInt(shellPoints)
@@ -12279,7 +12280,7 @@ fun PlexusSphere(
         val e = energy.coerceIn(0f, 1f)
         val unit = 1.dp.toPx()
         val pulse = if (motionEnabled) e * 0.035f * sin(clock * (TWO_PI / 1.25f)) else 0f
-        val radius = min(size.width, size.height) / 2f * 0.80f * (1f + pulse)
+        val radius = min(size.width, size.height) / 2f * 0.70f * (1f + pulse)
 
         val yawR = yaw * (PI.toFloat() / 180f)
         val cosY = cos(yawR)
@@ -12314,6 +12315,24 @@ fun PlexusSphere(
             style = Stroke(width = unit),
         )
 
+        // radial rays: short bursts around the silhouette, every 4th one long and bright
+        val rayCount = 96
+        for (r in 0 until rayCount) {
+            val ang = r * (TWO_PI / rayCount) + clock * 0.02f
+            val wob = if (motionEnabled) 0.5f + 0.5f * sin(clock * (TWO_PI / 2f) + r * 2.399f) else 0.5f
+            val long = r % 4 == 0
+            val len = radius * (0.05f + 0.14f * wob * (0.4f + 0.6f * e) + if (long) 0.12f else 0f)
+            val dx = cos(ang)
+            val dy = sin(ang)
+            val inner = radius * 1.05f
+            drawLine(
+                color = color.copy(alpha = ((if (long) 0.22f else 0.10f) + 0.26f * wob * (0.5f + 0.5f * e)).coerceIn(0f, 1f)),
+                start = Offset(c.x + dx * inner, c.y + dy * inner),
+                end = Offset(c.x + dx * (inner + len), c.y + dy * (inner + len)),
+                strokeWidth = unit * (if (long) 0.9f else 0.6f),
+            )
+        }
+
         // web
         for (k in mesh.edgeA.indices) {
             val a = mesh.edgeA[k]
@@ -12344,15 +12363,18 @@ fun PlexusSphere(
             )
         }
 
-        // listening ripple
-        if (motionEnabled && e > 0.02f) {
-            val t = (clock % 1.6f) / 1.6f
-            drawCircle(
-                color = color.copy(alpha = ((1f - t) * 0.28f * e).coerceIn(0f, 1f)),
-                radius = radius * (1.02f + 0.32f * t),
-                center = c,
-                style = Stroke(width = 1.5f * unit),
-            )
+        // radiating waves: three staggered rings, faint at idle, strong while listening
+        if (motionEnabled) {
+            for (w in 0 until 3) {
+                val t = ((clock / 2.5f) + w / 3f) % 1f
+                val fade = (1f - t) * (1f - t)
+                drawCircle(
+                    color = color.copy(alpha = (fade * (0.10f + 0.30f * e)).coerceIn(0f, 1f)),
+                    radius = radius * (1.06f + 0.30f * t),
+                    center = c,
+                    style = Stroke(width = (1.0f + 0.8f * e) * unit),
+                )
+            }
         }
     }
 }
@@ -12399,6 +12421,125 @@ fun ScanLine() {
             end = Offset(size.width, y),
             strokeWidth = 100f
         )
+    }
+}
+
+
+//===== FILE: app/src/main/kotlin/com/jarvismini/ui/components/SiriWaveMesh.kt =====
+package com.jarvismini.ui.components
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.dp
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisMotion
+import kotlin.math.PI
+import kotlin.math.min
+import kotlin.math.sin
+
+private const val WAVE_LINES = 9
+private const val WAVE_STEPS = 64
+private const val WAVE_WRAP = 600f // divisible by the 2.0 s cycle used below
+private const val TAU = 6.2831855f
+
+/**
+ * Siri-style wave mesh: a stack of interlaced sine ribbons that swell while the mic is live,
+ * clipped to the orb. Decorative; the parent keeps the button semantics.
+ *
+ * Compose it only while listening: it fades in on entry, and with [motionEnabled] = false it
+ * draws one static, fully visible mesh (reduced motion). The phase is read only inside the draw
+ * scope, so nothing recomposes per frame.
+ */
+@Composable
+fun SiriWaveMesh(
+    motionEnabled: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = JarvisCyan,
+    deep: Color = Color(0xFF0080FF),
+    accent: Color = Color(0xFFB57BFF),
+) {
+    val reveal = remember { Animatable(if (motionEnabled) 0f else 1f) }
+    LaunchedEffect(motionEnabled) {
+        reveal.animateTo(1f, JarvisMotion.gentle())
+    }
+
+    var clock by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(motionEnabled) {
+        if (!motionEnabled) return@LaunchedEffect
+        var last = 0L
+        while (true) {
+            withFrameNanos { now ->
+                if (last != 0L) clock = (clock + min((now - last) / 1_000_000_000f, 0.05f)) % WAVE_WRAP
+                last = now
+            }
+        }
+    }
+
+    val path = remember { Path() }
+
+    Canvas(modifier = modifier) {
+        val r = reveal.value.coerceIn(0f, 1f)
+        if (r <= 0.01f) return@Canvas
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val radius = min(w, h) / 2f * 0.70f
+        val unit = 1.dp.toPx()
+        val t = if (motionEnabled) clock else 1.3f
+        val breathe = if (motionEnabled) 0.78f + 0.22f * sin(t * (TAU / 2f)) else 1f
+
+        val clip = Path().apply {
+            addOval(androidx.compose.ui.geometry.Rect(Offset(cx, cy), radius * 0.98f))
+        }
+        clipPath(clip) {
+            for (line in 0 until WAVE_LINES) {
+                val f = line / (WAVE_LINES - 1f)           // 0..1 across the stack
+                val mid = 1f - kotlin.math.abs(f - 0.5f) * 2f // 1 in the centre, 0 at the edges
+                val phase = line * 0.62f
+                val speed = 1.1f + 0.35f * line
+                val amp = radius * (0.10f + 0.42f * mid) * breathe * r
+                path.rewind()
+                for (s in 0..WAVE_STEPS) {
+                    val u = s / WAVE_STEPS.toFloat()        // 0..1 along the width
+                    // taper to zero at both ends so ribbons pinch like Siri's
+                    val env = sin(u * PI.toFloat())
+                    val env2 = env * env
+                    val y = cy + (f - 0.5f) * radius * 0.30f +
+                        amp * env2 * (
+                            0.62f * sin(u * TAU * 1.6f + t * speed + phase) +
+                                0.38f * sin(u * TAU * 2.7f - t * speed * 0.7f + phase * 1.9f)
+                            )
+                    val x = cx - radius + u * radius * 2f
+                    if (s == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                val tint = lerp(deep, if (line % 3 == 0) accent else color, mid)
+                drawPath(
+                    path = path,
+                    color = tint.copy(alpha = (0.18f + 0.55f * mid) * r),
+                    style = Stroke(
+                        width = unit * (0.8f + 1.0f * mid),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                    ),
+                )
+            }
+        }
     }
 }
 
@@ -12971,6 +13112,13 @@ fun EnhancedHomeScreen(
                             motionEnabled = motionEnabled,
                             modifier      = Modifier.fillMaxSize()
                         )
+                        // Siri-style wave mesh while the mic is live
+                        if (isListening) {
+                            SiriWaveMesh(
+                                motionEnabled = motionEnabled,
+                                modifier      = Modifier.fillMaxSize()
+                            )
+                        }
                         // Centre mic disc: the tap affordance inside the sphere
                         val micScale by animateFloatAsState(
                             targetValue   = if (isListening && motionEnabled) 1.12f else 1f,
