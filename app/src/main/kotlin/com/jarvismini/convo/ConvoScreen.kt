@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +70,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -288,7 +291,7 @@ private fun ConvoRoster(state: ConvoUiState) {
                     Text(
                         if (agent.online) "online" else formatLastSeen(agent.lastSeen, state.now),
                         color = CvWhite40,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                     )
                 }
             }
@@ -305,12 +308,16 @@ private fun ConvoChip(
 ) {
     val shape = RoundedCornerShape(16.dp)
     val interaction = remember { MutableInteractionSource() }
+    // indication = null hides the default focus highlight, so draw a ring for keyboard /
+    // switch-access focus (WCAG 2.4.7).
+    val focused by interaction.collectIsFocusedAsState()
     // The visible pill stays compact; the outer Box gives a 48dp touch target and carries
     // role + selected state so TalkBack reads "Filter, selected, radio button".
     Box(
         modifier = Modifier
             .heightIn(min = 48.dp)
             .pressScale(interaction)
+            .then(if (focused) Modifier.border(2.dp, Color.White, shape) else Modifier)
             .clickable(interactionSource = interaction, indication = null, role = role, onClick = onClick)
             .semantics { this.selected = selected },
         contentAlignment = Alignment.Center,
@@ -483,7 +490,7 @@ private fun ConvoSearchPanel(
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 "#${hit.id} · " + timeFormat.format(Date(hit.createdAt)),
-                                color = CvWhite40, fontSize = 10.sp,
+                                color = CvWhite40, fontSize = 11.sp,
                             )
                         }
                     }
@@ -508,6 +515,10 @@ private fun ConvoBubbleRow(bubble: ConvoBubble, timeFormat: SimpleDateFormat, on
                 .background(if (mine) CvMine else CvCard)
                 .border(1.dp, if (bubble.hasUnread) CvYellow.copy(alpha = 0.35f) else CvDim, shape)
                 .clickable(role = Role.Button, onClickLabel = "Show read receipts", onClick = onClick)
+                // unread is otherwise shown only by a faint border colour
+                .semantics {
+                    if (bubble.hasUnread) stateDescription = "Unread by ${bubble.unreadBy.size}"
+                }
                 .padding(10.dp),
         ) {
             if (!mine) {
@@ -526,7 +537,7 @@ private fun ConvoBubbleRow(bubble: ConvoBubble, timeFormat: SimpleDateFormat, on
                 Text(
                     (if (to.isEmpty()) "" else "to $to · ") + timeFormat.format(Date(bubble.createdAt)),
                     color = CvWhite40,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                 )
                 if (bubble.receipts.isNotEmpty()) {
                     Spacer(Modifier.width(4.dp))
@@ -676,9 +687,16 @@ private fun ConvoSettingsDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // whole row toggles and is announced as one labelled switch, 48dp minimum
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .toggleable(value = notify, role = Role.Switch, onValueChange = { notify = it }),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text("Message notifications", modifier = Modifier.weight(1f))
-                    Switch(checked = notify, onCheckedChange = { notify = it })
+                    Switch(checked = notify, onCheckedChange = null)
                 }
                 if (notify && !systemAllows) {
                     Text(
