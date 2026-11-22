@@ -45,7 +45,7 @@ private class SphereMesh(
 )
 
 /** Fibonacci shell + a few inner nodes, joined to their nearest neighbours plus faint long chords. */
-private fun buildMesh(shellPoints: Int = 104, corePoints: Int = 22): SphereMesh {
+private fun buildMesh(shellPoints: Int = 210, corePoints: Int = 44): SphereMesh {
     val rnd = Random(7)
     val n = shellPoints + corePoints
     val x = FloatArray(n)
@@ -96,7 +96,7 @@ private fun buildMesh(shellPoints: Int = 104, corePoints: Int = 22): SphereMesh 
     }
 
     for (i in 0 until n) {
-        val k = if (i < shellPoints) 4 else 3
+        val k = if (i < shellPoints) 5 else 4
         val near = (0 until n)
             .filter { it != i }
             .map { j ->
@@ -113,7 +113,7 @@ private fun buildMesh(shellPoints: Int = 104, corePoints: Int = 22): SphereMesh 
 
     var made = 0
     var tries = 0
-    while (made < 36 && tries < 2000) {
+    while (made < 64 && tries < 4000) {
         tries++
         val a = rnd.nextInt(shellPoints)
         val b = rnd.nextInt(shellPoints)
@@ -188,7 +188,7 @@ fun PlexusSphere(
         val e = energy.coerceIn(0f, 1f)
         val unit = 1.dp.toPx()
         val pulse = if (motionEnabled) e * 0.035f * sin(clock * (TWO_PI / 1.25f)) else 0f
-        val radius = min(size.width, size.height) / 2f * 0.80f * (1f + pulse)
+        val radius = min(size.width, size.height) / 2f * 0.70f * (1f + pulse)
 
         val yawR = yaw * (PI.toFloat() / 180f)
         val cosY = cos(yawR)
@@ -223,6 +223,24 @@ fun PlexusSphere(
             style = Stroke(width = unit),
         )
 
+        // radial rays: short bursts around the silhouette, every 4th one long and bright
+        val rayCount = 96
+        for (r in 0 until rayCount) {
+            val ang = r * (TWO_PI / rayCount) + clock * 0.02f
+            val wob = if (motionEnabled) 0.5f + 0.5f * sin(clock * (TWO_PI / 2f) + r * 2.399f) else 0.5f
+            val long = r % 4 == 0
+            val len = radius * (0.05f + 0.14f * wob * (0.4f + 0.6f * e) + if (long) 0.12f else 0f)
+            val dx = cos(ang)
+            val dy = sin(ang)
+            val inner = radius * 1.05f
+            drawLine(
+                color = color.copy(alpha = ((if (long) 0.22f else 0.10f) + 0.26f * wob * (0.5f + 0.5f * e)).coerceIn(0f, 1f)),
+                start = Offset(c.x + dx * inner, c.y + dy * inner),
+                end = Offset(c.x + dx * (inner + len), c.y + dy * (inner + len)),
+                strokeWidth = unit * (if (long) 0.9f else 0.6f),
+            )
+        }
+
         // web
         for (k in mesh.edgeA.indices) {
             val a = mesh.edgeA[k]
@@ -253,15 +271,18 @@ fun PlexusSphere(
             )
         }
 
-        // listening ripple
-        if (motionEnabled && e > 0.02f) {
-            val t = (clock % 1.6f) / 1.6f
-            drawCircle(
-                color = color.copy(alpha = ((1f - t) * 0.28f * e).coerceIn(0f, 1f)),
-                radius = radius * (1.02f + 0.32f * t),
-                center = c,
-                style = Stroke(width = 1.5f * unit),
-            )
+        // radiating waves: three staggered rings, faint at idle, strong while listening
+        if (motionEnabled) {
+            for (w in 0 until 3) {
+                val t = ((clock / 2.5f) + w / 3f) % 1f
+                val fade = (1f - t) * (1f - t)
+                drawCircle(
+                    color = color.copy(alpha = (fade * (0.10f + 0.30f * e)).coerceIn(0f, 1f)),
+                    radius = radius * (1.06f + 0.30f * t),
+                    center = c,
+                    style = Stroke(width = (1.0f + 0.8f * e) * unit),
+                )
+            }
         }
     }
 }
