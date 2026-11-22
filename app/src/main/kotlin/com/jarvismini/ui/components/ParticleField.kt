@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.jarvismini.ui.theme.rememberMotionEnabled
 import kotlin.random.Random
 
 data class Particle(
@@ -31,16 +32,21 @@ fun ParticleField() {
         }
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "particles")
-    val time by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(100000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "time"
-    )
+    // Static field when reduced motion / power saver is on.
+    val time = if (rememberMotionEnabled()) {
+        val infiniteTransition = rememberInfiniteTransition(label = "particles")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1000f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(100000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "time"
+        ).value
+    } else {
+        0f
+    }
 
     Canvas(modifier = Modifier.fillMaxSize()) {
         particles.forEach { particle ->
