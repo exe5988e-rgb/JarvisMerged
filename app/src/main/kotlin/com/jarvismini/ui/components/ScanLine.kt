@@ -8,9 +8,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.jarvismini.ui.theme.rememberMotionEnabled
 
 @Composable
 fun ScanLine() {
+    // Reduced motion / power saver: no sweeping line at all (it is purely decorative).
+    if (!rememberMotionEnabled()) return
+
     val infiniteTransition = rememberInfiniteTransition(label = "scanline")
     val yPosition by infiniteTransition.animateFloat(
         initialValue = 0f,
