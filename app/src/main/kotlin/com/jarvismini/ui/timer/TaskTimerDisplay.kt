@@ -1,61 +1,101 @@
 package com.jarvismini.ui.timer
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
+import com.jarvismini.ui.theme.JarvisBackground
+import com.jarvismini.ui.theme.JarvisBlue
+import com.jarvismini.ui.theme.JarvisMotion
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisRadius
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.rememberMotionEnabled
 
-private val JarvisBlue = Color(0xFF00E0FF)
-private val JarvisGreen = Color(0xFF00FF00)
-private val JarvisRed = Color(0xFFFF4444)
+private const val LOW_TIME_SECONDS = 120L
 
 /**
- * Live countdown timer display for task cards
+ * Live countdown for task cards. Dense list surface, so flat tint rather than glass.
+ * Low time is conveyed by label text ("LOW TIME") and colour, never colour alone; the
+ * border pulse is dropped under reduced motion. The whole card is one TalkBack node with
+ * a spoken duration and progress; only the low-time label is a live region, so the
+ * per-second tick does not spam announcements.
  */
 @Composable
 fun TaskTimerDisplay(
     remainingSeconds: Long,
     totalSeconds: Long
 ) {
-    val progress = 1f - (remainingSeconds.toFloat() / totalSeconds.toFloat())
-    
-    // Pulsing animation when time is running low (< 2 minutes)
-    val isLowTime = remainingSeconds < 120
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
+    val remaining = remainingSeconds.coerceAtLeast(0L)
+    val progress = if (totalSeconds > 0L) {
+        (1f - remaining.toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val isLowTime = remaining < LOW_TIME_SECONDS
+
+    val motionEnabled = rememberMotionEnabled()
+    val infiniteTransition = rememberInfiniteTransition(label = "lowTimePulse")
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
+            animation = tween(JarvisMotion.Duration.Slow * 2, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "alpha"
+        label = "pulseAlpha"
     )
-    
+    val borderAlpha = if (isLowTime && motionEnabled) pulse else 0.7f
+
+    val accent = if (isLowTime) JarvisOffline else JarvisOnline
+    val shape = RoundedCornerShape(JarvisRadius.Card)
+    val spoken = spokenDuration(remaining)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF001520))
+            .clip(shape)
+            .background(JarvisBackground, shape)
             .border(
                 width = 1.dp,
-                color = if (isLowTime) JarvisRed.copy(alpha = alpha) else JarvisBlue.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
+                color = if (isLowTime) accent.copy(alpha = borderAlpha) else JarvisBlue.copy(alpha = 0.5f),
+                shape = shape
             )
             .padding(12.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Task timer, $spoken remaining" +
+                    if (isLowTime) ", low time" else ""
+                progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f)
+            }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -63,41 +103,55 @@ fun TaskTimerDisplay(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "⏱️ TIMER ACTIVE",
-                fontSize = 11.sp,
-                color = if (isLowTime) JarvisRed else JarvisBlue,
+                text = if (isLowTime) "TIMER · LOW TIME" else "TIMER ACTIVE",
+                fontSize = 12.sp,
+                color = if (isLowTime) accent else JarvisTextSecondary,
                 fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
             )
-            
+
             Text(
-                text = formatTime(remainingSeconds),
-                fontSize = 16.sp,
-                color = if (isLowTime) JarvisRed else JarvisGreen,
+                text = formatTime(remaining),
+                fontSize = 18.sp,
+                color = accent,
                 fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(fontFeatureSettings = "tnum")
             )
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
-            color = if (isLowTime) JarvisRed else JarvisGreen,
-            trackColor = Color(0xFF001520),
+            color = accent,
+            trackColor = JarvisBlue.copy(alpha = 0.18f),
         )
     }
+}
+
+private fun spokenDuration(seconds: Long): String {
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    val parts = buildList {
+        if (h > 0) add("$h ${if (h == 1L) "hour" else "hours"}")
+        if (m > 0) add("$m ${if (m == 1L) "minute" else "minutes"}")
+        if (s > 0 || isEmpty()) add("$s ${if (s == 1L) "second" else "seconds"}")
+    }
+    return parts.joinToString(" ")
 }
 
 private fun formatTime(seconds: Long): String {
     val hours = seconds / 3600
     val minutes = (seconds % 3600) / 60
     val secs = seconds % 60
-    
+
     return if (hours > 0) {
         String.format("%d:%02d:%02d", hours, minutes, secs)
     } else {
