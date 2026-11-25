@@ -53,7 +53,15 @@ object SelfHealWatchdog {
     private fun check(app: Context) {
         checkWakeWord(app)
         checkAccessibility(app)
+        checkWirelessDebug(app)
         checkMemory(app)
+    }
+
+    /** Every 2 min: if Android turned Wireless debugging off, switch it back on (needs WRITE_SECURE_SETTINGS). */
+    private fun checkWirelessDebug(app: Context) {
+        if (WirelessDebugRepair.ensureEnabled(app)) {
+            EventLog.add(EventType.SERVICE, "Wireless debugging re-enabled")
+        }
     }
 
     private fun checkWakeWord(app: Context) {
