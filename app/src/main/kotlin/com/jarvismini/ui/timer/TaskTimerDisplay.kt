@@ -64,17 +64,8 @@ fun TaskTimerDisplay(
     val isLowTime = remaining < LOW_TIME_SECONDS
 
     val motionEnabled = rememberMotionEnabled()
-    val infiniteTransition = rememberInfiniteTransition(label = "lowTimePulse")
-    val pulse by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(JarvisMotion.Duration.Slow * 2, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-    val borderAlpha = if (isLowTime && motionEnabled) pulse else 0.7f
+    // The transition only exists while it is visible, so a normal timer draws no frames.
+    val borderAlpha = if (isLowTime && motionEnabled) lowTimeBorderAlpha() else 0.7f
 
     val accent = if (isLowTime) JarvisOffline else JarvisOnline
     val shape = RoundedCornerShape(JarvisRadius.Card)
@@ -133,6 +124,21 @@ fun TaskTimerDisplay(
             trackColor = JarvisBlue.copy(alpha = 0.18f),
         )
     }
+}
+
+@Composable
+private fun lowTimeBorderAlpha(): Float {
+    val transition = rememberInfiniteTransition(label = "lowTimePulse")
+    val alpha by transition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(JarvisMotion.Duration.Slow * 2, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+    return alpha
 }
 
 private fun spokenDuration(seconds: Long): String {

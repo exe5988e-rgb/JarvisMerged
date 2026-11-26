@@ -427,17 +427,9 @@ private fun AgentLogLineRow(log: LogLine) {
 // Session 17: paused param added — dot turns yellow when paused
 @Composable
 private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean = false) {
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val pulsed by pulse.animateFloat(
-        initialValue = 0.4f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dotAlpha"
-    )
-    // decorative pulse is dropped under reduced motion / battery saver
-    val alpha = if (rememberMotionEnabled()) pulsed else 1f
+    // decorative pulse: composed only while visible and motion is allowed
+    val animate = rememberMotionEnabled() && online && (paused || running)
+    val alpha = if (animate) agentDotPulseAlpha() else 1f
     val color = when {
         !online -> Red
         paused  -> Yellow.copy(alpha = alpha)
@@ -457,6 +449,20 @@ private fun ServerStatusDot(online: Boolean, running: Boolean, paused: Boolean =
             .clip(CircleShape)
             .background(color)
     )
+}
+
+@Composable
+private fun agentDotPulseAlpha(): Float {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val alpha by pulse.animateFloat(
+        initialValue = 0.4f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotAlpha"
+    )
+    return alpha
 }
 
 @Composable

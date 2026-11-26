@@ -105,17 +105,7 @@ fun BootScreen(onBootComplete: () -> Unit) {
         label = "bootProgress"
     )
 
-    val infiniteRotation = rememberInfiniteTransition(label = "rotation")
-    val spin by infiniteRotation.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-    val rotation = if (motionEnabled) spin else 0f
+    val rotation = if (motionEnabled) bootSpin() else 0f
 
     LaunchedEffect(Unit) {
         bootSteps.forEach { step ->
@@ -301,4 +291,19 @@ fun BootProgressBar(progress: Float, modifier: Modifier = Modifier) {
                 )
         )
     }
+}
+
+@Composable
+private fun bootSpin(): Float {
+    val transition = rememberInfiniteTransition(label = "rotation")
+    val angle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    return angle
 }

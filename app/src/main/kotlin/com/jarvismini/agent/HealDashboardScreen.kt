@@ -328,14 +328,9 @@ private fun HealInputSection(
 
 @Composable
 private fun HealStatusDot(online: Boolean, healing: Boolean) {
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val pulsed by pulse.animateFloat(
-        initialValue  = 0.4f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
-        label = "dotAlpha"
-    )
-    // decorative pulse is dropped under reduced motion / battery saver
-    val alpha = if (rememberMotionEnabled()) pulsed else 1f
+    // decorative pulse: composed only while visible and motion is allowed
+    val animate = rememberMotionEnabled() && online && healing
+    val alpha = if (animate) healDotPulseAlpha() else 1f
     val color = when {
         !online -> Red
         healing -> Magenta.copy(alpha = alpha)
@@ -353,4 +348,15 @@ private fun HealStatusDot(online: Boolean, healing: Boolean) {
             .clip(CircleShape)
             .background(color)
     )
+}
+
+@Composable
+private fun healDotPulseAlpha(): Float {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val alpha by pulse.animateFloat(
+        initialValue  = 0.4f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
+        label = "dotAlpha"
+    )
+    return alpha
 }
