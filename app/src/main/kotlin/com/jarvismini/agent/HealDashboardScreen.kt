@@ -319,7 +319,7 @@ private fun HealInputSection(
             Spacer(Modifier.height(6.dp))
             Text(
                 "⚠ Agent server offline — run start_jarvis_services.sh on Phone A",
-                color = Yellow, fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                color = Yellow, fontSize = 12.sp, fontFamily = FontFamily.Monospace
             )
         }
     }

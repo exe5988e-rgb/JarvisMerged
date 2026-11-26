@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -288,17 +292,24 @@ private fun FloatingTimerBar(
                     fontFamily = FontFamily.Monospace
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text      = "✕",
-                    fontSize  = 13.sp,
-                    color     = JRed.copy(alpha = 0.85f),
-                    fontFamily = FontFamily.Monospace,
-                    modifier  = Modifier.clickable(
-                        indication        = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick           = onClose
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clickable(
+                            role    = Role.Button,
+                            onClickLabel = "Close timer",
+                            onClick = onClose
+                        )
+                ) {
+                    Text(
+                        text      = "✕",
+                        fontSize  = 13.sp,
+                        color     = JRed,
+                        fontFamily = FontFamily.Monospace,
+                        modifier  = Modifier.semantics { contentDescription = "Close timer" }
                     )
-                )
+                }
             }
         }
 
