@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ private val COS_TILT = cos(TILT)
 private val SIN_TILT = sin(TILT)
 private const val TWO_PI = 6.2831855f
 private const val CLOCK_WRAP = 600f // divisible by every period used below (1.25 / 1.6 / 2.5 s)
+private const val IDLE_FRAME_S = 1f / 30f
 
 private class SphereMesh(
     val x: FloatArray,
@@ -168,15 +170,22 @@ fun PlexusSphere(
     var yaw by remember { mutableFloatStateOf(28f) }
     var clock by remember { mutableFloatStateOf(0f) }
 
+    val listeningNow by rememberUpdatedState(listening)
+
     LaunchedEffect(motionEnabled) {
         if (!motionEnabled) return@LaunchedEffect
         var last = 0L
+        var pending = 0f
         while (true) {
             withFrameNanos { now ->
                 if (last != 0L) {
-                    val dt = min((now - last) / 1_000_000_000f, 0.05f)
-                    yaw = (yaw + spin * dt) % 360f
-                    clock = (clock + dt) % CLOCK_WRAP
+                    pending += min((now - last) / 1_000_000_000f, 0.05f)
+                    // ~1000 draw ops per frame: idle orb redraws at ~30fps, full rate while listening.
+                    if (listeningNow || pending >= IDLE_FRAME_S) {
+                        yaw = (yaw + spin * pending) % 360f
+                        clock = (clock + pending) % CLOCK_WRAP
+                        pending = 0f
+                    }
                 }
                 last = now
             }
