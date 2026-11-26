@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +42,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.jarvismini.convo.ConvoNotifier
 import com.jarvismini.ui.components.*
 import com.jarvismini.ui.theme.JarvisBackground
@@ -81,8 +84,18 @@ fun EnhancedHomeScreen(
     var showMore      by remember { mutableStateOf(false) }
 
     // ── Real status (checked, not hardcoded) ─────────────────────────────────
-    val a11yOn      = remember { isJarvisAccessibilityOn(context) }
-    val convoAlerts = remember { ConvoNotifier.isEnabled(context) }
+    // Re-read on every resume: the user can change these in system Settings and come back.
+    var resumeCount by remember { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeCount++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val a11yOn      = remember(resumeCount) { isJarvisAccessibilityOn(context) }
+    val convoAlerts = remember(resumeCount) { ConvoNotifier.isEnabled(context) }
     val chips = listOf(
         StatusChipData("Voice",         if (isListening) "Listening" else "Ready", if (isListening) true else null),
         StatusChipData("Accessibility", if (a11yOn) "On" else "Off",               a11yOn),

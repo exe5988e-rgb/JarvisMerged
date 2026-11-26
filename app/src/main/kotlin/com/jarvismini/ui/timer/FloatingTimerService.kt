@@ -26,10 +26,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
@@ -39,6 +39,12 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.jarvismini.core.routine.TaskTimerManager
+import com.jarvismini.ui.theme.JarvisBlack
+import com.jarvismini.ui.theme.JarvisCyan
+import com.jarvismini.ui.theme.JarvisOffline
+import com.jarvismini.ui.theme.JarvisOnline
+import com.jarvismini.ui.theme.JarvisTextSecondary
+import com.jarvismini.ui.theme.rememberMotionEnabled
 
 /**
  * FloatingTimerService
@@ -214,11 +220,6 @@ class FloatingTimerService : Service(),
 
 // ── Thin bar Composable ──────────────────────────────────────────────────────
 
-private val JBlue  = Color(0xFF00E0FF)
-private val JGreen = Color(0xFF00FF00)
-private val JRed   = Color(0xFFFF4444)
-private val JBg    = Color(0xF0000D14)   // near-opaque dark teal-black
-
 @Composable
 private fun FloatingTimerBar(
     taskId: String,
@@ -228,27 +229,18 @@ private fun FloatingTimerBar(
 ) {
     val activeTimers by TaskTimerManager.activeTimers.collectAsState()
     val remaining    = activeTimers[taskId]?.remainingSeconds ?: totalSeconds
-    val progress     = 1f - (remaining.toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
+    val progress     = 1f - (remaining.toFloat() / totalSeconds.coerceAtLeast(1L)).coerceIn(0f, 1f)
     val isLowTime    = remaining < 120
 
-    // Pulse border color when low
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue  = 0.4f,
-        targetValue   = 1f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(700, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
+    // Pulse only while time is low and motion is allowed, so the overlay is otherwise idle.
+    val pulseAlpha = if (isLowTime && rememberMotionEnabled()) lowTimePulseAlpha() else 1f
 
-    val accentColor = if (isLowTime) JRed.copy(alpha = pulseAlpha) else JGreen
+    val accentColor = if (isLowTime) JarvisOffline.copy(alpha = pulseAlpha) else JarvisOnline
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(JBg)
+            .background(JarvisBlack.copy(alpha = 0.94f))
     ) {
         // ── Top row: icon / task name / time remaining / close ───────────
         Row(
@@ -259,7 +251,11 @@ private fun FloatingTimerBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             // Left: icon + task name
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // weight(1f): a long task name ellipsizes instead of pushing time/close off screen
+            Row(
+                modifier = Modifier.weight(1f).padding(end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text       = "⏱",
                     fontSize   = 12.sp,
@@ -268,10 +264,11 @@ private fun FloatingTimerBar(
                 Text(
                     text       = taskName.uppercase(),
                     fontSize   = 11.sp,
-                    color      = JBlue,
+                    color      = JarvisCyan,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    maxLines   = 1
+                    maxLines   = 1,
+                    overflow   = TextOverflow.Ellipsis
                 )
             }
 
@@ -286,9 +283,10 @@ private fun FloatingTimerBar(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text       = "remaining",
-                    fontSize   = 9.sp,
-                    color      = JBlue.copy(alpha = 0.6f),
+                    // the word changes too, so low time is not signalled by colour alone
+                    text       = if (isLowTime) "LOW TIME" else "remaining",
+                    fontSize   = 11.sp,
+                    color      = if (isLowTime) JarvisOffline else JarvisTextSecondary,
                     fontFamily = FontFamily.Monospace
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -305,7 +303,7 @@ private fun FloatingTimerBar(
                     Text(
                         text      = "✕",
                         fontSize  = 13.sp,
-                        color     = JRed,
+                        color     = JarvisOffline,
                         fontFamily = FontFamily.Monospace,
                         modifier  = Modifier.semantics { contentDescription = "Close timer" }
                     )
@@ -321,9 +319,24 @@ private fun FloatingTimerBar(
                 .height(3.dp)
                 .clip(RoundedCornerShape(0.dp)),
             color      = accentColor,
-            trackColor = JBlue.copy(alpha = 0.12f)
+            trackColor = JarvisCyan.copy(alpha = 0.12f)
         )
     }
+}
+
+@Composable
+private fun lowTimePulseAlpha(): Float {
+    val transition = rememberInfiniteTransition(label = "lowTime")
+    val alpha by transition.animateFloat(
+        initialValue  = 0.85f,   // floor keeps the red time text at or above 4.5:1
+        targetValue   = 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(700, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "lowTimeAlpha"
+    )
+    return alpha
 }
 
 /** Format seconds as "MM:SS" or "H:MM:SS" */
